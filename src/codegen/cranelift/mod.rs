@@ -1,8 +1,10 @@
 pub mod backend;
 pub mod clif;
+pub mod delta_cache;
 pub mod dwarf;
 pub mod jit;
 pub mod near_memory;
+pub mod tiering;
 
 use crate::ast::Program;
 use crate::codegen::CodegenBackend;
@@ -15,7 +17,9 @@ pub use self::backend::RealCraneliftBackend;
 pub use self::backend::hot_reload::JitTrampolineTable;
 pub use self::backend::opts::JitCompilationTier;
 pub use self::clif::{ClifEmitter, FunctionCodegenInspection, ModuleCodegenInspection};
+pub use self::delta_cache::{DifferentialAstCache, ModuleDelta};
 pub use self::jit::JitSession;
+pub use self::tiering::{FunctionTier, TieredJitController, TieringThresholds};
 
 #[derive(Clone)]
 pub struct CraneliftBackend {
