@@ -285,7 +285,14 @@ fn test_matmul_naive_datara_vs_naive_c_speedup() {
         N, N, median_c, median_datara, speedup
     );
 
-    let min_speedup = if option_env!("ASAN_OPTIONS").is_some() || cfg!(debug_assertions) {
+    let is_asan = std::env::var("ASAN_OPTIONS").is_ok()
+        || option_env!("ASAN_OPTIONS").is_some()
+        || std::env::var("RUSTFLAGS")
+            .map(|f| f.contains("sanitizer"))
+            .unwrap_or(false);
+    let min_speedup = if is_asan {
+        0.30
+    } else if cfg!(debug_assertions) {
         0.50
     } else {
         1.10
