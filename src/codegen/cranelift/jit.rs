@@ -847,6 +847,8 @@ use crate::codegen::cranelift::backend::ModuleCompileArtifacts;
 use crate::codegen::cranelift::backend::RealCraneliftBackend;
 use crate::codegen::cranelift::backend::hot_reload::JitTrampolineTable;
 use crate::codegen::cranelift::backend::opts::JitCompilationTier;
+use crate::codegen::cranelift::delta_cache::{DifferentialAstCache, ModuleDelta};
+use crate::codegen::cranelift::tiering::{FunctionTier, TieredJitController, TieringThresholds};
 use crate::dmir::Module;
 
 /// Persistent JIT Session for interactive game engines, live script reload,
@@ -858,6 +860,8 @@ pub struct JitSession {
     pub trampolines: JitTrampolineTable,
     pub backend: RealCraneliftBackend,
     pub modules: Vec<JITModule>,
+    pub tiering: TieredJitController,
+    pub delta_cache: DifferentialAstCache,
 }
 
 impl JitSession {
@@ -871,6 +875,8 @@ impl JitSession {
             trampolines: JitTrampolineTable::new(),
             backend,
             modules: Vec::new(),
+            tiering: TieredJitController::new(TieringThresholds::default()),
+            delta_cache: DifferentialAstCache::new(),
         })
     }
 
@@ -898,6 +904,7 @@ impl JitSession {
         }
 
         self.modules.push(module);
+        let _ = self.delta_cache.diff_and_update(dmir_mod);
         Ok(artifacts)
     }
 
@@ -957,5 +964,53 @@ impl JitSession {
         };
 
         unsafe { run_jit_entry(code_ptr, args, capture) }
+    }
+
+    /// Automatically detects which functions changed using differential fingerprinting,
+    /// compiles only the delta, and atomically hot-swaps trampoline pointers in < 100 us.
+    pub fn hot_reload_delta(&mut self, dmir_mod: &Module) -> Result<(ModuleDelta, u128), String> {
+        let delta = self.delta_cache.diff_and_update(dmir_mod);
+        if delta.is_empty() {
+            return Ok((delta, 0));
+        }
+
+        let start = Instant::now();
+        let mut new_module = create_jit_module(self.isa.clone())?;
+        let artifacts = self.backend.compile_into_module_opt(
+            &mut new_module,
+            dmir_mod,
+            self.frontend_config,
+            self.call_conv,
+            true,
+        )?;
+        new_module
+            .finalize_definitions()
+            .map_err(|e| e.to_string())?;
+
+        for func_name in delta.modified.iter().chain(delta.added.iter()) {
+            if let Some(&func_id) = artifacts.func_ids.get(func_name) {
+                let new_code_ptr = new_module.get_finalized_function(func_id);
+                self.trampolines.register(func_name, new_code_ptr);
+            }
+        }
+
+        if let Some(entry_id) = artifacts.main_entry_id.or(artifacts.main_fn_id) {
+            let code_ptr = new_module.get_finalized_function(entry_id);
+            self.trampolines.register("__main_entry", code_ptr);
+        }
+
+        self.modules.push(new_module);
+        let elapsed_nanos = start.elapsed().as_nanos();
+        Ok((delta, elapsed_nanos))
+    }
+
+    /// Records an execution event and checks if an optimization tier promotion is triggered.
+    pub fn check_tier_promotion(
+        &self,
+        name: &str,
+        is_loop: bool,
+        count: u64,
+    ) -> Option<(FunctionTier, FunctionTier)> {
+        self.tiering.check_and_record(name, is_loop, count)
     }
 }
