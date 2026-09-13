@@ -1,5 +1,7 @@
+pub mod alias_analysis;
 pub(crate) mod attributes;
 pub(crate) mod emit_inst;
+pub mod prefetch;
 pub(crate) mod simd;
 
 use crate::ast::Program;
