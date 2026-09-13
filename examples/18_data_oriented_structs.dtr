@@ -1,0 +1,52 @@
+// Datara Example 18: Post-OOP Data-Oriented Design (DOD)
+// Shows how flat contiguous structs avoid heap fragmentation and object-header overhead,
+// with behaviors defining pure, decoupled logic.
+
+struct Particle {
+    pos_x: Float
+    pos_y: Float
+    vel_x: Float
+    vel_y: Float
+    mass: Float
+}
+
+behavior Particle {
+    predict_x(delta_time: Float) -> Float {
+        return this.pos_x + this.vel_x * delta_time
+    }
+
+    predict_y(delta_time: Float) -> Float {
+        return this.pos_y + this.vel_y * delta_time
+    }
+
+    kinetic_energy() -> Float {
+        let speed_sq = this.vel_x * this.vel_x + this.vel_y * this.vel_y
+        return 0.5 * this.mass * speed_sq
+    }
+}
+
+fn main() {
+    println("==========================================================")
+    println("  DATARA v1.3.0: DATA-ORIENTED DESIGN (DOD) DEMO          ")
+    println("==========================================================")
+
+    let p = Particle {
+        pos_x: 100.0,
+        pos_y: 200.0,
+        vel_x: 15.0,
+        vel_y: -8.0,
+        mass: 2.5
+    }
+
+    let dt = 2.0
+    let next_x = p.predict_x(dt)
+    let next_y = p.predict_y(dt)
+    let ke = p.kinetic_energy()
+
+    println(fmt"Particle mass:         {p.mass} kg")
+    println(fmt"Position at t=0:       ({p.pos_x}, {p.pos_y})")
+    println(fmt"Projected at t={dt}:      ({next_x}, {next_y})")
+    println(fmt"Kinetic energy:        {ke} J")
+    println("==========================================================")
+    println("DOD structs guarantee cache-line locality with zero vtable cost.")
+}

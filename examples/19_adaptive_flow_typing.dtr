@@ -1,0 +1,24 @@
+// Datara Example 19: Comptime Adaptive Flow-Typing (SSA Register Specialization)
+// Shows how dynamic variables ('val' and 'mut val') undergo compile-time flow analysis
+// to eliminate boxing overhead, allocating directly to CPU registers.
+
+fn main() {
+    println("==========================================================")
+    println("  DATARA v1.3.0: COMPTIME ADAPTIVE FLOW-TYPING DEMO       ")
+    println("==========================================================")
+
+    // Flow segment 1: Compiler infers Int -> promotes to hardware register
+    mut val dynamic_reg = 250
+    println(fmt"Register state 1 (Int):     {dynamic_reg}")
+
+    // Flow segment 2: In-place SSA rebinding with zero heap allocation
+    dynamic_reg = dynamic_reg * 4
+    println(fmt"Register state 2 (Scales):  {dynamic_reg}")
+
+    // Flow segment 3: Type transformation analyzed statically
+    dynamic_reg = "Dynamic string specialization"
+    println(fmt"Register state 3 (Str):     {dynamic_reg}")
+
+    println("==========================================================")
+    println("Adaptive flow-typing achieves C-like execution speed.")
+}

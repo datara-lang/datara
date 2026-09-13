@@ -1,10 +1,16 @@
-class User {
+// Datara Example 02: Struct and Behavior
+// Shows data structure declaration and behavior invocation.
+
+struct User {
     name: Str
     age: Int
-    greet() -> Str => fmt"Hello {name}"
+}
+
+behavior User {
+    greet() -> Str => fmt"Hello {this.name}, age {this.age}"
 }
 
 fn main() {
     let user = User { name: "Alex", age: 20 }
-    out user.greet()
+    println(user.greet())
 }

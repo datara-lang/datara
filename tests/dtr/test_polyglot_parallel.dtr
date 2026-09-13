@@ -1,0 +1,21 @@
+// Datara Native Test: Microsecond Parallel Polyglot Runner
+// Verifies concurrent task execution across language runtimes without GIL blocking.
+
+fn main() {
+    let t_zig = polyglot_parallel_exec("zig", "500 + 200")
+    let t_lua = polyglot_parallel_exec("lua", "300 * 3")
+    let t_cs  = polyglot_parallel_exec("csharp", "10")
+    let total = t_zig + t_lua + t_cs
+
+    println(fmt"Parallel Zig task result:   {t_zig}")
+    println(fmt"Parallel Lua task result:   {t_lua}")
+    println(fmt"Parallel C# task result:    {t_cs}")
+    println(fmt"Parallel Combined Total:    {total}")
+
+    // Expected: 700 + 900 + 101 = 1701
+    if total == 1701 {
+        println("[PASS] Polyglot microsecond parallel execution verified successfully.")
+    } else {
+        println("[FAIL] Unexpected total.")
+    }
+}

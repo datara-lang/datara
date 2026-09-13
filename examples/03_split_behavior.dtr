@@ -1,13 +1,22 @@
-class User {
-    name: Str
-    age: Int
+// Datara Example 03: Separate Behavior Declaration
+// Demonstrates decoupling data definitions (struct) from implementations (behavior).
+
+struct Account {
+    username: Str
+    balance: Int
 }
 
-behavior User {
-    greet() -> Str => fmt"Hello {name} ({age})"
+behavior Account {
+    deposit(amount: Int) -> Int {
+        return this.balance + amount
+    }
+
+    display() -> Str => fmt"Account '{this.username}' | Balance: {this.balance}"
 }
 
 fn main() {
-    let user = User { name: "Maria", age: 25 }
-    out user.greet()
+    let acc = Account { username: "Maria", balance: 500 }
+    println(acc.display())
+    let new_balance = acc.deposit(250)
+    println(fmt"Projected balance after deposit: {new_balance}")
 }

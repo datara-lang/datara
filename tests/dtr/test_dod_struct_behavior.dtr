@@ -1,0 +1,43 @@
+// Datara Native Test: Data-Oriented Design (DOD) Struct & Behavior
+// Verifies contiguous layout without object-header/vtable overhead.
+
+struct RayHit {
+    origin_x: Float
+    origin_y: Float
+    dir_x: Float
+    dir_y: Float
+    distance: Float
+}
+
+behavior RayHit {
+    compute_target_x() -> Float {
+        return this.origin_x + this.dir_x * this.distance
+    }
+
+    compute_target_y() -> Float {
+        return this.origin_y + this.dir_y * this.distance
+    }
+}
+
+fn main() {
+    let hit = RayHit {
+        origin_x: 10.0,
+        origin_y: 20.0,
+        dir_x: 0.8,
+        dir_y: 0.6,
+        distance: 100.0
+    }
+
+    let tx = hit.compute_target_x()
+    let ty = hit.compute_target_y()
+
+    println(fmt"Target X: {tx}")
+    println(fmt"Target Y: {ty}")
+
+    // Expected: 10 + 80 = 90, 20 + 60 = 80
+    if tx > 89.9 && tx < 90.1 && ty > 79.9 && ty < 80.1 {
+        println("[PASS] DOD struct and behavior flat layout execution verified successfully.")
+    } else {
+        println("[FAIL] Unexpected coordinates.")
+    }
+}

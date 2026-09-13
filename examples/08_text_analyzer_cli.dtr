@@ -2,28 +2,36 @@
 // CLI-УТИЛИТА 1: Анализатор текста и метрик читаемости (Text Analysis Engine)
 // ============================================================================
 
-class TextMetrics {
+struct TextMetrics {
     total_chars: Int
     letter_chars: Int
     word_count: Int
     sentence_count: Int
     vowel_count: Int
     consonant_count: Int
+}
 
+behavior TextMetrics {
     avg_word_length() -> Float {
-        if word_count == 0 { return 0.0 }
-        return (letter_chars * 1.0) / (word_count * 1.0)
+        if this.word_count == 0 { return 0.0 }
+        let denom = this.word_count * 1.0
+        require denom != 0.0
+        return (this.letter_chars * 1.0) / denom
     }
 
     avg_sentence_length() -> Float {
-        if sentence_count == 0 { return 0.0 }
-        return (word_count * 1.0) / (sentence_count * 1.0)
+        if this.sentence_count == 0 { return 0.0 }
+        let denom = this.sentence_count * 1.0
+        require denom != 0.0
+        return (this.word_count * 1.0) / denom
     }
 
     readability_index() -> Float {
-        if word_count == 0 { return 0.0 }
-        let l = ((letter_chars * 1.0) / (word_count * 1.0)) * 100.0
-        let s = ((sentence_count * 1.0) / (word_count * 1.0)) * 100.0
+        if this.word_count == 0 { return 0.0 }
+        let denom = this.word_count * 1.0
+        require denom != 0.0
+        let l = ((this.letter_chars * 1.0) / denom) * 100.0
+        let s = ((this.sentence_count * 1.0) / denom) * 100.0
         return (0.0588 * l) - (0.296 * s) - 15.8
     }
 

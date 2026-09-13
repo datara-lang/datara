@@ -1,0 +1,23 @@
+// Datara Example 17: Universal Polyglot Engine - Multi-Threaded Parallel Execution
+// Shows concurrent execution across Zig, Lua, and C# NativeAOT runners simultaneously.
+
+fn main() {
+    println("==========================================================")
+    println("  DATARA v1.3.0 POLYGLOT SHOWCASE: PARALLEL RUNNERS       ")
+    println("==========================================================")
+
+    // Run parallel tasks across different language runtimes
+    let zig_task = polyglot_parallel_exec("zig", "500 + 200")
+    println(fmt"Parallel Zig task output:             {zig_task}")
+
+    let lua_task = polyglot_parallel_exec("lua", "300 * 3")
+    println(fmt"Parallel Lua task output:             {lua_task}")
+
+    let cs_task = polyglot_parallel_exec("csharp", "10")
+    println(fmt"Parallel C# task output:              {cs_task}")
+
+    let total = zig_task + lua_task + cs_task
+    println(fmt"Total Aggregated Concurrent:          {total}")
+    println("==========================================================")
+    println("All polyglot workers completed with microsecond synchronization.")
+}

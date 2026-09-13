@@ -1,0 +1,24 @@
+// Datara Example 16: Universal Polyglot Engine - Python Zero-Copy Integration
+// Shows bridging Python (NumPy, SciPy, PyTorch) with zero memory overhead.
+
+use python.math as pymath
+
+fn main() {
+    println("==========================================================")
+    println("  DATARA v1.3.0 POLYGLOT SHOWCASE: PYTHON & DATA SCIENCE  ")
+    println("==========================================================")
+
+    let py = Py { version: "3.x" }
+
+    // Execute Python script in shared runtime
+    py.exec("import math\nradius = 7.0\narea = math.pi * (radius ** 2)\nfactor = 100 * 5")
+
+    let factor = py.eval_int("factor")
+    println(fmt"Python integer calculation ('factor'): {factor.value}")
+
+    let area = py.eval_float("area")
+    println(fmt"Python float calculation ('area'):     {area.value}")
+
+    println("==========================================================")
+    println("Python interoperability executed with shared runtime memory.")
+}

@@ -3,7 +3,7 @@
 // Демонстрирует: хеширование, проверку целостности, поиск Nonce и классы
 // ============================================================================
 
-class CryptoBlock {
+struct CryptoBlock {
     index: Int
     nonce: Int
     hash: Int
@@ -14,6 +14,7 @@ fn compute_block_hash(prev_hash: Int, data: Int, nonce: Int) -> Int {
     let a = 1103515245
     let c = 12345
     let m = 2147483647
+    require m != 0
     let mixed = (prev_hash * 31) + data + (nonce * 17)
     return ((mixed * a) + c) % m
 }

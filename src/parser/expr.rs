@@ -876,28 +876,12 @@ impl<'a> Parser<'a> {
 
     #[inline(never)]
     pub(crate) fn parse_paren_expr(&mut self, start_span: SourceSpan) -> Option<Expr> {
-        // Collect consecutive open parentheses to parse deeply nested expressions iteratively
-        let mut extra_parens = 0;
-        while self.match_token(&TokenType::LParen) {
-            extra_parens += 1;
-        }
-
-        if self.depth + extra_parens > MAX_PARSE_DEPTH {
+        if self.depth > MAX_PARSE_DEPTH {
             self.error_depth_limit("Expression");
             return None;
         }
-        self.depth += extra_parens;
+        self.depth += 1;
 
-        let result = self.parse_paren_expr_inner(start_span, extra_parens);
-        self.depth -= extra_parens;
-        result
-    }
-
-    pub(crate) fn parse_paren_expr_inner(
-        &mut self,
-        start_span: SourceSpan,
-        mut remaining_parens: usize,
-    ) -> Option<Expr> {
         if self.match_token(&TokenType::RParen) {
             if self.match_token(&TokenType::FatArrow) {
                 let body = Box::new(self.parse_expression()?);
@@ -908,22 +892,15 @@ impl<'a> Parser<'a> {
                     body.span().end_col,
                     self.file.clone(),
                 );
-                let expr = Expr::Lambda {
+                self.depth -= 1;
+                return Some(Expr::Lambda {
                     params: Vec::new(),
                     body,
                     span,
-                };
-                while remaining_parens > 0 {
-                    self.consume(&TokenType::RParen, "Expected ')'")?;
-                    remaining_parens -= 1;
-                }
-                return Some(expr);
+                });
             }
             let expr = Expr::Literal(LiteralValue::None, start_span);
-            while remaining_parens > 0 {
-                self.consume(&TokenType::RParen, "Expected ')'")?;
-                remaining_parens -= 1;
-            }
+            self.depth -= 1;
             return Some(expr);
         }
 
@@ -960,12 +937,8 @@ impl<'a> Parser<'a> {
                     body.span().end_col,
                     self.file.clone(),
                 );
-                let expr = Expr::Lambda { params, body, span };
-                while remaining_parens > 0 {
-                    self.consume(&TokenType::RParen, "Expected ')'")?;
-                    remaining_parens -= 1;
-                }
-                return Some(expr);
+                self.depth -= 1;
+                return Some(Expr::Lambda { params, body, span });
             }
             let expr = Expr::Tuple(
                 exprs,
@@ -977,10 +950,7 @@ impl<'a> Parser<'a> {
                     self.file.clone(),
                 ),
             );
-            while remaining_parens > 0 {
-                self.consume(&TokenType::RParen, "Expected ')'")?;
-                remaining_parens -= 1;
-            }
+            self.depth -= 1;
             return Some(expr);
         }
 
@@ -1006,20 +976,12 @@ impl<'a> Parser<'a> {
                 body.span().end_col,
                 self.file.clone(),
             );
-            let expr = Expr::Lambda { params, body, span };
-            while remaining_parens > 0 {
-                self.consume(&TokenType::RParen, "Expected ')'")?;
-                remaining_parens -= 1;
-            }
-            return Some(expr);
+            self.depth -= 1;
+            return Some(Expr::Lambda { params, body, span });
         }
 
-        let expr = first;
-        while remaining_parens > 0 {
-            self.consume(&TokenType::RParen, "Expected ')'")?;
-            remaining_parens -= 1;
-        }
-        Some(expr)
+        self.depth -= 1;
+        Some(first)
     }
 
     pub(crate) fn parse_pattern(&mut self) -> Option<Pattern> {

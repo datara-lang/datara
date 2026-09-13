@@ -1,0 +1,20 @@
+// Datara Example 14: Universal Polyglot Engine - C# .NET NativeAOT Integration
+// Demonstrates in-process C# NativeAOT invocation without CLR startup overhead.
+
+fn main() {
+    println("==========================================================")
+    println("  DATARA v1.3.0 POLYGLOT SHOWCASE: C# / .NET NATIVEAOT    ")
+    println("==========================================================")
+
+    // Invocations map directly to exported unmanaged symbols from NativeAOT assemblies
+    let val_a = csharp_invoke_i64("MathLib", "SquareAndInc", 12)
+    println(fmt"C# NativeAOT 'SquareAndInc'(12):      {val_a}")
+
+    let val_b = csharp_invoke_i64("MathLib", "SquareAndInc", 20)
+    println(fmt"C# NativeAOT 'SquareAndInc'(20):      {val_b}")
+
+    let combined = val_a + val_b
+    println(fmt"Total Aggregated Result:              {combined}")
+    println("==========================================================")
+    println(".NET NativeAOT code executed directly within Datara address space.")
+}

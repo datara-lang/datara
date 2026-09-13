@@ -21,29 +21,26 @@
 
 int64_t datara_zig_eval_int(const char* code) {
     if (!code) return 0;
-    // Fast arithmetic evaluator for instant comptime Zig expressions
     const char* p = code;
     while (*p == ' ' || *p == '\t' || *p == '\n') p++;
-    int64_t left = strtoll(p, (char**)&p, 10);
-    while (*p == ' ' || *p == '\t') p++;
-    if (*p == '+') {
-        p++;
-        int64_t right = strtoll(p, NULL, 10);
-        return left + right;
-    } else if (*p == '-') {
-        p++;
-        int64_t right = strtoll(p, NULL, 10);
-        return left - right;
-    } else if (*p == '*') {
-        p++;
-        int64_t right = strtoll(p, NULL, 10);
-        return left * right;
-    } else if (*p == '/') {
-        p++;
-        int64_t right = strtoll(p, NULL, 10);
-        if (right != 0) return left / right;
+    int64_t total = strtoll(p, (char**)&p, 10);
+    while (*p) {
+        while (*p == ' ' || *p == '\t' || *p == '\n') p++;
+        if (!*p) break;
+        char op = *p++;
+        while (*p == ' ' || *p == '\t' || *p == '\n') p++;
+        int64_t next_val = strtoll(p, (char**)&p, 10);
+        if (op == '+') total += next_val;
+        else if (op == '-') total -= next_val;
+        else if (op == '*') total *= next_val;
+        else if (op == '/') { if (next_val != 0) total /= next_val; }
+        else if (op == '^') {
+            int64_t res = 1;
+            for (int64_t i = 0; i < next_val; i++) res *= total;
+            total = res;
+        }
     }
-    return left;
+    return total;
 }
 
 int64_t datara_zig_call(const char* symbol, int64_t arg) {
@@ -135,26 +132,24 @@ int64_t datara_lua_eval_int(const char* code) {
     if (!code) return 0;
     const char* p = code;
     while (*p == ' ' || *p == '\t' || *p == '\n') p++;
-    int64_t left = strtoll(p, (char**)&p, 10);
-    while (*p == ' ' || *p == '\t') p++;
-    if (*p == '+') {
-        p++;
-        int64_t right = strtoll(p, NULL, 10);
-        return left + right;
-    } else if (*p == '-') {
-        p++;
-        int64_t right = strtoll(p, NULL, 10);
-        return left - right;
-    } else if (*p == '*') {
-        p++;
-        int64_t right = strtoll(p, NULL, 10);
-        return left * right;
-    } else if (*p == '/') {
-        p++;
-        int64_t right = strtoll(p, NULL, 10);
-        if (right != 0) return left / right;
+    int64_t total = strtoll(p, (char**)&p, 10);
+    while (*p) {
+        while (*p == ' ' || *p == '\t' || *p == '\n') p++;
+        if (!*p) break;
+        char op = *p++;
+        while (*p == ' ' || *p == '\t' || *p == '\n') p++;
+        int64_t next_val = strtoll(p, (char**)&p, 10);
+        if (op == '+') total += next_val;
+        else if (op == '-') total -= next_val;
+        else if (op == '*') total *= next_val;
+        else if (op == '/') { if (next_val != 0) total /= next_val; }
+        else if (op == '^') {
+            int64_t res = 1;
+            for (int64_t i = 0; i < next_val; i++) res *= total;
+            total = res;
+        }
     }
-    return left;
+    return total;
 }
 
 double datara_lua_eval_float(const char* code) {
@@ -207,6 +202,9 @@ static DWORD WINAPI polyglot_worker_th(LPVOID arg) {
             task->result = datara_zig_eval_int(task->code);
         } else if (strcmp(task->engine, "lua") == 0) {
             task->result = datara_lua_eval_int(task->code);
+        } else if (strcmp(task->engine, "csharp") == 0 || strcmp(task->engine, "cs") == 0 || strcmp(task->engine, "dotnet") == 0) {
+            int64_t val = strtoll(task->code, NULL, 10);
+            task->result = datara_csharp_invoke_i64("", "Kernel", val);
         } else {
             task->result = 1;
         }
@@ -231,5 +229,9 @@ int64_t datara_polyglot_parallel_exec(const char* engine_type, const char* code)
 #endif
     if (strcmp(engine_type, "zig") == 0) return datara_zig_eval_int(code);
     if (strcmp(engine_type, "lua") == 0) return datara_lua_eval_int(code);
+    if (strcmp(engine_type, "csharp") == 0 || strcmp(engine_type, "cs") == 0 || strcmp(engine_type, "dotnet") == 0) {
+        int64_t val = strtoll(code, NULL, 10);
+        return datara_csharp_invoke_i64("", "Kernel", val);
+    }
     return 1;
 }

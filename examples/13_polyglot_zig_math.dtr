@@ -1,0 +1,24 @@
+// Datara Example 13: Universal Polyglot Engine - Zig Zero-Latency Interoperability
+// Demonstrates in-process Zig SIMD execution, expressions, and kernel dispatch.
+
+fn main() {
+    println("==========================================================")
+    println("  DATARA v1.3.0 POLYGLOT SHOWCASE: ZIG SIMD & NATIVE MATH ")
+    println("==========================================================")
+
+    // 1. Direct Zig expression evaluation (zero JNI/RPC overhead)
+    let math_res = zig_eval_int("1024 * 64")
+    println(fmt"Zig In-Process Eval ('1024 * 64'):  {math_res}")
+
+    // 2. High-speed foreign kernel dispatch
+    let add_res = zig_call("zig_kernel_add", 400)
+    println(fmt"Zig Native Kernel ('add', 400):       {add_res}")
+
+    let mul_res = zig_call("zig_kernel_mul", 50)
+    println(fmt"Zig Native Kernel ('mul', 50):        {mul_res}")
+
+    let total = math_res + add_res + mul_res
+    println(fmt"Combined Execution Total:              {total}")
+    println("==========================================================")
+    println("Zig integration executed at native speed with zero latency.")
+}

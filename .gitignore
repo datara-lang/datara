@@ -22,6 +22,7 @@ examples/*.wat
 .forgen_cache/
 **/.forgen_cache/
 tmp_verify/
+dashboard.html
 
 # Scratch sources kept at the repo root by ad-hoc debug runs.
 /for_test.dtr

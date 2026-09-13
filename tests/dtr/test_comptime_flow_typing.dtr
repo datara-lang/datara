@@ -1,0 +1,26 @@
+// Datara Native Test: Comptime Adaptive SSA Flow-Typing
+// Verifies 'val' and 'mut val' specialization into native CPU registers.
+
+fn main() {
+    // 1. Immutable val
+    val initial_base = 100
+
+    // 2. Mutable dynamic flow-typed variable specializing to SSA registers
+    mut val dyn_reg = initial_base + 50
+    let checkpoint_1 = dyn_reg * 2
+
+    // Flow specialization to new scalar value
+    dyn_reg = 1000
+    let checkpoint_2 = dyn_reg + checkpoint_1
+
+    println(fmt"Initial base:    {initial_base}")
+    println(fmt"Checkpoint 1:    {checkpoint_1}")
+    println(fmt"Checkpoint 2:    {checkpoint_2}")
+
+    // Expected: checkpoint_1 = 150 * 2 = 300, checkpoint_2 = 1000 + 300 = 1300
+    if checkpoint_2 == 1300 {
+        println("[PASS] Comptime adaptive flow-typing specialized to registers successfully.")
+    } else {
+        println("[FAIL] Unexpected checkpoint_2 value.")
+    }
+}

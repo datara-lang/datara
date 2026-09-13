@@ -1,9 +1,18 @@
-class Counter {
+// Datara Example 03 (Post-OOP): Struct + Behavior Pattern
+// Demonstrates canonical post-OOP data modeling:
+// Contiguous flat data structs without hidden vtables or reference overhead,
+// coupled with decoupled behavior blocks.
+
+struct Counter {
     val: Int
-    fn get_val() -> Int {
+}
+
+behavior Counter {
+    get_val() -> Int {
         return this.val
     }
-    fn increment(step: Int) -> Int {
+
+    increment(step: Int) -> Int {
         return this.val + step
     }
 }
