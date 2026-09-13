@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 pub mod adaptive;
+pub mod cache_tiling;
 pub mod const_fold;
 pub mod cost_model;
 pub mod dce;
@@ -14,6 +15,7 @@ pub mod loops;
 pub mod mem2reg;
 pub mod memory;
 pub mod pipeline_fusion;
+pub mod polyhedral;
 pub mod recursion;
 pub mod scalar;
 pub mod sra;
@@ -399,6 +401,14 @@ impl Optimizer {
                 changed = true;
             }
             if PipelineFusionOptimizer::fuse_pipelines(f, &self.cost_model, &mut self.trace) > 0 {
+                changed = true;
+            }
+            if polyhedral::PolyhedralOptimizer::optimize(f, &self.cost_model, &mut self.trace) > 0 {
+                changed = true;
+            }
+            if cache_tiling::CacheTilingOptimizer::tile_loops(f, &self.cost_model, &mut self.trace)
+                > 0
+            {
                 changed = true;
             }
             if self.constant_fold(f) {
