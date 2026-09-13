@@ -78,8 +78,11 @@ pub(crate) fn cmd_run(command: &str, args: &[String]) -> bool {
         }
     };
 
+    let is_domain = command == "domain" || args.iter().any(|a| a == "--domain");
     let mode = if command == "quick" || command == "start" {
         "quick"
+    } else if is_domain {
+        "domain"
     } else {
         "release"
     };
@@ -135,12 +138,16 @@ pub(crate) fn cmd_run(command: &str, args: &[String]) -> bool {
                 .map(|a| PathBuf::from(a.strip_prefix("--pgo-use=").unwrap()))
         })
         .or_else(|| {
-            if args.iter().any(|a| a == "--pgo-use") {
+            if args.iter().any(|a| a == "--pgo-use" || a == "--pgo") {
                 let candidate = layout.root.join("app.profdata");
                 if candidate.exists() {
                     Some(candidate)
                 } else {
-                    None
+                    let c2 = layout
+                        .root
+                        .join(".forgen_profile")
+                        .join(format!("{}.json", layout.binary_name()));
+                    if c2.exists() { Some(c2) } else { None }
                 }
             } else {
                 None
@@ -816,10 +823,28 @@ pub(crate) fn cmd_build(command: &str, args: &[String]) -> bool {
     true
 }
 
-/// `forgen domain` — whole-program specialization report.
+/// `forgen domain` — whole-program specialization report and specialized build/run execution.
 pub(crate) fn cmd_domain(args: &[String]) -> bool {
+    // Subcommand dispatch: `forgen domain build ...` or `forgen domain run ...`
+    if args.len() > 2 {
+        if args[2] == "build" {
+            let mut sub_args = vec![args[0].clone(), "build".to_string(), "--domain".to_string()];
+            sub_args.extend_from_slice(&args[3..]);
+            return cmd_build("domain", &sub_args);
+        } else if args[2] == "run" {
+            let mut sub_args = vec![args[0].clone(), "run".to_string(), "--domain".to_string()];
+            sub_args.extend_from_slice(&args[3..]);
+            return cmd_run("domain", &sub_args);
+        }
+    }
+
     let is_llvm = args.iter().any(|a| a == "--llvm");
-    let compiler = ForgenCompiler::new("domain").with_llvm(is_llvm);
+    let is_native = args
+        .iter()
+        .any(|a| a == "--native" || a == "--tune=native" || a.starts_with("--tune="));
+    let compiler = ForgenCompiler::new("domain")
+        .with_llvm(is_llvm)
+        .with_native(is_native);
 
     let mut pgo_profile = None;
     let mut filter_args: Vec<String> = Vec::new();
@@ -828,7 +853,7 @@ pub(crate) fn cmd_domain(args: &[String]) -> bool {
         if args[i] == "--pgo" && i + 1 < args.len() {
             pgo_profile = Some(PathBuf::from(&args[i + 1]));
             i += 2;
-        } else if args[i] == "--json" || args[i] == "--llvm" {
+        } else if args[i] == "--json" || args[i] == "--llvm" || args[i] == "--native" {
             i += 1;
         } else {
             filter_args.push(args[i].clone());
@@ -844,6 +869,21 @@ pub(crate) fn cmd_domain(args: &[String]) -> bool {
             std::process::exit(1);
         }
     };
+
+    if pgo_profile.is_none() {
+        let c1 = layout.root.join("app.profdata");
+        if c1.exists() {
+            pgo_profile = Some(c1);
+        } else {
+            let c2 = layout
+                .root
+                .join(".forgen_profile")
+                .join(format!("{}.json", layout.binary_name()));
+            if c2.exists() {
+                pgo_profile = Some(c2);
+            }
+        }
+    }
 
     let compiler = compiler.with_pgo(pgo_profile.clone());
     let res = if layout.source_files.len() == 1 {

@@ -83,6 +83,11 @@ impl ForgenCompiler {
     }
 
     pub fn with_native(mut self, native: bool) -> Self {
+        if native {
+            let native_target = crate::codegen::target::TargetInfo::native();
+            self.cranelift = CraneliftBackend::new(native_target);
+            self.codegen = self.cranelift.clone();
+        }
         self.native = native;
         self
     }

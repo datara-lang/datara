@@ -70,6 +70,8 @@ pub fn get_embedded_stdlib_source(module_path: &str) -> Option<&'static str> {
         "simd.simd" => Some(include_str!("../stdlib/simd/simd.dtr")),
         "simd.mod" => Some(include_str!("../stdlib/simd/mod.dtr")),
         "std.simd" => Some(include_str!("../stdlib/simd/simd.dtr")),
+        "optimizer.optimize" => Some(include_str!("../stdlib/optimizer/optimize.dtr")),
+        "optimizer" => Some(include_str!("../stdlib/optimizer/optimize.dtr")),
         _ => None,
     }
 }
@@ -137,4 +139,6 @@ pub const ALL_EMBEDDED_MODULES: &[&str] = &[
     "simd.simd",
     "simd.mod",
     "std.simd",
+    "optimizer.optimize",
+    "optimizer",
 ];

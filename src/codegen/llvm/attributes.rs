@@ -142,6 +142,13 @@ pub fn is_cold_block(func: &Function, block_id: BasicBlockId) -> bool {
     if let Terminator::Unreachable = blk.terminator {
         return true;
     }
+    if blk.label.starts_with("prop_err")
+        || blk.label.contains("cold")
+        || blk.label.contains("abort")
+        || blk.label.contains("panic")
+    {
+        return true;
+    }
     for inst in &blk.instructions {
         match inst {
             Inst::Err { .. } => return true,

@@ -74,6 +74,18 @@ pub fn compile_all_functions<M: ClifModule>(
         let mut block_map: HashMap<BasicBlockId, Block> = HashMap::new();
         for b in &f.blocks {
             let clif_block = builder.create_block();
+            let is_cold = b.label.starts_with("prop_err")
+                || b.label.contains("cold")
+                || b.label.contains("panic")
+                || matches!(b.terminator, Terminator::Unreachable)
+                || b.instructions.iter().any(|inst| match inst {
+                    Inst::Err { .. } => true,
+                    Inst::Call { func, .. } => func.contains("panic") || func.contains("abort"),
+                    _ => false,
+                });
+            if is_cold {
+                builder.set_cold_block(clif_block);
+            }
             block_map.insert(b.id, clif_block);
         }
 
