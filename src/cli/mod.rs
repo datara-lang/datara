@@ -12,6 +12,7 @@
 mod build;
 mod inspect;
 mod misc;
+mod mobile;
 mod pkg;
 mod project;
 mod tools;
@@ -207,6 +208,8 @@ fn run_cli_inner(args: &[String]) {
         "doc" => tools::cmd_doc(&args),
 
         "export" => tools::cmd_export(&args),
+
+        "mobile" => mobile::cmd_mobile(&args),
 
         "update" | "upgrade" => pkg::cmd_update(&args),
 

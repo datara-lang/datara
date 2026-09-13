@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 pub mod cranelift;
 pub mod linker;
 pub mod llvm;
+pub mod mobile_bridge;
 pub mod target;
 pub mod wasm;
 
