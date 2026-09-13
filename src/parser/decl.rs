@@ -134,11 +134,20 @@ impl<'a> Parser<'a> {
         if self.match_token(&TokenType::Register) {
             return self.parse_register_decl(attrs).map(Decl::Register);
         }
+        let is_class_keyword = self.check(&TokenType::Class);
         if self.match_token(&TokenType::Class)
             || self.match_token(&TokenType::Entity)
             || self.match_token(&TokenType::Struct)
             || self.match_token(&TokenType::Record)
         {
+            if is_class_keyword {
+                let prev_span = self.previous().span.clone();
+                self.diag.warning(
+                    ErrorCode::DeprecatedFeature,
+                    "The 'class' keyword is deprecated in favor of 'struct' for Data-Oriented Design (DOD). Replace 'class' with 'struct' and define methods in a 'behavior' block.".to_string(),
+                    Some(prev_span),
+                );
+            }
             return self.parse_class_decl(is_export, attrs).map(Decl::Class);
         }
         if self.match_token(&TokenType::Enum) {

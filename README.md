@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://github.com/datara-lang/datara"><img src="https://img.shields.io/badge/language-Datara-%23E3B341.svg" alt="Language" /></a>
   <a href="LICENSE-APACHE"><img src="https://img.shields.io/badge/License-Apache_2.0_OR_MIT-blue.svg" alt="License" /></a>
-  <img src="https://img.shields.io/badge/version-1.2.7-blue.svg" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.3.0-blue.svg" alt="Version" />
   <a href="https://github.com/datara-lang/datara/actions/workflows/ci.yml"><img src="https://github.com/datara-lang/datara/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <img src="https://img.shields.io/badge/tests-148%20suites%20%7C%20668%20passing-brightgreen.svg" alt="Tests" />
   <a href="docs/CONFORMANCE_MATRIX.md"><img src="https://img.shields.io/badge/Spec_V1_Conformance-84%2F84_Gates_PASS-brightgreen.svg" alt="Conformance" /></a>
@@ -178,10 +178,10 @@ Datara is distributed through verified official packages, container images, and 
 Official native system packages built directly in CI for Debian/Ubuntu and Fedora/RHEL:
 ```bash
 # Debian / Ubuntu / Pop!_OS / Linux Mint (download from GitHub Releases):
-sudo dpkg -i datara_1.2.7_amd64.deb
+sudo dpkg -i datara_1.3.0_amd64.deb
 
 # Fedora / RHEL / CentOS / openSUSE:
-sudo rpm -ivh datara-1.2.7-1.x86_64.rpm
+sudo rpm -ivh datara-1.3.0-1.x86_64.rpm
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/windows.svg" height="20" valign="middle" alt="Windows" /> Windows: Standalone GUI Setup & Scoop
@@ -201,7 +201,7 @@ cargo install --git https://github.com/datara-lang/datara.git forgen
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/vscode.svg" height="20" valign="middle" alt="VS Code" /> VS Code & Cursor Extension (.vsix)
 Install syntax highlighting, type hover, and icon themes directly from the release bundle:
 ```bash
-code --install-extension datara-language-1.2.7.vsix
+code --install-extension datara-language-1.3.0.vsix
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/python.svg" height="20" valign="middle" alt="Python" /> Python Wheel (`pip install`)
@@ -1822,7 +1822,7 @@ forgen repl
 ```
 ```datara
 ================================================================================
- Datara Interactive REPL (Zero-Latency In-Process JIT Console v1.2.7)
+ Datara Interactive REPL (Zero-Latency In-Process JIT Console v1.3.0)
  Type ':help' for commands, ':exit' or Ctrl+C to quit.
 ================================================================================
 >> let x = 10
@@ -2411,6 +2411,18 @@ dpm rust-bridge <crate_name> --api manifest.toml [--out-dir <dir>]
 4. **Zero-Copy Memory Buffer Views**:
    Large binary payloads (raw pixels, audio PCM, tensor matrices) pass between Datara and Rust using a pointer-and-length slice tuple (`view buf[0..len]`), guaranteeing zero heap allocation and zero serialization overhead.
    *Demonstrated in production in `bridges/image_bridge/` and `bridges/regex_bridge/`.*
+
+---
+
+## 7.3. Universal Polyglot Zero-Latency Foreign Engine
+
+Datara v1.3.0 introduces zero-latency interop directly into the language runtime and driver, unifying systems and application languages into a single high-throughput execution surface:
+
+- **Zig Interop (`use zig."math.zig"` / `use zig.std`)**: Direct native C-ABI binding and compilation of `.zig` files and Zig standard packages. Call fast Zig algorithms with zero bridging overhead via `stdlib.interop.zig`.
+- **C# / .NET NativeAOT Interop (`use csharp."MyLib.dll"` / `use dotnet."CoreLib"`)**: Direct in-process invocation of NativeAOT compiled `.dll` or `.so` libraries with zero CLR runtime overhead, invoking exported C-ABI methods with native bare-metal performance via `stdlib.interop.csharp`.
+- **Lua / LuaJIT Interop (`use lua."script.lua"` / `use luajit."algo"`)**: Embedded Lua runtime state executing scripts and LuaJIT bytecodes with instant stack exchange and zero call delay via `stdlib.interop.lua`.
+- **Python Parallel Runner & Zero-Copy Memory (`use python.numpy`)**: Concurrent multi-threaded test scheduler (`polyglot_parallel_exec`) executing heterogeneous polyglot benchmarks in parallel without GIL serial blocking, combined with zero-copy buffer views (`PyMemoryView` and `datara_py_export_list_f64`).
+- **Comptime Dynamic Flow-Typing (`mut val`)**: Groundbreaking AOT monomorphic SSA flow-typing that unboxes dynamically declared variables (`mut val x = 42`) into native 64-bit CPU registers during static flow analysis, yielding 100% static C/Rust performance with zero heap allocation and zero runtime tag checking.
 
 ---
 

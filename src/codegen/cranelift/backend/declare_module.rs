@@ -83,22 +83,39 @@ pub fn declare_module_symbols<M: ClifModule>(
         }
     }
 
-    // Declare CPython bridge imports dynamically ONLY if used, preserving DCE zero-cost guarantee
-    let uses_python_bridge = dmir_module.functions.values().any(|f| {
+    // Declare Foreign polyglot bridge imports dynamically ONLY if used, preserving DCE zero-cost guarantee
+    let uses_foreign_bridge = dmir_module.functions.values().any(|f| {
         f.blocks.iter().any(|b| {
             b.instructions.iter().any(|i| match i {
                 crate::dmir::Inst::Call { func, .. } => {
-                    func.starts_with("datara_py_") || func.starts_with("py_")
+                    func.starts_with("datara_py_")
+                        || func.starts_with("py_")
+                        || func.starts_with("zig_")
+                        || func.starts_with("datara_zig_")
+                        || func.starts_with("csharp_")
+                        || func.starts_with("datara_csharp_")
+                        || func.starts_with("lua_")
+                        || func.starts_with("datara_lua_")
+                        || func.starts_with("polyglot_")
+                        || func.starts_with("datara_polyglot_")
                 }
                 _ => false,
             })
         })
-    }) || dmir_module
-        .extern_functions
-        .keys()
-        .any(|k| k.starts_with("datara_py_") || k.starts_with("py_"));
+    }) || dmir_module.extern_functions.keys().any(|k| {
+        k.starts_with("datara_py_")
+            || k.starts_with("py_")
+            || k.starts_with("zig_")
+            || k.starts_with("datara_zig_")
+            || k.starts_with("csharp_")
+            || k.starts_with("datara_csharp_")
+            || k.starts_with("lua_")
+            || k.starts_with("datara_lua_")
+            || k.starts_with("polyglot_")
+            || k.starts_with("datara_polyglot_")
+    });
 
-    if uses_python_bridge {
+    if uses_foreign_bridge {
         let mut py_1_str_sig = Signature::new(call_conv);
         py_1_str_sig.params.push(AbiParam::new(clif_types::I64));
         py_1_str_sig.returns.push(AbiParam::new(clif_types::I64));
@@ -141,6 +158,23 @@ pub fn declare_module_symbols<M: ClifModule>(
         py_str_list_sig.params.push(AbiParam::new(clif_types::I64));
         py_str_list_sig.returns.push(AbiParam::new(clif_types::I64));
 
+        let mut sig_2_str_1_i64 = Signature::new(call_conv);
+        sig_2_str_1_i64.params.push(AbiParam::new(clif_types::I64));
+        sig_2_str_1_i64.params.push(AbiParam::new(clif_types::I64));
+        sig_2_str_1_i64.params.push(AbiParam::new(clif_types::I64));
+        sig_2_str_1_i64.returns.push(AbiParam::new(clif_types::I64));
+
+        let mut sig_2_str_1_f64 = Signature::new(call_conv);
+        sig_2_str_1_f64.params.push(AbiParam::new(clif_types::I64));
+        sig_2_str_1_f64.params.push(AbiParam::new(clif_types::I64));
+        sig_2_str_1_f64.params.push(AbiParam::new(clif_types::F64));
+        sig_2_str_1_f64.returns.push(AbiParam::new(clif_types::F64));
+
+        let mut sig_2_i64 = Signature::new(call_conv);
+        sig_2_i64.params.push(AbiParam::new(clif_types::I64));
+        sig_2_i64.params.push(AbiParam::new(clif_types::I64));
+        sig_2_i64.returns.push(AbiParam::new(clif_types::I64));
+
         let decls = [
             ("datara_py_eval", "py_eval", &py_1_str_sig),
             ("datara_py_eval_safe", "py_eval_safe", &py_1_str_sig),
@@ -170,6 +204,30 @@ pub fn declare_module_symbols<M: ClifModule>(
                 "datara_py_assert_same_ptr",
                 "datara_py_assert_same_ptr",
                 &py_str_list_sig,
+            ),
+            ("datara_zig_eval_int", "zig_eval_int", &py_1_str_to_i64_sig),
+            ("datara_zig_call", "zig_call", &sig_2_i64),
+            (
+                "datara_csharp_invoke_i64",
+                "csharp_invoke_i64",
+                &sig_2_str_1_i64,
+            ),
+            (
+                "datara_csharp_invoke_f64",
+                "csharp_invoke_f64",
+                &sig_2_str_1_f64,
+            ),
+            ("datara_lua_eval_int", "lua_eval_int", &py_1_str_to_i64_sig),
+            (
+                "datara_lua_eval_float",
+                "lua_eval_float",
+                &py_1_str_to_f64_sig,
+            ),
+            ("datara_lua_exec", "lua_exec", &py_1_str_to_i64_sig),
+            (
+                "datara_polyglot_parallel_exec",
+                "polyglot_parallel_exec",
+                &py_2_str_sig,
             ),
         ];
 

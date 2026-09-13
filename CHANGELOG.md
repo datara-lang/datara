@@ -4,6 +4,26 @@ All notable changes to the Datara compiler and toolchain (`forgen`) are document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-09-13 «UNIVERSAL POLYGLOT ZERO-LATENCY ENGINE, COMPTIME FLOW-TYPING & DATA-ORIENTED DESIGN»
+
+### Added
+- **Universal Polyglot Zero-Latency Foreign Engine**:
+  - **Zig Bridge**: Direct C-ABI dynamic linking and execution for `.zig` files and Zig standard packages (`use zig."math.zig"` / `use zig.std`), enabling zero-latency integration of Zig algorithms.
+  - **C# / .NET NativeAOT Bridge**: Direct in-process invocation of NativeAOT compiled `.dll` / `.so` libraries with zero CLR runtime overhead, invoking exported C-ABI methods with native execution performance.
+  - **Lua / LuaJIT Bridge**: Direct in-process execution of `.lua` scripts and LuaJIT bytecodes with instant stack exchange and zero call delay.
+  - **Python High-Throughput Parallel Runner**: Multi-threaded fiber parallel scheduler (`polyglot_parallel_exec`) executing heterogeneous polyglot tasks concurrently without GIL serialization, coupled with zero-copy shared buffer export (`PyMemoryView` and `datara_py_export_list_f64`).
+  - **Polyglot Standard Modules**: Native wrapper behaviors `stdlib.interop.zig`, `stdlib.interop.csharp`, and `stdlib.interop.lua`.
+- **Comptime Adaptive Dynamic Flow-Typing (`val` / `mut val`)**:
+  - Implemented AOT monomorphic SSA flow-typing and variable specialization. Variables declared with dynamic syntax (`mut val x = 42`) are unboxed into native 64-bit CPU registers during static flow analysis, yielding 100% C/Rust performance with zero heap allocation and zero runtime tag checks.
+  - Linear SSA variable splitting upon assignment of distinct types (`x = "str"`), enabling dynamic developer ergonomics while preserving compiler vectorization and scalar register allocation.
+- **Data-Oriented Design (DOD) Semantic Normalization**:
+  - Formalized `struct` + `behavior` as the canonical syntax for contiguous memory layouts without hidden headers or vtables.
+  - Deprecated the `class` keyword with compiler warning `W0100`, providing clean backwards-compatibility and guiding codebases toward pure DOD architectures.
+
+### Fixed
+- **Foreign Bridge Dead-Code Elimination (DCE)**: Generalized Cranelift AOT linkage detection to load polyglot runtime symbols across Python, Zig, C#, Lua, and parallel executors only when invoked, keeping standalone binary footprint minimal.
+- **Docker GHCR Release Automation**: Hardened Container Registry build step against transient network resets.
+
 ## [1.2.7] - 2026-09-13 «FAULT-TOLERANT PARALLELISM, ADVANCED COMPTIME & LINEAR SAFETY»
 
 ### Added

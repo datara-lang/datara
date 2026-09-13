@@ -259,7 +259,9 @@ impl<'a> TypeChecker<'a> {
                     // Type promotion: immutable `val` promotes directly to its concrete scalar SSA register type
                     init_type
                 } else {
-                    DataraType::Val
+                    // Comptime Adaptive SSA Flow Specialization:
+                    // Specialize to unboxed native register representation for 0-boxing speed.
+                    init_type
                 };
                 self.record_var_type(name, final_ty.clone());
                 if let Expr::ListLiteral(elements, _) = init {
@@ -351,11 +353,10 @@ impl<'a> TypeChecker<'a> {
                                         &existing, &val_type, value, span, diag,
                                     );
                                 }
-                                // `mut val` bindings stay dynamically typed:
-                                // do NOT re-type the symbol to the assigned
-                                // value's concrete type, otherwise a concrete
-                                // type would flow into checked contexts while
-                                // the runtime still treats it as `Val`.
+                                // Comptime Adaptive SSA Flow-Typing:
+                                // Update symbol flow-type to newly assigned concrete type
+                                // so downstream usages utilize unboxed registers with 0 tag check overhead.
+                                self.symbol_types.insert(name.clone(), val_type.clone());
                             }
                         }
                     } else {

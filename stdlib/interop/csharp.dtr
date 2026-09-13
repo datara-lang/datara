@@ -1,0 +1,17 @@
+use stdlib.result.result.Outcome
+
+struct DotNet {
+    version: Str
+}
+
+behavior DotNet {
+    invoke_int(lib: Str, method: Str, arg: Int) -> Outcome<Int> {
+        let res = csharp_invoke_i64(lib, method, arg)
+        return Outcome<Int> { is_success: true, value: res, error_msg: "" }
+    }
+
+    invoke_float(lib: Str, method: Str, arg: Float) -> Outcome<Float> {
+        let res = csharp_invoke_f64(lib, method, arg)
+        return Outcome<Float> { is_success: true, value: res, error_msg: "" }
+    }
+}

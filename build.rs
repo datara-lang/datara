@@ -30,6 +30,8 @@ fn main() {
     println!("cargo:rerun-if-changed=src/runtime/datara_py.h");
     println!("cargo:rerun-if-changed=src/runtime/datara_rt_scheduler.c");
     println!("cargo:rerun-if-changed=src/runtime/datara_rt_scheduler.h");
+    println!("cargo:rerun-if-changed=src/runtime/datara_polyglot.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_polyglot.h");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()));
     let runtime_dir = manifest_dir.join("src").join("runtime");
@@ -41,6 +43,7 @@ fn main() {
         .file(runtime_dir.join("datara_py.c"))
         .file(runtime_dir.join("datara_js.c"))
         .file(runtime_dir.join("datara_napi.c"))
+        .file(runtime_dir.join("datara_polyglot.c"))
         .include(&runtime_dir)
         .opt_level(3)
         .cargo_metadata(true);

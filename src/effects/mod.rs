@@ -151,6 +151,22 @@ impl EffectAnalyzer {
             "datara_py_clear_error",
             "datara_py_export_list_f64",
             "datara_py_assert_same_ptr",
+            "zig_eval_int",
+            "datara_zig_eval_int",
+            "zig_call",
+            "datara_zig_call",
+            "csharp_invoke_i64",
+            "datara_csharp_invoke_i64",
+            "csharp_invoke_f64",
+            "datara_csharp_invoke_f64",
+            "lua_eval_int",
+            "datara_lua_eval_int",
+            "lua_eval_float",
+            "datara_lua_eval_float",
+            "lua_exec",
+            "datara_lua_exec",
+            "polyglot_parallel_exec",
+            "datara_polyglot_parallel_exec",
         ] {
             builtins.insert(f.to_string(), foreign_eff.clone());
         }

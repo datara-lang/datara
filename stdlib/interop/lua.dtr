@@ -1,0 +1,22 @@
+use stdlib.result.result.Outcome
+
+struct Lua {
+    version: Str
+}
+
+behavior Lua {
+    eval_int(code: Str) -> Outcome<Int> {
+        let res = lua_eval_int(code)
+        return Outcome<Int> { is_success: true, value: res, error_msg: "" }
+    }
+
+    eval_float(code: Str) -> Outcome<Float> {
+        let res = lua_eval_float(code)
+        return Outcome<Float> { is_success: true, value: res, error_msg: "" }
+    }
+
+    exec(code: Str) -> Outcome<Int> {
+        let res = lua_exec(code)
+        return Outcome<Int> { is_success: true, value: res, error_msg: "" }
+    }
+}

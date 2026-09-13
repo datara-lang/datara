@@ -639,6 +639,70 @@ impl<'a> TypeChecker<'a> {
                 (vec![DataraType::String], DataraType::Float, Vec::new()),
             );
         }
+        for f in &["zig_eval_int", "datara_zig_eval_int"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::String], DataraType::Int, Vec::new()),
+            );
+        }
+        for f in &["zig_call", "datara_zig_call"] {
+            function_signatures.insert(
+                f.to_string(),
+                (
+                    vec![DataraType::String, DataraType::Int],
+                    DataraType::Int,
+                    Vec::new(),
+                ),
+            );
+        }
+        for f in &["csharp_invoke_i64", "datara_csharp_invoke_i64"] {
+            function_signatures.insert(
+                f.to_string(),
+                (
+                    vec![DataraType::String, DataraType::String, DataraType::Int],
+                    DataraType::Int,
+                    Vec::new(),
+                ),
+            );
+        }
+        for f in &["csharp_invoke_f64", "datara_csharp_invoke_f64"] {
+            function_signatures.insert(
+                f.to_string(),
+                (
+                    vec![DataraType::String, DataraType::String, DataraType::Float],
+                    DataraType::Float,
+                    Vec::new(),
+                ),
+            );
+        }
+        for f in &["lua_eval_int", "datara_lua_eval_int"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::String], DataraType::Int, Vec::new()),
+            );
+        }
+        for f in &["lua_eval_float", "datara_lua_eval_float"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::String], DataraType::Float, Vec::new()),
+            );
+        }
+        for f in &["lua_exec", "datara_lua_exec"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::String], DataraType::Int, Vec::new()),
+            );
+        }
+        for f in &["polyglot_parallel_exec", "datara_polyglot_parallel_exec"] {
+            function_signatures.insert(
+                f.to_string(),
+                (
+                    vec![DataraType::String, DataraType::String],
+                    DataraType::Int,
+                    Vec::new(),
+                ),
+            );
+        }
         for f in &["py_call", "datara_py_call"] {
             function_signatures.insert(
                 f.to_string(),

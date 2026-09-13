@@ -11,6 +11,7 @@
 
 mod modules;
 mod pipeline;
+pub mod polyglot;
 
 use self::pipeline::{
     AnalysisOutput, parse_multi_sources, parse_single_source, run_analysis_and_lower,

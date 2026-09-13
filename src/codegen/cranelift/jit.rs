@@ -172,6 +172,23 @@ unsafe extern "C" {
     pub fn datara_py_export_list_f64(var_name: *const c_char, list: *mut i64) -> i32;
     pub fn datara_py_assert_same_ptr(var_name: *const c_char, list: *mut i64) -> i32;
 
+    pub fn datara_zig_eval_int(code: *const c_char) -> i64;
+    pub fn datara_zig_call(symbol: *const c_char, arg: i64) -> i64;
+    pub fn datara_csharp_invoke_i64(
+        lib_name: *const c_char,
+        method_name: *const c_char,
+        arg: i64,
+    ) -> i64;
+    pub fn datara_csharp_invoke_f64(
+        lib_name: *const c_char,
+        method_name: *const c_char,
+        arg: f64,
+    ) -> f64;
+    pub fn datara_lua_eval_int(code: *const c_char) -> i64;
+    pub fn datara_lua_eval_float(code: *const c_char) -> f64;
+    pub fn datara_lua_exec(code: *const c_char) -> i64;
+    pub fn datara_polyglot_parallel_exec(engine_type: *const c_char, code: *const c_char) -> i64;
+
     pub fn datara_rt_file_read(path: *const c_char) -> *const c_char;
     pub fn datara_rt_file_write(path: *const c_char, content: *const c_char) -> i64;
     pub fn datara_rt_file_append(path: *const c_char, content: *const c_char) -> i64;
@@ -540,6 +557,29 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("py_is_available", datara_py_is_available);
     reg!("datara_py_export_list_f64", datara_py_export_list_f64);
     reg!("datara_py_assert_same_ptr", datara_py_assert_same_ptr);
+
+    reg!("datara_zig_eval_int", datara_zig_eval_int);
+    reg!("zig_eval_int", datara_zig_eval_int);
+    reg!("datara_zig_call", datara_zig_call);
+    reg!("zig_call", datara_zig_call);
+
+    reg!("datara_csharp_invoke_i64", datara_csharp_invoke_i64);
+    reg!("csharp_invoke_i64", datara_csharp_invoke_i64);
+    reg!("datara_csharp_invoke_f64", datara_csharp_invoke_f64);
+    reg!("csharp_invoke_f64", datara_csharp_invoke_f64);
+
+    reg!("datara_lua_eval_int", datara_lua_eval_int);
+    reg!("lua_eval_int", datara_lua_eval_int);
+    reg!("datara_lua_eval_float", datara_lua_eval_float);
+    reg!("lua_eval_float", datara_lua_eval_float);
+    reg!("datara_lua_exec", datara_lua_exec);
+    reg!("lua_exec", datara_lua_exec);
+
+    reg!(
+        "datara_polyglot_parallel_exec",
+        datara_polyglot_parallel_exec
+    );
+    reg!("polyglot_parallel_exec", datara_polyglot_parallel_exec);
 
     reg!("datara_rt_file_read", datara_rt_file_read);
     reg!("file_read", datara_rt_file_read);

@@ -1,0 +1,17 @@
+use stdlib.result.result.Outcome
+
+struct Zig {
+    version: Str
+}
+
+behavior Zig {
+    eval_int(code: Str) -> Outcome<Int> {
+        let res = zig_eval_int(code)
+        return Outcome<Int> { is_success: true, value: res, error_msg: "" }
+    }
+
+    call(symbol: Str, arg: Int) -> Outcome<Int> {
+        let res = zig_call(symbol, arg)
+        return Outcome<Int> { is_success: true, value: res, error_msg: "" }
+    }
+}

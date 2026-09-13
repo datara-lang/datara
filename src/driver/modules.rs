@@ -90,7 +90,13 @@ impl ForgenCompiler {
             .any(|m| m.starts_with(first_seg))
             || first_seg == "python"
             || first_seg == "js"
-            || first_seg == "node";
+            || first_seg == "node"
+            || first_seg == "zig"
+            || first_seg == "csharp"
+            || first_seg == "cs"
+            || first_seg == "dotnet"
+            || first_seg == "lua"
+            || first_seg == "luajit";
 
         if !is_explicit_stdlib && !is_known_stdlib_root {
             return None;
@@ -127,6 +133,23 @@ impl ForgenCompiler {
         if base_rel.first().map(|s| s.as_str()) == Some("node") {
             candidates.push(vec!["interop".into(), "node".into()]);
             candidates.push(vec!["node".into()]);
+        }
+        if base_rel.first().map(|s| s.as_str()) == Some("zig") {
+            candidates.push(vec!["interop".into(), "zig".into()]);
+            candidates.push(vec!["zig".into()]);
+        }
+        if base_rel.first().map(|s| s.as_str()) == Some("csharp")
+            || base_rel.first().map(|s| s.as_str()) == Some("cs")
+            || base_rel.first().map(|s| s.as_str()) == Some("dotnet")
+        {
+            candidates.push(vec!["interop".into(), "csharp".into()]);
+            candidates.push(vec!["csharp".into()]);
+        }
+        if base_rel.first().map(|s| s.as_str()) == Some("lua")
+            || base_rel.first().map(|s| s.as_str()) == Some("luajit")
+        {
+            candidates.push(vec!["interop".into(), "lua".into()]);
+            candidates.push(vec!["lua".into()]);
         }
         let lower: Vec<String> = base_rel.iter().map(|s| s.to_lowercase()).collect();
         if lower != base_rel {
@@ -462,6 +485,9 @@ impl ForgenCompiler {
         let mut checked_rust_crates: HashSet<String> = HashSet::new();
         let mut checked_c_libs: HashSet<String> = HashSet::new();
         let mut checked_js_pkgs: HashSet<String> = HashSet::new();
+        let mut checked_zig_pkgs: HashSet<String> = HashSet::new();
+        let mut checked_csharp_pkgs: HashSet<String> = HashSet::new();
+        let mut checked_lua_pkgs: HashSet<String> = HashSet::new();
         let mut hinted_pkgs: HashSet<String> = HashSet::new();
         // file -> module files it imports (for cycle detection)
         let mut deps: Vec<(PathBuf, Vec<PathBuf>)> = Vec::new();
@@ -682,6 +708,74 @@ impl ForgenCompiler {
                                     ),
                                     Some(u.span.clone()),
                                 );
+                            }
+                        }
+                        continue;
+                    }
+
+                    // 5. Smart Zig Interop Detection
+                    if first_seg == Some("zig") && u.path.len() > 1 {
+                        let zig_pkg = u.path.get(1).map(|s| s.as_str()).unwrap_or("");
+                        if !zig_pkg.is_empty() && checked_zig_pkgs.insert(zig_pkg.to_string()) {
+                            super::polyglot::PolyglotResolver::resolve_zig(u, &base_dirs, diag);
+                        }
+                        let zig_use = UseDecl {
+                            path: vec!["zig".to_string()],
+                            group: Vec::new(),
+                            alias: None,
+                            span: u.span.clone(),
+                        };
+                        if let Some(p) = self.stdlib_module_path(&zig_use, stdlib_dir.as_deref()) {
+                            let canon = p.canonicalize().unwrap_or_else(|_| p.clone());
+                            if !visited.contains(&canon) {
+                                to_load.push((canon, u.span.clone()));
+                            }
+                        }
+                        continue;
+                    }
+
+                    // 6. Smart C# / .NET NativeAOT Interop Detection
+                    if (first_seg == Some("csharp")
+                        || first_seg == Some("cs")
+                        || first_seg == Some("dotnet"))
+                        && u.path.len() > 1
+                    {
+                        let cs_pkg = u.path.get(1).map(|s| s.as_str()).unwrap_or("");
+                        if !cs_pkg.is_empty() && checked_csharp_pkgs.insert(cs_pkg.to_string()) {
+                            super::polyglot::PolyglotResolver::resolve_csharp(u, &base_dirs, diag);
+                        }
+                        let cs_use = UseDecl {
+                            path: vec!["csharp".to_string()],
+                            group: Vec::new(),
+                            alias: None,
+                            span: u.span.clone(),
+                        };
+                        if let Some(p) = self.stdlib_module_path(&cs_use, stdlib_dir.as_deref()) {
+                            let canon = p.canonicalize().unwrap_or_else(|_| p.clone());
+                            if !visited.contains(&canon) {
+                                to_load.push((canon, u.span.clone()));
+                            }
+                        }
+                        continue;
+                    }
+
+                    // 7. Smart Lua / LuaJIT Interop Detection
+                    if (first_seg == Some("lua") || first_seg == Some("luajit")) && u.path.len() > 1
+                    {
+                        let lua_pkg = u.path.get(1).map(|s| s.as_str()).unwrap_or("");
+                        if !lua_pkg.is_empty() && checked_lua_pkgs.insert(lua_pkg.to_string()) {
+                            super::polyglot::PolyglotResolver::resolve_lua(u, &base_dirs, diag);
+                        }
+                        let lua_use = UseDecl {
+                            path: vec!["lua".to_string()],
+                            group: Vec::new(),
+                            alias: None,
+                            span: u.span.clone(),
+                        };
+                        if let Some(p) = self.stdlib_module_path(&lua_use, stdlib_dir.as_deref()) {
+                            let canon = p.canonicalize().unwrap_or_else(|_| p.clone());
+                            if !visited.contains(&canon) {
+                                to_load.push((canon, u.span.clone()));
                             }
                         }
                         continue;

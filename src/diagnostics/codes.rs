@@ -81,6 +81,9 @@ pub enum ErrorCode {
 
     // Cross-compilation Errors (E0980)
     CrossCompilationMissingToolchain,
+
+    // Deprecation & Modernization Warnings (W0100)
+    DeprecatedFeature,
 }
 
 impl ErrorCode {
@@ -148,6 +151,7 @@ impl ErrorCode {
             ErrorCode::CApiArgLimitExceeded => "E0904",
             ErrorCode::AsyncBackendUnsupported => "E0955",
             ErrorCode::CrossCompilationMissingToolchain => "E0980",
+            ErrorCode::DeprecatedFeature => "W0100",
         }
     }
 
@@ -270,6 +274,9 @@ impl ErrorCode {
                 ErrorCode::CrossCompilationMissingToolchain => {
                     "Отсутствует инструментарий кросс-компиляции для целевой платформы (требуется lld или кросс-линкер)"
                 }
+                ErrorCode::DeprecatedFeature => {
+                    "Устаревшая языковая конструкция: используйте современный аналог"
+                }
             }
         } else {
             match self {
@@ -386,6 +393,9 @@ impl ErrorCode {
                 }
                 ErrorCode::CrossCompilationMissingToolchain => {
                     "Cross-compilation toolchain not found for target triple (lld or cross-linker required)"
+                }
+                ErrorCode::DeprecatedFeature => {
+                    "Deprecated language construct: use the modern equivalent"
                 }
             }
         }

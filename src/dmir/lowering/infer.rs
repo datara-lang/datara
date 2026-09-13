@@ -198,6 +198,18 @@ impl<'a> Lowering<'a> {
             || func_name == "datara_py_exec"
             || func_name == "datara_py_export_list_f64"
             || func_name == "datara_py_assert_same_ptr"
+            || func_name == "zig_eval_int"
+            || func_name == "datara_zig_eval_int"
+            || func_name == "zig_call"
+            || func_name == "datara_zig_call"
+            || func_name == "csharp_invoke_i64"
+            || func_name == "datara_csharp_invoke_i64"
+            || func_name == "lua_eval_int"
+            || func_name == "datara_lua_eval_int"
+            || func_name == "lua_exec"
+            || func_name == "datara_lua_exec"
+            || func_name == "polyglot_parallel_exec"
+            || func_name == "datara_polyglot_parallel_exec"
             || func_name == "str_len"
             || func_name == "datara_rt_str_len"
             || func_name.ends_with("_to_int")
@@ -213,6 +225,10 @@ impl<'a> Lowering<'a> {
             || func_name == "datara_py_eval_float"
             || func_name == "py_call_1_float"
             || func_name == "datara_py_call_1_float"
+            || func_name == "csharp_invoke_f64"
+            || func_name == "datara_csharp_invoke_f64"
+            || func_name == "lua_eval_float"
+            || func_name == "datara_lua_eval_float"
             || func_name.ends_with("_to_float")
             || func_name.contains("float")
             || func_name.contains("flt")
