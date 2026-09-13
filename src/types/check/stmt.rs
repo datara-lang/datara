@@ -787,11 +787,10 @@ impl<'a> TypeChecker<'a> {
             Stmt::Expr(Expr::Decide { else_arm, .. }, _) => else_arm.is_some(),
             Stmt::Expr(..) => true,
             Stmt::Loop { .. } => true,
-            Stmt::While { condition, .. }
-                if matches!(condition, Expr::Literal(LiteralValue::Bool(true), _)) =>
-            {
-                true
-            }
+            Stmt::While {
+                condition: Expr::Literal(LiteralValue::Bool(true), _),
+                ..
+            } => true,
             Stmt::TryCatch {
                 try_block,
                 catch_block,

@@ -212,8 +212,8 @@ fn test_simd_fast_memcpy_correctness_and_speedup() {
         for &sz in &sizes {
             let mut src = vec![0u8; sz + 16];
             let mut dst = vec![0u8; sz + 16];
-            for i in 0..sz {
-                src[i] = ((i * 37 + 13) & 0xFF) as u8;
+            for (i, byte) in src.iter_mut().take(sz).enumerate() {
+                *byte = ((i * 37 + 13) & 0xFF) as u8;
             }
 
             // Test aligned
@@ -294,9 +294,9 @@ fn test_simd_fast_memset_correctness_and_speedup() {
         for &sz in &sizes {
             let mut buf = vec![0u8; sz + 8];
             datara_rt_fast_memset(buf.as_mut_ptr() as *mut (), 0xAB, sz);
-            for i in 0..sz {
+            for (i, &byte) in buf.iter().take(sz).enumerate() {
                 assert_eq!(
-                    buf[i], 0xAB,
+                    byte, 0xAB,
                     "fast_memset mismatch at index {} for sz {}",
                     i, sz
                 );

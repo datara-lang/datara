@@ -318,7 +318,7 @@ impl<'a> TypeChecker<'a> {
                 hit_unconditional = true;
             }
         }
-        if hit_unconditional && else_arm.is_some() {
+        if hit_unconditional {
             if let Some(eb) = else_arm {
                 diag.error(
                     ErrorCode::UnreachablePattern,
