@@ -55,14 +55,14 @@ Datara source code is UTF-8 encoded text stored in `.dtr` files.
 - **Floats**: Decimal floating point numbers (`3.14159`, `0.0`, `-42.5`). Represented as IEEE 754 double precision (`f64`).
 - **Booleans**: `true`, `false`. Represented as `i8` boolean extended to `i64`.
 - **Characters**: Single-quoted Unicode scalar literals (`'A'`, `'\n'`, `'\t'`, `'\\'`, `'\''`). Represented as `u32`.
-- **Strings**: Double-quoted UTF-8 literals (`"Hello, world!"`). Support escape sequences (`\n`, `\t`, `\r`, `\\`, `\"`, `\0`, `\{`).
-- **Interpolated Strings**: When `{expression}` occurs inside double quotes, it is dynamically evaluated and string-formatted at runtime:
+- **Strings (Pure Literal Text)**: Double-quoted UTF-8 literals (`"Hello, world!"`). In Datara, standard strings are **100% literal text** — `{expression}` inside double quotes is preserved verbatim as `{expression}` without interpolation or evaluation. This allows raw JSON (`"{\"status\": 200}"`) and regex patterns (`"^[a-z]{3,5}$"`) to be written cleanly without escaping braces.
+- **Interpolated Strings (`fmt"..."` / `$"..."` / `f"..."`)**: Prefixing the string with `fmt`, `$`, or `f` explicitly activates compiler template interpolation:
   ```datara
   let name = "Alice"
   let age = 30
-  out "User: {name}, Age: {age}"
+  println(fmt"User: {name}, Age: {age}")
   ```
-  To print a literal curly brace inside a string, escape it with a backslash: `"\\{status\\}"`.
+  To print a literal curly brace inside an interpolated string, escape it with a backslash: `fmt"\{status\}"`.
 
 ### 2.3 Comments
 - Single-line comments start with `//` and extend to the end of the line.

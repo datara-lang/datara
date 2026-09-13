@@ -118,3 +118,21 @@ fn main() {
 
     let _ = fs::remove_dir_all(&temp_proj);
 }
+
+#[test]
+fn test_dpm_developer_commands_forwarding() {
+    // Test that DPM and Sparks router successfully handles developer workflow commands
+    // without returning unknown command errors or exiting.
+    let dpm_fmt_args = vec!["dpm".to_string(), "fmt".to_string(), "--check".to_string()];
+    forgen::project::pm::run_dpm_cli_args(&dpm_fmt_args);
+
+    let dpm_clippy_args = vec!["dpm".to_string(), "clippy".to_string()];
+    forgen::project::pm::run_dpm_cli_args(&dpm_clippy_args);
+
+    let sparks_fmt_args = vec!["sparks".to_string(), "fmt".to_string(), "--check".to_string()];
+    forgen::project::pm::run_dpm_cli_args(&sparks_fmt_args);
+
+    let sparks_clippy_args = vec!["sparks".to_string(), "clippy".to_string()];
+    forgen::project::pm::run_dpm_cli_args(&sparks_clippy_args);
+}
+

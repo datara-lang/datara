@@ -26,10 +26,10 @@
 
 **Datara** is a next-generation compiled systems and application programming language and compiler toolchain (**`forgen`**) written in Rust. Designed for high-frequency trading, cloud microservices, scientific computing, game engines, and native UI applications, Datara unites the syntax clarity and ergonomic velocity of modern languages with the mechanical sympathy, zero-cost abstractions, and predictable sub-millisecond execution of bare-metal C and Rust.
 
-Datara completely eliminates garbage collection pauses and reference-counting cycles through deterministic scope-based **affine ownership** and zero-copy borrowing (`view`). It pioneers the **Evidence Gate Optimizer**, a formal verification pipeline where every optimization pass (SROA, Mem2Reg, Closed-Form LoopFold, CSE, Branchless Select) is backed by structural mathematical proof at the SSA intermediate representation (DMIR) level. Code generation is powered by a multi-target backend: **Cranelift** (with DWARF 4 line & debug info) for instant 30–50ms developer builds and JIT evaluation, **LLVM AOT** (`--llvm`) with Clang `-O3 -flto` for peak machine-speed deployment, and **Capability-Native WebAssembly** (`--wasm`) for zero-trust sandboxed browser and serverless runtimes.
+Datara completely eliminates garbage collection pauses and reference-counting cycles through deterministic scope-based **affine ownership** and zero-copy borrowing (`view`). It incorporates the **Evidence Gate**, a fail-closed SSA invariant verifier and optimization audit pipeline where every mutating pass (SROA, Mem2Reg, Closed-Form LoopFold, BCE, SRE/TCO) is mechanically verified for SSA well-formedness (`verify_module`) and audited against phantom transformations. Code generation is powered by a multi-target backend: **Cranelift** (with DWARF 4 line & debug info) for instant 30–50ms developer builds and JIT evaluation, **LLVM AOT** (`--llvm`) with Clang `-O3 -flto` for peak machine-speed deployment, and **Capability-Native WebAssembly** (`--wasm`) for zero-trust sandboxed browser and serverless runtimes.
 
 ### Why a New Language? (5 Core Pillars)
-1. **Determinism by Design**: 100% bit-exact reproducible compilation, IEEE-754 identity determinism across runs, and zero undefined behavior verified by the formal [Evidence Gate](docs/CONFORMANCE_MATRIX.md).
+1. **Determinism by Design**: 100% bit-exact reproducible compilation, IEEE-754 identity determinism across runs, and zero undefined behavior verified by fail-closed SSA invariants.
 2. **Affine Ownership Without Annotations**: Automatic compile-time memory management with zero GC pauses and zero manual lifetime sigils (`'a`) or borrow annotations.
 3. **Frictionless C-ABI Interoperability**: Direct zero-cost call-in and call-out for existing C/C++ libraries, plus automatic C header emission via `--embed` ([C Embedding Guide](docs/EMBEDDING.md)).
 4. **Cryptographic Sparks Package Ecosystem**: Secure package distribution signed with Ed25519 signatures and capability-guarded sidecars (`.capabilities.json`) to prevent supply chain attacks.
@@ -1383,13 +1383,16 @@ Source Code (.dtr / .forge)
 
 ---
 
-### Evidence Gate Formal Fingerprinting
+### Fail-Closed SSA Invariant Verifier & Optimization Audit Gate
 
-In traditional compilers (LLVM, GCC), passes are executed blindly regardless of whether they produce measurable structural improvements. 
+In optimizing compilers, aggressive passes risk introducing subtle miscompilations or phantom transformations (passes that increment counters or log optimization decisions without producing any actual code improvement).
 
-Datara's **Evidence Gate** records an algebraic cryptographic fingerprint of the intermediate representation before each pass:
-$$\text{Fingerprint} = \mathcal{H}\Big(\sum \text{OpCode}_i \cdot \text{Weight}_i + \sum \text{DefDom}_j \Big)$$
-If an optimization pass fails to reduce instruction weights, simplify basic block edges, or eliminate memory allocations, the pass is **instantly downgraded and rolled back**, preserving zero compilation overhead.
+Datara's **Evidence Gate** (`src/optimizer/evidence.rs`) enforces two strict mechanical guarantees:
+
+1. **Fail-Closed SSA Invariant Verification**: Immediately following every mutating transformation, the SSA representation is validated via `dmir::verify_module`. This checks dominator tree relationships, verifies that every operand dominates its uses, validates block parameter arities against branch arguments, and ensures well-formed terminators. If an optimization pass breaks IR invariants, compilation fails immediately (`[E0901] DMIR verification failed after optimizer pass`).
+2. **Anti-Phantom Delta Auditing**: The compiler captures a deterministic structural fingerprint of the IR before and after each pass (`ir_fingerprint`). If a pass emits an `Applied` decision but leaves the IR byte-identical (`after == before`), the gate mechanically downgrades the record to `Rejected` (`[downgraded: pass reported Applied but IR is unchanged]`) and rolls back optimistic counter increments.
+
+This guarantees that `forgen why <symbol>` records and compiler metrics reflect 100% genuine, verifiable code improvements.
 
 ---
 

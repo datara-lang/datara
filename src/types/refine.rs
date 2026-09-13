@@ -176,13 +176,13 @@ impl<'a> TypeChecker<'a> {
                 "use a floating-point literal (e.g. '10.0') or cast with 'val as Float'".into(),
             ),
             (DataraType::String, DataraType::Int) => Some(
-                "convert Int to String using string interpolation '\"{val}\"' or 'int_to_str(val)'".into(),
+                "convert Int to String using string interpolation 'fmt\"{val}\"' or 'int_to_str(val)'".into(),
             ),
             (DataraType::String, DataraType::Float) => Some(
-                "convert Float to String using string interpolation '\"{val}\"' or 'float_to_str(val)'".into(),
+                "convert Float to String using string interpolation 'fmt\"{val}\"' or 'float_to_str(val)'".into(),
             ),
             (DataraType::String, DataraType::Bool) => Some(
-                "convert Bool to String using 'bool_to_str(val)' or '\"{val}\"'".into(),
+                "convert Bool to String using 'bool_to_str(val)' or 'fmt\"{val}\"'".into(),
             ),
             (DataraType::Int, DataraType::String) => Some(
                 "parse String to Int using 'str_to_int(val)'".into(),

@@ -70,6 +70,10 @@ pub(crate) fn extract_target_arg(args: &[String], skip: usize) -> Option<&Path> 
 
 pub fn run_cli() {
     let args: Vec<String> = env::args().collect();
+    run_cli_with_args(&args);
+}
+
+pub fn run_cli_with_args(args: &[String]) {
     if args.len() < 2 {
         // Just like Python, running datara or forgen without arguments launches the interactive REPL
         crate::repl::ReplSession::run_interactive();
@@ -168,7 +172,7 @@ pub fn run_cli() {
 
         "clean" => project::cmd_clean(&args),
 
-        "lint" | "audit" => tools::cmd_lint(command, &args),
+        "lint" | "audit" | "clippy" => tools::cmd_lint(command, &args),
 
         "explain" => misc::cmd_explain(&args),
 

@@ -3,7 +3,7 @@ use super::registry::*;
 use super::verify::*;
 use crate::project::manifest::DataraManifest;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// DPM (Datara Package Manager) CLI Entry Point
 pub fn run_dpm_cli() {
@@ -677,31 +677,11 @@ pub fn run_dpm_cli_args(args: &[String]) {
             }
         }
 
-        "run" => {
-            // Forward directly to forgen run
-            let mut cmd = std::process::Command::new(
-                std::env::current_exe()
-                    .ok()
-                    .and_then(|p| {
-                        p.parent().map(|d| {
-                            d.join(if cfg!(windows) {
-                                "forgen.exe"
-                            } else {
-                                "forgen"
-                            })
-                        })
-                    })
-                    .unwrap_or_else(|| PathBuf::from("forgen")),
-            );
-            cmd.arg("run");
-            for a in &args[2..] {
-                cmd.arg(a);
-            }
-            if let Ok(mut child) = cmd.spawn() {
-                let _ = child.wait();
-            } else {
-                eprintln!("[ERR] Could not execute 'forgen run'");
-            }
+        "run" | "build" | "test" | "check" | "bench" | "clean" | "fmt" | "format" | "lint"
+        | "clippy" | "lsp" => {
+            let mut forwarded = vec![args.first().cloned().unwrap_or_else(|| "forgen".to_string())];
+            forwarded.extend_from_slice(&args[1..]);
+            crate::cli::run_cli_with_args(&forwarded);
         }
 
         "rust-bridge" | "rust_bridge" => {
@@ -745,7 +725,14 @@ COMMANDS:
     verify                   Verify cryptographic ed25519 signatures & digests
     publish                  Package and publish local library to Sparks registry
     init [name] [--lib]      Initialize a new Datara project with Sparks support
+    build [args...]          Compile project binary (--llvm, --release)
     run [args...]            Compile and execute project entry point
+    test [args...]           Run project test suite
+    check [args...]          Run static type, ownership & effect verification
+    fmt [args...]            Format source code (--check, --all)
+    clippy, lint [args...]   Run linter and capability lattice audit
+    bench [args...]          Run project benchmarks
+    lsp                      Start Language Server Protocol (v3.17 stdio)
 
 FLAGS:
     -h, --help               Print help information
@@ -754,6 +741,9 @@ FLAGS:
 EXAMPLES:
     sparks install crypto_core
     sparks install math_simd
+    sparks build
+    sparks test
+    sparks fmt
     sparks update
     sparks self-update
 "#,
@@ -784,7 +774,15 @@ COMMANDS:
     verify                   Verify package integrity and cryptographic digests
     publish                  Package and publish local library to the registry
     rust-bridge <crate>      Generate Rust shim cdylib & Datara bindings from manifest
+    build [args...]          Compile project binary (--llvm, --release)
     run [file] [args...]     Compile and execute project entry or file
+    test [args...]           Run project test suite
+    check [args...]          Run static type, ownership & effect verification
+    fmt [args...]            Format source code (--check, --all)
+    clippy, lint [args...]   Run linter and capability lattice audit
+    bench [args...]          Run project benchmarks
+    clean                    Clean target/ build artifacts
+    lsp                      Start Language Server Protocol (v3.17 stdio)
 
 FLAGS:
     -h, --help               Print help information
