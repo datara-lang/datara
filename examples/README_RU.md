@@ -59,6 +59,7 @@ forgen run --jit examples/<файл>.dtr
 - `16_polyglot_python_zerocopy.dtr`: Бесшовный мост к экосистеме Python (NumPy, SciPy) с разделяемой памятью (`py.exec`, `py.eval_int`, `py.eval_float`).
 - `17_polyglot_parallel_computing.dtr`: Многопоточное параллельное исполнение задач на Zig, Lua и C# NativeAOT (`polyglot_parallel_exec`).
 - `20_polyglot_python_universal.dtr`: Внутрипроцессный вызов любых произвольных библиотек Python (requests, hashlib, json, platform) с нулевой задержкой.
+- `21_raytracer_render_benchmark.dtr`: Высокопроизводительный бенчмарк 3D-трассировки лучей (480 000 лучей, 800x600, 3 сферы, Phong) с побитовой математической идентичностью результатам на Rust и C++.
 
 ### 6. Синхронизация зависимостей (`requirements.txt`)
 - `requirements.txt`: Список сторонних Python-зависимостей проекта. Для автоматической установки через `pip` используйте команду `forgen install-deps`.

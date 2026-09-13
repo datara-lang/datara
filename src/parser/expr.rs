@@ -876,12 +876,6 @@ impl<'a> Parser<'a> {
 
     #[inline(never)]
     pub(crate) fn parse_paren_expr(&mut self, start_span: SourceSpan) -> Option<Expr> {
-        if self.depth > MAX_PARSE_DEPTH {
-            self.error_depth_limit("Expression");
-            return None;
-        }
-        self.depth += 1;
-
         if self.match_token(&TokenType::RParen) {
             if self.match_token(&TokenType::FatArrow) {
                 let body = Box::new(self.parse_expression()?);
@@ -892,7 +886,6 @@ impl<'a> Parser<'a> {
                     body.span().end_col,
                     self.file.clone(),
                 );
-                self.depth -= 1;
                 return Some(Expr::Lambda {
                     params: Vec::new(),
                     body,
@@ -900,7 +893,6 @@ impl<'a> Parser<'a> {
                 });
             }
             let expr = Expr::Literal(LiteralValue::None, start_span);
-            self.depth -= 1;
             return Some(expr);
         }
 
@@ -937,7 +929,6 @@ impl<'a> Parser<'a> {
                     body.span().end_col,
                     self.file.clone(),
                 );
-                self.depth -= 1;
                 return Some(Expr::Lambda { params, body, span });
             }
             let expr = Expr::Tuple(
@@ -950,7 +941,6 @@ impl<'a> Parser<'a> {
                     self.file.clone(),
                 ),
             );
-            self.depth -= 1;
             return Some(expr);
         }
 
@@ -976,11 +966,9 @@ impl<'a> Parser<'a> {
                 body.span().end_col,
                 self.file.clone(),
             );
-            self.depth -= 1;
             return Some(Expr::Lambda { params, body, span });
         }
 
-        self.depth -= 1;
         Some(first)
     }
 

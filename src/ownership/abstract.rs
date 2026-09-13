@@ -184,7 +184,13 @@ impl<'a> DmirOwnershipAnalyzer<'a> {
             dirty_count = 1;
         }
 
+        let max_iters = 512 * num_rpo.max(1);
+        let mut total_iters = 0usize;
         while dirty_count > 0 {
+            total_iters += 1;
+            if total_iters > max_iters {
+                break;
+            }
             // Wave B: Pick lowest RPO index for forward topological processing
             let rpo_idx = dirty.iter().position(|&d| d).expect("dirty block exists");
             dirty[rpo_idx] = false;

@@ -197,7 +197,7 @@ impl<'a> DmirOwnershipAnalyzer<'a> {
                                     Some(format!("Datara enforces XOR view semantics: only one mutable view of '{}' can exist at a time", name)),
                                 );
                             }
-                        } else {
+                        } else if is_mut_view {
                             let mut borrowed_st = arg_state.clone();
                             borrowed_st.borrows += 1;
                             borrowed_st.mut_borrows += 1;
@@ -231,7 +231,7 @@ impl<'a> DmirOwnershipAnalyzer<'a> {
                                     Some(format!("ensure mutable view is released before creating immutable view of '{}'", name)),
                                 );
                             }
-                        } else {
+                        } else if is_view {
                             let mut borrowed_st = arg_state.clone();
                             borrowed_st.borrows += 1;
                             borrowed_st.borrow_set_id =

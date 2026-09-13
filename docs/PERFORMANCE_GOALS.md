@@ -1,4 +1,4 @@
-﻿# Datara v1.2.0 Performance Goals & Verification Contract
+# Datara v1.2.0 Performance Goals & Verification Contract
 
 ## 1. Core Philosophy: Honest, Evidence-Backed Performance («APEX»)
 
@@ -63,6 +63,7 @@ No existing benchmark may degrade by > 5% across compiler releases without an ex
 | 14 | `realworld_grep_cli` | CLI Systems | Directory walker, line parser, regex matcher | >= 1.0x Rust/C, >= 1.10x avg |
 | 15 | `realworld_physics_2d` | Game Engine / Simulation | Particle integrator, broadphase, collision SoA | >= 1.0x Rust/C, >= 1.10x avg |
 | 16 | `realworld_image_blur` | Media / Vision | Box blur, 2D convolution buffer pass | >= 1.0x Rust/C, >= 1.10x avg |
+| 17 | `realworld_3d_raytracer` | Computer Graphics / Rendering | Vector dot math, sphere intersections, Phong shading | >= 1.0x Rust/C (parity with MSVC & rustc) |
 
 ---
 

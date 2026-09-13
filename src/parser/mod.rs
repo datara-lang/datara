@@ -150,55 +150,62 @@ mod tests {
 
     #[test]
     fn test_parser_deeply_nested_parens() {
-        // 1) Test depth 48 (well beyond old MAX_PARSE_DEPTH = 16) parses cleanly
-        {
-            let mut diag = DiagnosticEngine::new("en");
-            let s = "(".repeat(48) + "42" + &")".repeat(48);
-            let mut lexer = Lexer::new(&s, "depth48.dtr");
-            let tokens = lexer.tokenize(&mut diag);
-            let mut parser = Parser::new(tokens, &mut diag, "depth48.dtr");
-            let res = parser.parse_expression();
-            assert!(res.is_some(), "Depth 48 must parse successfully");
-            assert!(!diag.has_errors(), "Depth 48 must produce no errors");
-        }
+        std::thread::Builder::new()
+            .stack_size(8 * 1024 * 1024)
+            .spawn(|| {
+                // 1) Test depth 48 (well beyond old MAX_PARSE_DEPTH = 16) parses cleanly
+                {
+                    let mut diag = DiagnosticEngine::new("en");
+                    let s = "(".repeat(48) + "42" + &")".repeat(48);
+                    let mut lexer = Lexer::new(&s, "depth48.dtr");
+                    let tokens = lexer.tokenize(&mut diag);
+                    let mut parser = Parser::new(tokens, &mut diag, "depth48.dtr");
+                    let res = parser.parse_expression();
+                    assert!(res.is_some(), "Depth 48 must parse successfully");
+                    assert!(!diag.has_errors(), "Depth 48 must produce no errors");
+                }
 
-        // 2) Test depth 64 (current MAX_PARSE_DEPTH limit) parses cleanly
-        {
-            let mut diag = DiagnosticEngine::new("en");
-            let s = "(".repeat(64) + "42" + &")".repeat(64);
-            let mut lexer = Lexer::new(&s, "depth64.dtr");
-            let tokens = lexer.tokenize(&mut diag);
-            let mut parser = Parser::new(tokens, &mut diag, "depth64.dtr");
-            let res = parser.parse_expression();
-            assert!(res.is_some(), "Depth 64 must parse successfully");
-            assert!(!diag.has_errors(), "Depth 64 must produce no errors");
-        }
+                // 2) Test depth 64 (current MAX_PARSE_DEPTH limit) parses cleanly
+                {
+                    let mut diag = DiagnosticEngine::new("en");
+                    let s = "(".repeat(64) + "42" + &")".repeat(64);
+                    let mut lexer = Lexer::new(&s, "depth64.dtr");
+                    let tokens = lexer.tokenize(&mut diag);
+                    let mut parser = Parser::new(tokens, &mut diag, "depth64.dtr");
+                    let res = parser.parse_expression();
+                    assert!(res.is_some(), "Depth 64 must parse successfully");
+                    assert!(!diag.has_errors(), "Depth 64 must produce no errors");
+                }
 
-        // 3) Test depth 65 and 200 exceeds MAX_PARSE_DEPTH and reports clean error without crashing
-        {
-            let mut diag = DiagnosticEngine::new("en");
-            let s = "(".repeat(65) + "42" + &")".repeat(65);
-            let mut lexer = Lexer::new(&s, "depth65.dtr");
-            let tokens = lexer.tokenize(&mut diag);
-            let mut parser = Parser::new(tokens, &mut diag, "depth65.dtr");
-            let _ = parser.parse_expression();
-            assert!(
-                diag.has_errors(),
-                "Depth 65 must report recursion limit error"
-            );
-        }
-        {
-            let mut diag = DiagnosticEngine::new("en");
-            let s = "(".repeat(200) + &")".repeat(200);
-            let mut lexer = Lexer::new(&s, "deep.dtr");
-            let tokens = lexer.tokenize(&mut diag);
-            let mut parser = Parser::new(tokens, &mut diag, "deep.dtr");
-            let _ = parser.parse_expression();
-            assert!(
-                diag.has_errors(),
-                "Depth 200 must report error without crashing"
-            );
-        }
+                // 3) Test depth 65 and 200 exceeds MAX_PARSE_DEPTH and reports clean error without crashing
+                {
+                    let mut diag = DiagnosticEngine::new("en");
+                    let s = "(".repeat(65) + "42" + &")".repeat(65);
+                    let mut lexer = Lexer::new(&s, "depth65.dtr");
+                    let tokens = lexer.tokenize(&mut diag);
+                    let mut parser = Parser::new(tokens, &mut diag, "depth65.dtr");
+                    let _ = parser.parse_expression();
+                    assert!(
+                        diag.has_errors(),
+                        "Depth 65 must report recursion limit error"
+                    );
+                }
+                {
+                    let mut diag = DiagnosticEngine::new("en");
+                    let s = "(".repeat(200) + &")".repeat(200);
+                    let mut lexer = Lexer::new(&s, "deep.dtr");
+                    let tokens = lexer.tokenize(&mut diag);
+                    let mut parser = Parser::new(tokens, &mut diag, "deep.dtr");
+                    let _ = parser.parse_expression();
+                    assert!(
+                        diag.has_errors(),
+                        "Depth 200 must report error without crashing"
+                    );
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 
     #[test]
