@@ -599,7 +599,7 @@ print(f"RES:{r}|MS:{ms:.3f}")
     print("  Benchmark: dot 4M float4")
     dtr_dot = '''
 fn main() {
-    let t0 = now_ms()
+    let t0 = now_ns()
     mut sum = 0.0
     mut i = 0
     while i < 1000000 {
@@ -609,8 +609,9 @@ fn main() {
         sum = sum + d
         i = i + 1
     }
-    let elapsed = now_ms() - t0
-    out "RES:" + sum + "|MS:" + elapsed
+    let elapsed_ns = now_ns() - t0
+    let elapsed_ms = (elapsed_ns * 1.0) / 1000000.0
+    out "RES:" + sum + "|MS:" + elapsed_ms
 }
 '''
     rs_dot = '''

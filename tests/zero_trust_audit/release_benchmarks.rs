@@ -204,7 +204,7 @@ fn main() {
 fn bench_03_simd_dot_product_4m_floats() {
     let src = r#"
 fn main() {
-    let t0 = now_ms()
+    let t0 = now_ns()
     mut sum = 0.0
     mut i = 0
     while i < 1000000 {
@@ -214,8 +214,9 @@ fn main() {
         sum = sum + d
         i = i + 1
     }
-    let elapsed = now_ms() - t0
-    out "INTERNAL_MS:" + elapsed
+    let elapsed_ns = now_ns() - t0
+    let elapsed_ms = (elapsed_ns * 1.0) / 1000000.0
+    out "INTERNAL_MS:" + elapsed_ms
     out sum
 }
 "#;

@@ -317,14 +317,12 @@ impl Optimizer {
                 }
                 let is_pure_call = match inst {
                     Inst::Call { func, .. } => {
-                        func.starts_with("datara_rt_str_concat")
+                        crate::optimizer::loops::LoopOptimizer::is_pure_call(func)
+                            || func.starts_with("datara_rt_str_concat")
                             || func == "datara_rt_format_str_i64_str_i64"
                             || func == "datara_rt_int_to_str"
                             || func == "datara_rt_float_to_str"
                             || func == "datara_rt_len"
-                            || func == "abs"
-                            || func == "min"
-                            || func == "max"
                     }
                     _ => false,
                 };

@@ -91,10 +91,17 @@ foreach ($cand in $LocalCandidates) {
             Copy-Item -Path (Join-Path $BinDir "dpm.exe") -Destination (Join-Path $BinDir "sparks.exe") -Force
         }
 
+        foreach ($tool in @("datara-fmt.exe", "datara-clippy.exe", "datara-lsp.exe")) {
+            $toolLocal = Join-Path $candDir $tool
+            if (Test-Path $toolLocal) {
+                Copy-Item -Path $toolLocal -Destination (Join-Path $BinDir $tool) -Force
+            }
+        }
+
         Set-Content -Path (Join-Path $BinDir "sparks.cmd") -Value "@echo off`r`n`"%~dp0sparks.exe`" %*"
         Set-Content -Path (Join-Path $BinDir "dpm.cmd") -Value "@echo off`r`n`"%~dp0dpm.exe`" %*"
 
-        Write-Host "  -> Installed toolchain binaries (forgen, datara, dpm, sparks) from local source: $cand" -ForegroundColor Green
+        Write-Host "  -> Installed toolchain binaries (forgen, datara, dpm, sparks, datara-fmt, datara-clippy, datara-lsp) from local source: $cand" -ForegroundColor Green
         $InstalledSuccessfully = $true
         break
     }

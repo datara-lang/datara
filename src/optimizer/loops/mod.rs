@@ -119,6 +119,7 @@ impl LoopOptimizer {
         let clean = func
             .strip_prefix("datara_rt_math_")
             .or_else(|| func.strip_prefix("math_"))
+            .or_else(|| func.strip_prefix("datara_rt_"))
             .unwrap_or(func);
         let pure_prefixes = [
             "abs",
@@ -143,7 +144,17 @@ impl LoopOptimizer {
             "lcm",
             "float4",
             "float8",
+            "int4",
+            "int8",
+            "f32x4",
+            "f64x2",
+            "f64x4",
+            "i32x4",
+            "i64x2",
             "dot",
+            "dot4",
+            "cross",
+            "cross3",
             "pure_",
         ];
         pure_prefixes.iter().any(|p| clean.starts_with(p))

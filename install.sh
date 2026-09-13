@@ -68,27 +68,24 @@ INSTALLED=0
 
 # 3a. Check local repo candidates
 if [ -n "${SCRIPT_DIR}" ]; then
+    CAND_DIR=""
     if [ -f "${SCRIPT_DIR}/target/release/forgen" ]; then
-        cp "${SCRIPT_DIR}/target/release/forgen" "${BIN_DIR}/forgen"
-        cp "${SCRIPT_DIR}/target/release/forgen" "${BIN_DIR}/datara"
-        if [ -f "${SCRIPT_DIR}/target/release/dpm" ]; then
-            cp "${SCRIPT_DIR}/target/release/dpm" "${BIN_DIR}/dpm"
-        else
-            cp "${SCRIPT_DIR}/target/release/forgen" "${BIN_DIR}/dpm"
-        fi
-        chmod +x "${BIN_DIR}/forgen" "${BIN_DIR}/datara" "${BIN_DIR}/dpm"
-        echo -e "${COLOR_GREEN}  -> Copied binaries (forgen, datara, dpm) from target/release/${COLOR_NC}"
-        INSTALLED=1
+        CAND_DIR="${SCRIPT_DIR}/target/release"
     elif [ -f "${SCRIPT_DIR}/forgen" ]; then
-        cp "${SCRIPT_DIR}/forgen" "${BIN_DIR}/forgen"
-        cp "${SCRIPT_DIR}/forgen" "${BIN_DIR}/datara"
-        if [ -f "${SCRIPT_DIR}/dpm" ]; then
-            cp "${SCRIPT_DIR}/dpm" "${BIN_DIR}/dpm"
-        else
-            cp "${SCRIPT_DIR}/forgen" "${BIN_DIR}/dpm"
-        fi
-        chmod +x "${BIN_DIR}/forgen" "${BIN_DIR}/datara" "${BIN_DIR}/dpm"
-        echo -e "${COLOR_GREEN}  -> Copied binaries from local directory${COLOR_NC}"
+        CAND_DIR="${SCRIPT_DIR}"
+    fi
+
+    if [ -n "${CAND_DIR}" ]; then
+        for b in forgen datara dpm sparks datara-fmt datara-clippy datara-lsp; do
+            if [ -f "${CAND_DIR}/${b}" ]; then
+                cp "${CAND_DIR}/${b}" "${BIN_DIR}/${b}"
+                chmod +x "${BIN_DIR}/${b}"
+            elif [ "${b}" = "datara" ] || [ "${b}" = "dpm" ] || [ "${b}" = "sparks" ]; then
+                cp "${CAND_DIR}/forgen" "${BIN_DIR}/${b}"
+                chmod +x "${BIN_DIR}/${b}"
+            fi
+        done
+        echo -e "${COLOR_GREEN}  -> Copied toolchain binaries (forgen, datara, dpm, sparks, tools) from ${CAND_DIR}${COLOR_NC}"
         INSTALLED=1
     fi
 fi

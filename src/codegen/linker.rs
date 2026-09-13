@@ -897,9 +897,6 @@ pub fn compile_with_clang(
                 || target_triple == Some("native")
                 || target_triple == Some("host")
             {
-                #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
-                cmd.arg("-march=x86-64-v3");
-                #[cfg(not(any(target_arch = "x86_64", target_arch = "x86")))]
                 cmd.arg("-march=native");
             }
             cmd.arg(ll_path);

@@ -243,18 +243,14 @@ $btnInstall.Add_Click({
     $binSrc = $binCandidates | Where-Object { Test-Path (Join-Path $_ "forgen.exe") } | Select-Object -First 1
 
     if (Test-Path (Join-Path $binSrc "forgen.exe")) {
-        Copy-Item -Path (Join-Path $binSrc "forgen.exe") -Destination (Join-Path $binDir "forgen.exe") -Force
-        
-        $dataraSrc = Join-Path $binSrc "datara.exe"
-        if (Test-Path $dataraSrc) {
-            Copy-Item -Path $dataraSrc -Destination (Join-Path $binDir "datara.exe") -Force
-        } else {
-            Copy-Item -Path (Join-Path $binSrc "forgen.exe") -Destination (Join-Path $binDir "datara.exe") -Force
-        }
-
-        $dpmSrc = Join-Path $binSrc "dpm.exe"
-        if (Test-Path $dpmSrc) {
-            Copy-Item -Path $dpmSrc -Destination (Join-Path $binDir "dpm.exe") -Force
+        $binsToCopy = @("forgen.exe", "datara.exe", "dpm.exe", "sparks.exe", "datara-fmt.exe", "datara-clippy.exe", "datara-lsp.exe")
+        foreach ($b in $binsToCopy) {
+            $srcFile = Join-Path $binSrc $b
+            if (Test-Path $srcFile) {
+                Copy-Item -Path $srcFile -Destination (Join-Path $binDir $b) -Force
+            } elseif ($b -eq "datara.exe" -or $b -eq "dpm.exe" -or $b -eq "sparks.exe") {
+                Copy-Item -Path (Join-Path $binSrc "forgen.exe") -Destination (Join-Path $binDir $b) -Force
+            }
         }
     }
 
