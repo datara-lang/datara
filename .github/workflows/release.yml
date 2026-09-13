@@ -252,9 +252,27 @@ jobs:
           cat SHA256SUMS.txt
           ls -la
 
+      - name: Extract Release Notes from CHANGELOG
+        run: |
+          python -c "
+          import re, os
+          tag = os.environ.get('GITHUB_REF_NAME', '').lstrip('v')
+          with open('CHANGELOG.md', 'r', encoding='utf-8') as f:
+              content = f.read()
+          pattern = rf'## \[{re.escape(tag)}\][^\n]*\n(.*?)(?=\n## \[|\Z)'
+          match = re.search(pattern, content, re.DOTALL)
+          if match:
+              notes = match.group(0).strip()
+          else:
+              notes = '# Datara Production Release v' + tag
+          with open('dist-all/RELEASE_NOTES.md', 'w', encoding='utf-8') as out:
+              out.write(notes)
+          "
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          body_path: dist-all/RELEASE_NOTES.md
           files: |
             dist-all/Datara*.exe
             dist-all/forgen-*.zip
@@ -266,7 +284,7 @@ jobs:
             dist-all/*.crate
             dist-all/*.tgz
             dist-all/SHA256SUMS.txt
-          generate_release_notes: true
+          generate_release_notes: false
           draft: false
           prerelease: false
         env:
