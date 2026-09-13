@@ -1,0 +1,5 @@
+# Python Polyglot Dependencies for Datara Examples
+# Install all dependencies with: forgen install-deps
+numpy>=1.24.0
+scipy>=1.10.0
+requests>=2.31.0

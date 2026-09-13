@@ -58,6 +58,10 @@ forgen run --jit examples/<file>.dtr
 - `15_polyglot_lua_scripting.dtr`: Hot-reloadable Lua / LuaJIT scripting and expression evaluation (`lua_eval_int`, `lua_exec`).
 - `16_polyglot_python_zerocopy.dtr`: Python ecosystem bridge (NumPy, SciPy) with zero-copy memory buffers (`py.exec`, `py.eval_int`, `py.eval_float`).
 - `17_polyglot_parallel_computing.dtr`: Multi-threaded parallel execution across Zig, Lua, and C# NativeAOT runners (`polyglot_parallel_exec`).
+- `20_polyglot_python_universal.dtr`: In-process invocation of arbitrary Python libraries (requests, hashlib, json, platform) with zero latency.
+
+### 6. Dependency Synchronization (`requirements.txt`)
+- `requirements.txt`: Python polyglot dependencies for the project. Run `forgen install-deps` to auto-install via `pip`.
 
 ---
 

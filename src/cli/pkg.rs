@@ -156,44 +156,89 @@ pub(crate) fn cmd_remove(args: &[String]) -> bool {
     true
 }
 
-/// `forgen install` / `restore` — synchronize dependencies from datara.toml.
+/// `forgen install` / `restore` / `install-deps` — synchronize dependencies from datara.toml and requirements.txt.
 pub(crate) fn cmd_install(_args: &[String]) -> bool {
-    println!(":: [HyperGrid] Restoring project dependencies from datara.toml...");
     let manifest_path = Path::new("datara.toml");
-    if !manifest_path.exists() {
-        println!("[INFO] No datara.toml found. Nothing to install.");
-        return false;
+    if manifest_path.exists() {
+        println!(":: [HyperGrid] Restoring project dependencies from datara.toml...");
+        let manifest = match DataraManifest::from_file(manifest_path) {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!("[ERR] {}", e);
+                std::process::exit(1);
+            }
+        };
+
+        let registry = crate::project::HyperGridRegistry::new();
+        let mut installed_count = 0;
+        for dep_name in manifest.dependencies.keys() {
+            let pkg_dir = Path::new("packages").join(dep_name);
+            if !pkg_dir.exists() {
+                if let Some(pkg) = registry.lookup(dep_name) {
+                    println!("[.....] Installing {} (v{})...", pkg.name, pkg.version);
+                    if registry.install(pkg, Path::new(".")).is_ok() {
+                        println!("[DONE] Installed packages/{}", pkg.name);
+                        installed_count += 1;
+                    }
+                } else {
+                    eprintln!("[WARN] Dependency '{}' not found in HyperGrid", dep_name);
+                }
+            }
+        }
+        println!(
+            "[DONE] Synchronized Datara packages ({} installed, {} up-to-date)",
+            installed_count,
+            manifest.dependencies.len().saturating_sub(installed_count)
+        );
+    } else {
+        println!("[INFO] No datara.toml found. Checking for polyglot requirements...");
     }
 
-    let manifest = match DataraManifest::from_file(manifest_path) {
-        Ok(m) => m,
-        Err(e) => {
-            eprintln!("[ERR] {}", e);
-            std::process::exit(1);
-        }
+    // 2. Synchronize Python dependencies via requirements.txt or datara.requirements.txt
+    let req_path = if Path::new("requirements.txt").exists() {
+        Some(Path::new("requirements.txt"))
+    } else if Path::new("datara.requirements.txt").exists() {
+        Some(Path::new("datara.requirements.txt"))
+    } else {
+        None
     };
 
-    let registry = crate::project::HyperGridRegistry::new();
-    let mut installed_count = 0;
-    for dep_name in manifest.dependencies.keys() {
-        let pkg_dir = Path::new("packages").join(dep_name);
-        if !pkg_dir.exists() {
-            if let Some(pkg) = registry.lookup(dep_name) {
-                println!("[.....] Installing {} (v{})...", pkg.name, pkg.version);
-                if registry.install(pkg, Path::new(".")).is_ok() {
-                    println!("[DONE] Installed packages/{}", pkg.name);
-                    installed_count += 1;
-                }
-            } else {
-                eprintln!("[WARN] Dependency '{}' not found in HyperGrid", dep_name);
+    if let Some(rp) = req_path {
+        println!(
+            ":: [Python FFI] Found '{}'. Synchronizing Python dependencies via pip...",
+            rp.display()
+        );
+        let pip_cmd = std::process::Command::new("python")
+            .args(["-m", "pip", "install", "-r", &rp.to_string_lossy()])
+            .status()
+            .or_else(|_| {
+                std::process::Command::new("python3")
+                    .args(["-m", "pip", "install", "-r", &rp.to_string_lossy()])
+                    .status()
+            });
+        match pip_cmd {
+            Ok(status) if status.success() => {
+                println!(
+                    "[DONE] Successfully installed all Python dependencies from '{}'",
+                    rp.display()
+                );
+            }
+            Ok(status) => {
+                eprintln!(
+                    "[WARN] 'pip install -r {}' exited with status: {}",
+                    rp.display(),
+                    status
+                );
+            }
+            Err(e) => {
+                eprintln!(
+                    "[WARN] Python or pip was not detected on PATH ({}).\n  --> Install Python 3.8+ and ensure 'python' or 'pip' is in PATH.",
+                    e
+                );
             }
         }
     }
-    println!(
-        "[DONE] Synchronized dependencies ({} installed, {} up-to-date)",
-        installed_count,
-        manifest.dependencies.len().saturating_sub(installed_count)
-    );
+
     true
 }
 

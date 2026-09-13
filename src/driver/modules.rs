@@ -543,45 +543,81 @@ impl ForgenCompiler {
                                     );
                                 }
                                 _ => {
-                                    const KNOWN_PYTHON_PACKAGES: &[&str] = &[
-                                        "scipy",
-                                        "numpy",
-                                        "torch",
-                                        "pandas",
-                                        "sklearn",
-                                        "matplotlib",
-                                        "math",
-                                        "sys",
-                                        "os",
-                                        "json",
-                                        "re",
-                                        "time",
-                                        "typing",
-                                        "collections",
-                                        "itertools",
-                                        "functools",
-                                        "io",
-                                        "hashlib",
-                                        "socket",
-                                        "struct",
-                                        "unittest",
-                                        "pathlib",
-                                        "random",
-                                    ];
-                                    if KNOWN_PYTHON_PACKAGES.contains(&py_pkg) {
+                                    let auto_install_env = std::env::var("FORGEN_AUTO_INSTALL")
+                                        .or_else(|_| std::env::var("DATARA_AUTO_INSTALL"))
+                                        .map(|v| v == "1" || v == "true")
+                                        .unwrap_or(false);
+
+                                    let mut auto_installed = false;
+                                    if auto_install_env {
                                         println!(
-                                            "[Forgen FFI] Successfully bound Python library '{}' (known universal FFI module)",
+                                            "[.....] Python package '{}' missing. Auto-installing via pip...",
                                             py_pkg
                                         );
-                                    } else {
-                                        diag.error(
-                                            ErrorCode::ResolveUnreachableModule,
-                                            format!(
-                                                "Python library '{}' is not installed in the local environment.\n  --> Try running: pip install {}",
-                                                py_pkg, py_pkg
-                                            ),
-                                            Some(u.span.clone()),
-                                        );
+                                        let pip_res = std::process::Command::new("python")
+                                            .args(["-m", "pip", "install", py_pkg])
+                                            .output()
+                                            .or_else(|_| {
+                                                std::process::Command::new("python3")
+                                                    .args(["-m", "pip", "install", py_pkg])
+                                                    .output()
+                                            });
+                                        if let Ok(pout) = pip_res
+                                            && pout.status.success()
+                                        {
+                                            println!(
+                                                "[DONE] Successfully installed Python library '{}' via pip",
+                                                py_pkg
+                                            );
+                                            auto_installed = true;
+                                        }
+                                    }
+
+                                    if !auto_installed {
+                                        const KNOWN_PYTHON_PACKAGES: &[&str] = &[
+                                            "scipy",
+                                            "numpy",
+                                            "torch",
+                                            "pandas",
+                                            "sklearn",
+                                            "matplotlib",
+                                            "math",
+                                            "sys",
+                                            "os",
+                                            "json",
+                                            "re",
+                                            "time",
+                                            "typing",
+                                            "collections",
+                                            "itertools",
+                                            "functools",
+                                            "io",
+                                            "hashlib",
+                                            "socket",
+                                            "struct",
+                                            "unittest",
+                                            "pathlib",
+                                            "random",
+                                            "requests",
+                                            "urllib",
+                                            "platform",
+                                            "shutil",
+                                        ];
+                                        if KNOWN_PYTHON_PACKAGES.contains(&py_pkg) {
+                                            println!(
+                                                "[Forgen FFI] Successfully bound Python library '{}' (known universal FFI module)",
+                                                py_pkg
+                                            );
+                                        } else {
+                                            diag.error(
+                                                ErrorCode::ResolveUnreachableModule,
+                                                format!(
+                                                    "Python library '{}' is not installed in the local environment.\n  --> Run: forgen install-deps\n  --> Or manually: pip install {}",
+                                                    py_pkg, py_pkg
+                                                ),
+                                                Some(u.span.clone()),
+                                            );
+                                        }
                                     }
                                 }
                             }

@@ -156,7 +156,7 @@ pub fn run_cli_with_args(args: &[String]) {
 
         "remove" | "rm" => pkg::cmd_remove(&args),
 
-        "install" | "restore" => pkg::cmd_install(&args),
+        "install" | "restore" | "install-deps" => pkg::cmd_install(&args),
 
         "publish" => pkg::cmd_publish(&args),
 
