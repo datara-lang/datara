@@ -560,7 +560,10 @@ impl WasmEmitter {
                 } => {
                     let dest_loc = local_map.get(dest).copied().unwrap_or(0);
                     let op_loc = local_map.get(operand).copied().unwrap_or(0);
-                    let is_float = ty == "Float" || ty == "Float64";
+                    let is_float = ty == "Float"
+                        || ty == "Float64"
+                        || value_types.get(operand) == Some(&WasmValType::F64)
+                        || value_types.get(dest) == Some(&WasmValType::F64);
 
                     match op.as_str() {
                         "-" if is_float => {
@@ -600,10 +603,30 @@ impl WasmEmitter {
                             "    (local.set $v{} (local.get $v{}))\n",
                             dest.0, operand.0
                         ));
+                    } else if op == "-" && is_float {
+                        wat.push_str(&format!(
+                            "    (local.set $v{} (f64.neg (local.get $v{})))\n",
+                            dest.0, operand.0
+                        ));
+                    } else if op == "-" {
+                        wat.push_str(&format!(
+                            "    (local.set $v{} (i64.sub (i64.const 0) (local.get $v{})))\n",
+                            dest.0, operand.0
+                        ));
+                    } else if op == "!" {
+                        wat.push_str(&format!(
+                            "    (local.set $v{} (i64.extend_i32_u (i64.eqz (local.get $v{}))))\n",
+                            dest.0, operand.0
+                        ));
+                    } else if op == "~" {
+                        wat.push_str(&format!(
+                            "    (local.set $v{} (i64.xor (i64.const -1) (local.get $v{})))\n",
+                            dest.0, operand.0
+                        ));
                     } else {
                         wat.push_str(&format!(
-                            "    (local.set $v{} (unop_{} (local.get $v{})))\n",
-                            dest.0, op, operand.0
+                            "    (local.set $v{} (local.get $v{})) ;; unop {}\n",
+                            dest.0, operand.0, op
                         ));
                     }
                 }
@@ -766,23 +789,45 @@ impl WasmEmitter {
                 }
                 Inst::Out { value } => {
                     let val_loc = local_map.get(value).copied().unwrap_or(0);
+                    let is_float = value_types.get(value) == Some(&WasmValType::F64);
                     if let Some(&print_idx) = import_fn_indices.get("datara:rt/print") {
                         body.push(0x20); // local.get val
                         encode_u32_leb128(val_loc, body);
+                        if is_float {
+                            body.push(0xBD); // i64.reinterpret_f64
+                        }
                         body.push(0x10); // call
                         encode_u32_leb128(print_idx, body);
                     }
-                    wat.push_str(&format!("    (call $print (local.get $v{}))\n", value.0));
+                    if is_float {
+                        wat.push_str(&format!(
+                            "    (call $print (i64.reinterpret_f64 (local.get $v{})))\n",
+                            value.0
+                        ));
+                    } else {
+                        wat.push_str(&format!("    (call $print (local.get $v{}))\n", value.0));
+                    }
                 }
                 Inst::Err { value } => {
                     let val_loc = local_map.get(value).copied().unwrap_or(0);
+                    let is_float = value_types.get(value) == Some(&WasmValType::F64);
                     if let Some(&err_idx) = import_fn_indices.get("datara:rt/err") {
                         body.push(0x20); // local.get val
                         encode_u32_leb128(val_loc, body);
+                        if is_float {
+                            body.push(0xBD); // i64.reinterpret_f64
+                        }
                         body.push(0x10); // call
                         encode_u32_leb128(err_idx, body);
                     }
-                    wat.push_str(&format!("    (call $err (local.get $v{}))\n", value.0));
+                    if is_float {
+                        wat.push_str(&format!(
+                            "    (call $err (i64.reinterpret_f64 (local.get $v{})))\n",
+                            value.0
+                        ));
+                    } else {
+                        wat.push_str(&format!("    (call $err (local.get $v{}))\n", value.0));
+                    }
                 }
                 Inst::Select {
                     dest,

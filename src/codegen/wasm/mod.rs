@@ -43,7 +43,54 @@ impl WasmEmitter {
         let js_path = output_wasm_path.with_extension("js");
         let _ = fs::write(&js_path, js_shim);
 
+        // 5. Write Universal HTML Application Runner (.html)
+        let html_path = output_wasm_path.with_extension("html");
+        let html_content = Self::generate_html_runner(&module.name);
+        let _ = fs::write(&html_path, html_content);
+
         Ok(output_wasm_path.to_path_buf())
+    }
+
+    /// Generates a zero-dependency HTML5 host runner that mounts the Datara WebAssembly application.
+    pub fn generate_html_runner(module_name: &str) -> String {
+        format!(
+            r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{module_name} - Datara WebAssembly</title>
+    <style>
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b0f19; color: #f8fafc; padding: 32px; }}
+        #app {{ max-width: 960px; margin: 0 auto; background: #131b2e; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; }}
+        .header-title {{ color: #38bdf8; font-size: 24px; font-weight: 700; margin-bottom: 12px; }}
+        .text-body {{ color: #cbd5e1; font-size: 15px; line-height: 1.6; margin-bottom: 16px; }}
+        .btn {{ display: inline-block; padding: 10px 20px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; background: #38bdf8; color: #0b0f19; }}
+        .btn:hover {{ background: #0284c7; }}
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module">
+        import {{ loadDataraModule }} from './{module_name}.js';
+        loadDataraModule('./{module_name}.wasm').then(exports => {{
+            console.log('[Datara WASM] Module initialized:', exports);
+            if (exports.main) {{
+                const res = exports.main();
+                console.log('[Datara WASM] main() completed with code:', res);
+            }}
+        }}).catch(err => {{
+            console.error('[Datara WASM] Error:', err);
+            const app = document.getElementById('app');
+            if (app) app.innerHTML = `<div style="color: #f87171; font-family: monospace;">[Datara WASM Error]: ${{err.message}}</div>`;
+        }});
+    </script>
+</body>
+</html>
+"#,
+            module_name = module_name
+        )
     }
 
     /// Internal compiler pipeline that produces all 4 artifacts in memory.
@@ -993,12 +1040,45 @@ impl WasmEmitter {
                     func,
                 )?;
             } else {
-                // Empty block default return 0
-                body.push(0x42); // i64.const
-                encode_i64_leb128(0, &mut body);
-                body.push(0x0F); // return
+                // Empty block default return
+                match return_type {
+                    Some(WasmValType::F64) => {
+                        body.push(0x44);
+                        body.extend_from_slice(&0.0f64.to_le_bytes());
+                        body.push(0x0F);
+                        wat_fn.push_str("    (f64.const 0)\n    (return)\n");
+                    }
+                    Some(WasmValType::F32) => {
+                        body.push(0x43);
+                        body.extend_from_slice(&0.0f32.to_le_bytes());
+                        body.push(0x0F);
+                        wat_fn.push_str("    (f32.const 0)\n    (return)\n");
+                    }
+                    Some(WasmValType::I32) => {
+                        body.push(0x41);
+                        encode_i32_leb128(0, &mut body);
+                        body.push(0x0F);
+                        wat_fn.push_str("    (i32.const 0)\n    (return)\n");
+                    }
+                    Some(WasmValType::I64) => {
+                        body.push(0x42);
+                        encode_i64_leb128(0, &mut body);
+                        body.push(0x0F);
+                        wat_fn.push_str("    (i64.const 0)\n    (return)\n");
+                    }
+                    Some(WasmValType::V128) => {
+                        body.push(0xFD);
+                        body.push(0x0C);
+                        body.extend_from_slice(&[0u8; 16]);
+                        body.push(0x0F);
+                        wat_fn.push_str("    (v128.const i64x2 0 0)\n    (return)\n");
+                    }
+                    None => {
+                        body.push(0x0F);
+                        wat_fn.push_str("    (return)\n");
+                    }
+                }
                 body.push(0x0B); // end
-                wat_fn.push_str("    (i64.const 0)\n    (return)\n");
             }
         } else {
             // Multi-block CFG lowering via loop with dispatcher
@@ -1092,12 +1172,50 @@ impl WasmEmitter {
             // end loop (opcode 0x0B)
             body.push(0x0B);
 
-            // Default fallback return 0
-            body.push(0x42);
-            encode_i64_leb128(0, &mut body);
-            body.push(0x0F);
-
-            wat_fn.push_str("      (br $cfg_loop)\n    )\n    (i64.const 0)\n    (return)\n");
+            // Default fallback return matching return_type
+            match return_type {
+                Some(WasmValType::F64) => {
+                    body.push(0x44);
+                    body.extend_from_slice(&0.0f64.to_le_bytes());
+                    body.push(0x0F);
+                    wat_fn
+                        .push_str("      (br $cfg_loop)\n    )\n    (f64.const 0)\n    (return)\n");
+                }
+                Some(WasmValType::F32) => {
+                    body.push(0x43);
+                    body.extend_from_slice(&0.0f32.to_le_bytes());
+                    body.push(0x0F);
+                    wat_fn
+                        .push_str("      (br $cfg_loop)\n    )\n    (f32.const 0)\n    (return)\n");
+                }
+                Some(WasmValType::I32) => {
+                    body.push(0x41);
+                    encode_i32_leb128(0, &mut body);
+                    body.push(0x0F);
+                    wat_fn
+                        .push_str("      (br $cfg_loop)\n    )\n    (i32.const 0)\n    (return)\n");
+                }
+                Some(WasmValType::I64) => {
+                    body.push(0x42);
+                    encode_i64_leb128(0, &mut body);
+                    body.push(0x0F);
+                    wat_fn
+                        .push_str("      (br $cfg_loop)\n    )\n    (i64.const 0)\n    (return)\n");
+                }
+                Some(WasmValType::V128) => {
+                    body.push(0xFD);
+                    body.push(0x0C);
+                    body.extend_from_slice(&[0u8; 16]);
+                    body.push(0x0F);
+                    wat_fn.push_str(
+                        "      (br $cfg_loop)\n    )\n    (v128.const i64x2 0 0)\n    (return)\n",
+                    );
+                }
+                None => {
+                    body.push(0x0F);
+                    wat_fn.push_str("      (br $cfg_loop)\n    )\n    (return)\n");
+                }
+            }
         }
 
         // End function (opcode 0x0B)

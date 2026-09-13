@@ -59,7 +59,7 @@ fn main() {
 fn test_unicode_emoji_scalars_and_loop() {
     let code = r#"
 fn main() {
-    let s = "🦀🚀🎉"
+    let s = "𝐀𝐁𝐂"
     out str_len(s)
     out str_chars(s)
     mut count = 0
@@ -73,13 +73,13 @@ fn main() {
     let (stdout, code) = run_datara(code, "test_emoji");
     assert_eq!(code, 0);
     let lines: Vec<&str> = stdout.lines().collect();
-    // 3 emojis * 4 bytes each = 12 bytes
+    // 3 symbols * 4 bytes each = 12 bytes
     assert_eq!(lines[0], "12");
     // 3 scalar values
     assert_eq!(lines[1], "3");
-    assert_eq!(lines[2], "🦀");
-    assert_eq!(lines[3], "🚀");
-    assert_eq!(lines[4], "🎉");
+    assert_eq!(lines[2], "𝐀");
+    assert_eq!(lines[3], "𝐁");
+    assert_eq!(lines[4], "𝐂");
     assert_eq!(lines[5], "3");
 }
 
@@ -117,7 +117,7 @@ fn test_unicode_utf8_validation_in_runtime() {
         assert_eq!(datara_rt_validate_utf8(valid_cyrillic.as_ptr()), 1);
         assert_eq!(datara_rt_str_chars(valid_cyrillic.as_ptr()), 3);
 
-        let valid_emoji = CString::new("🎉").unwrap();
+        let valid_emoji = CString::new("𝐀").unwrap();
         assert_eq!(datara_rt_validate_utf8(valid_emoji.as_ptr()), 1);
         assert_eq!(datara_rt_str_chars(valid_emoji.as_ptr()), 1);
 

@@ -72,6 +72,10 @@ pub fn get_embedded_stdlib_source(module_path: &str) -> Option<&'static str> {
         "std.simd" => Some(include_str!("../stdlib/simd/simd.dtr")),
         "optimizer.optimize" => Some(include_str!("../stdlib/optimizer/optimize.dtr")),
         "optimizer" => Some(include_str!("../stdlib/optimizer/optimize.dtr")),
+        "math.math3d" => Some(include_str!("../stdlib/math/math3d.dtr")),
+        "math3d" => Some(include_str!("../stdlib/math/math3d.dtr")),
+        "gpu.compute" => Some(include_str!("../stdlib/gpu/compute.dtr")),
+        "gpu" => Some(include_str!("../stdlib/gpu/compute.dtr")),
         _ => None,
     }
 }
@@ -141,4 +145,8 @@ pub const ALL_EMBEDDED_MODULES: &[&str] = &[
     "std.simd",
     "optimizer.optimize",
     "optimizer",
+    "math.math3d",
+    "math3d",
+    "gpu.compute",
+    "gpu",
 ];

@@ -293,7 +293,7 @@ fn main() {
 fn test_spec_sec5_unicode_positive_multilingual_and_emoji() {
     let code = r#"
 fn main() {
-    let greeting = "Привет, мир! 🚀 世界"
+    let greeting = "Привет, мир! 𝐀 世界"
     out greeting
 }
 "#;
@@ -306,7 +306,7 @@ fn main() {
         .run_executable(&res.exe_path.unwrap(), &[])
         .unwrap();
     assert_eq!(code_exit, 0);
-    assert!(out.contains("Привет, мир! 🚀 世界"));
+    assert!(out.contains("Привет, мир! 𝐀 世界"));
 }
 
 #[test]

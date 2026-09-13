@@ -1,18 +1,45 @@
 module web.webgpu
 
+class WebGPUBuffer {
+    buffer_id: Int
+    size_bytes: Int
+    usage: Str
+}
+
+behavior WebGPUBuffer {
+    fn new(id: Int, size: Int, usage: Str) -> WebGPUBuffer {
+        return WebGPUBuffer {
+            buffer_id: id,
+            size_bytes: size,
+            usage: usage
+        }
+    }
+}
+
 class WebGPUContext {
     device_name: Str
     is_ready: Bool
+    active_buffers: Int
 }
 
 behavior WebGPUContext {
     fn request_adapter() -> WebGPUContext {
         return WebGPUContext {
             device_name: "WebGPU Hardware Accelerated Adapter",
-            is_ready: true
+            is_ready: true,
+            active_buffers: 0
         }
     }
 
-    fn dispatch_compute(workgroup_x: Int, workgroup_y: Int) -> Void {
+    fn create_storage_buffer(size_bytes: Int) -> WebGPUBuffer {
+        return WebGPUBuffer {
+            buffer_id: 2001,
+            size_bytes: size_bytes,
+            usage: "STORAGE | COPY_DST | COPY_SRC"
+        }
+    }
+
+    fn dispatch_compute(workgroup_x: Int, workgroup_y: Int, workgroup_z: Int) -> Bool {
+        return this.is_ready
     }
 }

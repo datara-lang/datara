@@ -1,0 +1,442 @@
+module math.math3d
+
+class Vec2 {
+    x: Float
+    y: Float
+}
+
+behavior Vec2 {
+    add(other: Vec2) -> Vec2 {
+        return Vec2 { x: this.x + other.x, y: this.y + other.y }
+    }
+
+    sub(other: Vec2) -> Vec2 {
+        return Vec2 { x: this.x - other.x, y: this.y - other.y }
+    }
+
+    scale(s: Float) -> Vec2 {
+        return Vec2 { x: this.x * s, y: this.y * s }
+    }
+
+    dot(other: Vec2) -> Float {
+        return this.x * other.x + this.y * other.y
+    }
+
+    length_sq() -> Float {
+        return this.x * this.x + this.y * this.y
+    }
+
+    length() -> Float {
+        return math_sqrt(this.length_sq())
+    }
+
+    normalize() -> Vec2 {
+        let len = this.length()
+        if len > 0.000001 {
+            require len != 0.0
+            let inv = 1.0 / len
+            return Vec2 { x: this.x * inv, y: this.y * inv }
+        }
+        return Vec2 { x: 0.0, y: 0.0 }
+    }
+
+    distance(other: Vec2) -> Float {
+        let d = this.sub(other)
+        return d.length()
+    }
+
+    lerp(other: Vec2, t: Float) -> Vec2 {
+        return Vec2 {
+            x: this.x + (other.x - this.x) * t,
+            y: this.y + (other.y - this.y) * t
+        }
+    }
+}
+
+class Vec3 {
+    x: Float
+    y: Float
+    z: Float
+}
+
+behavior Vec3 {
+    add(other: Vec3) -> Vec3 {
+        return Vec3 {
+            x: this.x + other.x,
+            y: this.y + other.y,
+            z: this.z + other.z
+        }
+    }
+
+    sub(other: Vec3) -> Vec3 {
+        return Vec3 {
+            x: this.x - other.x,
+            y: this.y - other.y,
+            z: this.z - other.z
+        }
+    }
+
+    scale(s: Float) -> Vec3 {
+        return Vec3 {
+            x: this.x * s,
+            y: this.y * s,
+            z: this.z * s
+        }
+    }
+
+    dot(other: Vec3) -> Float {
+        return this.x * other.x + this.y * other.y + this.z * other.z
+    }
+
+    cross(other: Vec3) -> Vec3 {
+        return Vec3 {
+            x: this.y * other.z - this.z * other.y,
+            y: this.z * other.x - this.x * other.z,
+            z: this.x * other.y - this.y * other.x
+        }
+    }
+
+    length_sq() -> Float {
+        return this.x * this.x + this.y * this.y + this.z * this.z
+    }
+
+    length() -> Float {
+        return math_sqrt(this.length_sq())
+    }
+
+    normalize() -> Vec3 {
+        let len = this.length()
+        if len > 0.000001 {
+            require len != 0.0
+            let inv = 1.0 / len
+            return Vec3 {
+                x: this.x * inv,
+                y: this.y * inv,
+                z: this.z * inv
+            }
+        }
+        return Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    }
+
+    distance(other: Vec3) -> Float {
+        let d = this.sub(other)
+        return d.length()
+    }
+
+    lerp(other: Vec3, t: Float) -> Vec3 {
+        return Vec3 {
+            x: this.x + (other.x - this.x) * t,
+            y: this.y + (other.y - this.y) * t,
+            z: this.z + (other.z - this.z) * t
+        }
+    }
+
+    reflect(normal: Vec3) -> Vec3 {
+        let d = this.dot(normal) * 2.0
+        let scaled_norm = normal.scale(d)
+        return this.sub(scaled_norm)
+    }
+}
+
+class Vec4 {
+    x: Float
+    y: Float
+    z: Float
+    w: Float
+}
+
+behavior Vec4 {
+    add(other: Vec4) -> Vec4 {
+        return Vec4 {
+            x: this.x + other.x,
+            y: this.y + other.y,
+            z: this.z + other.z,
+            w: this.w + other.w
+        }
+    }
+
+    sub(other: Vec4) -> Vec4 {
+        return Vec4 {
+            x: this.x - other.x,
+            y: this.y - other.y,
+            z: this.z - other.z,
+            w: this.w - other.w
+        }
+    }
+
+    scale(s: Float) -> Vec4 {
+        return Vec4 {
+            x: this.x * s,
+            y: this.y * s,
+            z: this.z * s,
+            w: this.w * s
+        }
+    }
+
+    dot(other: Vec4) -> Float {
+        return this.x * other.x + this.y * other.y + this.z * other.z + this.w * other.w
+    }
+
+    to_vec3() -> Vec3 {
+        let w = this.w
+        if w != 0.0 {
+            if w != 1.0 {
+                require w != 0.0
+                let inv_w = 1.0 / w
+                return Vec3 {
+                    x: this.x * inv_w,
+                    y: this.y * inv_w,
+                    z: this.z * inv_w
+                }
+            }
+        }
+        return Vec3 { x: this.x, y: this.y, z: this.z }
+    }
+}
+
+class Mat4 {
+    m00: Float
+    m01: Float
+    m02: Float
+    m03: Float
+    m10: Float
+    m11: Float
+    m12: Float
+    m13: Float
+    m20: Float
+    m21: Float
+    m22: Float
+    m23: Float
+    m30: Float
+    m31: Float
+    m32: Float
+    m33: Float
+}
+
+behavior Mat4 {
+    mul(b: Mat4) -> Mat4 {
+        let a = this
+        return Mat4 {
+            m00: a.m00 * b.m00 + a.m01 * b.m10 + a.m02 * b.m20 + a.m03 * b.m30,
+            m01: a.m00 * b.m01 + a.m01 * b.m11 + a.m02 * b.m21 + a.m03 * b.m31,
+            m02: a.m00 * b.m02 + a.m01 * b.m12 + a.m02 * b.m22 + a.m03 * b.m32,
+            m03: a.m00 * b.m03 + a.m01 * b.m13 + a.m02 * b.m23 + a.m03 * b.m33,
+
+            m10: a.m10 * b.m00 + a.m11 * b.m10 + a.m12 * b.m20 + a.m13 * b.m30,
+            m11: a.m10 * b.m01 + a.m11 * b.m11 + a.m12 * b.m21 + a.m13 * b.m31,
+            m12: a.m10 * b.m02 + a.m11 * b.m12 + a.m12 * b.m22 + a.m13 * b.m32,
+            m13: a.m10 * b.m03 + a.m11 * b.m13 + a.m12 * b.m23 + a.m13 * b.m33,
+
+            m20: a.m20 * b.m00 + a.m21 * b.m10 + a.m22 * b.m20 + a.m23 * b.m30,
+            m21: a.m20 * b.m01 + a.m21 * b.m11 + a.m22 * b.m21 + a.m23 * b.m31,
+            m22: a.m20 * b.m02 + a.m21 * b.m12 + a.m22 * b.m22 + a.m23 * b.m32,
+            m23: a.m20 * b.m03 + a.m21 * b.m13 + a.m22 * b.m23 + a.m23 * b.m33,
+
+            m30: a.m30 * b.m00 + a.m31 * b.m10 + a.m32 * b.m20 + a.m33 * b.m30,
+            m31: a.m30 * b.m01 + a.m31 * b.m11 + a.m32 * b.m21 + a.m33 * b.m31,
+            m32: a.m30 * b.m02 + a.m31 * b.m12 + a.m32 * b.m22 + a.m33 * b.m32,
+            m33: a.m30 * b.m03 + a.m31 * b.m13 + a.m32 * b.m23 + a.m33 * b.m33
+        }
+    }
+
+    transform_point(p: Vec3) -> Vec3 {
+        let x = this.m00 * p.x + this.m01 * p.y + this.m02 * p.z + this.m03
+        let y = this.m10 * p.x + this.m11 * p.y + this.m12 * p.z + this.m13
+        let z = this.m20 * p.x + this.m21 * p.y + this.m22 * p.z + this.m23
+        let w = this.m30 * p.x + this.m31 * p.y + this.m32 * p.z + this.m33
+        if w != 0.0 {
+            if w != 1.0 {
+                require w != 0.0
+                let inv_w = 1.0 / w
+                return Vec3 { x: x * inv_w, y: y * inv_w, z: z * inv_w }
+            }
+        }
+        return Vec3 { x: x, y: y, z: z }
+    }
+
+    transform_vector(v: Vec3) -> Vec3 {
+        return Vec3 {
+            x: this.m00 * v.x + this.m01 * v.y + this.m02 * v.z,
+            y: this.m10 * v.x + this.m11 * v.y + this.m12 * v.z,
+            z: this.m20 * v.x + this.m21 * v.y + this.m22 * v.z
+        }
+    }
+}
+
+// Standalone matrix and vector factory functions
+fn mat4_identity() -> Mat4 {
+    return Mat4 {
+        m00: 1.0, m01: 0.0, m02: 0.0, m03: 0.0,
+        m10: 0.0, m11: 1.0, m12: 0.0, m13: 0.0,
+        m20: 0.0, m21: 0.0, m22: 1.0, m23: 0.0,
+        m30: 0.0, m31: 0.0, m32: 0.0, m33: 1.0
+    }
+}
+
+fn mat4_translate(tx: Float, ty: Float, tz: Float) -> Mat4 {
+    return Mat4 {
+        m00: 1.0, m01: 0.0, m02: 0.0, m03: tx,
+        m10: 0.0, m11: 1.0, m12: 0.0, m13: ty,
+        m20: 0.0, m21: 0.0, m22: 1.0, m23: tz,
+        m30: 0.0, m31: 0.0, m32: 0.0, m33: 1.0
+    }
+}
+
+fn mat4_scale(sx: Float, sy: Float, sz: Float) -> Mat4 {
+    return Mat4 {
+        m00: sx,  m01: 0.0, m02: 0.0, m03: 0.0,
+        m10: 0.0, m11: sy,  m12: 0.0, m13: 0.0,
+        m20: 0.0, m21: 0.0, m22: sz,  m23: 0.0,
+        m30: 0.0, m31: 0.0, m32: 0.0, m33: 1.0
+    }
+}
+
+fn mat4_perspective(fov_rad: Float, aspect: Float, near: Float, far: Float) -> Mat4 {
+    let tan_half = math_tan(fov_rad * 0.5)
+    require tan_half != 0.0
+    let f = 1.0 / tan_half
+    let diff = near - far
+    require diff != 0.0
+    let range_inv = 1.0 / diff
+    require aspect != 0.0
+    return Mat4 {
+        m00: f / aspect, m01: 0.0, m02: 0.0,                      m03: 0.0,
+        m10: 0.0,        m11: f,   m12: 0.0,                      m13: 0.0,
+        m20: 0.0,        m21: 0.0, m22: (far + near) * range_inv, m23: 2.0 * far * near * range_inv,
+        m30: 0.0,        m31: 0.0, m32: -1.0,                     m33: 0.0
+    }
+}
+
+fn mat4_look_at(eye: Vec3, target: Vec3, up: Vec3) -> Mat4 {
+    let zaxis = eye.sub(target).normalize()
+    let xaxis = up.cross(zaxis).normalize()
+    let yaxis = zaxis.cross(xaxis)
+
+    return Mat4 {
+        m00: xaxis.x, m01: xaxis.y, m02: xaxis.z, m03: -xaxis.dot(eye),
+        m10: yaxis.x, m11: yaxis.y, m12: yaxis.z, m13: -yaxis.dot(eye),
+        m20: zaxis.x, m21: zaxis.y, m22: zaxis.z, m23: -zaxis.dot(eye),
+        m30: 0.0,     m31: 0.0,     m32: 0.0,     m33: 1.0
+    }
+}
+
+class Quat {
+    x: Float
+    y: Float
+    z: Float
+    w: Float
+}
+
+behavior Quat {
+    conjugate() -> Quat {
+        return Quat {
+            x: -this.x,
+            y: -this.y,
+            z: -this.z,
+            w: this.w
+        }
+    }
+
+    mul(q: Quat) -> Quat {
+        let p = this
+        return Quat {
+            x: p.w * q.x + p.x * q.w + p.y * q.z - p.z * q.y,
+            y: p.w * q.y - p.x * q.z + p.y * q.w + p.z * q.x,
+            z: p.w * q.z + p.x * q.y - p.y * q.x + p.z * q.w,
+            w: p.w * q.w - p.x * q.x - p.y * q.y - p.z * q.z
+        }
+    }
+
+    rotate_vec3(v: Vec3) -> Vec3 {
+        let qv = Vec3 { x: this.x, y: this.y, z: this.z }
+        let uv = qv.cross(v)
+        let uuv = qv.cross(uv)
+        let uv_w = uv.scale(this.w)
+        let term = uv_w.add(uuv).scale(2.0)
+        return v.add(term)
+    }
+}
+
+fn quat_from_axis_angle(axis: Vec3, angle_rad: Float) -> Quat {
+    let half = angle_rad * 0.5
+    let s = math_sin(half)
+    let norm_axis = axis.normalize()
+    return Quat {
+        x: norm_axis.x * s,
+        y: norm_axis.y * s,
+        z: norm_axis.z * s,
+        w: math_cos(half)
+    }
+}
+
+class Ray3 {
+    origin: Vec3
+    direction: Vec3
+}
+
+behavior Ray3 {
+    at(t: Float) -> Vec3 {
+        return this.origin.add(this.direction.scale(t))
+    }
+
+    intersect_sphere(center: Vec3, radius: Float) -> Float {
+        let oc = this.origin.sub(center)
+        let a = this.direction.dot(this.direction)
+        let b = 2.0 * oc.dot(this.direction)
+        let c = oc.dot(oc) - radius * radius
+        let discriminant = b * b - 4.0 * a * c
+        if discriminant < 0.0 {
+            return -1.0
+        }
+        let sqrtd = math_sqrt(discriminant)
+        let denom = 2.0 * a
+        require denom != 0.0
+        let t0 = (-b - sqrtd) / denom
+        if t0 >= 0.0 {
+            return t0
+        }
+        let t1 = (-b + sqrtd) / denom
+        if t1 >= 0.0 {
+            return t1
+        }
+        return -1.0
+    }
+}
+
+class Aabb3 {
+    min: Vec3
+    max: Vec3
+}
+
+behavior Aabb3 {
+    contains_point(p: Vec3) -> Bool {
+        if p.x < this.min.x { return false }
+        if p.x > this.max.x { return false }
+        if p.y < this.min.y { return false }
+        if p.y > this.max.y { return false }
+        if p.z < this.min.z { return false }
+        if p.z > this.max.z { return false }
+        return true
+    }
+
+    expand(p: Vec3) -> Aabb3 {
+        mut min_x = this.min.x
+        if p.x < min_x { min_x = p.x }
+        mut min_y = this.min.y
+        if p.y < min_y { min_y = p.y }
+        mut min_z = this.min.z
+        if p.z < min_z { min_z = p.z }
+
+        mut max_x = this.max.x
+        if p.x > max_x { max_x = p.x }
+        mut max_y = this.max.y
+        if p.y > max_y { max_y = p.y }
+        mut max_z = this.max.z
+        if p.z > max_z { max_z = p.z }
+
+        return Aabb3 {
+            min: Vec3 { x: min_x, y: min_y, z: min_z },
+            max: Vec3 { x: max_x, y: max_y, z: max_z }
+        }
+    }
+}

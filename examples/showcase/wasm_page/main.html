@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>main - Datara WebAssembly</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b0f19; color: #f8fafc; padding: 32px; }
+        #app { max-width: 960px; margin: 0 auto; background: #131b2e; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; }
+        .header-title { color: #38bdf8; font-size: 24px; font-weight: 700; margin-bottom: 12px; }
+        .text-body { color: #cbd5e1; font-size: 15px; line-height: 1.6; margin-bottom: 16px; }
+        .btn { display: inline-block; padding: 10px 20px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; background: #38bdf8; color: #0b0f19; }
+        .btn:hover { background: #0284c7; }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module">
+        import { loadDataraModule } from './main.js';
+        loadDataraModule('./main.wasm').then(exports => {
+            console.log('[Datara WASM] Module initialized:', exports);
+            if (exports.main) {
+                const res = exports.main();
+                console.log('[Datara WASM] main() completed with code:', res);
+            }
+        }).catch(err => {
+            console.error('[Datara WASM] Error:', err);
+            const app = document.getElementById('app');
+            if (app) app.innerHTML = `<div style="color: #f87171; font-family: monospace;">[Datara WASM Error]: ${err.message}</div>`;
+        });
+    </script>
+</body>
+</html>

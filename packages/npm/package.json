@@ -1,6 +1,6 @@
 {
   "name": "@datara-lang/datara",
-  "version": "1.2.0",
+  "version": "1.2.5",
   "description": "The Datara Programming Language and Forgen Native Compiler toolchain runner",
   "main": "lib/binary.js",
   "bin": {

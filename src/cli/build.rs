@@ -571,15 +571,17 @@ pub(crate) fn cmd_build(command: &str, args: &[String]) -> bool {
 
     let start = Instant::now();
     let bin_name = layout.binary_name();
-    let is_wasm_target = args
-        .iter()
-        .any(|a| a == "--wasm" || a == "--target=wasm32" || a == "wasm32")
-        || args
-            .windows(2)
-            .any(|w| w[0] == "--target" && w[1] == "wasm32")
-        || args
-            .windows(2)
-            .any(|w| (w[0] == "-o" || w[0] == "--out") && w[1].ends_with(".wasm"));
+    let is_wasm_target = args.iter().any(|a| {
+        a == "--wasm"
+            || a == "--target=wasm"
+            || a == "--target=wasm32"
+            || a == "wasm32"
+            || a == "wasm"
+    }) || args.windows(2).any(|w| {
+        w[0] == "--target" && (w[1] == "wasm" || w[1] == "wasm32" || w[1].starts_with("wasm32-"))
+    }) || args
+        .windows(2)
+        .any(|w| (w[0] == "-o" || w[0] == "--out") && w[1].ends_with(".wasm"));
     let is_python_target = args.iter().any(|a| a == "--python");
     let is_lib_target = args.iter().any(|a| a == "--lib" || a == "--embed");
     let lib_ext = if cfg!(target_os = "windows") {
@@ -631,6 +633,10 @@ pub(crate) fn cmd_build(command: &str, args: &[String]) -> bool {
                         println!(
                             "[Forgen WASM] JS:     {}",
                             wasm_path.with_extension("js").display()
+                        );
+                        println!(
+                            "[Forgen WASM] HTML:   {}",
+                            wasm_path.with_extension("html").display()
                         );
                         return false;
                     }

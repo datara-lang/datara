@@ -1,0 +1,96 @@
+module gpu.compute
+
+class GpuBuffer {
+    handle: Int
+    size_bytes: Int
+    element_count: Int
+    alignment: Int
+    is_device_resident: Bool
+}
+
+behavior GpuBuffer {
+    upload_slice(data_len: Int) -> Bool {
+        if data_len > this.size_bytes {
+            return false
+        }
+        return true
+    }
+
+    is_aligned() -> Bool {
+        return this.alignment == 64
+    }
+}
+
+fn gpu_buffer_create(element_count: Int, bytes_per_element: Int) -> GpuBuffer {
+    let raw_size = element_count * bytes_per_element
+    let remainder = raw_size % 64
+    mut padded_size = raw_size
+    if remainder != 0 {
+        padded_size = raw_size + (64 - remainder)
+    }
+    
+    return GpuBuffer {
+        handle: 1000 + element_count,
+        size_bytes: padded_size,
+        element_count: element_count,
+        alignment: 64,
+        is_device_resident: true
+    }
+}
+
+class GpuComputePipeline {
+    pipeline_id: Int
+    entry_point: Str
+    workgroup_x: Int
+    workgroup_y: Int
+    workgroup_z: Int
+    is_compiled: Bool
+}
+
+behavior GpuComputePipeline {
+    dispatch_1d(total_elements: Int) -> Int {
+        let wg_x = this.workgroup_x
+        require wg_x != 0
+        let groups = (total_elements + wg_x - 1) / wg_x
+        return groups
+    }
+
+    dispatch_2d(width: Int, height: Int) -> Int {
+        let wg_x = this.workgroup_x
+        let wg_y = this.workgroup_y
+        require wg_x != 0
+        require wg_y != 0
+        let gx = (width + wg_x - 1) / wg_x
+        let gy = (height + wg_y - 1) / wg_y
+        return gx * gy
+    }
+}
+
+fn gpu_pipeline_new(entry: Str, wg_x: Int, wg_y: Int, wg_z: Int) -> GpuComputePipeline {
+    return GpuComputePipeline {
+        pipeline_id: 5001,
+        entry_point: entry,
+        workgroup_x: wg_x,
+        workgroup_y: wg_y,
+        workgroup_z: wg_z,
+        is_compiled: true
+    }
+}
+
+class ShaderBuilder {
+    shader_type: Str
+}
+
+behavior ShaderBuilder {
+    generate_vector_add_wgsl(binding_a: Int, binding_b: Int, binding_out: Int) -> Str {
+        return fmt"@group(0) @binding({binding_a}) var<storage, read> a: array<f32>;\n@group(0) @binding({binding_b}) var<storage, read> b: array<f32>;\n@group(0) @binding({binding_out}) var<storage, read_write> c: array<f32>;\n\n@compute @workgroup_size(64)\nfn main(@builtin(global_invocation_id) id: vec3<u32>) {\n    c[id.x] = a[id.x] + b[id.x];\n}\n"
+    }
+
+    generate_transform_3d_wgsl(binding_vertices: Int, binding_matrix: Int, binding_out: Int) -> Str {
+        return fmt"@group(0) @binding({binding_vertices}) var<storage, read> v_in: array<vec4<f32>>;\n@group(0) @binding({binding_matrix}) var<uniform> mvp: mat4x4<f32>;\n@group(0) @binding({binding_out}) var<storage, read_write> v_out: array<vec4<f32>>;\n\n@compute @workgroup_size(64)\nfn main(@builtin(global_invocation_id) id: vec3<u32>) {\n    v_out[id.x] = mvp * v_in[id.x];\n}\n"
+    }
+}
+
+fn shader_builder_new() -> ShaderBuilder {
+    return ShaderBuilder { shader_type: "WGSL" }
+}

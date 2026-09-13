@@ -404,17 +404,50 @@ impl WasmEmitter {
                     dest.0, sanitized, arg_wat_suffix
                 ));
             }
-        } else {
-            // Fallback / runtime-only call: do NOT push args onto operand stack,
-            // as no callee exists to consume them. Just initialize dest to 0.
-            body.push(0x42);
-            encode_i64_leb128(0, body);
-            body.push(0x21);
+        } else if (func == "fma" || func == "llvm.fma.f64" || func == "datara_rt_fma")
+            && args.len() == 3
+        {
+            let a_loc = local_map.get(&args[0]).copied().unwrap_or(0);
+            let b_loc = local_map.get(&args[1]).copied().unwrap_or(0);
+            let c_loc = local_map.get(&args[2]).copied().unwrap_or(0);
+
+            body.push(0x20); // local.get a
+            encode_u32_leb128(a_loc, body);
+            body.push(0x20); // local.get b
+            encode_u32_leb128(b_loc, body);
+            body.push(0xA2); // f64.mul
+            body.push(0x20); // local.get c
+            encode_u32_leb128(c_loc, body);
+            body.push(0xA0); // f64.add
+            body.push(0x21); // local.set dest
             encode_u32_leb128(dest_loc, body);
+
             wat.push_str(&format!(
-                "    (local.set $v{} (i64.const 0)) ;; fallback call: {}\n",
-                dest.0, func
+                "    (local.set $v{} (f64.add (f64.mul (local.get $v{}) (local.get $v{})) (local.get $v{})))\n",
+                dest.0, args[0].0, args[1].0, args[2].0
             ));
+        } else {
+            // Fallback / runtime-only call: initialize dest to 0 with matching type
+            let is_dest_float = value_types.get(&dest) == Some(&WasmValType::F64);
+            if is_dest_float {
+                body.push(0x44); // f64.const 0.0
+                body.extend_from_slice(&0.0f64.to_le_bytes());
+                body.push(0x21);
+                encode_u32_leb128(dest_loc, body);
+                wat.push_str(&format!(
+                    "    (local.set $v{} (f64.const 0)) ;; fallback call: {}\n",
+                    dest.0, func
+                ));
+            } else {
+                body.push(0x42);
+                encode_i64_leb128(0, body);
+                body.push(0x21);
+                encode_u32_leb128(dest_loc, body);
+                wat.push_str(&format!(
+                    "    (local.set $v{} (i64.const 0)) ;; fallback call: {}\n",
+                    dest.0, func
+                ));
+            }
         }
 
         Ok(())

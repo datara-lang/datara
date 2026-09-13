@@ -67,7 +67,7 @@ fn main() {
     out str_len(cyr)
     out str_chars(cyr)
 
-    let emo = "🦀🚀🎉"
+    let emo = "𝐀𝐁𝐂"
     out str_len(emo)
     out str_chars(emo)
 

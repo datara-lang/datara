@@ -123,7 +123,7 @@ fn main() {
 fn test_wave2_unicode_byte_len_char_len_and_o1_byte_access() {
     let source = r#"
 fn main() {
-    let s = "Привет 🦀"
+    let s = "Привет 𝐀"
     out str_len(s)
     out str_chars(s)
     out str_byte_at(s, 0)
@@ -136,9 +136,9 @@ fn main() {
     let (stdout, _, code, _) = compiler.codegen.run_executable(&exe, &[]).unwrap();
     assert_eq!(code, 0);
     let lines: Vec<&str> = stdout.lines().collect();
-    // "Привет" is 12 bytes + 1 space + 4 bytes for crab = 17 bytes
+    // "Привет" is 12 bytes + 1 space + 4 bytes for symbol = 17 bytes
     assert_eq!(lines[0], "17");
-    // "Привет 🦀" is 6 letters + 1 space + 1 crab = 8 chars
+    // "Привет 𝐀" is 6 letters + 1 space + 1 symbol = 8 chars
     assert_eq!(lines[1], "8");
     // First byte of 'П' (0xD0 0x9F) is 0xD0 = 208
     assert_eq!(lines[2], "208");
@@ -156,7 +156,7 @@ fn test_wave2_unicode_sanitization_runtime() {
     }
 
     unsafe {
-        let valid_str = CString::new("Привет 🦀").unwrap();
+        let valid_str = CString::new("Привет 𝐀").unwrap();
         assert_eq!(datara_rt_byte_len(valid_str.as_ptr()), 17);
         assert_eq!(datara_rt_char_len(valid_str.as_ptr()), 8);
         assert_eq!(datara_rt_str_byte_at(valid_str.as_ptr(), 0), 0xD0);

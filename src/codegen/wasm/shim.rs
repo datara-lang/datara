@@ -20,11 +20,20 @@ impl WasmEmitter {
 
         format!(
             r#"// Datara Capability-Native WebAssembly Runtime Loader ({module_name})
-import fs from 'fs';
+// Universal loader compatible with Node.js and Browser / Web Worker environments.
 
 export async function loadDataraModule(wasmPath, customImports = {{}}) {{
     const wasmFile = wasmPath || './{module_name}.wasm';
-    const wasmBytes = fs.readFileSync(wasmFile);
+    let wasmBytes;
+    if (typeof process !== 'undefined' && process.versions != null && process.versions.node != null) {{
+        const fs = await import('fs');
+        wasmBytes = fs.readFileSync(wasmFile);
+    }} else if (typeof fetch !== 'undefined') {{
+        const resp = await fetch(wasmFile);
+        wasmBytes = await resp.arrayBuffer();
+    }} else {{
+        throw new Error('Unsupported runtime: neither Node.js fs nor Browser fetch is available');
+    }}
 
     // Linear-memory bump allocator and runtime context
     let memoryInstance = null;
@@ -58,14 +67,39 @@ export async function loadDataraModule(wasmPath, customImports = {{}}) {{
     const mapStorage = new Map();
     let nextMapHandle = 20000n;
 
+    // In-memory DOM storage for reactive WebAssembly UI
+    const domStorage = new Map();
+    let nextDomHandle = 30000n;
+
     // Ownership guard reference-counting storage (per-value Map)
     const ownershipStorage = new Map();
 
     const importObject = {{
         "datara:rt": {{
             alloc: (size) => allocateMemory(size),
-            print: (val) => console.log(typeof val === 'bigint' ? val.toString() : val),
-            err: (val) => console.error(typeof val === 'bigint' ? val.toString() : val),
+            print: (val) => {{
+                if (typeof val === 'bigint') {{
+                    const buf = new ArrayBuffer(8);
+                    const view = new DataView(buf);
+                    view.setBigInt64(0, val, true);
+                    const f = view.getFloat64(0, true);
+                    const absVal = val < 0n ? -val : val;
+                    if (Number.isFinite(f) && absVal > 4000000000000000n && Math.abs(f) > 1e-15 && Math.abs(f) < 1e15) {{
+                        console.log(f);
+                        return;
+                    }}
+                    console.log(val.toString());
+                }} else {{
+                    console.log(val);
+                }}
+            }},
+            err: (val) => {{
+                if (typeof val === 'bigint') {{
+                    console.error(val.toString());
+                }} else {{
+                    console.error(val);
+                }}
+            }},
             list_create: (cap) => {{
                 const handle = nextListHandle++;
                 listStorage.set(handle, []);
@@ -177,6 +211,40 @@ export async function loadDataraModule(wasmPath, customImports = {{}}) {{
         }},
         webgl: {{
             getContext: (canvasId) => globalThis.document?.getElementById(canvasId)?.getContext('webgl2'),
+        }},
+        "datara:ui": {{
+            create_element: (tagPtr) => {{
+                if (typeof document === 'undefined') return 0n;
+                const tag = readString(tagPtr);
+                const el = document.createElement(tag);
+                const handle = nextDomHandle++;
+                domStorage.set(handle, el);
+                return handle;
+            }},
+            set_text: (elHandle, textPtr) => {{
+                const el = domStorage.get(elHandle);
+                if (el) el.textContent = readString(textPtr);
+                return elHandle;
+            }},
+            set_attribute: (elHandle, namePtr, valPtr) => {{
+                const el = domStorage.get(elHandle);
+                if (el) el.setAttribute(readString(namePtr), readString(valPtr));
+                return elHandle;
+            }},
+            append_child: (parentHandle, childHandle) => {{
+                if (typeof document === 'undefined') return parentHandle;
+                const parent = parentHandle === 0n ? (document.getElementById('app') || document.body) : domStorage.get(parentHandle);
+                const child = domStorage.get(childHandle);
+                if (parent && child) parent.appendChild(child);
+                return parentHandle;
+            }},
+            mount_root: (rootHandle) => {{
+                if (typeof document === 'undefined') return rootHandle;
+                const root = domStorage.get(rootHandle);
+                const app = document.getElementById('app') || document.body;
+                if (root && app) app.appendChild(root);
+                return rootHandle;
+            }},
         }}
     }};
 
@@ -198,9 +266,13 @@ export async function loadDataraModule(wasmPath, customImports = {{}}) {{
             module_name = module_name,
             fs_binding = if has_fs {
                 r#"importObject["datara:fs@1.0"] = {
-        read: (pathPtr) => {
+        read: async (pathPtr) => {
             const p = readString(pathPtr);
-            try { return BigInt(fs.readFileSync(p).length); } catch (e) { return 0n; }
+            if (typeof process !== 'undefined' && process.versions?.node) {
+                const fs = await import('fs');
+                try { return BigInt(fs.readFileSync(p).length); } catch (e) { return 0n; }
+            }
+            return 0n;
         },
         write: (pathPtr, contentPtr) => {
             const p = readString(pathPtr);
