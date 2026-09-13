@@ -705,7 +705,7 @@ impl<'a> Lowering<'a> {
                                 let item_val = self.next_val();
                                 self.get_block_mut(body_id).instructions.push(Inst::Call {
                                     dest: item_val,
-                                    func: "datara_rt_list_get".into(),
+                                    func: "datara_rt_list_get_unchecked".into(),
                                     args: vec![lv, fetch_idx],
                                     ty: elem_repr.into(),
                                 });
