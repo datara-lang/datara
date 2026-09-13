@@ -2,6 +2,7 @@ pub(crate) mod bce;
 pub(crate) mod engine_v2;
 pub(crate) mod fold;
 pub mod polyhedral;
+pub(crate) mod unswitch;
 
 use crate::dmir::cfg::ControlFlowGraph;
 use crate::dmir::{BasicBlockId, Function, Inst, Terminator, ValueId};
@@ -38,6 +39,7 @@ impl LoopOptimizer {
         let mut transformed = 0;
         transformed += Self::licm_pass(f, cost_model, trace);
         transformed += Self::forward_invariants_pass(f, cost_model, trace);
+        transformed += unswitch::LoopUnswitcher::unswitch_loops(f, cost_model, trace);
         let bce_count = Self::bce_pass(f, cost_model, trace);
         *bce_proven += bce_count;
         transformed += bce_count;

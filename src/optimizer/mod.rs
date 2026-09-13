@@ -19,6 +19,7 @@ pub mod polyhedral;
 pub mod recursion;
 pub mod scalar;
 pub mod sra;
+pub mod symbolic;
 
 use adaptive::SemanticAdaptationEngine;
 use cost_model::{CostModel, OptimizationDecisionTrace};

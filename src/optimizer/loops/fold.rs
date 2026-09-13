@@ -20,6 +20,9 @@ pub(crate) enum SumTerm {
     },
     /// `sum += i * i` (quadratic sum): closed form via n*(n-1)*(2n-1)/6 or n*(n+1)*(2n+1)/6.
     Quadratic { scale: i64, is_le: bool },
+    /// `sum += i * i * i` (cubic sum / Faulhaber sum of cubes):
+    /// closed form via [n*(n-1)/2]^2 or [n*(n+1)/2]^2.
+    Cubic { scale: i64, is_le: bool },
     /// Float induction: `sum += i * k` for Float induction variable.
     FloatInduction { scale: f64, start: f64, is_le: bool },
     /// `sum += x` where `x` is defined outside the loop: closed form `trips*x`.
@@ -151,6 +154,7 @@ impl LoopOptimizer {
         }
         let mut scaled_terms: HashMap<ValueId, i64> = HashMap::new();
         let mut quadratic_terms: HashSet<ValueId> = HashSet::new();
+        let mut cubic_terms: HashSet<ValueId> = HashSet::new();
         let mut float_scaled_terms: HashMap<ValueId, f64> = HashMap::new();
         for inst in &body_blk.instructions {
             if let Inst::BinOp {
@@ -164,6 +168,11 @@ impl LoopOptimizer {
             {
                 if !is_float && *left == p_i && *right == p_i {
                     quadratic_terms.insert(*dest);
+                } else if !is_float
+                    && ((quadratic_terms.contains(left) && *right == p_i)
+                        || (quadratic_terms.contains(right) && *left == p_i))
+                {
+                    cubic_terms.insert(*dest);
                 } else if !is_float && *left == p_i {
                     if let Some(k) = Self::const_int_value(f, *right) {
                         scaled_terms.insert(*dest, k);
@@ -257,6 +266,7 @@ impl LoopOptimizer {
                 Inst::BinOp { op, dest, .. } if op == "*" => {
                     if !scaled_terms.contains_key(dest)
                         && !quadratic_terms.contains(dest)
+                        && !cubic_terms.contains(dest)
                         && !float_scaled_terms.contains_key(dest)
                     {
                         all_standard = false;
@@ -598,6 +608,8 @@ impl LoopOptimizer {
                 }
             } else if quadratic_terms.contains(&x) {
                 SumTerm::Quadratic { scale: 1, is_le }
+            } else if cubic_terms.contains(&x) {
+                SumTerm::Cubic { scale: 1, is_le }
             } else if let Some(&k) = scaled_terms.get(&x) {
                 SumTerm::Induction {
                     scale: k,
@@ -898,6 +910,31 @@ impl LoopOptimizer {
                         unscaled
                     }
                 }
+                SumTerm::Cubic { scale, is_le } => {
+                    let adj_op = if is_le { "+" } else { "-" };
+                    let n_adj = push_bin(&mut insts, &mut next, adj_op, plan.n, c1, "Int");
+
+                    let half_e = push_bin(&mut insts, &mut next, "/", plan.n, c2, "Int");
+                    let prod_e = push_bin(&mut insts, &mut next, "*", half_e, n_adj, "Int");
+                    let half_o = push_bin(&mut insts, &mut next, "/", n_adj, c2, "Int");
+                    let prod_o = push_bin(&mut insts, &mut next, "*", half_o, plan.n, "Int");
+                    let mod2 = push_bin(&mut insts, &mut next, "%", plan.n, c2, "Int");
+                    let is_even = push_bin(&mut insts, &mut next, "==", mod2, c0, "Bool");
+                    let gauss = push_decide(
+                        &mut insts,
+                        &mut next,
+                        vec![(is_even, prod_e)],
+                        Some(prod_o),
+                        "Int",
+                    );
+                    let unscaled = push_bin(&mut insts, &mut next, "*", gauss, gauss, "Int");
+                    if scale != 1 {
+                        let k_val = push_const(&mut insts, &mut next, scale);
+                        push_bin(&mut insts, &mut next, "*", unscaled, k_val, "Int")
+                    } else {
+                        unscaled
+                    }
+                }
                 SumTerm::AffineInduction {
                     scale,
                     offset,
@@ -1106,6 +1143,10 @@ impl LoopOptimizer {
             SumTerm::Quadratic { .. } => {
                 "countable while-loop with quadratic accumulation (sum += i*i): final value \
                  proven via sum of squares closed form n*(n-1)*(2n-1)/6; zero trips guarded by select"
+            }
+            SumTerm::Cubic { .. } => {
+                "countable while-loop with cubic accumulation (sum += i*i*i): final value \
+                 proven via Faulhaber sum of cubes [n*(n-1)/2]^2; zero trips guarded by select"
             }
             SumTerm::FloatInduction { .. } => {
                 "countable while-loop with Float induction: final value proven via analytical \

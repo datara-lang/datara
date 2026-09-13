@@ -13,6 +13,7 @@ pub mod bump_arena;
 pub mod fiber;
 pub mod parallel;
 pub mod scheduler;
+pub mod zero_copy;
 
 pub use scheduler::{
     DataraRtTaskNode, datara_rt_run_concurrent_timers, datara_rt_schedule_cancel,

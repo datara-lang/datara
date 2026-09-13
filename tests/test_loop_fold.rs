@@ -167,3 +167,46 @@ fn main() {
         out
     );
 }
+
+#[test]
+fn test_loop_fold_cubic_sum() {
+    let source = r#"
+fn compute(n: Int) -> Int {
+    mut sum = 0
+    mut i = 0
+    while i < n {
+        let i2 = i * i
+        sum = sum + i2 * i
+        i = i + 1
+    }
+    return sum
+}
+
+fn main() {
+    out compute(5)
+}
+"#;
+    let compiler = ForgenCompiler::new("domain");
+    let res = compiler.compile_source(source, "loop_fold_cubic_test.dtr", None);
+    assert!(res.success, "Compilation failed: {:?}", res.error);
+
+    let report = res
+        .optimization_report
+        .expect("optimization report missing");
+    let applied = report
+        .decision_trace
+        .iter()
+        .any(|r| r.pass == "LoopFold" && r.decision == "Applied");
+    assert!(
+        applied,
+        "LoopFold pass must report Applied for cubic sum loop"
+    );
+
+    let exe_path = res.exe_path.expect("executable path missing");
+    let (out, err, code, _) = compiler
+        .cranelift
+        .run_executable(&exe_path, &[])
+        .expect("execution failed");
+    assert_eq!(code, 0, "non-zero exit: {}", err);
+    assert_eq!(out.trim(), "100", "Sum of cubes 0..4 must equal 100");
+}
