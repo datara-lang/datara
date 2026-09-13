@@ -238,8 +238,9 @@ fn test_cargo_toml_version_invariant() {
             || version_line.contains("\"1.2.4\"")
             || version_line.contains("\"1.2.5\"")
             || version_line.contains("\"1.2.6\"")
-            || version_line.contains("\"1.2.7\""),
-        "Cargo.toml version must be between 1.0.0 and 1.2.7 (found: {})",
+            || version_line.contains("\"1.2.7\"")
+            || version_line.contains("\"1.3.0\""),
+        "Cargo.toml version must be between 1.0.0 and 1.3.0 (found: {})",
         version_line
     );
 }
