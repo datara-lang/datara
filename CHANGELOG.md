@@ -4,6 +4,15 @@ All notable changes to the Datara compiler and toolchain (`forgen`) are document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.4] - 2026-09-13 «MATHEMATICAL LOOP SYNTHESIS, SYMBOLIC ENGINE & ZERO-COPY PRIMITIVES»
+
+### Added
+- **Faulhaber Cubic Sum Loop Folding**: Closed-form reduction of cubic induction loops (`sum += i * i * i`) from O(N) to O(1) via parity-split Faulhaber formula `[n*(n-1)/2]^2`.
+- **Compile-Time Symbolic Mathematics Engine (`SymbolicOptimizer`)**: Ahead-of-time closed-form polynomial series and recurrence solving integrating SymPy and Z3 with zero runtime overhead.
+- **O(log N) Matrix Fast Exponentiation for Linear Recurrences**: Recurrence equations (including Fibonacci) lowered to 2x2 matrix binary exponentiation, reducing millions of iterations to ~20 matrix operations.
+- **Multi-Block While Loop Unswitching (`LoopUnswitcher`)**: Invariant branch hoisting out of multi-block while loops, creating specialized branchless loop clones with zero branch misprediction penalties.
+- **Zero-Copy Memory Primitives (`Span<T>` & `StrView`)**: Stack-allocated, non-owning fat pointers `(ptr, len)` for zero-allocation slicing of arrays and strings.
+
 ## [1.2.3] - 2026-09-13 «ZERO-COST FIBERS, SRA ENGINE & BENCHMARK SUPREMACY»
 
 ### Added

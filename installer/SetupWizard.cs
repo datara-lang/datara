@@ -58,7 +58,7 @@ namespace DataraInstaller
         [DllImport("Shell32.dll")]
         public static extern void SHChangeNotify(int eventId, int flags, IntPtr item1, IntPtr item2);
 
-        public const string AppVersion = "1.2.3";
+        public const string AppVersion = "1.2.4";
 
         public InstallerForm()
         {
