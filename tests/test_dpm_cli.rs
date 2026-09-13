@@ -129,10 +129,13 @@ fn test_dpm_developer_commands_forwarding() {
     let dpm_clippy_args = vec!["dpm".to_string(), "clippy".to_string()];
     forgen::project::pm::run_dpm_cli_args(&dpm_clippy_args);
 
-    let sparks_fmt_args = vec!["sparks".to_string(), "fmt".to_string(), "--check".to_string()];
+    let sparks_fmt_args = vec![
+        "sparks".to_string(),
+        "fmt".to_string(),
+        "--check".to_string(),
+    ];
     forgen::project::pm::run_dpm_cli_args(&sparks_fmt_args);
 
     let sparks_clippy_args = vec!["sparks".to_string(), "clippy".to_string()];
     forgen::project::pm::run_dpm_cli_args(&sparks_clippy_args);
 }
-

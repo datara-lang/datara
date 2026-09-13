@@ -1,4 +1,4 @@
-//! M:N Lightweight Fiber Engine for Datara & Forgen (v1.2.5)
+//! M:N Lightweight Fiber Engine for Datara & Forgen (v1.2.3)
 //!
 //! Provides ultra-lightweight user-space fibers capable of scheduling
 //! millions of concurrent tasks with microsecond spawn latency and

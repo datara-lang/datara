@@ -679,7 +679,11 @@ pub fn run_dpm_cli_args(args: &[String]) {
 
         "run" | "build" | "test" | "check" | "bench" | "clean" | "fmt" | "format" | "lint"
         | "clippy" | "lsp" => {
-            let mut forwarded = vec![args.first().cloned().unwrap_or_else(|| "forgen".to_string())];
+            let mut forwarded = vec![
+                args.first()
+                    .cloned()
+                    .unwrap_or_else(|| "forgen".to_string()),
+            ];
             forwarded.extend_from_slice(&args[1..]);
             crate::cli::run_cli_with_args(&forwarded);
         }

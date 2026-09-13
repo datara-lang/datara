@@ -1,4 +1,4 @@
-//! Wait-Free & Lock-Free Work-Stealing Deque (Chase-Lev Algorithm) (v1.2.5)
+//! Wait-Free & Lock-Free Work-Stealing Deque (Chase-Lev Algorithm) (v1.2.3)
 //!
 //! Provides the core task-scheduling primitive for Datara & Forgen's M:N fiber engine:
 //! - Owner operations (`push`, `pop`) operate on the bottom index with zero atomic

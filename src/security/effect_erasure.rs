@@ -1,4 +1,4 @@
-//! Zero-Cost Capability & Effect Erasure for Datara & Forgen (v1.2.5)
+//! Zero-Cost Capability & Effect Erasure for Datara & Forgen (v1.2.3)
 //!
 //! Statically verified security capabilities, effect tokens, and contract
 //! assertions are erased during DMIR-to-backend lowering.

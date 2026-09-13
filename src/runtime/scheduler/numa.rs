@@ -1,4 +1,4 @@
-//! NUMA Domain & Core Affinity Topology Manager (v1.2.5)
+//! NUMA Domain & Core Affinity Topology Manager (v1.2.3)
 //!
 //! Pinning worker threads to physical CPU cores prevents kernel scheduler
 //! thrashing across NUMA nodes, maintaining maximum L1/L2/L3 cache residency.

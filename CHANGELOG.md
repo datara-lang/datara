@@ -4,6 +4,31 @@ All notable changes to the Datara compiler and toolchain (`forgen`) are document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.3] - 2026-09-13 «ZERO-COST FIBERS, SRA ENGINE & BENCHMARK SUPREMACY»
+
+### Added
+- **M:N Fiber Scheduler**: Lightweight userspace fiber engine scaling to 1,000,000 tasks with work-stealing Chase-Lev deques.
+- **Chase-Lev Wait-Free Work-Stealing Ring Deque**: Lock-free deque for SPMC task scheduling.
+- **NUMA Topology & Core Affinity Engine**: Automatic topology detection and thread-to-core pinning.
+- **Multi-Block CFG Escape Analysis & SRA**: Comprehensive escape analysis and Scalar Replacement of Aggregates (SRA) decomposing struct fields into CPU registers.
+- **Polyhedral Loop Transformations & Cache Tiling**: Loop fusion, loop interchange, and dynamic L1/L2 cache tiling.
+- **LLVM TBAA & Hardware Prefetch Intrinsics**: Type-Based Alias Analysis and `@llvm.prefetch` generation.
+- **Zero-Cost Security Capability & Effect Erasure**: Complete compile-time effect token elimination leaving 0 runtime bytes.
+- **Bounds-Check Elimination in For-In Loops**: Direct lowering to `datara_rt_list_get_unchecked` for safe induction loops.
+- **Scope-Bound Bump Arena**: Thread-local bump-pointer allocator with 1-cycle reset.
+- **Tooling Binaries & DPM Routing**: Standalone `datara-fmt`, `datara-clippy`, `datara-lsp` binaries and full workflow forwarding in `dpm` (`build`, `test`, `check`, `fmt`, `clippy`, `bench`, `clean`, `lsp`).
+
+### Fixed
+- **SSA Verification & Escape Analysis Invariants**: Fixed escape tracking across nested `StructInit`, `Select`, `Decide`, `FormatStr`, `Out`/`Err`, and control flow branch arguments; eliminated dead whole-struct pointer assignments in SRA.
+- **Evidence Gate Grounding**: Aligned documentation to real compiler theory as a Fail-Closed SSA Invariant Verifier & Optimization Audit Gate.
+- **String Interpolation Alignment**: Unified reference manual and type checker diagnostics to require `fmt"..."` for dynamic interpolation, preserving plain `"..."` as literal text.
+
+## [1.2.2] - 2026-09-13 «ADAPTIVE JIT, DIFFERENTIAL HOT-RELOAD & SIMD»
+
+### Added
+- **Tiered JIT Controller**: Multi-tier execution promoting hot functions from Tier 0 to Tier 1 with 128-bit SIMD.
+- **Differential AST Cache**: FNV-1a deterministic hashing detecting AST deltas for instant hot-swapping (< 50 us).
+
 ## [1.2.1] - 2026-09-12 «CRANELIFT GAMEDEV JIT & BRAND ASSETS»
 
 ### Added
