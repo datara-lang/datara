@@ -238,19 +238,143 @@ impl EscapeAnalyzer {
                             }
                         }
                     }
+                    Inst::StructInit { fields, .. } => {
+                        for (_, field_vid) in fields {
+                            if let Some(&root) = val_to_alloc_root.get(field_vid) {
+                                if let Some(alloc) = result.allocations.get_mut(&root) {
+                                    if alloc.state == EscapeState::NonEscaping {
+                                        alloc.state = EscapeState::EscapedStoreField;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Inst::Select {
+                        cond,
+                        then_val,
+                        else_val,
+                        ..
+                    } => {
+                        for v in [cond, then_val, else_val] {
+                            if let Some(&root) = val_to_alloc_root.get(v) {
+                                if let Some(alloc) = result.allocations.get_mut(&root) {
+                                    if alloc.state == EscapeState::NonEscaping {
+                                        alloc.state =
+                                            EscapeState::EscapedExternalCall("select".into());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Inst::Decide { arms, else_val, .. } => {
+                        for (cond, val) in arms {
+                            for v in [cond, val] {
+                                if let Some(&root) = val_to_alloc_root.get(v) {
+                                    if let Some(alloc) = result.allocations.get_mut(&root) {
+                                        if alloc.state == EscapeState::NonEscaping {
+                                            alloc.state =
+                                                EscapeState::EscapedExternalCall("decide".into());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if let Some(v) = else_val {
+                            if let Some(&root) = val_to_alloc_root.get(v) {
+                                if let Some(alloc) = result.allocations.get_mut(&root) {
+                                    if alloc.state == EscapeState::NonEscaping {
+                                        alloc.state =
+                                            EscapeState::EscapedExternalCall("decide_else".into());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Inst::InlineAsm { inputs, .. } => {
+                        for (_, in_val) in inputs {
+                            if let Some(&root) = val_to_alloc_root.get(in_val) {
+                                if let Some(alloc) = result.allocations.get_mut(&root) {
+                                    if alloc.state == EscapeState::NonEscaping {
+                                        alloc.state =
+                                            EscapeState::EscapedExternalCall("inline_asm".into());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Inst::FormatStr { values, .. } => {
+                        for v in values {
+                            if let Some(&root) = val_to_alloc_root.get(v) {
+                                if let Some(alloc) = result.allocations.get_mut(&root) {
+                                    if alloc.state == EscapeState::NonEscaping {
+                                        alloc.state =
+                                            EscapeState::EscapedExternalCall("format".into());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Inst::Out { value } | Inst::Err { value } => {
+                        if let Some(&root) = val_to_alloc_root.get(value) {
+                            if let Some(alloc) = result.allocations.get_mut(&root) {
+                                if alloc.state == EscapeState::NonEscaping {
+                                    alloc.state = EscapeState::EscapedExternalCall("out".into());
+                                }
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }
 
-            // Check if returned from the function
-            if let Terminator::Return { value } = &block.terminator {
-                if let Some(ret_val) = value {
-                    if let Some(&root) = val_to_alloc_root.get(ret_val) {
-                        if let Some(alloc) = result.allocations.get_mut(&root) {
-                            alloc.state = EscapeState::EscapedReturn;
+            // Check if returned from the function or passed to branches
+            match &block.terminator {
+                Terminator::Return { value } => {
+                    if let Some(ret_val) = value {
+                        if let Some(&root) = val_to_alloc_root.get(ret_val) {
+                            if let Some(alloc) = result.allocations.get_mut(&root) {
+                                alloc.state = EscapeState::EscapedReturn;
+                            }
                         }
                     }
                 }
+                Terminator::Branch { args, .. } => {
+                    for arg in args {
+                        if let Some(&root) = val_to_alloc_root.get(arg) {
+                            if let Some(alloc) = result.allocations.get_mut(&root) {
+                                if alloc.state == EscapeState::NonEscaping {
+                                    alloc.state =
+                                        EscapeState::EscapedExternalCall("branch_arg".into());
+                                }
+                            }
+                        }
+                    }
+                }
+                Terminator::CondBranch {
+                    then_args,
+                    else_args,
+                    cond,
+                    ..
+                } => {
+                    if let Some(&root) = val_to_alloc_root.get(cond) {
+                        if let Some(alloc) = result.allocations.get_mut(&root) {
+                            if alloc.state == EscapeState::NonEscaping {
+                                alloc.state = EscapeState::EscapedExternalCall("cond".into());
+                            }
+                        }
+                    }
+                    for arg in then_args.iter().chain(else_args.iter()) {
+                        if let Some(&root) = val_to_alloc_root.get(arg) {
+                            if let Some(alloc) = result.allocations.get_mut(&root) {
+                                if alloc.state == EscapeState::NonEscaping {
+                                    alloc.state =
+                                        EscapeState::EscapedExternalCall("cond_branch_arg".into());
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 

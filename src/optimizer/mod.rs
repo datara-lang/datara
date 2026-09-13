@@ -364,9 +364,6 @@ impl Optimizer {
             changed = false;
             iterations += 1;
 
-            // Loop-idiom recognition runs first: if the pattern is incomplete
-            // because dead code still occupies the loop body, the later DCE
-            // cleans it and the next iteration folds successfully.
             if LoopOptimizer::fold_loops(f, &self.cost_model, &mut self.trace) > 0 {
                 changed = true;
             }
@@ -385,7 +382,10 @@ impl Optimizer {
             if ScalarOptimizer::apply_strength_reduction(f, &self.cost_model, &mut self.trace) > 0 {
                 changed = true;
             }
-            if MemoryOptimizer::scalarize_structures(f, &self.cost_model, &mut self.trace) > 0 {
+            let eliminated_mem =
+                MemoryOptimizer::scalarize_structures(f, &self.cost_model, &mut self.trace);
+            if eliminated_mem > 0 {
+                self.report.allocations_eliminated += eliminated_mem;
                 changed = true;
             }
             if self.scalarize_structures(f) {

@@ -146,6 +146,24 @@ impl SraOptimizer {
                         }
                     }
 
+                    Inst::AssignVar { value, .. } => {
+                        if non_escaping_vids.contains_key(&value)
+                            || vid_to_root.contains_key(&value)
+                        {
+                            // Struct allocation was eliminated; whole-struct variable assignment is superseded
+                            continue;
+                        }
+                        new_instructions.push(inst);
+                    }
+
+                    Inst::LoadVar { dest, .. } => {
+                        if vid_to_root.contains_key(&dest) {
+                            // Loading the whole-struct pointer that was eliminated into scalar fields
+                            continue;
+                        }
+                        new_instructions.push(inst);
+                    }
+
                     _ => {
                         new_instructions.push(inst);
                     }
