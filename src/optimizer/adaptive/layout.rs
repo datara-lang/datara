@@ -224,6 +224,7 @@ impl LayoutAdapter {
                     || fields.len() >= 6);
             let is_explicit_soa = class_name.to_lowercase().contains("soa")
                 || class_name.contains("@soa")
+                || class_name.to_lowercase().contains("layout")
                 || is_canonical_nbody;
 
             let should_soa = is_explicit_soa || (total_fields >= 4 && selectivity <= 0.60);
@@ -242,7 +243,7 @@ impl LayoutAdapter {
                         accessed_count,
                         total_fields,
                         if is_explicit_soa {
-                            " [explicit @soa/canonical n-body]"
+                            " [explicit @layout(soa)/@soa/canonical n-body]"
                         } else {
                             ""
                         }
