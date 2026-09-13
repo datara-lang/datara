@@ -16,7 +16,6 @@ impl MemoryOptimizer {
         // Field maps are tracked per instruction list with no cross-block
         // invalidation: a `SetField` in block A is deleted while a `GetField`
         // in block B would still read the pre-update field values. Only
-        // scalarize functions whose entire body is one block.
         if f.blocks.len() == 1 {
             for block in &mut f.blocks {
                 let (new_insts, eliminated) = Self::scalarize_instruction_list(
@@ -29,6 +28,10 @@ impl MemoryOptimizer {
                 block.instructions = new_insts;
                 allocations_eliminated += eliminated;
             }
+        } else {
+            // Multi-block CFG Escape Analysis & Scalar Replacement of Aggregates (v1.2.3)
+            allocations_eliminated +=
+                crate::optimizer::sra::SraOptimizer::scalarize(f, cost_model, trace);
         }
 
         allocations_eliminated += Self::eliminate_bounds_checks(f, cost_model, trace);

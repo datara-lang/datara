@@ -6,6 +6,7 @@ pub mod adaptive;
 pub mod const_fold;
 pub mod cost_model;
 pub mod dce;
+pub mod escape;
 pub mod evidence;
 pub mod inline;
 pub mod ipo;
@@ -15,6 +16,7 @@ pub mod memory;
 pub mod pipeline_fusion;
 pub mod recursion;
 pub mod scalar;
+pub mod sra;
 
 use adaptive::SemanticAdaptationEngine;
 use cost_model::{CostModel, OptimizationDecisionTrace};
