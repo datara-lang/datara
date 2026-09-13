@@ -411,7 +411,7 @@ fn render_spa_html(modules: &[DocModule]) -> String {
 <body>
     <div id="sidebar">
         <div id="header">
-            <h1>⚡ Datara Docs</h1>
+            <h1>Datara Docs</h1>
             <input type="text" id="search" placeholder="Search functions, classes, effects..." oninput="filterDocs()">
         </div>
         <div id="tree"></div>

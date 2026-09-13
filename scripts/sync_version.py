@@ -188,7 +188,7 @@ def sync_version(version: str):
     docs_index = repo_root / "docs" / "index.html"
     if docs_index.exists():
         content = docs_index.read_text(encoding="utf-8")
-        content = re.sub(r'🚀 Datara v[0-9]+\.[0-9]+\.[0-9]+ [^<]+', f'🚀 Datara {tag_ver} Production Release', content)
+        content = re.sub(r'(🚀\s*)?Datara v[0-9]+\.[0-9]+\.[0-9]+ [^<]+', f'Datara {tag_ver} Production Release', content)
         content = re.sub(r'/releases/download/v[^/]+/Datara-[^/]+-Setup\.exe', f'/releases/download/{tag_ver}/Datara-{tag_ver}-Setup.exe', content)
         docs_index.write_text(content, encoding="utf-8")
         print(f"  [UPDATED] docs/index.html")

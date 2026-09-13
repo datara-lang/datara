@@ -52,4 +52,4 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
     gtk-update-icon-cache -f -t "${ICON_BASE}" 2>/dev/null || true
 fi
 
-echo "✓ Datara file icon successfully installed on Linux! .dtr files will now display the official Datara icon."
+echo "[OK] Datara file icon successfully installed on Linux! .dtr files will now display the official Datara icon."

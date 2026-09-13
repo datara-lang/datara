@@ -253,11 +253,11 @@ fn explain_code(code: &str) {
                 "the `snake_case` naming convention (lowercase letters separated by underscores)."
             );
             println!();
-            println!("❌ Bad Code:");
+            println!("[INVALID] Bad Code:");
             println!("   let itemCount = 42");
             println!("   fn computeTotal() {{ ... }}");
             println!();
-            println!("✅ Good Code:");
+            println!("[VALID] Good Code:");
             println!("   let item_count = 42");
             println!("   fn compute_total() {{ ... }}");
             println!();
@@ -282,11 +282,11 @@ fn explain_code(code: &str) {
             );
             println!("the `PascalCase` (UpperCamelCase) naming convention.");
             println!();
-            println!("❌ Bad Code:");
+            println!("[INVALID] Bad Code:");
             println!("   class user_session {{ ... }}");
             println!("   component http_handler {{ ... }}");
             println!();
-            println!("✅ Good Code:");
+            println!("[VALID] Good Code:");
             println!("   class UserSession {{ ... }}");
             println!("   component HttpHandler {{ ... }}");
             println!();
@@ -310,11 +310,11 @@ fn explain_code(code: &str) {
             );
             println!("in its entire scope.");
             println!();
-            println!("❌ Bad Code:");
+            println!("[INVALID] Bad Code:");
             println!("   mut max_limit = 1000");
             println!("   // max_limit is only read, never reassigned");
             println!();
-            println!("✅ Good Code:");
+            println!("[VALID] Good Code:");
             println!("   let max_limit = 1000");
             println!();
             println!(
@@ -339,10 +339,10 @@ fn explain_code(code: &str) {
             );
             println!("A variable or parameter was declared, but its value is never read.");
             println!();
-            println!("❌ Bad Code:");
+            println!("[INVALID] Bad Code:");
             println!("   let unused_result = compute()");
             println!();
-            println!("✅ Good Code (if intentionally ignored):");
+            println!("[VALID] Good Code (if intentionally ignored):");
             println!("   let _unused_result = compute()");
             println!();
             println!("Rationale: Prevents dead code, accidental resource leaks, and logic errors");
@@ -363,14 +363,14 @@ fn explain_code(code: &str) {
                 "A `while` loop was used with a manual index counter increment (`i = i + 1`)."
             );
             println!();
-            println!("❌ Bad Code:");
+            println!("[INVALID] Bad Code:");
             println!("   mut i = 0");
             println!("   while i < 100 {{");
             println!("       process(i)");
             println!("       i = i + 1");
             println!("   }}");
             println!();
-            println!("✅ Good Code:");
+            println!("[VALID] Good Code:");
             println!("   for i in 0..100 {{");
             println!("       process(i)");
             println!("   }}");
@@ -397,11 +397,11 @@ fn explain_code(code: &str) {
                 "Comparing a boolean expression directly against `true` or `false` is redundant."
             );
             println!();
-            println!("❌ Bad Code:");
+            println!("[INVALID] Bad Code:");
             println!("   if is_valid == true {{ ... }}");
             println!("   if is_valid == false {{ ... }}");
             println!();
-            println!("✅ Good Code:");
+            println!("[VALID] Good Code:");
             println!("   if is_valid {{ ... }}");
             println!("   if !is_valid {{ ... }}");
             println!(
@@ -441,18 +441,18 @@ fn explain_code(code: &str) {
                 "Datara is strictly typed and does not perform silent or lossy implicit conversions."
             );
             println!();
-            println!("❌ Bad Code (Float assigned to Int):");
+            println!("[INVALID] Bad Code (Float assigned to Int):");
             println!("   let x: Int = 3.14");
             println!();
-            println!("✅ Good Code:");
+            println!("[VALID] Good Code:");
             println!("   let x: Int = 3.14 as Int");
             println!("   // or use explicit mathematical floor:");
             println!("   let x: Int = datara_rt_math_floor(3.14)");
             println!();
-            println!("❌ Bad Code (Integer in Boolean condition):");
+            println!("[INVALID] Bad Code (Integer in Boolean condition):");
             println!("   if counter {{ ... }}");
             println!();
-            println!("✅ Good Code:");
+            println!("[VALID] Good Code:");
             println!("   if counter != 0 {{ ... }}");
             println!(
                 "================================================================================"
@@ -496,11 +496,11 @@ fn explain_code(code: &str) {
                 "Reassigning them without an explicit mutable binding triggers a compile-time error."
             );
             println!();
-            println!("❌ Bad Code:");
+            println!("[INVALID] Bad Code:");
             println!("   let total = 0");
             println!("   total = total + 1");
             println!();
-            println!("✅ Good Code:");
+            println!("[VALID] Good Code:");
             println!("   mut total = 0");
             println!("   total = total + 1");
             println!(
@@ -522,11 +522,11 @@ fn explain_code(code: &str) {
                 "referenced again. Move transfers ownership and invalidates the previous binding."
             );
             println!();
-            println!("❌ Bad Code:");
+            println!("[INVALID] Bad Code:");
             println!("   let b = a");
             println!("   out a  // Error: 'a' was moved into 'b'");
             println!();
-            println!("✅ Good Code (Zero-Copy View):");
+            println!("[VALID] Good Code (Zero-Copy View):");
             println!("   let b = view a");
             println!("   out a  // Valid: 'a' is borrowed immutably, not consumed");
             println!(

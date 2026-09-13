@@ -39,16 +39,16 @@
 
 ## 2. Мосты и экосистемы в v1.3.0
 
-1. **🎮 C# / .NET Bridge (Unity, Godot, Avalonia, WPF)**:
+1. **C# / .NET Bridge (Unity, Godot, Avalonia, WPF)**:
    - `forgen export csharp` для создания высокопроизводительных нативных плагинов без пауз сборщика мусора (GC).
    - Поддержка C# Native AOT (`PublishAot=true`).
-2. **⚡ Zig Bridge (Zero-Dependency C/C++ замена)**:
+2. **Zig Bridge (Zero-Dependency C/C++ замена)**:
    - Прямая стыковка по C ABI без накладных расходов.
    - Использование тулчейна Zig для кросс-компиляции C/C++ зависимостей.
-3. **🌙 Lua / LuaJIT Bridge (Геймдев-моды и скриптинг)**:
+3. **Lua / LuaJIT Bridge (Геймдев-моды и скриптинг)**:
    - Встраиваемый рантайм LuaJIT (200 КБ) для написания модов и сценариев прямо в играх на Datara.
-4. **☕ Java / JVM Bridge via Project Panama**:
+4. **Java / JVM Bridge via Project Panama**:
    - Современный Foreign Function & Memory API (Java 22+) без тяжелого JNI.
-5. **📦 Модули 2.0 & Local Sparks**:
+5. **Модули 2.0 & Local Sparks**:
    - Поддержка `module SubKit { pub fn ... }` внутри одного файла.
    - Локальные упакованные библиотеки `.spark`.

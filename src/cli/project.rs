@@ -258,7 +258,7 @@ pub(crate) fn cmd_tree(args: &[String]) -> bool {
                     effects_badge,
                     version,
                     if show_effects && effects_badge.contains("net") {
-                        " ⚠️ requires network"
+                        " [network] requires network"
                     } else {
                         ""
                     }

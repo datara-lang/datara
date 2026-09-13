@@ -106,7 +106,7 @@ Implements Microsoft Language Server Protocol v3.17 over JSON-RPC:
   "result": [
     {
       "position": { "line": 15, "character": 12 },
-      "label": "⚡ [PGO Hot: 10,000,000 calls - Inlined in caller]",
+      "label": "[PGO Hot: 10,000,000 calls - Inlined in caller]",
       "kind": 2,
       "paddingLeft": true
     }

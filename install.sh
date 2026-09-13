@@ -262,7 +262,7 @@ if [ -x "${BIN_DIR}/forgen" ]; then
     "${BIN_DIR}/forgen" --version || true
 fi
 echo -e "DATARA_HOME: ${INSTALL_DIR}"
-echo -e "\n${COLOR_CYAN}🎉 Datara & Forgen installed successfully!${COLOR_NC}"
+echo -e "\n${COLOR_CYAN}[OK] Datara & Forgen installed successfully!${COLOR_NC}"
 echo -e "To start using it immediately, run:"
 if [ -n "${PROFILE_FILE}" ]; then
     echo -e "  source ${PROFILE_FILE}"

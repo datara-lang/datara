@@ -109,7 +109,7 @@ $defaultInstallDir = Join-Path $env:LOCALAPPDATA "Programs\Datara"
         <!-- Success Panel (Hidden by default) -->
         <Grid x:Name="SuccessPanel" Margin="32,110,32,80" Visibility="Collapsed">
             <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="✓ Setup was successful" FontSize="22" FontWeight="Bold" Foreground="#4ADE80" Margin="0,0,0,10"/>
+                <TextBlock Text="[OK] Setup was successful" FontSize="22" FontWeight="Bold" Foreground="#4ADE80" Margin="0,0,0,10"/>
                 <TextBlock Text="Datara $Version is now ready to use on your system!" FontSize="14" Foreground="#E2E8F0" Margin="0,0,0,16"/>
 
                 <Border Background="#1E293B" CornerRadius="8" Padding="16" BorderBrush="#334155" BorderThickness="1" Margin="0,0,0,16">
