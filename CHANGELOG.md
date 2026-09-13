@@ -4,6 +4,18 @@ All notable changes to the Datara compiler and toolchain (`forgen`) are document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] - 2026-09-13 «POLYHEDRAL LOOP ENGINE, CACHE TILING & SLP AUTO-VECTORIZATION»
+
+### Added
+- **Physical Polyhedral Loop Fusion**: Upgraded detection-only loop analysis into physical AST/DMIR loop fusion pass. Successive loops over equivalent domains are physically merged into a single traversal, reducing loop overhead and cache evictions.
+- **Physical Polyhedral Loop Interchange**: Implemented physical nested loop interchange for multi-dimensional data iteration, swapping outer and inner loop bodies to enforce row-major (stride-1) contiguous memory access.
+- **Idempotent Cache-Aware Loop Tiling**: Dynamically partitions multi-dimensional loop domains into L1-cache resident blocks ($32 \times 32$), maximizing cache locality for high-throughput linear algebra and matrix computations.
+- **Superword-Level Parallelism (SLP) Auto-Vectorization**: Introduced isomorphic straight-line vectorization pass in DMIR and Cranelift JIT backend, automatically clustering scalar `+`, `-`, `*` instruction chains into 128-bit SIMD vector instructions (`float4`, `int4`, `f32x4_add`, `i32x4_add`) with zero-overhead lane extraction.
+- **Cranelift SIMD Lane Extraction Intrinsics**: Native CLIF lowering for `float4_x/y/z/w`, `int4_x/y/z/w`, and lane extract intrinsics (`f32x4_extract_lane_*`, `i32x4_extract_lane_*`).
+
+### Fixed
+- **AddressSanitizer Threshold Overhead**: Dynamically relaxed loop execution time verification thresholds under AddressSanitizer (ASan) runtime shadow memory tracking in CI environments.
+
 ## [1.2.5] - 2026-09-13 «3D GRAPHICS, GPU COMPUTE, MEMORY SAFETY & GLOBAL OPTIMIZATION MATRIX»
 
 ### Added

@@ -18,6 +18,7 @@ pub mod pipeline_fusion;
 pub mod polyhedral;
 pub mod recursion;
 pub mod scalar;
+pub mod slp;
 pub mod sra;
 pub mod symbolic;
 
@@ -410,6 +411,9 @@ impl Optimizer {
             if cache_tiling::CacheTilingOptimizer::tile_loops(f, &self.cost_model, &mut self.trace)
                 > 0
             {
+                changed = true;
+            }
+            if slp::SLPOptimizer::vectorize(f, &self.cost_model, &mut self.trace) > 0 {
                 changed = true;
             }
             if self.constant_fold(f) {

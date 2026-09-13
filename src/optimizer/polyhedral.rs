@@ -44,53 +44,50 @@ impl PolyhedralOptimizer {
     pub fn fuse_sequential_loops(f: &mut Function, trace: &mut OptimizationDecisionTrace) -> usize {
         let mut fused_count = 0;
 
-        // Inspect blocks containing loops or sequential loop structures
-        for block_idx in 0..f.blocks.len() {
-            let instructions = &f.blocks[block_idx].instructions;
-            let mut loop_indices = Vec::new();
+        for block in &mut f.blocks {
+            let mut i = 0;
+            while i + 1 < block.instructions.len() {
+                let can_fuse = match (&block.instructions[i], &block.instructions[i + 1]) {
+                    (
+                        Inst::WhileLoop {
+                            cond_val: cond1,
+                            body_insts: body1,
+                            ..
+                        },
+                        Inst::WhileLoop {
+                            cond_val: cond2,
+                            body_insts: body2,
+                            ..
+                        },
+                    ) => cond1 == cond2 && !body1.is_empty() && !body2.is_empty(),
+                    _ => false,
+                };
 
-            for (idx, inst) in instructions.iter().enumerate() {
-                if let Inst::WhileLoop { .. } = inst {
-                    loop_indices.push(idx);
-                }
-            }
-
-            if loop_indices.len() >= 2 {
-                for i in 0..(loop_indices.len() - 1) {
-                    let first_idx = loop_indices[i];
-                    let second_idx = loop_indices[i + 1];
-
-                    // Check if second loop immediately follows the first (or with trivial assignments)
-                    let can_fuse = match (&instructions[first_idx], &instructions[second_idx]) {
-                        (
-                            Inst::WhileLoop {
-                                cond_val: cond1,
-                                body_insts: body1,
-                                ..
-                            },
-                            Inst::WhileLoop {
-                                cond_val: cond2,
-                                body_insts: body2,
-                                ..
-                            },
-                        ) => {
-                            // Loops with identical condition value and non-conflicting bodies can be fused
-                            cond1 == cond2 && !body1.is_empty() && !body2.is_empty()
+                if can_fuse {
+                    let second_loop = block.instructions.remove(i + 1);
+                    if let Inst::WhileLoop {
+                        body_insts: body2, ..
+                    } = second_loop
+                    {
+                        if let Inst::WhileLoop {
+                            body_insts: body1, ..
+                        } = &mut block.instructions[i]
+                        {
+                            body1.extend(body2);
                         }
-                        _ => false,
-                    };
-
-                    if can_fuse {
-                        fused_count += 1;
-                        trace.record(
-                            "PolyhedralLoopFusion",
-                            &format!("{}:bb{}", f.name, f.blocks[block_idx].id.0),
-                            "Applied",
-                            "Fused two sequential loops over identical domain into single pass",
-                            "0",
-                            "Eliminated redundant loop header overhead and improved cache locality",
-                        );
                     }
+
+                    trace.record(
+                        "PolyhedralLoopFusion",
+                        &format!("{}:bb{}", f.name, block.id.0),
+                        "Applied",
+                        "Fused two sequential loops over identical domain into single pass",
+                        "0",
+                        "Eliminated redundant loop header overhead and improved cache locality",
+                    );
+                    fused_count += 1;
+                } else {
+                    i += 1;
                 }
             }
         }
@@ -107,26 +104,35 @@ impl PolyhedralOptimizer {
 
         for block in &mut f.blocks {
             for inst in &mut block.instructions {
-                if let Inst::WhileLoop { body_insts, .. } = inst {
+                if let Inst::WhileLoop {
+                    condition_insts: outer_cond_insts,
+                    cond_val: outer_cond_val,
+                    body_insts: outer_body,
+                } = inst
+                {
                     // Check if the body contains an inner WhileLoop
-                    let mut inner_loop_idx = None;
-                    for (idx, inner_inst) in body_insts.iter().enumerate() {
-                        if let Inst::WhileLoop { .. } = inner_inst {
-                            inner_loop_idx = Some(idx);
+                    for inner_inst in outer_body.iter_mut() {
+                        if let Inst::WhileLoop {
+                            condition_insts: inner_cond_insts,
+                            cond_val: inner_cond_val,
+                            ..
+                        } = inner_inst
+                        {
+                            // Physically swap outer and inner loop conditions and bounds!
+                            std::mem::swap(outer_cond_insts, inner_cond_insts);
+                            std::mem::swap(outer_cond_val, inner_cond_val);
+
+                            trace.record(
+                                "PolyhedralLoopInterchange",
+                                &format!("{}:bb{}", f.name, block.id.0),
+                                "Applied",
+                                "Interchanged nested loops to ensure row-major (stride-1) cache access",
+                                "0",
+                                "Guaranteed spatial cache locality and hardware prefetch effectiveness",
+                            );
+                            interchanged_count += 1;
                             break;
                         }
-                    }
-
-                    if let Some(_idx) = inner_loop_idx {
-                        interchanged_count += 1;
-                        trace.record(
-                            "PolyhedralLoopInterchange",
-                            &format!("{}:bb{}", f.name, block.id.0),
-                            "Applied",
-                            "Interchanged nested loops to ensure row-major (stride-1) cache access",
-                            "0",
-                            "Guaranteed spatial cache locality and hardware prefetch effectiveness",
-                        );
                     }
                 }
             }

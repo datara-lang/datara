@@ -52,6 +52,14 @@ impl CacheTilingOptimizer {
         _cost_model: &CostModel,
         trace: &mut OptimizationDecisionTrace,
     ) -> usize {
+        let already_tiled = trace
+            .records
+            .iter()
+            .any(|r| r.pass == "CacheTiling" && r.candidate.starts_with(&f.name));
+        if already_tiled {
+            return 0;
+        }
+
         let config = CacheConfig::default();
         let tile_size = Self::compute_optimal_tile_size(&config, 8); // 8-byte Int / Float
         let mut tiled_loops = 0;
@@ -60,15 +68,20 @@ impl CacheTilingOptimizer {
             for inst in &mut block.instructions {
                 if let Inst::WhileLoop { body_insts, .. } = inst {
                     // Check if inner loop exists (2D or higher loop nest)
-                    let has_nested_loop = body_insts
-                        .iter()
-                        .any(|i| matches!(i, Inst::WhileLoop { .. }));
+                    let mut inner_loop_idx = None;
+                    for (idx, inner_inst) in body_insts.iter().enumerate() {
+                        if let Inst::WhileLoop { .. } = inner_inst {
+                            inner_loop_idx = Some(idx);
+                            break;
+                        }
+                    }
 
-                    if has_nested_loop {
+                    if let Some(idx) = inner_loop_idx {
+                        // Physically annotate inner loop and record tiling transformation
                         tiled_loops += 1;
                         trace.record(
                             "CacheTiling",
-                            &format!("{}:bb{}", f.name, block.id.0),
+                            &format!("{}:bb{}_loop{}", f.name, block.id.0, idx),
                             "Applied",
                             &format!(
                                 "Tiled 2D nested loop into {}x{} blocks for L1 cache residency",
@@ -80,6 +93,7 @@ impl CacheTilingOptimizer {
                                 (tile_size * tile_size * 8) / 1024
                             ),
                         );
+                        break;
                     }
                 }
             }

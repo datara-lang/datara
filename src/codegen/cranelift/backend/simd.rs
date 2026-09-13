@@ -576,5 +576,57 @@ pub fn try_compile_simd_call<M: ClifModule>(
         return Ok(true);
     }
 
+    // 16. Vector Lane Extraction (float4_x, float4_y, float4_z, float4_w)
+    if (func == "float4_x"
+        || func == "float4_y"
+        || func == "float4_z"
+        || func == "float4_w"
+        || func.starts_with("f32x4_extract_lane_"))
+        && args.len() == 1
+    {
+        let v_raw = ctx
+            .val_map
+            .get(&args[0])
+            .copied()
+            .unwrap_or_else(|| ctx.builder.ins().iconst(clif_types::I64, 0));
+        let v = ensure_f32x4(ctx, v_raw);
+        let lane: u8 = match func {
+            "float4_y" | "f32x4_extract_lane_1" => 1,
+            "float4_z" | "f32x4_extract_lane_2" => 2,
+            "float4_w" | "f32x4_extract_lane_3" => 3,
+            _ => 0,
+        };
+        let s = ctx.builder.ins().extractlane(v, lane);
+        let res_f64 = ctx.builder.ins().fpromote(clif_types::F64, s);
+        ctx.val_map.insert(*dest, res_f64);
+        return Ok(true);
+    }
+
+    // 17. Integer Vector Lane Extraction (int4_x, int4_y, int4_z, int4_w)
+    if (func == "int4_x"
+        || func == "int4_y"
+        || func == "int4_z"
+        || func == "int4_w"
+        || func.starts_with("i32x4_extract_lane_"))
+        && args.len() == 1
+    {
+        let v_raw = ctx
+            .val_map
+            .get(&args[0])
+            .copied()
+            .unwrap_or_else(|| ctx.builder.ins().iconst(clif_types::I64, 0));
+        let v = ensure_i32x4(ctx, v_raw);
+        let lane: u8 = match func {
+            "int4_y" | "i32x4_extract_lane_1" => 1,
+            "int4_z" | "i32x4_extract_lane_2" => 2,
+            "int4_w" | "i32x4_extract_lane_3" => 3,
+            _ => 0,
+        };
+        let s = ctx.builder.ins().extractlane(v, lane);
+        let res_i64 = ctx.builder.ins().sextend(clif_types::I64, s);
+        ctx.val_map.insert(*dest, res_i64);
+        return Ok(true);
+    }
+
     Ok(false)
 }
