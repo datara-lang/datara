@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://github.com/datara-lang/datara"><img src="https://img.shields.io/badge/language-Datara-%23E3B341.svg" alt="Язык" /></a>
   <a href="LICENSE-APACHE"><img src="https://img.shields.io/badge/License-Apache_2.0_OR_MIT-blue.svg" alt="Лицензия" /></a>
-  <img src="https://img.shields.io/badge/версия-1.2.6-blue.svg" alt="Версия" />
+  <img src="https://img.shields.io/badge/версия-1.2.7-blue.svg" alt="Версия" />
   <a href="https://github.com/datara-lang/datara/actions/workflows/ci.yml"><img src="https://github.com/datara-lang/datara/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <img src="https://img.shields.io/badge/тесты-148%20наборов%20%7C%20668%20пройдено-brightgreen.svg" alt="Тесты" />
   <a href="docs/CONFORMANCE_MATRIX.md"><img src="https://img.shields.io/badge/Соответствие_Спецификации_V1-84%2F84_Врат_ПРОЙДЕНО-brightgreen.svg" alt="Соответствие" /></a>
@@ -181,40 +181,33 @@ source ~/.bashrc  # или source ~/.zshrc
 
 ---
 
-### Альтернативные методы установки
+### Пакетные менеджеры и экосистемные дистрибутивы
 
-#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/npm.svg" height="20" valign="middle" alt="NPM" /> NPM и NPX (Запуск без предварительной установки)
-Мгновенный запуск любого скрипта `.dtr` через `npx` без ручной инсталляции:
-```bash
-npx @datara-lang/datara run app.dtr
-```
-Глобальная установка инструментария через менеджер пакетов Node.js:
-```bash
-npm install -g @datara-lang/datara
-```
+Datara поставляется через проверенные официальные пакеты, контейнеры и репозитории:
 
-#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/python.svg" height="20" valign="middle" alt="Python" /> Python PyPI (`pip install datara`)
-Установка прекомпилированных колес (wheels) для Python-разработчиков и CI/CD:
+#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/linux.svg" height="20" valign="middle" alt="Linux" /> Нативные пакеты Linux (.deb и .rpm)
+Официальные нативные пакеты, собираемые в CI для Debian/Ubuntu и Fedora/RHEL:
 ```bash
-pip install datara
-```
-Проверка установки компилятора:
-```bash
-datara --version
-forgen --help
+# Debian / Ubuntu / Pop!_OS / Linux Mint (загрузить из GitHub Releases):
+sudo dpkg -i datara_1.2.7_amd64.deb
+
+# Fedora / RHEL / CentOS / openSUSE:
+sudo rpm -ivh datara-1.2.7-1.x86_64.rpm
 ```
 
-#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/rust.svg" height="20" valign="middle" alt="Rust" /> Rust Crates.io (`cargo install forgen`)
-Сборка и установка инструментария из официального реестра crates.io:
-```bash
-cargo install forgen
-cargo install datara
+#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/windows.svg" height="20" valign="middle" alt="Windows" /> Windows: Графический установщик (Setup.exe) и Scoop
+```powershell
+# 1. Автономный графический установщик Windows: загрузите Datara-Setup.exe из GitHub Releases
+# 2. Или установка через официальный Scoop-бакет проекта:
+scoop bucket add datara https://github.com/datara-lang/scoop-bucket.git
+scoop install datara
 ```
 
-#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/vscode.svg" height="20" valign="middle" alt="VS Code" /> Расширение для VS Code и Cursor (.vsix)
-Официальное расширение Datara поставляется с полной поддержкой подсветки синтаксиса TextMate, сниппетами, интеграцией сборщика и клиентом Language Server Protocol:
+#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/apple.svg" height="20" valign="middle" alt="macOS" /> macOS и <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/linux.svg" height="20" valign="middle" alt="Linux" /> Linux: Homebrew Tap
+Официальный тап Homebrew под macOS и Linux:
 ```bash
-code --install-extension editors/vscode/datara-1.2.5.vsix
+brew tap datara-lang/tap
+brew install datara
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/docker.svg" height="20" valign="middle" alt="Docker" /> Официальный контейнер (GitHub Packages / GHCR)
@@ -224,31 +217,36 @@ docker pull ghcr.io/datara-lang/datara:latest
 docker run -it --rm -v $(pwd):/workspace ghcr.io/datara-lang/datara:latest run main.dtr
 ```
 
-#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/linux.svg" height="20" valign="middle" alt="Linux" /> Нативные пакеты Linux (.deb и .rpm)
+#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/rust.svg" height="20" valign="middle" alt="Rust" /> Сборка из исходников через Cargo
+Сборка и установка нативного компилятора Forgen напрямую из Git:
 ```bash
-# Debian / Ubuntu / Mint:
-sudo dpkg -i dist/datara_1.2.5_amd64.deb
+cargo install --git https://github.com/datara-lang/datara.git forgen
+```
+*(Архив крейта `forgen-1.2.7.crate` также доступен для прямой загрузки из GitHub Releases).*
 
-# Fedora / RHEL / CentOS:
-sudo rpm -i dist/datara-1.2.5.x86_64.rpm
+#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/vscode.svg" height="20" valign="middle" alt="VS Code" /> Расширение для VS Code и Cursor (.vsix)
+Установка расширения с подсветкой синтаксиса, типизацией и темами напрямую из ассетов релиза:
+```bash
+code --install-extension datara-language-1.2.7.vsix
 ```
 
-#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/windows.svg" height="20" valign="middle" alt="Windows" /> Менеджеры пакетов Windows: Winget и Scoop
+#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/python.svg" height="20" valign="middle" alt="Python" /> Python Wheel (`pip install`)
+Установка CLI и FFI-биндингов для Python напрямую из официального wheel-архива:
 ```bash
-winget install datara
-# или через Scoop:
-scoop bucket add datara https://github.com/datara-lang/scoop-bucket.git
-scoop install datara
+pip install https://github.com/datara-lang/datara/releases/download/v1.2.7/datara-1.2.7-py3-none-any.whl
 ```
 
-#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/apple.svg" height="20" valign="middle" alt="macOS" /> macOS и <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/linux.svg" height="20" valign="middle" alt="Linux" /> Linux: Homebrew и AUR
+#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/npm.svg" height="20" valign="middle" alt="NPM" /> NPM и GitHub Packages
+Пакет опубликован в реестре GitHub Packages:
 ```bash
-# macOS / Linux Homebrew:
-brew install datara-lang/tap/datara
-
-# Arch Linux (AUR):
-yay -S datara-bin
+npm install -g @datara-lang/datara --registry=https://npm.pkg.github.com
+npx --registry=https://npm.pkg.github.com @datara-lang/datara run app.dtr
 ```
+
+#### Статус глобальных публичных каталогов (на модерации)
+Манифесты подготовлены в каталоге `packaging/` для включения в upstream:
+- **Windows Winget**: Манифест `packaging/winget/waters1ze.Datara.yaml` (находится на модерации в `microsoft/winget-pkgs`).
+- **Arch Linux (AUR)**: Шаблон `packaging/aur/PKGBUILD`.
 
 ---
 

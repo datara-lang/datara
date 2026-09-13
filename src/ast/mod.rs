@@ -634,7 +634,7 @@ pub struct SelectArm {
     pub span: SourceSpan,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LiteralValue {
     Int(i64),
     Float(f64),

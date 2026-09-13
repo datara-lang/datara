@@ -1,22 +1,22 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.6.0.schema.json
 PackageIdentifier: waters1ze.Datara
-PackageVersion: 1.2.6
+PackageVersion: 1.2.7
 DefaultLocale: en-US
 ManifestType: version
 ManifestVersion: 1.6.0
 ---
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 PackageIdentifier: waters1ze.Datara
-PackageVersion: 1.2.6
+PackageVersion: 1.2.7
 PackageLocale: en-US
 Publisher: Datara Language Project
-PublisherUrl: https://github.com/waters1ze/datara
-PublisherSupportUrl: https://github.com/waters1ze/datara/issues
+PublisherUrl: https://github.com/datara-lang/datara
+PublisherSupportUrl: https://github.com/datara-lang/datara/issues
 Author: waters1ze
 PackageName: Datara Programming Language & Forgen Compiler
-PackageUrl: https://github.com/waters1ze/datara
+PackageUrl: https://github.com/datara-lang/datara
 License: Apache-2.0 OR MIT
-LicenseUrl: https://github.com/waters1ze/datara/blob/main/LICENSE-MIT
+LicenseUrl: https://github.com/datara-lang/datara/blob/main/LICENSE-MIT
 ShortDescription: High-performance Post-OOP systems and application programming language with zero-pause affine ownership and Evidence Gate optimizer.
 Tags:
   - compiler
@@ -31,7 +31,7 @@ ManifestVersion: 1.6.0
 ---
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
 PackageIdentifier: waters1ze.Datara
-PackageVersion: 1.2.6
+PackageVersion: 1.2.7
 Platform:
   - Windows.Desktop
 MinimumOSVersion: 10.0.17763.0
@@ -41,8 +41,8 @@ InstallModes:
   - silent
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/waters1ze/datara/releases/download/v1.2.6/Datara-v1.2.6-Setup.exe
-    InstallerSha256: cf35e2e15e68e636b08481fc33827d2d77f3cebb57dfd78fa692a72ba4c69e03
+    InstallerUrl: https://github.com/datara-lang/datara/releases/download/v1.2.7/Datara-v1.2.7-Setup.exe
+    InstallerSha256: 36e92e0bda5686a97b0dfe980f8e8e4e3318d1ad69b455ebdd67d988217b20ef
     InstallerSwitches:
       Silent: /S
       SilentWithProgress: /SP

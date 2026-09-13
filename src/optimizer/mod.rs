@@ -12,6 +12,7 @@ pub mod evidence;
 pub mod inline;
 pub mod ipo;
 pub mod loops;
+pub mod comptime_eval;
 pub mod mem2reg;
 pub mod memory;
 pub mod pipeline_fusion;

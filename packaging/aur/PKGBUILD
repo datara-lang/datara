@@ -1,17 +1,17 @@
-# Maintainer: Datara Language Project <https://github.com/waters1ze/datara>
+# Maintainer: Datara Language Project <https://github.com/datara-lang/datara>
 pkgname=datara-bin
-pkgver=1.2.6
+pkgver=1.2.7
 pkgrel=1
 pkgdesc="High-performance Post-OOP systems and application programming language"
 arch=('x86_64' 'aarch64')
-url="https://github.com/waters1ze/datara"
+url="https://github.com/datara-lang/datara"
 license=('Apache-2.0' 'MIT')
 depends=('glibc' 'gcc-libs')
 provides=('datara' 'forgen')
 conflicts=('datara' 'forgen')
-source_x86_64=("https://github.com/waters1ze/datara/releases/download/v${pkgver}/forgen-linux-x64.tar.gz")
-source_aarch64=("https://github.com/waters1ze/datara/releases/download/v${pkgver}/forgen-linux-aarch64.tar.gz")
-sha256sums_x86_64=('SKIP')
+source_x86_64=("https://github.com/datara-lang/datara/releases/download/v${pkgver}/forgen-linux-x64.tar.gz")
+source_aarch64=("https://github.com/datara-lang/datara/releases/download/v${pkgver}/forgen-linux-aarch64.tar.gz")
+sha256sums_x86_64=('9ed70d548e28c284198caf2a37fb80d4a608bd76e3bb0c3cd415e67fbd968be9')
 sha256sums_aarch64=('SKIP')
 
 package() {

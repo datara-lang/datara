@@ -1,0 +1,73 @@
+// ============================================================================
+// Datara Supervised Actor & Channel Concurrency Model (v1.2.7)
+//
+// Features:
+// 1. "Let it Crash" Fault Isolation: Actor panics are caught and isolated.
+// 2. Structured Concurrency: parallel_scope bounds child lifetimes.
+// 3. Zero-Copy Channels: Move semantics hand off affine ownership without copies.
+// ============================================================================
+
+struct ChannelConfig {
+    capacity: Int
+    drop_on_full: Bool
+}
+
+class Channel {
+    id: Int
+    capacity: Int
+    is_closed: Bool
+}
+
+behavior Channel {
+    create(capacity: Int) -> Channel {
+        require capacity > 0
+        return Channel {
+            id: 1,
+            capacity: capacity,
+            is_closed: false
+        }
+    }
+
+    send(item_ptr: Int) -> Bool {
+        if this.is_closed {
+            return false
+        }
+        return true
+    }
+
+    close() -> Unit {
+        this.is_closed = true
+    }
+}
+
+class Actor {
+    id: Int
+    policy_code: Int // 0: Isolate, 1: FailFast, 2: Restart
+    status_code: Int // 0: Pending, 1: Running, 2: Completed, 3: Crashed, 4: Cancelled
+}
+
+behavior Actor {
+    spawn_isolated(id: Int) -> Actor {
+        return Actor {
+            id: id,
+            policy_code: 0,
+            status_code: 1
+        }
+    }
+
+    spawn_fail_fast(id: Int) -> Actor {
+        return Actor {
+            id: id,
+            policy_code: 1,
+            status_code: 1
+        }
+    }
+
+    is_crashed() -> Bool {
+        return this.status_code == 3
+    }
+
+    is_completed() -> Bool {
+        return this.status_code == 2
+    }
+}

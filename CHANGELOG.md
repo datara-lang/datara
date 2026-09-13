@@ -4,6 +4,23 @@ All notable changes to the Datara compiler and toolchain (`forgen`) are document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.7] - 2026-09-13 «FAULT-TOLERANT PARALLELISM, ADVANCED COMPTIME & LINEAR SAFETY»
+
+### Added
+- **Fault-Tolerant Actor Fibers ("Let It Crash")**: Supervised actor fiber execution (`ActorFiber`) with hardware trap and assertion crash boundaries. Crashes in isolated fibers never kill the host runtime or unmanaged siblings.
+- **Configurable Supervision Policies**: Declarative actor supervision policies (`Isolate`, `FailFast`, `Restart { max_retries }`) enabling Erlang OTP-style resilience with structured crash reporting and automatic retry loops.
+- **Structured Concurrency Scopes (`parallel_scope`)**: Lexically-bound concurrency scopes ensuring that all spawned fibers complete, fail, or cancel cooperatively before the scope exits, preventing leaked background tasks.
+- **High-Throughput Lock-Free SPSC/MPMC Channels**: Wait-free ring buffer channel (`Channel<T>`) featuring 64-byte cache-line padded indices, zero-copy pointer handoffs, and adaptive spin-yield backoff exceeding 14.0 Million messages/sec.
+- **Advanced Compile-Time Function Execution (CTFE)**: Turing-complete compile-time evaluation (`ComptimeEvaluator`) capable of evaluating arbitrary multi-statement blocks, mutable local state, arithmetic logic, and bounded `while` loops with static termination guarantees (1,000,000 step limit). Precomputes lookup tables and constants into `.rodata` with 0 runtime cost.
+- **Compile-Time Channel Linearity Verification**: Static affine linearity verification (`check_channel_send_linearity`) in `SecurityVerifier` mechanically preventing use-after-move across channel sends with diagnostic error code `E-BORROW-001`.
+- **Official Homebrew Tap & Scoop Bucket**: Deployed official `datara-lang/homebrew-tap` (`brew tap datara-lang/tap`) and `datara-lang/scoop-bucket` (`scoop bucket add datara ...`) repositories for immediate one-command installation.
+- **Truthful Distribution & Package Infrastructure**: Standardized packaging channels, consolidated release assets, and verified cryptographic SHA-256 checksums across all 16 built binary artifacts.
+
+### Fixed
+- **Comptime Expression Parsing**: Enabled full block expression parsing with statements inside `comptime { ... }` blocks.
+- **Affine Channel Move Tracking**: Resolved diagnostic spans and error reporting when referencing variables moved into channel sends.
+- **Homebrew Formula and Scoop Manifest Targets**: Corrected upstream repository paths from legacy user namespace to official `datara-lang` organization with synchronized release artifact hashes.
+
 ## [1.2.6] - 2026-09-13 «POLYHEDRAL LOOP ENGINE, CACHE TILING & SLP AUTO-VECTORIZATION»
 
 ### Added

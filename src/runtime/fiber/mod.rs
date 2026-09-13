@@ -4,6 +4,13 @@
 //! millions of concurrent tasks with microsecond spawn latency and
 //! less than 150 MB of memory for 1,000,000 active fibers.
 //! Work-stealing is coordinated via Chase-Lev deques across physical CPU cores.
+pub mod actor;
+pub mod channel;
+pub mod supervisor;
+
+pub use actor::{ActorError, ActorHandle, ActorId, ActorStatus, SupervisionPolicy};
+pub use channel::Channel;
+pub use supervisor::{parallel_scope, ParallelScope};
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};

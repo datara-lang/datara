@@ -291,6 +291,7 @@ impl<'a> SecurityVerifier<'a> {
     ) {
         match stmt {
             Stmt::Block(stmts, _) => {
+                Self::check_channel_send_linearity(stmts, diag);
                 for s in stmts {
                     self.collect_and_check_data_race(s, outer_vars, inner_declared, diag);
                 }
@@ -400,6 +401,57 @@ impl<'a> SecurityVerifier<'a> {
             | Stmt::Out(_, _)
             | Stmt::Err(_, _)
             | Stmt::Asm { .. } => {}
+        }
+    }
+
+    pub fn check_channel_send_linearity(
+        stmts: &[Stmt],
+        diag: &mut DiagnosticEngine,
+    ) {
+        let mut moved_vars: HashMap<String, SourceSpan> = HashMap::new();
+
+        for stmt in stmts {
+            Self::check_stmt_use_after_move(stmt, &moved_vars, diag);
+            Self::collect_channel_sends(stmt, &mut moved_vars);
+        }
+    }
+
+    fn collect_channel_sends(stmt: &Stmt, moved: &mut HashMap<String, SourceSpan>) {
+        if let Stmt::Expr(Expr::Call { callee, args, .. }, _) = stmt {
+            if let Expr::MemberAccess { member, .. } = callee.as_ref() {
+                if member == "send" && !args.is_empty() {
+                    if let Expr::Identifier(arg_name, span) = &args[0] {
+                        moved.insert(arg_name.clone(), span.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    fn check_stmt_use_after_move(
+        stmt: &Stmt,
+        moved: &HashMap<String, SourceSpan>,
+        diag: &mut DiagnosticEngine,
+    ) {
+        match stmt {
+            Stmt::Let { init, .. }
+            | Stmt::Mut { init, .. }
+            | Stmt::Expr(init, _)
+            | Stmt::Assign { value: init, .. } => {
+                if let Expr::Identifier(name, span) = init {
+                    if let Some(_move_span) = moved.get(name) {
+                        diag.error(
+                            ErrorCode::BorrowUseAfterMove,
+                            format!(
+                                "Affine Linearity Violation: Variable '{}' was moved via channel send and cannot be used afterward",
+                                name
+                            ),
+                            Some(span.clone()),
+                        );
+                    }
+                }
+            }
+            _ => {}
         }
     }
 }

@@ -433,10 +433,15 @@ impl<'a> Parser<'a> {
             TokenType::Packet => Some(Expr::Identifier("packet".to_string(), token.span)),
             TokenType::Comptime => {
                 let start_span = token.span.clone();
-                let inner = if self.match_token(&TokenType::LBrace) {
-                    let expr = self.parse_expression()?;
-                    let _ = self.consume(&TokenType::RBrace, "Expected '}' after comptime block");
-                    expr
+                let inner = if self.check(&TokenType::LBrace) {
+                    if self.arm_body_is_block() {
+                        self.parse_arm_block()?
+                    } else {
+                        self.match_token(&TokenType::LBrace);
+                        let expr = self.parse_expression()?;
+                        let _ = self.consume(&TokenType::RBrace, "Expected '}' after comptime block");
+                        expr
+                    }
                 } else {
                     self.parse_expression()?
                 };

@@ -516,7 +516,10 @@ pub fn fold_expr_comptime(expr: &mut Expr) {
     match expr {
         Expr::Comptime { expr: inner, span } => {
             fold_expr_comptime(inner);
-            if let Some(lit) = evaluate_constant(inner) {
+            let mut evaluator = crate::optimizer::comptime_eval::ComptimeEvaluator::new();
+            if let Ok(lit) = evaluator.eval_expr(inner) {
+                *expr = Expr::Literal(lit, span.clone());
+            } else if let Some(lit) = evaluate_constant(inner) {
                 *expr = Expr::Literal(lit, span.clone());
             } else {
                 *expr = (**inner).clone();
