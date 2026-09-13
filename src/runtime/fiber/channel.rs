@@ -6,8 +6,8 @@
 //! - Direct affine ownership handoff: pointers are transferred with zero copy.
 //! - Eliminates OS mutexes, condition variables, and kernel transitions.
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 /// A cache-line aligned atomic index preventing false sharing (64-byte padding).
 #[repr(align(64))]

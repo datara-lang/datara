@@ -10,7 +10,7 @@ pub mod supervisor;
 
 pub use actor::{ActorError, ActorHandle, ActorId, ActorStatus, SupervisionPolicy};
 pub use channel::Channel;
-pub use supervisor::{parallel_scope, ParallelScope};
+pub use supervisor::{ParallelScope, parallel_scope};
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};

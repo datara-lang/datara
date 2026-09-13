@@ -439,7 +439,8 @@ impl<'a> Parser<'a> {
                     } else {
                         self.match_token(&TokenType::LBrace);
                         let expr = self.parse_expression()?;
-                        let _ = self.consume(&TokenType::RBrace, "Expected '}' after comptime block");
+                        let _ =
+                            self.consume(&TokenType::RBrace, "Expected '}' after comptime block");
                         expr
                     }
                 } else {

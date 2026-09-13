@@ -12,13 +12,13 @@ use forgen::ast::{Expr, LiteralValue, SourceSpan, Stmt};
 use forgen::diagnostics::{DiagnosticEngine, ErrorCode};
 use forgen::optimizer::comptime_eval::ComptimeEvaluator;
 use forgen::runtime::fiber::actor::{
-    execute_isolated_actor, generate_actor_id, ActorError, CancellationToken, SupervisionPolicy,
+    ActorError, CancellationToken, SupervisionPolicy, execute_isolated_actor, generate_actor_id,
 };
 use forgen::runtime::fiber::channel::Channel;
 use forgen::runtime::fiber::supervisor::parallel_scope;
 use forgen::security::SecurityVerifier;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 #[test]
@@ -43,10 +43,12 @@ fn test_v127_actor_isolated_crash() {
     }
 
     // Ensure host and subsequent tasks continue normally
-    let normal_res =
-        execute_isolated_actor(generate_actor_id(), SupervisionPolicy::Isolate, CancellationToken::new(), || {
-            42 * 2
-        });
+    let normal_res = execute_isolated_actor(
+        generate_actor_id(),
+        SupervisionPolicy::Isolate,
+        CancellationToken::new(),
+        || 42 * 2,
+    );
     assert_eq!(normal_res, Ok(84));
 }
 
@@ -100,7 +102,11 @@ fn test_v127_actor_restart_policy() {
     );
 
     assert_eq!(result, Ok(999), "Actor must succeed after 2 retries");
-    assert_eq!(attempts.load(Ordering::SeqCst), 3, "Must have taken exactly 3 attempts");
+    assert_eq!(
+        attempts.load(Ordering::SeqCst),
+        3,
+        "Must have taken exactly 3 attempts"
+    );
 }
 
 #[test]
@@ -109,7 +115,7 @@ fn test_v127_lockfree_channel_high_throughput() {
     let chan_producer = chan.clone();
     let chan_consumer = chan.clone();
 
-    let count = 200_000;
+    let count: i64 = 200_000;
     let start = Instant::now();
 
     let sender = std::thread::spawn(move || {
@@ -131,7 +137,7 @@ fn test_v127_lockfree_channel_high_throughput() {
     let total_sum = receiver.join().unwrap();
     let elapsed = start.elapsed();
 
-    let expected_sum: i64 = (count as i64 * (count as i64 - 1)) / 2;
+    let expected_sum: i64 = (count * (count - 1)) / 2;
     assert_eq!(total_sum, expected_sum, "FIFO sum must match exactly");
 
     let msgs_per_sec = (count as f64) / elapsed.as_secs_f64();
@@ -218,7 +224,9 @@ fn test_v127_advanced_comptime_while_loop() {
         span,
     );
 
-    let result = evaluator.eval_expr(&block_expr).expect("Comptime evaluation must succeed");
+    let result = evaluator
+        .eval_expr(&block_expr)
+        .expect("Comptime evaluation must succeed");
     assert_eq!(
         result,
         LiteralValue::Int(5050),
@@ -292,11 +300,16 @@ fn test_v127_comptime_precomputed_lookup_table() {
 
     let block_expr = Expr::Block(
         stmts,
-        Some(Box::new(Expr::Identifier("power".to_string(), span.clone()))),
+        Some(Box::new(Expr::Identifier(
+            "power".to_string(),
+            span.clone(),
+        ))),
         span,
     );
 
-    let result = evaluator.eval_expr(&block_expr).expect("Comptime evaluation must succeed");
+    let result = evaluator
+        .eval_expr(&block_expr)
+        .expect("Comptime evaluation must succeed");
     assert_eq!(
         result,
         LiteralValue::Int(65536),

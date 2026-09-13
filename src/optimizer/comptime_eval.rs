@@ -125,7 +125,11 @@ impl ComptimeEvaluator {
                 self.env.set(name.clone(), val);
                 Ok(())
             }
-            Stmt::Assign { target, value, span } => {
+            Stmt::Assign {
+                target,
+                value,
+                span,
+            } => {
                 let val = self.eval_expr(value)?;
                 if let Expr::Identifier(name, _) = target {
                     self.env.set(name.clone(), val);

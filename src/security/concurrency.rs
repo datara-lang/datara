@@ -404,10 +404,7 @@ impl<'a> SecurityVerifier<'a> {
         }
     }
 
-    pub fn check_channel_send_linearity(
-        stmts: &[Stmt],
-        diag: &mut DiagnosticEngine,
-    ) {
+    pub fn check_channel_send_linearity(stmts: &[Stmt], diag: &mut DiagnosticEngine) {
         let mut moved_vars: HashMap<String, SourceSpan> = HashMap::new();
 
         for stmt in stmts {

@@ -5,12 +5,11 @@
 //! - Structured error propagation: FailFast immediately halts sibling tasks.
 //! - Clean unwinding and cancellation token propagation without resource leaks.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::runtime::fiber::actor::{
-    execute_isolated_actor, generate_actor_id, ActorHandle,
-    CancellationToken, SupervisionPolicy,
+    ActorHandle, CancellationToken, SupervisionPolicy, execute_isolated_actor, generate_actor_id,
 };
 use crate::runtime::fiber::channel::Channel;
 
@@ -43,11 +42,7 @@ impl ParallelScope {
         let policy = self.policy;
         let has_failed = self.has_failed.clone();
 
-        let handle = ActorHandle::new(
-            actor_id,
-            cancel_token.clone(),
-            result_channel,
-        );
+        let handle = ActorHandle::new(actor_id, cancel_token.clone(), result_channel);
 
         // In the native thread/fiber runner:
         let runner_cancel = cancel_token.clone();

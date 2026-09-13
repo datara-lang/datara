@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 pub mod adaptive;
 pub mod cache_tiling;
+pub mod comptime_eval;
 pub mod const_fold;
 pub mod cost_model;
 pub mod dce;
@@ -12,7 +13,6 @@ pub mod evidence;
 pub mod inline;
 pub mod ipo;
 pub mod loops;
-pub mod comptime_eval;
 pub mod mem2reg;
 pub mod memory;
 pub mod pipeline_fusion;
