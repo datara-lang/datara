@@ -10,6 +10,7 @@
 use std::path::PathBuf;
 
 pub mod bump_arena;
+pub mod fiber;
 pub mod parallel;
 pub mod scheduler;
 

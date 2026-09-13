@@ -1,5 +1,6 @@
 pub(crate) mod capabilities;
 pub(crate) mod concurrency;
+pub mod effect_erasure;
 pub(crate) mod verify_expr;
 
 use crate::ast::*;
