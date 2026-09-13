@@ -32,7 +32,7 @@ fn test_02_class_modern_oop() {
         .run_executable(&res.exe_path.unwrap(), &[])
         .unwrap();
     assert_eq!(code, 0);
-    assert_eq!(stdout.trim(), "Hello Alex");
+    assert_eq!(stdout.trim(), "Hello Alex, age 20");
 }
 
 #[test]
@@ -49,7 +49,14 @@ fn test_03_split_behavior() {
         .run_executable(&res.exe_path.unwrap(), &[])
         .unwrap();
     assert_eq!(code, 0);
-    assert_eq!(stdout.trim(), "Hello Maria (25)");
+    let lines: Vec<&str> = stdout.trim().lines().map(|l| l.trim()).collect();
+    assert_eq!(
+        lines,
+        vec![
+            "Account 'Maria' | Balance: 500",
+            "Projected balance after deposit: 750"
+        ]
+    );
 }
 
 #[test]

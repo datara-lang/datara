@@ -27,11 +27,19 @@ fn datara_bin() -> std::path::PathBuf {
         format!("target/x86_64-unknown-linux-gnu/release/datara{}", ext),
         format!("target/x86_64-unknown-linux-gnu/debug/datara{}", ext),
     ];
+    let mut best: Option<(std::path::PathBuf, std::time::SystemTime)> = None;
     for c in candidates {
         let p = std::path::PathBuf::from(c);
-        if p.exists() {
-            return p;
+        if let Ok(meta) = p.metadata() {
+            if let Ok(mtime) = meta.modified() {
+                if best.as_ref().map_or(true, |(_, best_time)| mtime > *best_time) {
+                    best = Some((p, mtime));
+                }
+            }
         }
+    }
+    if let Some((p, _)) = best {
+        return p;
     }
     if let Ok(current) = std::env::current_exe() {
         if let Some(dir) = current.parent() {

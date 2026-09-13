@@ -74,6 +74,25 @@ pub fn run_cli() {
 }
 
 pub fn run_cli_with_args(args: &[String]) {
+    if std::thread::current().name() == Some("datara-compiler") {
+        run_cli_inner(args);
+    } else {
+        let args_vec = args.to_vec();
+        let builder = std::thread::Builder::new()
+            .name("datara-compiler".into())
+            .stack_size(8 * 1024 * 1024);
+        let handler = builder
+            .spawn(move || {
+                run_cli_inner(&args_vec);
+            })
+            .expect("failed to spawn datara compiler thread");
+        if let Err(e) = handler.join() {
+            std::panic::resume_unwind(e);
+        }
+    }
+}
+
+fn run_cli_inner(args: &[String]) {
     if args.len() < 2 {
         // Just like Python, running datara or forgen without arguments launches the interactive REPL
         crate::repl::ReplSession::run_interactive();

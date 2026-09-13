@@ -109,75 +109,82 @@ const TWELVE_BROKEN: &[BrokenCase] = &[
 
 #[test]
 fn audit_diagnostics_12_broken_programs_zero_panics_valid_spans_and_messages() {
-    let compiler = ForgenCompiler::new("release");
+    std::thread::Builder::new()
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| {
+            let compiler = ForgenCompiler::new("release");
 
-    for c in TWELVE_BROKEN {
-        println!(">>> [DIAG TEST #{}] {} <<<", c.id, c.name);
+            for c in TWELVE_BROKEN {
+                println!(">>> [DIAG TEST #{}] {} <<<", c.id, c.name);
 
-        let res = std::panic::catch_unwind(|| {
-            compiler.compile_source(c.source, &format!("{}.dtr", c.name), None)
-        });
+                let res = std::panic::catch_unwind(|| {
+                    compiler.compile_source(c.source, &format!("{}.dtr", c.name), None)
+                });
 
-        assert!(
-            res.is_ok(),
-            "CRITICAL: Compiler panicked on broken program #{} ({})!",
-            c.id,
-            c.name
-        );
+                assert!(
+                    res.is_ok(),
+                    "CRITICAL: Compiler panicked on broken program #{} ({})!",
+                    c.id,
+                    c.name
+                );
 
-        let comp_res = res.unwrap();
-        assert!(
-            !comp_res.success,
-            "Broken program #{} ({}) must NOT compile successfully!",
-            c.id, c.name
-        );
+                let comp_res = res.unwrap();
+                assert!(
+                    !comp_res.success,
+                    "Broken program #{} ({}) must NOT compile successfully!",
+                    c.id, c.name
+                );
 
-        let diag = &comp_res.diagnostics;
-        assert!(
-            !diag.is_empty(),
-            "Program #{} ({}) must produce diagnostic text",
-            c.id,
-            c.name
-        );
+                let diag = &comp_res.diagnostics;
+                assert!(
+                    !diag.is_empty(),
+                    "Program #{} ({}) must produce diagnostic text",
+                    c.id,
+                    c.name
+                );
 
-        assert!(
-            diag.contains(c.expected_code)
-                || comp_res
-                    .error
-                    .as_deref()
-                    .unwrap_or("")
-                    .contains(c.expected_code),
-            "Program #{} ({}) expected error code '{}', got:\n{}",
-            c.id,
-            c.name,
-            c.expected_code,
-            diag
-        );
+                assert!(
+                    diag.contains(c.expected_code)
+                        || comp_res
+                            .error
+                            .as_deref()
+                            .unwrap_or("")
+                            .contains(c.expected_code),
+                    "Program #{} ({}) expected error code '{}', got:\n{}",
+                    c.id,
+                    c.name,
+                    c.expected_code,
+                    diag
+                );
 
-        let diag_lower = diag.to_lowercase();
-        let exp_lower = c.expected_msg_sub.to_lowercase();
-        assert!(
-            diag_lower.contains(&exp_lower)
-                || comp_res
-                    .error
-                    .as_deref()
-                    .unwrap_or("")
-                    .to_lowercase()
-                    .contains(&exp_lower),
-            "Program #{} ({}) expected message substring '{}', got:\n{}",
-            c.id,
-            c.name,
-            c.expected_msg_sub,
-            diag
-        );
+                let diag_lower = diag.to_lowercase();
+                let exp_lower = c.expected_msg_sub.to_lowercase();
+                assert!(
+                    diag_lower.contains(&exp_lower)
+                        || comp_res
+                            .error
+                            .as_deref()
+                            .unwrap_or("")
+                            .to_lowercase()
+                            .contains(&exp_lower),
+                    "Program #{} ({}) expected message substring '{}', got:\n{}",
+                    c.id,
+                    c.name,
+                    c.expected_msg_sub,
+                    diag
+                );
 
-        // Verify span presence (e.g. line:col or --> file:line:col)
-        assert!(
-            diag.contains("-->") || diag.contains(":") || diag.contains(".dtr"),
-            "Program #{} ({}) diagnostic must include file/line source span! Got:\n{}",
-            c.id,
-            c.name,
-            diag
-        );
-    }
+                // Verify span presence (e.g. line:col or --> file:line:col)
+                assert!(
+                    diag.contains("-->") || diag.contains(":") || diag.contains(".dtr"),
+                    "Program #{} ({}) diagnostic must include file/line source span! Got:\n{}",
+                    c.id,
+                    c.name,
+                    diag
+                );
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
 }
