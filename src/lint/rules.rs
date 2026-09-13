@@ -548,6 +548,11 @@ impl VariableUsageTracker {
             Expr::Identifier(name, _) => {
                 self.read.insert(name.clone());
             }
+            Expr::InterpolatedString { expressions, .. } => {
+                for e in expressions {
+                    self.analyze_expr(e);
+                }
+            }
             Expr::Binary { left, right, .. } => {
                 self.analyze_expr(left);
                 self.analyze_expr(right);
@@ -568,12 +573,81 @@ impl VariableUsageTracker {
                 self.analyze_expr(object);
                 self.analyze_expr(index);
             }
-            Expr::Tuple(exprs, _) => {
+            Expr::Range { start, end, .. } => {
+                self.analyze_expr(start);
+                self.analyze_expr(end);
+            }
+            Expr::Tuple(exprs, _) | Expr::ListLiteral(exprs, _) => {
                 for e in exprs {
                     self.analyze_expr(e);
                 }
             }
-            _ => {}
+            Expr::ObjectInit { fields, .. } => {
+                for (_, field_expr) in fields {
+                    self.analyze_expr(field_expr);
+                }
+            }
+            Expr::MapLiteral(entries, _) => {
+                for (k, v) in entries {
+                    self.analyze_expr(k);
+                    self.analyze_expr(v);
+                }
+            }
+            Expr::Pipeline { stages, .. } => {
+                for s in stages {
+                    self.analyze_expr(s);
+                }
+            }
+            Expr::Decide { arms, else_arm, .. } => {
+                for arm in arms {
+                    self.analyze_expr(&arm.condition);
+                    self.analyze_expr(&arm.body);
+                }
+                if let Some(ea) = else_arm {
+                    self.analyze_expr(ea);
+                }
+            }
+            Expr::Match { value, arms, .. } => {
+                self.analyze_expr(value);
+                for arm in arms {
+                    self.analyze_expr(&arm.body);
+                }
+            }
+            Expr::Select { arms, else_arm, .. } => {
+                for arm in arms {
+                    self.analyze_expr(&arm.body);
+                }
+                if let Some(ea) = else_arm {
+                    self.analyze_expr(ea);
+                }
+            }
+            Expr::Lambda { body, .. } => {
+                self.analyze_expr(body);
+            }
+            Expr::ErrorPropagate(e, _)
+            | Expr::Comptime { expr: e, .. }
+            | Expr::Wrapping(e, _)
+            | Expr::Saturating(e, _) => {
+                self.analyze_expr(e);
+            }
+            Expr::OrRecovery { expr, arms, .. } => {
+                self.analyze_expr(expr);
+                for arm in arms {
+                    self.analyze_expr(&arm.body);
+                }
+            }
+            Expr::ArrayRepeatLiteral { elem, .. } => {
+                self.analyze_expr(elem);
+            }
+            Expr::Block(stmts, trailing, _) => {
+                for s in stmts {
+                    self.analyze_stmt(s);
+                }
+                if let Some(t) = trailing {
+                    self.analyze_expr(t);
+                }
+            }
+            Expr::Literal(..) => {}
         }
     }
 }
