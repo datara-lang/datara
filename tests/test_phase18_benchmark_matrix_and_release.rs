@@ -202,12 +202,11 @@ fn test_release_file_size_limits() {
                 let path = entry.path();
                 if path.is_dir() {
                     visit_dir(&path, oversized);
-                } else if path.extension().and_then(|s| s.to_str()) == Some("rs") {
-                    if let Ok(meta) = fs::metadata(&path) {
-                        if meta.len() > 61_440 {
-                            oversized.push((path, meta.len()));
-                        }
-                    }
+                } else if path.extension().and_then(|s| s.to_str()) == Some("rs")
+                    && let Ok(meta) = fs::metadata(&path)
+                    && meta.len() > 61_440
+                {
+                    oversized.push((path, meta.len()));
                 }
             }
         }

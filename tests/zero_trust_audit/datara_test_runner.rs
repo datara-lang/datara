@@ -30,39 +30,37 @@ fn datara_bin() -> std::path::PathBuf {
     let mut best: Option<(std::path::PathBuf, std::time::SystemTime)> = None;
     for c in candidates {
         let p = std::path::PathBuf::from(c);
-        if let Ok(meta) = p.metadata() {
-            if let Ok(mtime) = meta.modified() {
-                if best
-                    .as_ref()
-                    .map_or(true, |(_, best_time)| mtime > *best_time)
-                {
-                    best = Some((p, mtime));
-                }
-            }
+        if let Ok(meta) = p.metadata()
+            && let Ok(mtime) = meta.modified()
+            && best
+                .as_ref()
+                .is_none_or(|(_, best_time)| mtime > *best_time)
+        {
+            best = Some((p, mtime));
         }
     }
     if let Some((p, _)) = best {
         return p;
     }
-    if let Ok(current) = std::env::current_exe() {
-        if let Some(dir) = current.parent() {
-            let p1 = dir.join(format!("datara{}", ext));
-            if p1.exists() {
-                return p1;
+    if let Ok(current) = std::env::current_exe()
+        && let Some(dir) = current.parent()
+    {
+        let p1 = dir.join(format!("datara{}", ext));
+        if p1.exists() {
+            return p1;
+        }
+        let p2 = dir.join(format!("forgen{}", ext));
+        if p2.exists() {
+            return p2;
+        }
+        if let Some(parent) = dir.parent() {
+            let p3 = parent.join(format!("datara{}", ext));
+            if p3.exists() {
+                return p3;
             }
-            let p2 = dir.join(format!("forgen{}", ext));
-            if p2.exists() {
-                return p2;
-            }
-            if let Some(parent) = dir.parent() {
-                let p3 = parent.join(format!("datara{}", ext));
-                if p3.exists() {
-                    return p3;
-                }
-                let p4 = parent.join(format!("forgen{}", ext));
-                if p4.exists() {
-                    return p4;
-                }
+            let p4 = parent.join(format!("forgen{}", ext));
+            if p4.exists() {
+                return p4;
             }
         }
     }

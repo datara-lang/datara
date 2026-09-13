@@ -44,7 +44,7 @@ fn test_v125_chase_lev_deque_concurrency() {
 
     // Owner pops remaining
     let mut owner_popped = 0;
-    while let Some(_) = deque.pop() {
+    while deque.pop().is_some() {
         owner_popped += 1;
     }
 

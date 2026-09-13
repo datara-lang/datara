@@ -264,19 +264,18 @@ fn main() {
     // If dumpbin is available next to the linker, verify imports list
     if let Ok(spec) = forgen::codegen::linker::ensure_linker() {
         let dumpbin = spec.program.with_file_name("dumpbin.exe");
-        if dumpbin.exists() {
-            if let Ok(output) = Command::new(&dumpbin)
+        if dumpbin.exists()
+            && let Ok(output) = Command::new(&dumpbin)
                 .args(["/IMPORTS", &exe.to_string_lossy()])
                 .output()
-            {
-                let text = String::from_utf8_lossy(&output.stdout);
-                for sym in &forbidden_symbols {
-                    assert!(
-                        !text.contains(sym),
-                        "dumpbin /IMPORTS found forbidden polyglot symbol: {}",
-                        sym
-                    );
-                }
+        {
+            let text = String::from_utf8_lossy(&output.stdout);
+            for sym in &forbidden_symbols {
+                assert!(
+                    !text.contains(sym),
+                    "dumpbin /IMPORTS found forbidden polyglot symbol: {}",
+                    sym
+                );
             }
         }
     }

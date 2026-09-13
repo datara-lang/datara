@@ -261,12 +261,11 @@ fn main() {
 
     let mut subprogram_names = Vec::new();
     while let Ok(Some(entry)) = entries.next_dfs() {
-        if entry.tag() == gimli::DW_TAG_subprogram {
-            if let Some(attr) = entry.attr(gimli::DW_AT_name) {
-                if let Some(s) = attr.string_value(&debug_str) {
-                    subprogram_names.push(String::from_utf8_lossy(s.slice()).to_string());
-                }
-            }
+        if entry.tag() == gimli::DW_TAG_subprogram
+            && let Some(attr) = entry.attr(gimli::DW_AT_name)
+            && let Some(s) = attr.string_value(&debug_str)
+        {
+            subprogram_names.push(String::from_utf8_lossy(s.slice()).to_string());
         }
     }
 

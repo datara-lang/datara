@@ -103,15 +103,14 @@ fn main() -> Int {
         .arg("-e")
         .arg(&node_script)
         .output()
+        && output.status.success()
     {
-        if output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            assert!(
-                stdout.contains("NODE_OUTPUT:42"),
-                "Expected main to return 42, got: {}",
-                stdout
-            );
-        }
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains("NODE_OUTPUT:42"),
+            "Expected main to return 42, got: {}",
+            stdout
+        );
     }
 
     // Cleanup

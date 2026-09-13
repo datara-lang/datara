@@ -172,14 +172,15 @@ int main(void) {
         .current_dir(&temp_dir);
 
     let output = cmd.output();
-    if let Ok(out) = output {
-        if out.status.success() && exe_file.exists() {
-            let run_output = Command::new(&exe_file)
-                .output()
-                .expect("Failed to run host.exe");
-            let stdout = String::from_utf8_lossy(&run_output.stdout);
-            assert!(stdout.contains("C host runner active"));
-        }
+    if let Ok(out) = output
+        && out.status.success()
+        && exe_file.exists()
+    {
+        let run_output = Command::new(&exe_file)
+            .output()
+            .expect("Failed to run host.exe");
+        let stdout = String::from_utf8_lossy(&run_output.stdout);
+        assert!(stdout.contains("C host runner active"));
     }
 
     let _ = fs::remove_dir_all(&temp_dir);

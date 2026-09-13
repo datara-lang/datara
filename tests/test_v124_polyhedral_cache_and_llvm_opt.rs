@@ -132,7 +132,7 @@ fn test_v124_cache_tiling_computation() {
 
     let tile_size = CacheTilingOptimizer::compute_optimal_tile_size(&config, 8);
     assert!(
-        tile_size >= 16 && tile_size <= 64,
+        (16..=64).contains(&tile_size),
         "Tile size must be cache-friendly: {}",
         tile_size
     );

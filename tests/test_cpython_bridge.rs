@@ -243,19 +243,18 @@ fn main() {
 
     if let Ok(spec) = forgen::codegen::linker::ensure_linker() {
         let dumpbin = spec.program.with_file_name("dumpbin.exe");
-        if dumpbin.exists() {
-            if let Ok(output) = Command::new(&dumpbin)
+        if dumpbin.exists()
+            && let Ok(output) = Command::new(&dumpbin)
                 .args(["/IMPORTS", &exe.to_string_lossy()])
                 .output()
-            {
-                let text = String::from_utf8_lossy(&output.stdout);
-                for pat in &forbidden_patterns {
-                    assert!(
-                        !text.contains(pat),
-                        "dumpbin /IMPORTS found forbidden polyglot reference: {}",
-                        pat
-                    );
-                }
+        {
+            let text = String::from_utf8_lossy(&output.stdout);
+            for pat in &forbidden_patterns {
+                assert!(
+                    !text.contains(pat),
+                    "dumpbin /IMPORTS found forbidden polyglot reference: {}",
+                    pat
+                );
             }
         }
     }

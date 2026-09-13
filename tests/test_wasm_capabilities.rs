@@ -156,10 +156,12 @@ fn main(sys_caps: SystemCapabilities) {
 fn test_wasm_capability_e0940_compile_time_error_on_unauthorized_call() {
     // Construct a synthetic DMIR module that calls file_read without granting Capability<FileRead>
     let mut module = Module::new("unauthorized_wasm_module");
-    let mut func = Function::default();
-    func.name = "main".to_string();
-    func.return_type = "Int".to_string();
-    func.entry_block = BasicBlockId(0);
+    let mut func = Function {
+        name: "main".to_string(),
+        return_type: "Int".to_string(),
+        entry_block: BasicBlockId(0),
+        ..Default::default()
+    };
 
     let bb = BasicBlock {
         id: BasicBlockId(0),
@@ -221,15 +223,17 @@ fn test_wasm_capability_e0940_compile_time_error_on_unauthorized_call() {
 fn test_wasm_capability_sidecar_and_execution_with_granted_token() {
     // Construct a DMIR module that accepts Capability<FileRead> parameter and calls file_read
     let mut module = Module::new("authorized_wasm_module");
-    let mut func = Function::default();
-    func.name = "main".to_string();
-    func.params = vec![(
-        "token".to_string(),
-        "Capability<FileRead>".to_string(),
-        ValueId(0),
-    )];
-    func.return_type = "Int".to_string();
-    func.entry_block = BasicBlockId(0);
+    let mut func = Function {
+        name: "main".to_string(),
+        params: vec![(
+            "token".to_string(),
+            "Capability<FileRead>".to_string(),
+            ValueId(0),
+        )],
+        return_type: "Int".to_string(),
+        entry_block: BasicBlockId(0),
+        ..Default::default()
+    };
 
     let bb = BasicBlock {
         id: BasicBlockId(0),
@@ -304,22 +308,24 @@ fn test_wasm_capability_sidecar_and_execution_with_granted_token() {
 #[test]
 fn test_wasm_capability_sidecar_fileread_and_networkconnect() {
     let mut module = Module::new("dual_cap_wasm_module");
-    let mut func = Function::default();
-    func.name = "main".to_string();
-    func.params = vec![
-        (
-            "fs_token".to_string(),
-            "Capability<FileRead>".to_string(),
-            ValueId(0),
-        ),
-        (
-            "net_token".to_string(),
-            "Capability<NetworkConnect>".to_string(),
-            ValueId(1),
-        ),
-    ];
-    func.return_type = "Int".to_string();
-    func.entry_block = BasicBlockId(0);
+    let mut func = Function {
+        name: "main".to_string(),
+        params: vec![
+            (
+                "fs_token".to_string(),
+                "Capability<FileRead>".to_string(),
+                ValueId(0),
+            ),
+            (
+                "net_token".to_string(),
+                "Capability<NetworkConnect>".to_string(),
+                ValueId(1),
+            ),
+        ],
+        return_type: "Int".to_string(),
+        entry_block: BasicBlockId(0),
+        ..Default::default()
+    };
 
     let bb = BasicBlock {
         id: BasicBlockId(0),

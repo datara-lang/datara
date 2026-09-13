@@ -236,10 +236,10 @@ fn main() {
     let mut self_calls = 0;
     for b in &sum_fn.blocks {
         for inst in &b.instructions {
-            if let forgen::dmir::Inst::Call { func, .. } = inst {
-                if func == "sum_tail" || func.starts_with("sum_tail") {
-                    self_calls += 1;
-                }
+            if let forgen::dmir::Inst::Call { func, .. } = inst
+                && (func == "sum_tail" || func.starts_with("sum_tail"))
+            {
+                self_calls += 1;
             }
         }
     }
@@ -278,10 +278,10 @@ fn main() {
     let mut fib_self_calls = 0;
     for b in &fib_fn.blocks {
         for inst in &b.instructions {
-            if let forgen::dmir::Inst::Call { func, .. } = inst {
-                if func == "fib_nontail" {
-                    fib_self_calls += 1;
-                }
+            if let forgen::dmir::Inst::Call { func, .. } = inst
+                && func == "fib_nontail"
+            {
+                fib_self_calls += 1;
             }
         }
     }
