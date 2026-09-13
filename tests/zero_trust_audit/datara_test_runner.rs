@@ -32,7 +32,10 @@ fn datara_bin() -> std::path::PathBuf {
         let p = std::path::PathBuf::from(c);
         if let Ok(meta) = p.metadata() {
             if let Ok(mtime) = meta.modified() {
-                if best.as_ref().map_or(true, |(_, best_time)| mtime > *best_time) {
+                if best
+                    .as_ref()
+                    .map_or(true, |(_, best_time)| mtime > *best_time)
+                {
                     best = Some((p, mtime));
                 }
             }
