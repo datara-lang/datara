@@ -225,6 +225,60 @@ impl WasmEmitter {
             return Ok(());
         }
 
+        if (func == "i32x4_add" || func == "datara_rt_int4_add") && args.len() == 2 {
+            let a_loc = local_map.get(&args[0]).copied().unwrap_or(0);
+            let b_loc = local_map.get(&args[1]).copied().unwrap_or(0);
+            body.push(0x20);
+            encode_u32_leb128(a_loc, body);
+            body.push(0x20);
+            encode_u32_leb128(b_loc, body);
+            body.push(0xFD);
+            encode_u32_leb128(110, body); // i32x4.add
+            body.push(0x21);
+            encode_u32_leb128(dest_loc, body);
+            wat.push_str(&format!(
+                "    (local.set $v{} (i32x4.add (local.get $v{}) (local.get $v{})))\n",
+                dest.0, args[0].0, args[1].0
+            ));
+            return Ok(());
+        }
+
+        if (func == "i32x4_sub" || func == "datara_rt_int4_sub") && args.len() == 2 {
+            let a_loc = local_map.get(&args[0]).copied().unwrap_or(0);
+            let b_loc = local_map.get(&args[1]).copied().unwrap_or(0);
+            body.push(0x20);
+            encode_u32_leb128(a_loc, body);
+            body.push(0x20);
+            encode_u32_leb128(b_loc, body);
+            body.push(0xFD);
+            encode_u32_leb128(111, body); // i32x4.sub
+            body.push(0x21);
+            encode_u32_leb128(dest_loc, body);
+            wat.push_str(&format!(
+                "    (local.set $v{} (i32x4.sub (local.get $v{}) (local.get $v{})))\n",
+                dest.0, args[0].0, args[1].0
+            ));
+            return Ok(());
+        }
+
+        if (func == "i32x4_mul" || func == "datara_rt_int4_mul") && args.len() == 2 {
+            let a_loc = local_map.get(&args[0]).copied().unwrap_or(0);
+            let b_loc = local_map.get(&args[1]).copied().unwrap_or(0);
+            body.push(0x20);
+            encode_u32_leb128(a_loc, body);
+            body.push(0x20);
+            encode_u32_leb128(b_loc, body);
+            body.push(0xFD);
+            encode_u32_leb128(165, body); // i32x4.mul
+            body.push(0x21);
+            encode_u32_leb128(dest_loc, body);
+            wat.push_str(&format!(
+                "    (local.set $v{} (i32x4.mul (local.get $v{}) (local.get $v{})))\n",
+                dest.0, args[0].0, args[1].0
+            ));
+            return Ok(());
+        }
+
         if (func == "float4_x"
             || func == "lane0"
             || func == "float4_y"
@@ -232,14 +286,18 @@ impl WasmEmitter {
             || func == "float4_z"
             || func == "lane2"
             || func == "float4_w"
-            || func == "lane3")
+            || func == "lane3"
+            || func == "f32x4_extract_lane_0"
+            || func == "f32x4_extract_lane_1"
+            || func == "f32x4_extract_lane_2"
+            || func == "f32x4_extract_lane_3")
             && args.len() == 1
         {
             let arg_loc = local_map.get(&args[0]).copied().unwrap_or(0);
             let lane_idx: u8 = match func {
-                "float4_y" | "lane1" => 1,
-                "float4_z" | "lane2" => 2,
-                "float4_w" | "lane3" => 3,
+                "float4_y" | "lane1" | "f32x4_extract_lane_1" => 1,
+                "float4_z" | "lane2" | "f32x4_extract_lane_2" => 2,
+                "float4_w" | "lane3" | "f32x4_extract_lane_3" => 3,
                 _ => 0,
             };
             body.push(0x20);
@@ -257,14 +315,21 @@ impl WasmEmitter {
             return Ok(());
         }
 
-        if (func == "int4_x" || func == "int4_y" || func == "int4_z" || func == "int4_w")
+        if (func == "int4_x"
+            || func == "int4_y"
+            || func == "int4_z"
+            || func == "int4_w"
+            || func == "i32x4_extract_lane_0"
+            || func == "i32x4_extract_lane_1"
+            || func == "i32x4_extract_lane_2"
+            || func == "i32x4_extract_lane_3")
             && args.len() == 1
         {
             let arg_loc = local_map.get(&args[0]).copied().unwrap_or(0);
             let lane_idx: u8 = match func {
-                "int4_y" => 1,
-                "int4_z" => 2,
-                "int4_w" => 3,
+                "int4_y" | "i32x4_extract_lane_1" => 1,
+                "int4_z" | "i32x4_extract_lane_2" => 2,
+                "int4_w" | "i32x4_extract_lane_3" => 3,
                 _ => 0,
             };
             body.push(0x20);

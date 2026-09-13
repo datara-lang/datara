@@ -161,16 +161,8 @@ impl SLPOptimizer {
                         },
                     ) = quad
                     {
-                        let is_float = ty0 == "Float"
-                            || ty0 == "Float32"
-                            || ty0 == "Float64"
-                            || ty0 == "f32"
-                            || ty0 == "f64";
-                        let is_int = ty0 == "Int"
-                            || ty0 == "Int32"
-                            || ty0 == "Int64"
-                            || ty0 == "i32"
-                            || ty0 == "i64";
+                        let is_float = ty0 == "Float" || ty0 == "Float32" || ty0 == "f32";
+                        let is_int = ty0 == "Int32" || ty0 == "i32";
 
                         let same_op = op0 == op1
                             && op0 == op2
