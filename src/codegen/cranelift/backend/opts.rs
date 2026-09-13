@@ -85,32 +85,87 @@ pub fn configure_isa_hardware_features(
     target: &TargetInfo,
 ) {
     if matches!(target.arch, Arch::X86_64) {
-        let allow_sse3 =
-            target.cpu_features.contains("sse3") || target.cpu_features.contains("avx2");
-        let allow_sse4 =
-            target.cpu_features.contains("sse4_2") || target.cpu_features.contains("avx2");
-        let allow_avx = target.vector_support.contains(&VectorExtension::Avx)
-            || target.vector_support.contains(&VectorExtension::Avx2);
-        let allow_avx2 = target.vector_support.contains(&VectorExtension::Avx2);
+        #[cfg(target_arch = "x86_64")]
+        let (
+            has_sse3,
+            has_sse41,
+            has_sse42,
+            has_popcnt,
+            has_avx,
+            has_avx2,
+            has_fma,
+            has_bmi1,
+            has_bmi2,
+            has_lzcnt,
+        ) = (
+            std::is_x86_feature_detected!("sse3"),
+            std::is_x86_feature_detected!("sse4.1"),
+            std::is_x86_feature_detected!("sse4.2"),
+            std::is_x86_feature_detected!("popcnt"),
+            std::is_x86_feature_detected!("avx"),
+            std::is_x86_feature_detected!("avx2"),
+            std::is_x86_feature_detected!("fma"),
+            std::is_x86_feature_detected!("bmi1"),
+            std::is_x86_feature_detected!("bmi2"),
+            std::is_x86_feature_detected!("lzcnt"),
+        );
+        #[cfg(not(target_arch = "x86_64"))]
+        let (
+            has_sse3,
+            has_sse41,
+            has_sse42,
+            has_popcnt,
+            has_avx,
+            has_avx2,
+            has_fma,
+            has_bmi1,
+            has_bmi2,
+            has_lzcnt,
+        ) = (
+            true, true, true, true, true, true, true, false, false, false,
+        );
+
+        let allow_sse3 = (target.cpu_features.contains("sse3")
+            || target.cpu_features.contains("avx2"))
+            && has_sse3;
+        let allow_sse4 = (target.cpu_features.contains("sse4_2")
+            || target.cpu_features.contains("avx2"))
+            && has_sse42;
+        let allow_avx = (target.vector_support.contains(&VectorExtension::Avx)
+            || target.vector_support.contains(&VectorExtension::Avx2))
+            && has_avx;
+        let allow_avx2 = target.vector_support.contains(&VectorExtension::Avx2) && has_avx2;
 
         if allow_sse3 {
             let _ = isa_builder.set("has_sse3", "true");
             let _ = isa_builder.set("has_ssse3", "true");
         }
         if allow_sse4 {
-            let _ = isa_builder.set("has_sse41", "true");
+            if has_sse41 {
+                let _ = isa_builder.set("has_sse41", "true");
+            }
             let _ = isa_builder.set("has_sse42", "true");
-            let _ = isa_builder.set("has_popcnt", "true");
+            if has_popcnt {
+                let _ = isa_builder.set("has_popcnt", "true");
+            }
         }
         if allow_avx {
             let _ = isa_builder.set("has_avx", "true");
         }
         if allow_avx2 {
             let _ = isa_builder.set("has_avx2", "true");
-            let _ = isa_builder.set("has_fma", "true");
-            let _ = isa_builder.set("has_bmi1", "true");
-            let _ = isa_builder.set("has_bmi2", "true");
-            let _ = isa_builder.set("has_lzcnt", "true");
+            if has_fma {
+                let _ = isa_builder.set("has_fma", "true");
+            }
+            if has_bmi1 {
+                let _ = isa_builder.set("has_bmi1", "true");
+            }
+            if has_bmi2 {
+                let _ = isa_builder.set("has_bmi2", "true");
+            }
+            if has_lzcnt {
+                let _ = isa_builder.set("has_lzcnt", "true");
+            }
         }
     }
 }
