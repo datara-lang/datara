@@ -371,7 +371,8 @@ impl ForgenCompiler {
                     {
                         true
                     } else {
-                        let installed = crate::codegen::llvm_install::prompt_and_install_llvm_if_interactive();
+                        let installed =
+                            crate::codegen::llvm_install::prompt_and_install_llvm_if_interactive();
                         installed
                             && (crate::codegen::linker::find_clang().is_some()
                                 || crate::codegen::linker::find_llc().is_some())

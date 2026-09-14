@@ -106,27 +106,28 @@ fn install_llvm_windows() -> bool {
     println!("\n-> Detecting Windows package managers and download channels...");
 
     // 1. Try winget if available
-    let winget_path = which_local("winget.exe")
-        .or_else(|| {
-            let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
-            let p = PathBuf::from(local_app_data)
-                .join(r"Microsoft\WindowsApps\winget.exe");
-            if p.exists() { Some(p) } else { None }
-        });
+    let winget_path = which_local("winget.exe").or_else(|| {
+        let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
+        let p = PathBuf::from(local_app_data).join(r"Microsoft\WindowsApps\winget.exe");
+        if p.exists() { Some(p) } else { None }
+    });
 
     if let Some(winget) = winget_path {
         println!("[1/2] Installing official LLVM via Windows Package Manager (winget)...");
         let status = Command::new(winget)
             .args([
                 "install",
-                "--id", "LLVM.LLVM",
+                "--id",
+                "LLVM.LLVM",
                 "--exact",
                 "--accept-package-agreements",
                 "--accept-source-agreements",
             ])
             .status();
 
-        if let Ok(st) = status && st.success() {
+        if let Ok(st) = status
+            && st.success()
+        {
             println!("\n[SUCCESS] LLVM installed successfully via winget!");
             verify_and_register_llvm_windows();
             return true;
@@ -143,7 +144,10 @@ fn install_llvm_windows() -> bool {
     let temp_dir = std::env::temp_dir();
     let installer_path = temp_dir.join(format!("LLVM-{}-win64.exe", version));
 
-    println!("[1/2] Downloading official LLVM {} installer from GitHub...", version);
+    println!(
+        "[1/2] Downloading official LLVM {} installer from GitHub...",
+        version
+    );
     println!("      Source: {}", installer_url);
     println!("      Target: {}", installer_path.display());
 
@@ -158,7 +162,10 @@ fn install_llvm_windows() -> bool {
         ])
         .status();
 
-    let download_ok = if let Ok(c_st) = curl_res && c_st.success() && installer_path.exists() {
+    let download_ok = if let Ok(c_st) = curl_res
+        && c_st.success()
+        && installer_path.exists()
+    {
         true
     } else {
         println!("      Fallback to PowerShell download client...");
@@ -168,7 +175,13 @@ fn install_llvm_windows() -> bool {
             installer_path.display()
         );
         let ps_res = Command::new("powershell.exe")
-            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &ps_cmd])
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                &ps_cmd,
+            ])
             .status();
         ps_res.map(|s| s.success()).unwrap_or(false) && installer_path.exists()
     };
@@ -176,7 +189,10 @@ fn install_llvm_windows() -> bool {
     if !download_ok {
         eprintln!("\n[ERROR] Failed to download LLVM installer.");
         eprintln!("Please download and install LLVM manually from:");
-        eprintln!("  https://github.com/llvm/llvm-project/releases/tag/llvmorg-{}", version);
+        eprintln!(
+            "  https://github.com/llvm/llvm-project/releases/tag/llvmorg-{}",
+            version
+        );
         return false;
     }
 
@@ -189,7 +205,13 @@ fn install_llvm_windows() -> bool {
         installer_path.display()
     );
     let elevated_res = Command::new("powershell.exe")
-        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &ps_elevated])
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            &ps_elevated,
+        ])
         .status();
 
     let mut success = elevated_res.map(|s| s.success()).unwrap_or(false)
@@ -231,14 +253,23 @@ fn verify_and_register_llvm_windows() {
         }
         let reg_cmd = "$p = [Environment]::GetEnvironmentVariable('PATH', 'User'); if ($p -notlike '*C:\\Program Files\\LLVM\\bin*') { [Environment]::SetEnvironmentVariable('PATH', 'C:\\Program Files\\LLVM\\bin;' + $p, 'User') }";
         let _ = Command::new("powershell.exe")
-            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", reg_cmd])
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                reg_cmd,
+            ])
             .status();
     }
 
     if let Some(clang) = find_clang() {
         println!("[OK] Clang verified at: {}", clang.display());
     } else if default_llvm_bin.join("clang.exe").exists() {
-        println!("[OK] Clang found at: {}", default_llvm_bin.join("clang.exe").display());
+        println!(
+            "[OK] Clang found at: {}",
+            default_llvm_bin.join("clang.exe").display()
+        );
     } else {
         println!("[Notice] LLVM was installed. Please restart your terminal if PATH was updated.");
     }
@@ -250,14 +281,14 @@ fn install_llvm_linux() -> bool {
 
     if which_local("apt-get").is_some() {
         println!("[1/2] Updating package index and installing clang, lld, llvm via apt...");
-        let status = Command::new("sudo")
-            .args(["apt-get", "update"])
-            .status();
+        let status = Command::new("sudo").args(["apt-get", "update"]).status();
         if status.is_ok() {
             let inst = Command::new("sudo")
                 .args(["apt-get", "install", "-y", "clang", "lld", "llvm"])
                 .status();
-            if let Ok(s) = inst && s.success() {
+            if let Ok(s) = inst
+                && s.success()
+            {
                 println!("[SUCCESS] LLVM / Clang successfully installed via apt-get.");
                 return true;
             }
@@ -267,7 +298,9 @@ fn install_llvm_linux() -> bool {
         let inst = Command::new("sudo")
             .args(["dnf", "install", "-y", "clang", "lld", "llvm"])
             .status();
-        if let Ok(s) = inst && s.success() {
+        if let Ok(s) = inst
+            && s.success()
+        {
             println!("[SUCCESS] LLVM / Clang successfully installed via dnf.");
             return true;
         }
@@ -276,7 +309,9 @@ fn install_llvm_linux() -> bool {
         let inst = Command::new("sudo")
             .args(["pacman", "-S", "--noconfirm", "clang", "lld", "llvm"])
             .status();
-        if let Ok(s) = inst && s.success() {
+        if let Ok(s) = inst
+            && s.success()
+        {
             println!("[SUCCESS] LLVM / Clang successfully installed via pacman.");
             return true;
         }
@@ -292,10 +327,10 @@ fn install_llvm_macos() -> bool {
     println!("\n-> Checking macOS development toolchain...");
     if which_local("brew").is_some() {
         println!("[1/2] Installing llvm via Homebrew...");
-        let inst = Command::new("brew")
-            .args(["install", "llvm"])
-            .status();
-        if let Ok(s) = inst && s.success() {
+        let inst = Command::new("brew").args(["install", "llvm"]).status();
+        if let Ok(s) = inst
+            && s.success()
+        {
             println!("[SUCCESS] LLVM successfully installed via Homebrew.");
             return true;
         }
@@ -303,7 +338,9 @@ fn install_llvm_macos() -> bool {
         println!("[1/2] Running xcode-select --install...");
         let _ = Command::new("xcode-select").arg("--install").status();
     }
-    eprintln!("Please ensure Clang is installed via 'brew install llvm' or Xcode Command Line Tools.");
+    eprintln!(
+        "Please ensure Clang is installed via 'brew install llvm' or Xcode Command Line Tools."
+    );
     false
 }
 
