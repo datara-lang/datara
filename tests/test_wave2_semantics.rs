@@ -221,8 +221,19 @@ fn test_wave2_parser_depth_limit_e0105() {
     }
     let source = format!("fn main() {{ out {} }}", nested);
 
-    let compiler = ForgenCompiler::new("release");
-    let res = compiler.compile_source(&source, "depth_limit.dtr", None);
+    // Run in a 64 MB thread: on Windows the default test thread stack is
+    // ~1 MB, which is insufficient for the parser's recursive descent into
+    // a 70-level expression in debug/release mode. The compiler must return
+    // a clean E0105 error, not crash the process.
+    let res = std::thread::Builder::new()
+        .stack_size(64 * 1024 * 1024)
+        .spawn(move || {
+            ForgenCompiler::new("release").compile_source(&source, "depth_limit.dtr", None)
+        })
+        .unwrap()
+        .join()
+        .expect("depth-limit compilation thread panicked unexpectedly");
+
     assert!(
         !res.success,
         "Deeply nested expression must fail compilation"
