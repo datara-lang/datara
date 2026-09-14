@@ -26,6 +26,19 @@ type Job = Box<dyn FnOnce() + Send + 'static>;
 /// The former API also exposed `run_parallel`, `par_map` and
 /// `evaluate_strategy`, which nothing in the compiler or runtime ever called;
 /// they have been removed.
+///
+/// Thread-safety and liveness invariants (this module is written in entirely
+/// safe Rust, so these are behavioral, not `unsafe`-block, contracts):
+/// - `sender` is the only clone of the job-channel transmitter. Dropping
+///   `ParallelRuntime` closes the channel; every worker's `recv()` then
+///   errors and breaks its loop, so all worker threads terminate on drop.
+/// - The shared receiver is guarded by a `Mutex`. A poisoned lock (a job
+///   panicked while holding it) is recovered with `into_inner()` so one
+///   panicking job cannot wedge the pool: the remaining queued jobs still
+///   drain and the workers stay alive.
+/// - `TaskHandle::join` returns `Err` when the result sender was dropped
+///   mid-job, i.e. the job panicked before `send`. Callers get a clean
+///   error instead of a poisoned-process situation.
 pub struct ParallelRuntime {
     threads: Vec<JoinHandle<()>>,
     sender: Option<mpsc::Sender<Job>>,

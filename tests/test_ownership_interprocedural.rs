@@ -1,4 +1,20 @@
-use forgen::driver::ForgenCompiler;
+//! Interprocedural ownership solver tests.
+//!
+//! Every compilation runs inside a dedicated 64 MiB-stack thread so deep
+//! compiler recursion (parser, type checker, ownership solver) cannot
+//! overflow the ~1 MiB default stack of a spawned test thread on Windows.
+//! Root-cause analysis: commit bcfac07.
+
+use forgen::driver::{CompilationResult, ForgenCompiler};
+
+fn compile(mode: &'static str, source: String, file: &'static str) -> CompilationResult {
+    std::thread::Builder::new()
+        .stack_size(64 * 1024 * 1024)
+        .spawn(move || ForgenCompiler::new(mode).compile_source(&source, file, None))
+        .expect("failed to spawn compiler thread")
+        .join()
+        .expect("compiler thread panicked")
+}
 
 #[test]
 fn test_ownership_interprocedural_view_parameter_preserved() {
@@ -17,18 +33,17 @@ fn main() {
     // Viewing doc across function call preserves doc validity in main
     let v = view(doc)
     inspect_doc(v)
-    
+
     // doc is still valid here
     out doc.title
 }
 "#;
 
-    let compiler = ForgenCompiler::new("debug");
-    let res = compiler.compile_source(source, "interproc_view.dtr", None);
+    let res = compile("debug", source.to_string(), "interproc_view.dtr");
     assert!(
         res.success,
-        "Interprocedural view must preserve caller ownership: {:?}",
-        res.error
+        "Interprocedural view must preserve caller ownership: {:?}\n{}",
+        res.error, res.diagnostics
     );
 }
 
@@ -51,12 +66,11 @@ fn main() {
 }
 "#;
 
-    let compiler = ForgenCompiler::new("debug");
-    let res = compiler.compile_source(source, "interproc_return.dtr", None);
+    let res = compile("debug", source.to_string(), "interproc_return.dtr");
     assert!(
         res.success,
-        "Transferring ownership via return value must succeed: {:?}",
-        res.error
+        "Transferring ownership via return value must succeed: {:?}\n{}",
+        res.error, res.diagnostics
     );
 }
 
@@ -74,15 +88,14 @@ fn close_and_destroy(conn: Connection) {
 fn main() {
     let conn = Connection { host: "127.0.0.1" }
     close_and_destroy(conn)
-    
+
     // Error: cannot view or use conn after it was moved/destroyed
     let dangling = view(conn)
     out dangling.host
 }
 "#;
 
-    let compiler = ForgenCompiler::new("debug");
-    let res = compiler.compile_source(source, "interproc_use_after_move.dtr", None);
+    let res = compile("debug", source.to_string(), "interproc_use_after_move.dtr");
     assert!(
         !res.success,
         "Using value after move across function call must fail compilation"
@@ -113,17 +126,17 @@ fn main() {
 }
 "#;
 
-    let compiler = ForgenCompiler::new("release");
-    let res = compiler.compile_source(source, "interproc_pipeline.dtr", None);
+    let res = compile("release", source.to_string(), "interproc_pipeline.dtr");
     assert!(
         res.success,
-        "Multi-step pipeline with borrowed payloads must succeed: {:?}",
-        res.error
+        "Multi-step pipeline with borrowed payloads must succeed: {:?}\n{}",
+        res.error, res.diagnostics
     );
 
+    let compiler = ForgenCompiler::new("release");
     let (stdout, _stderr, code, _) = compiler
         .codegen
-        .run_executable(&res.exe_path.unwrap(), &[])
+        .run_executable(&res.exe_path.expect("must produce an executable"), &[])
         .unwrap();
     assert_eq!(code, 0);
     assert!(stdout.contains("Final: 60"));

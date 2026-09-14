@@ -7,7 +7,7 @@ import os
 import sys
 import shutil
 
-__version__ = "1.3.0"
+__version__ = "1.3.1"
 
 def _find_binary(name: str) -> str:
     exe_name = f"{name}.exe" if sys.platform == "win32" else name

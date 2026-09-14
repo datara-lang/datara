@@ -181,10 +181,10 @@ Datara is distributed through verified official packages, container images, and 
 Official native system packages built directly in CI for Debian/Ubuntu and Fedora/RHEL:
 ```bash
 # Debian / Ubuntu / Pop!_OS / Linux Mint (download from GitHub Releases):
-sudo dpkg -i datara_1.3.0_amd64.deb
+sudo dpkg -i datara_1.3.1_amd64.deb
 
 # Fedora / RHEL / CentOS / openSUSE:
-sudo rpm -ivh datara-1.3.0-1.x86_64.rpm
+sudo rpm -ivh datara-1.3.1-1.x86_64.rpm
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/windows.svg" height="20" valign="middle" alt="Windows" /> Windows: Standalone GUI Setup & Scoop
@@ -204,7 +204,7 @@ cargo install --git https://github.com/datara-lang/datara.git forgen
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/vscode.svg" height="20" valign="middle" alt="VS Code" /> VS Code & Cursor Extension (.vsix)
 Install syntax highlighting, type hover, and icon themes directly from the release bundle:
 ```bash
-code --install-extension datara-language-1.3.0.vsix
+code --install-extension datara-language-1.3.1.vsix
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/python.svg" height="20" valign="middle" alt="Python" /> Python Wheel (`pip install`)
@@ -1828,7 +1828,7 @@ forgen repl
 ```
 ```datara
 ================================================================================
- Datara Interactive REPL (Zero-Latency In-Process JIT Console v1.3.0)
+ Datara Interactive REPL (Zero-Latency In-Process JIT Console v1.3.1)
  Type ':help' for commands, ':exit' or Ctrl+C to quit.
 ================================================================================
 >> let x = 10

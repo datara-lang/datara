@@ -17,11 +17,7 @@ fn compile_in_large_stack(src: String, file: &'static str) -> forgen::driver::Co
 fn test_shallow_nesting_compiles() {
     let src = "fn main() {\n    let x = ((1 + 2) * 3)\n    out x\n}\n".to_string();
     let res = compile_in_large_stack(src, "shallow.dtr");
-    assert!(
-        res.success,
-        "Shallow nesting must compile: {:?}",
-        res.error
-    );
+    assert!(res.success, "Shallow nesting must compile: {:?}", res.error);
 }
 
 /// 257-deep nesting must be rejected cleanly -- no panic, no stack overflow.

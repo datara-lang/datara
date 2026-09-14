@@ -90,6 +90,64 @@ fn main() {
 "#,
             "777",
         ),
+        (
+            "Polyhedral Loop Interchange",
+            r#"
+fn triangle_sum(n: Int) -> Int {
+    mut total = 0
+    mut i = 0
+    while i < n {
+        mut j = 0
+        while j < n {
+            total = total + i + j
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return total
+}
+fn main() {
+    out triangle_sum(50)
+}
+"#,
+            // sum over i,j in [0,50) of (i+j) = 50 * 2 * (49*50/2) = 122500
+            "122500",
+        ),
+        (
+            "Invariant Branch Unswitch",
+            r#"
+fn unswitch(n: Int) -> Int {
+    mut sum = 0
+    mut i = 0
+    while i < n {
+        if 5 > 1 {
+            sum = sum + i
+        }
+        i = i + 1
+    }
+    return sum
+}
+fn main() {
+    out unswitch(10)
+}
+"#,
+            // sum of 0..10 guarded by a loop-invariant true branch
+            "45",
+        ),
+        (
+            "Proven Non-Zero Division",
+            r#"
+fn safe_div(a: Int, b: Int) -> Int {
+    require b != 0
+    return a / b
+}
+fn main() {
+    out safe_div(1000, 4)
+}
+"#,
+            // divisor statically proven non-zero via `require`
+            "250",
+        ),
     ];
 
     let start_compiler = ForgenCompiler::new("start"); // unoptimized

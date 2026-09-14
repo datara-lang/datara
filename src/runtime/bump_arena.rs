@@ -41,6 +41,10 @@ impl BumpArena {
 
     fn alloc_chunk(size: usize) -> NonNull<u8> {
         let layout = Layout::from_size_align(size, 64).expect("Valid arena chunk layout");
+        // SAFETY: `layout` was constructed with a non-zero size and a
+        // power-of-two alignment (64 bytes), so it satisfies the requirements
+        // of the global allocator. The returned pointer is checked for null
+        // immediately via NonNull::new, upholding the NonNull invariant.
         unsafe {
             let ptr = alloc(layout);
             NonNull::new(ptr).expect("Failed to allocate arena chunk")

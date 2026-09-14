@@ -38,6 +38,9 @@ jobs:
       - name: Benchmark smoke test
         run: cargo bench --no-run
 
+      - name: Recursion depth safety
+        run: cargo test --test test_recursion_depth_limit -- --nocapture
+
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
