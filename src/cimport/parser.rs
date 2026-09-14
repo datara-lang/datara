@@ -179,32 +179,40 @@ impl CParser {
                 continue;
             }
 
-            // Typedef
-            if matches!(self.peek_kind(), CTokenKind::Typedef) {
-                if let Some(decl) = self.parse_typedef() {
-                    decls.push(decl);
+            // C++ linkage specification: `extern "C" { ... }` blocks and
+            // `extern "C" <declaration>` single declarations. Plain `extern`
+            // storage qualifiers without a linkage string are still consumed
+            // by `skip_qualifiers` inside the declaration parsers below.
+            if matches!(self.peek_kind(), CTokenKind::Extern)
+                && self
+                    .lookahead_non_newline(self.pos + 1)
+                    .is_some_and(|idx| matches!(self.tokens[idx].kind, CTokenKind::StringLit(_)))
+            {
+                self.advance(); // consume 'extern'
+                let link_idx = self
+                    .lookahead_non_newline(self.pos)
+                    .expect("linkage string checked above");
+                self.pos = link_idx + 1; // consume the linkage spec (e.g. "C")
+                self.skip_newlines();
+                if matches!(self.peek_kind(), CTokenKind::LBrace) {
+                    self.advance(); // consume '{'
+                    self.parse_extern_block_decls(&mut decls);
                 }
+                // Without '{': `extern "C" <decl>;` — the declaration is
+                // parsed by the next iteration of this loop.
                 continue;
             }
 
-            // Enum declaration
-            if matches!(self.peek_kind(), CTokenKind::Enum) {
-                if let Some(decl) = self.parse_enum() {
-                    decls.push(decl);
-                }
-                continue;
-            }
-
-            // Struct forward declaration
-            if matches!(self.peek_kind(), CTokenKind::Struct) {
-                if let Some(decl) = self.parse_struct_decl() {
-                    decls.push(decl);
-                }
+            // Stray '}' outside any declaration: remnant of a one-line guarded
+            // linkage block such as `#if defined(__cplusplus) extern "C" {`,
+            // whose closing brace is emitted after the `#endif`.
+            if matches!(self.peek_kind(), CTokenKind::RBrace) {
+                self.advance();
                 continue;
             }
 
             // Function declaration (or unexpected token)
-            if let Some(decl) = self.parse_function_decl() {
+            if let Some(decl) = self.parse_declaration() {
                 decls.push(decl);
             } else {
                 let tok = self.peek().clone();
@@ -224,6 +232,121 @@ impl CParser {
         }
 
         decls
+    }
+
+    /// Index of the next token at or after `from` that is not a newline.
+    fn lookahead_non_newline(&self, from: usize) -> Option<usize> {
+        let mut idx = from;
+        while idx < self.tokens.len() {
+            if !matches!(self.tokens[idx].kind, CTokenKind::Newline) {
+                return Some(idx);
+            }
+            idx += 1;
+        }
+        None
+    }
+
+    /// Dispatch the declaration parser matching the token under the cursor.
+    /// Shared by the top-level loop and `extern "C" { ... }` blocks.
+    fn parse_declaration(&mut self) -> Option<CDecl> {
+        if matches!(self.peek_kind(), CTokenKind::Typedef) {
+            return self.parse_typedef();
+        }
+        if matches!(self.peek_kind(), CTokenKind::Enum) {
+            return self.parse_enum();
+        }
+        if matches!(self.peek_kind(), CTokenKind::Struct) {
+            return self.parse_struct_decl();
+        }
+        self.parse_function_decl()
+    }
+
+    /// Parse declarations inside an `extern "C" { ... }` block until the
+    /// matching closing brace. The cursor sits just past the opening `{`.
+    /// Preprocessor directives (e.g. `#endif` guards around the block) and
+    /// nested linkage specifications are consumed transparently.
+    fn parse_extern_block_decls(&mut self, decls: &mut Vec<CDecl>) {
+        loop {
+            self.skip_newlines();
+            if self.is_at_end() {
+                break;
+            }
+            match self.peek_kind() {
+                CTokenKind::RBrace => {
+                    self.advance(); // consume '}'
+                    break;
+                }
+                CTokenKind::Semicolon => {
+                    self.advance();
+                }
+                CTokenKind::Hash => {
+                    if let Some(decl) = self.parse_preprocessor() {
+                        decls.push(decl);
+                    }
+                }
+                CTokenKind::Extern
+                    if self.lookahead_non_newline(self.pos + 1).is_some_and(|idx| {
+                        matches!(self.tokens[idx].kind, CTokenKind::StringLit(_))
+                    }) =>
+                {
+                    // Nested linkage specification: flatten it and open the
+                    // nested block if one follows (C forbids nesting, but
+                    // real-world headers occasionally re-specify linkage).
+                    self.advance(); // consume 'extern'
+                    let link_idx = self
+                        .lookahead_non_newline(self.pos)
+                        .expect("linkage string checked above");
+                    self.pos = link_idx + 1; // consume the linkage spec
+                    self.skip_newlines();
+                    if matches!(self.peek_kind(), CTokenKind::LBrace) {
+                        self.advance(); // consume '{'
+                        self.parse_extern_block_decls(decls);
+                    }
+                }
+                _ => {
+                    if let Some(decl) = self.parse_declaration() {
+                        decls.push(decl);
+                    } else {
+                        let tok = self.peek().clone();
+                        if !matches!(
+                            tok.kind,
+                            CTokenKind::Newline | CTokenKind::Semicolon | CTokenKind::Eof
+                        ) {
+                            self.diagnostics.push(format!(
+                                "Unsupported C construct at line {}, col {}: unexpected token {:?}",
+                                tok.line, tok.col, tok.kind
+                            ));
+                            self.sync_to_block_boundary();
+                        } else {
+                            self.advance();
+                        }
+                    }
+                }
+            }
+        }
+
+        // Optional trailing semicolon after the closing brace.
+        self.skip_newlines();
+        if matches!(self.peek_kind(), CTokenKind::Semicolon) {
+            self.advance();
+        }
+    }
+
+    /// Recovery inside an `extern "C"` block: skip to the end of the current
+    /// declaration, but leave the block-terminating `}` for the block loop.
+    fn sync_to_block_boundary(&mut self) {
+        while !self.is_at_end() {
+            match self.peek_kind() {
+                CTokenKind::Semicolon | CTokenKind::Newline => {
+                    self.advance();
+                    break;
+                }
+                CTokenKind::RBrace => break,
+                _ => {
+                    self.advance();
+                }
+            }
+        }
     }
 
     fn parse_preprocessor(&mut self) -> Option<CDecl> {
@@ -315,6 +438,7 @@ impl CParser {
 
     fn parse_enum(&mut self) -> Option<CDecl> {
         let enum_tok = self.advance().clone(); // consume 'enum'
+        self.skip_newlines();
         let mut name = None;
         if let CTokenKind::Ident(id) = self.peek_kind() {
             name = Some(id.clone());
@@ -407,6 +531,8 @@ impl CParser {
                 }
             };
 
+            // The field name may sit on the line after its type.
+            self.skip_newlines();
             let f_name = if let CTokenKind::Ident(id) = self.peek_kind() {
                 let id = id.clone();
                 self.advance();
@@ -438,6 +564,7 @@ impl CParser {
 
     fn parse_struct_decl(&mut self) -> Option<CDecl> {
         let struct_tok = self.advance().clone(); // consume 'struct'
+        self.skip_newlines();
         if let CTokenKind::Ident(name) = self.peek_kind() {
             let name = name.clone();
             self.advance();
@@ -472,6 +599,7 @@ impl CParser {
 
     fn parse_typedef(&mut self) -> Option<CDecl> {
         let typedef_tok = self.advance().clone(); // consume 'typedef'
+        self.skip_newlines();
 
         // Check for `typedef struct [Tag] { ... } Name;` or `typedef struct X X;`
         if matches!(self.peek_kind(), CTokenKind::Struct) {
@@ -546,7 +674,9 @@ impl CParser {
 
         // Function pointer typedef: `typedef int64_t (*callback_fn)(int64_t);`
         // or scalar / pointer typedef: `typedef int my_int_t;`
+        // The alias (or the `(*name)` group) may sit on the next line.
         if let Some(target_type) = self.parse_type() {
+            self.skip_newlines();
             if matches!(self.peek_kind(), CTokenKind::LParen)
                 && matches!(self.peek_next().kind, CTokenKind::Star)
             {
@@ -837,6 +967,9 @@ impl CParser {
             }
         };
 
+        // Multi-line declarations: the function name may sit on the line
+        // after the return type (qualifiers allowed on either side).
+        self.skip_newlines();
         self.skip_qualifiers();
         let func_name = match self.peek_kind() {
             CTokenKind::Ident(name) => {
@@ -850,23 +983,34 @@ impl CParser {
             }
         };
 
+        self.skip_newlines();
         if !matches!(self.peek_kind(), CTokenKind::LParen) {
             self.pos = start_pos;
             return None;
         }
         self.advance(); // consume '('
+        self.skip_newlines();
 
         let mut params = Vec::new();
         let mut is_variadic = false;
 
-        // Check for `(void)`
-        if matches!(self.peek_kind(), CTokenKind::Void)
-            && matches!(self.peek_next().kind, CTokenKind::RParen)
-        {
+        // Check for `(void)` (newline tolerant: `(void\n)`)
+        let is_void_params = matches!(self.peek_kind(), CTokenKind::Void)
+            && self
+                .lookahead_non_newline(self.pos + 1)
+                .is_some_and(|idx| matches!(self.tokens[idx].kind, CTokenKind::RParen));
+        if is_void_params {
             self.advance(); // consume 'void'
-            self.advance(); // consume ')'
+            let rparen_idx = self
+                .lookahead_non_newline(self.pos)
+                .expect("')' checked above");
+            self.pos = rparen_idx + 1; // consume ')'
         } else {
-            while !self.is_at_end() && !matches!(self.peek_kind(), CTokenKind::RParen) {
+            loop {
+                self.skip_newlines();
+                if self.is_at_end() || matches!(self.peek_kind(), CTokenKind::RParen) {
+                    break;
+                }
                 self.skip_qualifiers();
                 if matches!(self.peek_kind(), CTokenKind::Ellipsis) {
                     self.advance();
@@ -888,6 +1032,8 @@ impl CParser {
                     }
                 };
 
+                // The parameter name may sit on the line after its type.
+                self.skip_newlines();
                 let mut param_name = format!("arg{}", params.len());
                 if matches!(self.peek_kind(), CTokenKind::LParen)
                     && matches!(self.peek_next().kind, CTokenKind::Star)
@@ -925,6 +1071,7 @@ impl CParser {
                     col: param_col,
                 });
 
+                self.skip_newlines();
                 if matches!(self.peek_kind(), CTokenKind::Comma) {
                     self.advance();
                 } else {
@@ -932,6 +1079,7 @@ impl CParser {
                 }
             }
 
+            self.skip_newlines();
             if matches!(self.peek_kind(), CTokenKind::RParen) {
                 self.advance();
             } else {
@@ -944,6 +1092,7 @@ impl CParser {
             }
         }
 
+        self.skip_newlines();
         self.skip_qualifiers();
         if matches!(self.peek_kind(), CTokenKind::Semicolon) {
             self.advance();

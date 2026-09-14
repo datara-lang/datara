@@ -1272,6 +1272,29 @@ fn main() {
 ```
 - Hand-rolled C99/C11 lexer & parser (`src/cimport/`) with line/column diagnostic reporting.
 - Maps C scalar and pointer types directly to Datara types (`int` $\to$ `Int`, `double` $\to$ `Float`, `char*` $\to$ `String`, `void*` $\to$ `RawPtr`).
+- **`extern "C" { ... }` linkage blocks (v1.3.2)**: every signature listed inside a linkage block is imported, including the preprocessor-guarded form used by real-world headers:
+  ```c
+  #ifdef __cplusplus
+  extern "C" {
+  #endif
+
+  long long block_add(long long a, long long b);
+  long long block_scale(long long x, long long k);
+
+  #ifdef __cplusplus
+  }
+  #endif
+  ```
+  The single-declaration form `extern "C" long long f(void);` and plain `extern` qualifiers are accepted as well.
+- **Multi-line declarations (v1.3.2)**: a single C function whose return type, parameter list and terminating semicolon span several source lines parses correctly:
+  ```c
+  long long ml_fold(
+      MlSpan s,
+      long long factor
+  );
+  ```
+  Multi-line struct fields and typedefs are handled as well.
+- **Soundness gate (v1.3.1)**: C functions returning a by-value struct larger than one 64-bit machine word are rejected at compile time with `E0962` in every declaration form, since the native backend does not implement the hidden sret return-slot ABI yet.
 
 #### 3. CPython Dynamic Bridge (`import python`)
 Dynamic in-process Python engine leveraging host `python3.dll` / `libpython3.so`:
