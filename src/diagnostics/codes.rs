@@ -29,6 +29,7 @@ pub enum ErrorCode {
     TypeInvalidUnaryOp,
     TypeInvalidMemberAccess,
     TypeGenericMismatch,
+    TypeIncomparableOperands,
 
     // Borrow & Ownership Errors (E-BORROW-*)
     BorrowUseAfterMove,
@@ -113,6 +114,7 @@ impl ErrorCode {
             ErrorCode::TypeInvalidUnaryOp => "E-TYPE-005",
             ErrorCode::TypeInvalidMemberAccess => "E-TYPE-006",
             ErrorCode::TypeGenericMismatch => "E-TYPE-007",
+            ErrorCode::TypeIncomparableOperands => "E-TYPE-008",
 
             ErrorCode::BorrowUseAfterMove => "E-BORROW-001",
             ErrorCode::BorrowCannotMutateImmutable => "E-BORROW-002",
@@ -186,6 +188,9 @@ impl ErrorCode {
                 ErrorCode::TypeInvalidUnaryOp => "Недопустимая унарная операция",
                 ErrorCode::TypeInvalidMemberAccess => "Поле или метод не существует в типе",
                 ErrorCode::TypeGenericMismatch => "Несоответствие аргументов обобщённого типа",
+                ErrorCode::TypeIncomparableOperands => {
+                    "Сравнение порядка над несовместимыми типами: неявные преобразования запрещены"
+                }
 
                 ErrorCode::BorrowUseAfterMove => {
                     "Использование значения после перемещения (use-after-move)"
@@ -308,6 +313,9 @@ impl ErrorCode {
                 ErrorCode::TypeInvalidUnaryOp => "Unary operator not defined for operand type",
                 ErrorCode::TypeInvalidMemberAccess => "Field or method does not exist on type",
                 ErrorCode::TypeGenericMismatch => "Generic type argument mismatch",
+                ErrorCode::TypeIncomparableOperands => {
+                    "Ordering comparison over incompatible types: implicit conversions are forbidden"
+                }
 
                 ErrorCode::BorrowUseAfterMove => "Use of moved value (use-after-move)",
                 ErrorCode::BorrowCannotMutateImmutable => {

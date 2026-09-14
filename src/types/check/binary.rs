@@ -377,6 +377,34 @@ impl<'a> TypeChecker<'a> {
                 "<" | "<=" | ">" | ">=" => {
                     if !is_orderable(&lt) || !is_orderable(&rt) {
                         report_bad_operands(diag);
+                    } else if lt != rt {
+                        // Strict ordering comparisons (SPEC_V1, Gate 7):
+                        // both sides must carry the same orderable type.
+                        // Each operand being orderable on its own is not
+                        // enough — `i < 3.5` (Int vs Float) used to widen
+                        // silently at lowering and `i < "three"` (Int vs
+                        // Str) used to pass outright. Datara promises
+                        // fail-closed semantics with no implicit
+                        // conversions, so cross-type ordering is rejected.
+                        let help = if is_numeric(&lt) && is_numeric(&rt) {
+                            Some("Datara never widens numeric types implicitly (SPEC_V1 Gate 7): compare values of the same type, e.g. use a Float variable with float literals written with a decimal point, or compare Int with Int.".to_string())
+                        } else if lt == DataraType::String || rt == DataraType::String {
+                            Some("Str is not orderable against other types: compare Str with Str, or convert with 'str_to_int' / 'str_to_float' before comparing.".to_string())
+                        } else {
+                            Some(
+                                "Ordering comparisons require two operands of the same type."
+                                    .to_string(),
+                            )
+                        };
+                        diag.error_with_help(
+                            ErrorCode::TypeIncomparableOperands,
+                            format!(
+                                "Ordering operator '{}' cannot compare operands of type '{}' and '{}'",
+                                op, lt, rt
+                            ),
+                            Some(span.clone()),
+                            help,
+                        );
                     }
                 }
                 "&&" | "||" => {
