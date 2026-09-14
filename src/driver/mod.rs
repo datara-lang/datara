@@ -330,49 +330,54 @@ impl ForgenCompiler {
                 };
 
                 let compile_res = if self.use_llvm {
-                    if crate::codegen::linker::find_clang().is_some()
+                    let rt_source = PathBuf::from(concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/src/runtime/datara_runtime.c"
+                    ));
+                    let rt_archive = crate::runtime::runtime_lib_path();
+                    let rt_opt = if rt_source.exists() {
+                        Some(rt_source.as_path())
+                    } else if rt_archive.exists() {
+                        Some(rt_archive.as_path())
+                    } else {
+                        None
+                    };
+                    let abs_target = if target_exe.is_absolute() {
+                        target_exe.clone()
+                    } else {
+                        std::env::current_dir()
+                            .map(|c| c.join(&target_exe))
+                            .unwrap_or_else(|_| target_exe.clone())
+                    };
+                    let target_triple_for_clang = if self.native {
+                        Some("native")
+                    } else {
+                        self.target_triple.as_deref()
+                    };
+                    let opt_level = match self.mode.as_str() {
+                        "tiny" | "size" => "tiny",
+                        "debug" => "0",
+                        "1" => "1",
+                        "2" => "2",
+                        _ => "3",
+                    };
+                    let is_shared_lib = target_exe.extension().map_or(false, |ext| {
+                        let s = ext.to_string_lossy().to_lowercase();
+                        s == "dll" || s == "so" || s == "dylib"
+                    });
+
+                    let clang_ready = if crate::codegen::linker::find_clang().is_some()
                         || crate::codegen::linker::find_llc().is_some()
                     {
-                        // Locate the Datara runtime independent of the current
-                        // working directory. The former hardcoded relative path
-                        // ("src/runtime/datara_runtime.c") only worked when the
-                        // compiler was launched from the repository root; installed
-                        // toolchains silently fell back to "no runtime".
-                        let rt_source = PathBuf::from(concat!(
-                            env!("CARGO_MANIFEST_DIR"),
-                            "/src/runtime/datara_runtime.c"
-                        ));
-                        let rt_archive = crate::runtime::runtime_lib_path();
-                        let rt_opt = if rt_source.exists() {
-                            Some(rt_source.as_path())
-                        } else if rt_archive.exists() {
-                            Some(rt_archive.as_path())
-                        } else {
-                            None
-                        };
-                        let abs_target = if target_exe.is_absolute() {
-                            target_exe.clone()
-                        } else {
-                            std::env::current_dir()
-                                .map(|c| c.join(&target_exe))
-                                .unwrap_or_else(|_| target_exe.clone())
-                        };
-                        let target_triple_for_clang = if self.native {
-                            Some("native")
-                        } else {
-                            self.target_triple.as_deref()
-                        };
-                        let opt_level = match self.mode.as_str() {
-                            "tiny" | "size" => "tiny",
-                            "debug" => "0",
-                            "1" => "1",
-                            "2" => "2",
-                            _ => "3",
-                        };
-                        let is_shared_lib = target_exe.extension().map_or(false, |ext| {
-                            let s = ext.to_string_lossy().to_lowercase();
-                            s == "dll" || s == "so" || s == "dylib"
-                        });
+                        true
+                    } else {
+                        let installed = crate::codegen::llvm_install::prompt_and_install_llvm_if_interactive();
+                        installed
+                            && (crate::codegen::linker::find_clang().is_some()
+                                || crate::codegen::linker::find_llc().is_some())
+                    };
+
+                    if clang_ready {
                         let link_result = if is_shared_lib {
                             crate::codegen::linker::compile_shared_with_clang(
                                 &ll_path,
@@ -417,7 +422,7 @@ impl ForgenCompiler {
                             ll_path.display()
                         );
                         eprintln!(
-                            "  -> To compile with LLVM, install Clang or run 'rustup component add llvm-tools'."
+                            "  -> To automatically install LLVM, run 'forgen install llvm' or 'forgen setup-llvm'."
                         );
                         eprintln!(
                             "  -> Compiling executable via high-speed native Cranelift backend instead."

@@ -142,6 +142,11 @@ fn run_cli_inner(args: &[String]) {
             true
         }
 
+        "setup-llvm" | "install-llvm" => {
+            crate::codegen::llvm_install::install_llvm();
+            true
+        }
+
         "init" | "new" => project::cmd_init(&args),
 
         "check" => build::cmd_check(&args),
@@ -176,7 +181,23 @@ fn run_cli_inner(args: &[String]) {
 
         "remove" | "rm" => pkg::cmd_remove(&args),
 
-        "install" | "restore" | "install-deps" => pkg::cmd_install(&args),
+        "install" => {
+            if let Some(target) = args.get(2) {
+                if target == "llvm" || target == "clang" {
+                    crate::codegen::llvm_install::install_llvm();
+                    true
+                } else if target == "tools" || target == "build-tools" || target == "msvc" {
+                    misc::run_setup_tools();
+                    true
+                } else {
+                    pkg::cmd_install(&args)
+                }
+            } else {
+                pkg::cmd_install(&args)
+            }
+        }
+
+        "restore" | "install-deps" => pkg::cmd_install(&args),
 
         "publish" => pkg::cmd_publish(&args),
 

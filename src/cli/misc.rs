@@ -633,6 +633,8 @@ Project Commands:
   new <name> [--lib]      Create a new Datara application or library in a subdirectory
   repl                    Interactive zero-latency JIT console with live evaluation
   setup-tools             Check and automatically install C/C++ Build Tools / Linker (Node.js style)
+  install llvm            Download and configure official LLVM/Clang toolchain for --llvm
+  setup-llvm              Alias for 'install llvm'
   mobile <subcmd>         Mobile cross-compilation & zero-copy bindings (init, build, check)
   doc [target] [--open]   Generate autonomous Single-File SPA HTML API documentation
   export <c-header|shared> Export C99/C++ header (.h) or dynamic shared library (.dll/.so/.dylib)
