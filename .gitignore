@@ -77,6 +77,9 @@ docs/*PROMPT*.md
 # Internal design roadmaps & future concepts
 /ИДЕИ_НА_БУДУЩЕЕ_ROADMAP.md
 
+# Promotional articles (local drafts, not part of the public repo)
+/articles/
+
 # Code dumps for analysis
 /dump*.txt
 
