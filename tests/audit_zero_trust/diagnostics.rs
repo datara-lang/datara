@@ -93,20 +93,31 @@ fn audit_diagnostics_ten_broken_programs() {
     }
 
     // 5. Deep nesting recursion limit (Depth 70)
+    // Run in a thread with a large stack. On Windows the default test thread
+    // stack is ~1 MB, which is insufficient for the parser's recursive descent
+    // into a 70-level expression in debug mode. The compiler must return a clean
+    // E0105 error rather than crashing the process.
     {
         let mut deep = String::from("1");
         for _ in 0..70 {
             deep = format!("({})", deep);
         }
-        let src = format!("fn main() {{ let x = {}; out x; }}\n", deep);
+        // Datara does not use semicolons; keep source valid apart from depth.
+        let src = format!("fn main() {{\n    let x = {}\n    out x\n}}\n", deep);
         let p = temp_dir.join("prog5_deep_nesting.dtr");
         fs::write(&p, src).unwrap();
-        let res = compiler.compile_file(&p, None);
+        let p_thread = p.clone();
+        let res = std::thread::Builder::new()
+            .stack_size(64 * 1024 * 1024)
+            .spawn(move || ForgenCompiler::new("debug").compile_file(&p_thread, None))
+            .unwrap()
+            .join()
+            .expect("[Prog 5] Compilation thread panicked unexpectedly");
         assert!(
             !res.success,
             "[Prog 5] Deep nesting beyond MAX_PARSE_DEPTH must fail"
         );
-        let err = res.error.expect("Error message present");
+        let err = res.error.as_deref().unwrap_or("");
         assert!(
             !err.contains("panicked"),
             "[Prog 5] Parser panicked on deep nesting!"

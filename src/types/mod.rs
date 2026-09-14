@@ -486,4 +486,14 @@ pub struct TypeChecker<'a> {
     pub impls: HashMap<(String, String), ImplBlock>,
     pub trait_bounds: HashMap<String, Vec<String>>,
     pub current_target_type: Option<String>,
+    /// Current expression recursion depth. Incremented on every `check_expr`
+    /// entry, decremented on exit. When it exceeds `MAX_EXPR_DEPTH` the
+    /// checker emits E0999 and returns immediately to prevent stack overflow.
+    pub expr_depth: usize,
 }
+
+/// Maximum nesting depth for expression type-checking. Expressions nested
+/// deeper than this produce E0999 (RecursionLimitExceeded) instead of a
+/// stack overflow. 256 covers all realistic programs; pathological inputs
+/// (e.g. 300+ levels of parentheses) are rejected cleanly.
+pub const MAX_EXPR_DEPTH: usize = 256;

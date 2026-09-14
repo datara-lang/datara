@@ -27,6 +27,38 @@ impl<'a> TypeChecker<'a> {
     }
 
     pub fn check_expr(&mut self, expr: &Expr, diag: &mut DiagnosticEngine) -> DataraType {
+        // Guard against stack overflow from pathologically-nested input.
+        // Increment on entry, decrement on exit via a guard value.
+        self.expr_depth += 1;
+        if self.expr_depth > crate::types::MAX_EXPR_DEPTH {
+            self.expr_depth -= 1;
+            let span = match expr {
+                Expr::Binary { span, .. }
+                | Expr::Unary { span, .. }
+                | Expr::Call { span, .. }
+                | Expr::MemberAccess { span, .. }
+                | Expr::IndexAccess { span, .. }
+                | Expr::Literal(_, span)
+                | Expr::Identifier(_, span) => Some(span.clone()),
+                _ => None,
+            };
+            diag.error(
+                ErrorCode::RecursionLimitExceeded,
+                format!(
+                    "E0999: expression nesting depth exceeds limit of {} -- \
+                     simplify deeply-nested expressions",
+                    crate::types::MAX_EXPR_DEPTH
+                ),
+                span,
+            );
+            return DataraType::Unit;
+        }
+        let result = self.check_expr_inner(expr, diag);
+        self.expr_depth -= 1;
+        result
+    }
+
+    fn check_expr_inner(&mut self, expr: &Expr, diag: &mut DiagnosticEngine) -> DataraType {
         match expr {
             Expr::Literal(lit, _) => match lit {
                 LiteralValue::Int(_) => DataraType::Int,

@@ -1230,6 +1230,7 @@ impl<'a> TypeChecker<'a> {
             impls: HashMap::new(),
             trait_bounds: HashMap::new(),
             current_target_type: None,
+            expr_depth: 0,
         }
     }
 }
