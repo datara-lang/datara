@@ -88,6 +88,13 @@ pub fn expand_c_imports(
                 let mut parser = CParser::new(tokens);
                 let c_decls = parser.parse();
 
+                // Compute by-value sizes of all parsed structs so functions
+                // returning aggregates larger than one 64-bit machine word
+                // can be rejected at compile time. The native backend does
+                // not implement the hidden sret return-slot ABI; emitting a
+                // call to such a function crashes at run time instead.
+                let struct_sizes = compute_struct_sizes(&c_decls);
+
                 for parser_diag in parser.diagnostics {
                     diag.warning(
                         ErrorCode::CImportUnsupportedConstruct,
@@ -135,6 +142,25 @@ pub fn expand_c_imports(
                                 cf.line,
                                 cf.col,
                             );
+
+                            // Compile-time gate for struct-by-value returns
+                            // that the native ABI layer cannot lower: reject
+                            // the declaration instead of emitting a call that
+                            // crashes at run time (missing hidden sret slot).
+                            let ret_size = c_type_size(&cf.return_type, &struct_sizes);
+                            if let Some(size) = ret_size {
+                                if size > 8 {
+                                    diag.warning(
+                                        ErrorCode::CImportUnsupportedConstruct,
+                                        format!(
+                                            "C function '{}' returns a by-value struct of {} bytes; the native backend does not implement the hidden sret return-slot ABI yet, so the declaration is rejected at compile time instead of crashing at run time. Use an out-pointer parameter (e.g. `void f(T* out)`) or a struct of at most 8 bytes.",
+                                            cf.name, size
+                                        ),
+                                        Some(cimport.span.clone()),
+                                    );
+                                    continue;
+                                }
+                            }
 
                             new_declarations.push(Decl::ExternFn(ExternFnDecl {
                                 abi: "C".into(),
@@ -339,5 +365,43 @@ pub fn expand_c_imports(
         if !program.link_libraries.contains(&lib) {
             program.link_libraries.push(lib);
         }
+    }
+}
+
+/// Byte sizes of every parsed struct definition (naive sum of field sizes,
+/// sufficient for the one-machine-word sret gate).
+fn compute_struct_sizes(decls: &[CDecl]) -> std::collections::HashMap<String, usize> {
+    let mut sizes = std::collections::HashMap::new();
+    for decl in decls {
+        if let CDecl::Struct(cs) = decl {
+            let mut total = 0usize;
+            for field in &cs.fields {
+                total += c_type_size(&field.ty, &sizes).unwrap_or(16);
+            }
+            sizes.insert(cs.name.clone(), total);
+        }
+    }
+    sizes
+}
+
+/// Byte size of a C type on a 64-bit target, if statically known.
+/// Unknown named types resolve through the parsed struct table; an unknown
+/// struct returns `None` so the caller can apply a conservative policy.
+fn c_type_size(ty: &CType, structs: &std::collections::HashMap<String, usize>) -> Option<usize> {
+    match ty {
+        CType::Void => Some(0),
+        CType::Int { bits, .. } | CType::Float { bits, .. } => Some(bits / 8),
+        CType::Char => Some(1),
+        CType::String | CType::RawPtr { .. } => Some(8),
+        CType::Named(name) => match name.as_str() {
+            "char" | "int8_t" | "uint8_t" => Some(1),
+            "short" | "int16_t" | "uint16_t" => Some(2),
+            "int" | "int32_t" | "uint32_t" => Some(4),
+            "long" | "long long" | "size_t" | "ssize_t" | "int64_t" | "uint64_t" | "intptr_t"
+            | "uintptr_t" | "ptrdiff_t" => Some(8),
+            "float" => Some(4),
+            "double" => Some(8),
+            other => structs.get(other).copied(),
+        },
     }
 }
