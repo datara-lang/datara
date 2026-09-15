@@ -897,14 +897,23 @@ pub fn compile_with_clang(
                 || target_triple == Some("native")
                 || target_triple == Some("host")
             {
-                // Default LLVM builds target the portable x86-64-v2 baseline
-                // (SSE4.2, POPCNT) instead of the host CPU: clang -O3
-                // -march=native vectorizes our float4 SIMD lowering onto
-                // instructions that trap with SIGILL on cloud vCPUs whose
-                // CPUID feature mask does not match the silicon (observed as
-                // unix status 132 on ubuntu-24.04 CI runners). Explicit
-                // --native / --tune=native builds still opt into the host ISA.
-                cmd.arg("-march=x86-64-v2");
+                // x86-64 only: default LLVM builds target the portable
+                // x86-64-v2 baseline (SSE4.2, POPCNT) instead of the host
+                // CPU. clang -O3 -march=native vectorizes our float4 SIMD
+                // lowering onto instructions that trap with SIGILL on cloud
+                // vCPUs whose CPUID feature mask does not match the silicon
+                // (observed as unix status 132 on ubuntu-24.04 CI runners).
+                // AArch64 (Apple silicon) rejects -march=x86-64-v2 outright
+                // and has no such host/baseline split in practice, so no
+                // -march is passed there. Explicit --native / --tune=native
+                // builds still opt into the host ISA on x86-64.
+                let is_x86_target = target_triple
+                    .as_deref()
+                    .map(|t| t.contains("x86_64") || t.contains("x86-"))
+                    .unwrap_or(cfg!(target_arch = "x86_64"));
+                if is_x86_target {
+                    cmd.arg("-march=x86-64-v2");
+                }
             }
             cmd.arg(ll_path);
             if let Some(rt) = runtime_c_path
