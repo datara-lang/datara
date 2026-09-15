@@ -87,15 +87,31 @@ pub fn declare_module_symbols<M: ClifModule>(
     sorted_ef_names.sort();
     for ef_name in sorted_ef_names {
         let (ef_params, ef_ret) = &dmir_module.extern_functions[ef_name];
-        let mut sig = Signature::new(call_conv);
+        // SysV AMD64 register-pair struct return (v1.3.3): a 16-byte
+        // layout-compatible aggregate is classified into two eightbytes,
+        // INTEGER classes riding RAX then RDX and SSE classes riding XMM0
+        // then XMM1 (independent per-class sequences). The declaration
+        // therefore carries TWO return values in field order; Cranelift's
+        // SystemV call convention assigns each scalar return to the next
+        // register of its class sequence, which reproduces the ABI exactly.
+        // Fail closed on any other call convention: a single-I64 return
+        // declaration would silently misread the register pair.
+        let sysv_classes = dmir_module.extern_sysv.get(ef_name).copied();
+        if sysv_classes.is_some() && call_conv != CallConv::SystemV {
+            return Err(format!(
+                "Code generation failed: C function '{}' returns a 16-byte struct through the SysV AMD64 register-pair ABI (RAX/XMM0 + RDX/XMM1), which the native backend implements only for the SystemV call convention (target uses {:?}). Use an out-pointer parameter (e.g. `void f(T* out)`).",
+                ef_name, call_conv
+            ));
+        }
         // Hidden sret return-slot (Microsoft x64): a by-value struct return
         // larger than one machine word takes a caller-allocated buffer whose
         // pointer is passed as the FIRST integer argument (RCX) and echoed
         // back in RAX. Only declared when the target call convention is the
         // Microsoft x64 ABI; SystemV targets classify small aggregates into
-        // register pairs and are refused at the call site instead.
+        // register pairs and take the SysVRegisters path above instead.
         let is_sret = dmir_module.extern_sret.contains_key(ef_name)
             && call_conv == cranelift_codegen::isa::CallConv::WindowsFastcall;
+        let mut sig = Signature::new(call_conv);
         if is_sret {
             sig.params.push(AbiParam::new(clif_types::I64));
         }
@@ -104,8 +120,17 @@ pub fn declare_module_symbols<M: ClifModule>(
                 .push(AbiParam::new(extern_abi_type(dmir_module, p_ty)));
         }
         if ef_ret != "Unit" && ef_ret != "Never" {
-            sig.returns
-                .push(AbiParam::new(extern_abi_type(dmir_module, ef_ret)));
+            if let Some(classes) = sysv_classes {
+                for class in classes {
+                    sig.returns.push(AbiParam::new(match class {
+                        crate::ast::SysVClass::Integer => clif_types::I64,
+                        crate::ast::SysVClass::Sse => clif_types::F64,
+                    }));
+                }
+            } else {
+                sig.returns
+                    .push(AbiParam::new(extern_abi_type(dmir_module, ef_ret)));
+            }
         }
         if let Ok(fid) = module.declare_function(ef_name, Linkage::Import, &sig) {
             func_ids.insert(ef_name.clone(), (fid, sig));

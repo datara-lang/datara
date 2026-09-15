@@ -31,6 +31,19 @@ impl WasmEmitter {
                 names.join(", ")
             ));
         }
+        // Backstop for the SysV register-pair gate (v1.3.3), analogous to the
+        // sret backstop above: the cimport expansion rejects SysV register
+        // returns when an explicit WASM target is set, but a module can
+        // still reach this emitter through other entry paths. The WASM ABI
+        // has no SysV register-pair struct return, so such a call would be
+        // silently wrong — fail loudly instead.
+        if !module.extern_sysv.is_empty() {
+            let names: Vec<&str> = module.extern_sysv.keys().map(|s| s.as_str()).collect();
+            return Err(format!(
+                "WASM code generation failed: imported C function(s) {} return 16-byte structs through the SysV AMD64 register-pair ABI (RAX/RDX, XMM0/XMM1), which the WASM backend does not implement. Use out-pointer parameters (e.g. `void f(T* out)`) for these imports.",
+                names.join(", ")
+            ));
+        }
         let (wasm_bytes, wat_text, sidecar, js_shim) = Self::compile_module(module)?;
 
         // Ensure parent output directory exists

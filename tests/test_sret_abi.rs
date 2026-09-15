@@ -11,9 +11,14 @@
 //!    layout stay rejected with E0962.
 //! 4. Backends without sret support (LLVM, WASM) keep the E0962 rejection.
 //!
+//! v1.3.3 adds the SysV AMD64 register-pair boundary for linux-x86-64 in
+//! the `sysv` module below: the two-eightbyte shape is returned in
+//! RAX/RDX (INTEGER) and XMM0/XMM1 (SSE). The Windows tests keep their own
+//! `#[cfg(windows)]` attributes and are unchanged.
+//!
 //! Compilation and execution run inside a 64 MiB-stack thread (see bcfac07).
 
-#![cfg(windows)]
+#![cfg(any(windows, target_os = "linux"))]
 
 use forgen::ast::Decl;
 use forgen::codegen::linker::ensure_linker;
@@ -351,4 +356,335 @@ fn main() {
         !extern_names(&res).iter().any(|(n, _)| n == "make_vec2d"),
         "Vec2d-returning import must not survive expansion for the LLVM backend"
     );
+}
+
+// ===================== v1.3.3: SysV AMD64 register-pair returns =====================
+//
+// linux-x86-64 only. The two-eightbyte shape (two 8-byte scalars at offsets
+// 0 and 8) is returned in registers, not through a hidden sret slot:
+// INTEGER eightbytes ride RAX then RDX, SSE eightbytes ride XMM0 then XMM1
+// (independent per-class sequences, so {double, long long} hands the double
+// back in XMM0 and the long long in RAX). The Windows tests above are
+// untouched by this module.
+
+#[cfg(target_os = "linux")]
+mod sysv {
+    use super::{CompilationResult, Decl, check_in_big_stack, compile_in_big_stack, extern_names};
+    use forgen::ast::SysVClass;
+    use forgen::codegen::linker::ensure_linker;
+    use forgen::driver::ForgenCompiler;
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+
+    /// Compile the C fixture into a static library with the Unix toolchain
+    /// (cc + ar), mirroring the cl.exe + lib.exe mechanism of the Windows
+    /// tests. Honours the CC/AR environment variables.
+    fn compile_c_fixture_to_staticlib(c_src: &Path, out_lib: &Path) -> Result<(), String> {
+        let cc = std::env::var("CC").unwrap_or_else(|_| "cc".to_string());
+        let ar = std::env::var("AR").unwrap_or_else(|_| "ar".to_string());
+        let obj_path = out_lib.with_extension("o");
+
+        let mut cc_cmd = Command::new(&cc);
+        cc_cmd
+            .arg("-O2")
+            .arg("-fPIC")
+            .arg("-c")
+            .arg("-o")
+            .arg(&obj_path)
+            .arg(c_src);
+        let cc_res = cc_cmd
+            .output()
+            .map_err(|e| format!("Failed to invoke {}: {}", cc, e))?;
+        if !cc_res.status.success() {
+            return Err(format!(
+                "{} failed: {}\nstdout: {}\nstderr: {}",
+                cc,
+                cc_res.status,
+                String::from_utf8_lossy(&cc_res.stdout),
+                String::from_utf8_lossy(&cc_res.stderr)
+            ));
+        }
+
+        let mut ar_cmd = Command::new(&ar);
+        ar_cmd.arg("rcs").arg(out_lib).arg(&obj_path);
+        let ar_res = ar_cmd
+            .output()
+            .map_err(|e| format!("Failed to invoke {}: {}", ar, e))?;
+        if !ar_res.status.success() {
+            return Err(format!(
+                "{} failed: {}\nstderr: {}",
+                ar,
+                ar_res.status,
+                String::from_utf8_lossy(&ar_res.stderr)
+            ));
+        }
+
+        let _ = std::fs::remove_file(&obj_path);
+        Ok(())
+    }
+
+    /// Imported C-ABI externs with their SysV register classes (if any).
+    fn extern_sysv(res: &CompilationResult) -> Vec<(String, Option<[SysVClass; 2]>)> {
+        let mut names = Vec::new();
+        if let Some(program) = &res.program {
+            for decl in &program.declarations {
+                if let Decl::ExternFn(ef) = decl {
+                    names.push((ef.name.clone(), ef.sysv_classes));
+                }
+            }
+        }
+        names
+    }
+
+    #[test]
+    fn test_sysv_struct_return_native_roundtrip() {
+        // Full native round trip: the C fixture is compiled into a static
+        // library (cc + ar) and linked into the executable. Skips cleanly
+        // when the host has no C toolchain configured.
+        if ensure_linker().is_err() {
+            eprintln!(
+                "SKIP: test_sysv_struct_return_native_roundtrip requires a native C \
+                 toolchain (cc/ar), which is not configured here."
+            );
+            return;
+        }
+
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let fixture_h = manifest_dir
+            .join("tests")
+            .join("fixtures")
+            .join("test_sysv_lib.h");
+        let fixture_c = manifest_dir
+            .join("tests")
+            .join("fixtures")
+            .join("test_sysv_lib.c");
+        let out_lib = manifest_dir
+            .join("tests")
+            .join("fixtures")
+            .join("test_sysv_abi.a");
+
+        assert!(fixture_h.exists(), "test_sysv_lib.h must exist");
+        assert!(fixture_c.exists(), "test_sysv_lib.c must exist");
+        compile_c_fixture_to_staticlib(&fixture_c, &out_lib)
+            .expect("Must compile SysV C fixture into static library");
+
+        let h_path_str = fixture_h.to_string_lossy().replace('\\', "/");
+        let lib_path_str = out_lib.to_string_lossy().replace('\\', "/");
+
+        let source = format!(
+            r#"
+import c "{h}" with link("{lib}");
+
+fn main() {{
+    mut p = I64Pair {{ a: 0, b: 0 }}
+    mut v = F64Pair {{ x: 0.0, y: 0.0 }}
+    mut mif = MixedIF {{ a: 0, x: 0.0 }}
+    mut mfi = MixedFI {{ x: 0.0, a: 0 }}
+    mut w = Word {{ v: 0 }}
+    mut psum = 0
+    mut wval = 0
+    unsafe(justification: "SysV register-pair struct returns round trip through C static library") {{
+        p = make_i64_pair(-7, 1000000000000)
+        v = make_f64_pair(1.5, -2.25)
+        mif = make_mixed_if(-1234567890123, 9876.5)
+        mfi = make_mixed_fi(-42.75, 555000000555)
+        w = make_word(21)
+        // The 8-byte Word keeps the raw-register path: verified through the
+        // 8-byte by-value consumer (one INTEGER in RDI), not a direct field
+        // read, which only works on pointer-shaped results.
+        wval = word_value(w)
+    }}
+    // Field reads of returned register pairs: an integer pair rides
+    // RAX:RDX, a float pair rides XMM0:XMM1, and both mixed orders hand
+    // the float to XMM0 and the integer to RAX.
+    psum = p.a + p.b
+    out "PA: " + p.a
+    out "PB: " + p.b
+    out "PSUM: " + psum
+    out fmt"VX: {{v.x}}"
+    out fmt"VY: {{v.y}}"
+    out "MIF_A: " + mif.a
+    out fmt"MIF_X: {{mif.x}}"
+    out fmt"MFI_X: {{mfi.x}}"
+    out "MFI_A: " + mfi.a
+    out "WVAL: " + wval
+}}
+"#,
+            h = h_path_str,
+            lib = lib_path_str
+        );
+
+        let res = compile_in_big_stack(source, "test_sysv_abi.dtr");
+        assert!(
+            res.success,
+            "SysV register-pair struct-return compilation failed: {:?}\n{}",
+            res.error, res.diagnostics
+        );
+
+        let exe = res.exe_path.expect("Must produce native executable");
+        let compiler = ForgenCompiler::new("release");
+        let (stdout, stderr, code, _) = compiler
+            .cranelift
+            .run_executable(&exe, &[])
+            .expect("Must run native executable");
+        assert_eq!(code, 0, "Execution failed: {}", stderr);
+
+        for expected in [
+            "PA: -7",
+            "PB: 1000000000000",
+            // -7 + 1_000_000_000_000 = 999_999_999_993 (proves both INTEGER
+            // eightbytes of the RAX:RDX pair survive the round trip).
+            "PSUM: 999999999993",
+            "VX: 1.5",
+            "VY: -2.25",
+            "MIF_A: -1234567890123",
+            "MIF_X: 9876.5",
+            // {double, long long}: the INTEGER eightbyte must come back in
+            // RAX (per-class sequences), not RDX.
+            "MFI_X: -42.75",
+            "MFI_A: 555000000555",
+            "WVAL: 21",
+        ] {
+            assert!(
+                stdout.contains(expected),
+                "SysV round trip output must contain '{expected}':\n{}",
+                stdout
+            );
+        }
+
+        let _ = std::fs::remove_file(&exe);
+        let _ = std::fs::remove_file(&out_lib);
+    }
+
+    #[test]
+    fn test_sysv_import_classification_structural() {
+        // Structural boundary, no native linking required: every
+        // layout-compatible two-eightbyte return survives as a typed extern
+        // carrying its SysV register classes (and NO sret marker), the
+        // 8-byte struct keeps the raw-register path, and the variadic,
+        // layout-incompatible and above-window shapes stay rejected with
+        // E0962.
+        let source = r#"
+import c "tests/fixtures/test_sysv_lib.h";
+
+fn main() {
+    out 0
+}
+"#;
+        let res = check_in_big_stack(source.to_string(), "test_sysv_classification.dtr");
+        let report = format!(
+            "{}\n{}",
+            res.error.clone().unwrap_or_default(),
+            res.diagnostics
+        );
+        assert!(
+            res.success,
+            "The SysV classification program must check cleanly:\n{}",
+            report
+        );
+
+        let sysv = extern_sysv(&res);
+        let find = |name: &str| {
+            sysv.iter()
+                .find(|(n, _)| n == name)
+                .unwrap_or_else(|| panic!("Expected imported extern '{name}' to survive expansion"))
+                .1
+        };
+
+        assert_eq!(
+            find("make_i64_pair"),
+            Some([SysVClass::Integer, SysVClass::Integer]),
+            "{long long,long long} is INTEGER:INTEGER -> RAX:RDX"
+        );
+        assert_eq!(
+            find("make_f64_pair"),
+            Some([SysVClass::Sse, SysVClass::Sse]),
+            "{double,double} is SSE:SSE -> XMM0:XMM1"
+        );
+        assert_eq!(
+            find("make_mixed_if"),
+            Some([SysVClass::Integer, SysVClass::Sse]),
+            "{long long,double} is INTEGER:SSE -> RAX:XMM0"
+        );
+        assert_eq!(
+            find("make_mixed_fi"),
+            Some([SysVClass::Sse, SysVClass::Integer]),
+            "{double,long long} is SSE:INTEGER -> XMM0:RAX"
+        );
+        assert_eq!(
+            find("make_word"),
+            None,
+            "8-byte Word must keep the raw-register path"
+        );
+        for (name, sret) in extern_names(&res) {
+            assert!(
+                sret.is_none(),
+                "No extern may carry the Windows sret marker on linux-x86_64, but '{name}' does"
+            );
+        }
+        for rejected in ["make_i64_pair_variadic", "make_wide3", "make_triple"] {
+            assert!(
+                !sysv.iter().any(|(n, _)| n == rejected),
+                "'{rejected}' must not survive expansion (variadic, layout-incompatible or above the two-eightbyte window)"
+            );
+            assert!(
+                report.contains(rejected),
+                "Diagnostic must name the rejected C function '{rejected}':\n{}",
+                report
+            );
+        }
+        assert!(
+            report.contains("E0962"),
+            "Diagnostic must carry the E0962 unsupported-construct code:\n{}",
+            report
+        );
+    }
+
+    #[test]
+    fn test_sysv_rejected_for_llvm_and_wasm_backends() {
+        // LLVM and an explicit WASM target keep their compile-time
+        // rejection: they have no SysV register-pair lowering for C
+        // imports, so the declaration must not survive expansion there.
+        for (label, compiler) in [
+            ("llvm", ForgenCompiler::new("release").with_llvm(true)),
+            (
+                "wasm",
+                ForgenCompiler::new("release").with_target(Some("wasm32-unknown-unknown".into())),
+            ),
+        ] {
+            let source = r#"
+import c "tests/fixtures/test_sysv_lib.h";
+
+fn main() {
+    out 0
+}
+"#;
+            let file = format!("test_sysv_{label}_gate.dtr");
+            let res = std::thread::Builder::new()
+                .stack_size(64 * 1024 * 1024)
+                .spawn(move || compiler.check_source(source, &file))
+                .expect("failed to spawn compiler thread")
+                .join()
+                .expect("compiler thread panicked");
+            let report = format!(
+                "{}\n{}",
+                res.error.clone().unwrap_or_default(),
+                res.diagnostics
+            );
+            assert!(
+                report.contains("make_i64_pair"),
+                "The {label} backend must reject the SysV register-pair return of 'make_i64_pair':\n{}",
+                report
+            );
+            assert!(
+                report.contains("E0962"),
+                "The {label} rejection must carry the E0962 code:\n{}",
+                report
+            );
+            assert!(
+                !extern_sysv(&res).iter().any(|(n, _)| n == "make_i64_pair"),
+                "The register-pair import must not survive expansion for the {label} backend"
+            );
+        }
+    }
 }

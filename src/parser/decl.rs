@@ -1215,6 +1215,7 @@ impl<'a> Parser<'a> {
             params,
             return_type,
             sret_size: None,
+            sysv_classes: None,
             span: SourceSpan::new(
                 start_line_from(&start_span),
                 start_col_from(&start_span),

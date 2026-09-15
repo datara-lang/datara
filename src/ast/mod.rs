@@ -256,6 +256,19 @@ pub struct PacketDecl {
     pub span: SourceSpan,
 }
 
+/// Register class of one SysV AMD64 return eightbyte (v1.3.3).
+///
+/// The System V AMD64 ABI returns a two-eightbyte aggregate in register
+/// pairs: INTEGER eightbytes take RAX then RDX, SSE eightbytes take XMM0
+/// then XMM1 (independent per-class sequences). One eightbyte of a
+/// layout-compatible C struct is INTEGER for an 8-byte integer/pointer
+/// field and SSE for an 8-byte float field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SysVClass {
+    Integer,
+    Sse,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExternFnDecl {
     pub abi: String,
@@ -268,6 +281,13 @@ pub struct ExternFnDecl {
     /// (scalar returns, pointer returns, non-sret-capable aggregates).
     #[serde(default)]
     pub sret_size: Option<usize>,
+    /// Set by `cimport` when the C function returns a 16-byte
+    /// layout-compatible struct that the native backend lowers through two
+    /// SysV AMD64 return registers: `classes[0]` (offset 0) rides RAX/XMM0
+    /// and `classes[1]` (offset 8) rides RDX/XMM1. Mutually exclusive with
+    /// `sret_size`. `None` for every other shape.
+    #[serde(default)]
+    pub sysv_classes: Option<[SysVClass; 2]>,
     pub span: SourceSpan,
 }
 

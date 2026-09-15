@@ -548,6 +548,15 @@ pub struct Module {
     /// keeps rejecting such declarations at the cimport gate.
     #[serde(default)]
     pub extern_sret: HashMap<String, usize>,
+    /// Imported C functions that return a 16-byte layout-compatible struct
+    /// through the SysV AMD64 register pair (v1.3.3), mapped to the
+    /// register classes of the two eightbytes in field order
+    /// (`classes[0]` = offset 0 rides RAX/XMM0, `classes[1]` = offset 8
+    /// rides RDX/XMM1). Only the native Cranelift backend under the SystemV
+    /// call convention consumes this; every other backend keeps rejecting
+    /// such declarations at the cimport gate.
+    #[serde(default)]
+    pub extern_sysv: HashMap<String, [crate::ast::SysVClass; 2]>,
     pub class_fields: HashMap<String, Vec<String>>,
     pub class_field_types: HashMap<String, String>,
     #[serde(default)]
@@ -565,6 +574,7 @@ impl Module {
             functions: HashMap::new(),
             extern_functions: HashMap::new(),
             extern_sret: HashMap::new(),
+            extern_sysv: HashMap::new(),
             class_fields: HashMap::new(),
             class_field_types: HashMap::new(),
             function_spans: HashMap::new(),

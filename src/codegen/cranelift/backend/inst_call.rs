@@ -26,6 +26,15 @@ pub fn compile_call<M: ClifModule>(
     if let Some(&sret_size) = ctx.dmir_module.extern_sret.get(func) {
         return compile_sret_call(ctx, dest, func, args, ty, sret_size);
     }
+    // SysV AMD64 register-pair ABI (v1.3.3, linux-x86_64): a C function
+    // returning a 16-byte layout-compatible struct hands the two eightbytes
+    // back in registers (INTEGER -> RAX then RDX, SSE -> XMM0 then XMM1).
+    // The call receives both register values and writes them into a fresh
+    // Datara heap object, so the result is shaped exactly like the sret
+    // result: field reads load the 8-byte slot at `index * 8`.
+    if let Some(&classes) = ctx.dmir_module.extern_sysv.get(func) {
+        return compile_sysv_register_call(ctx, dest, func, args, ty, classes);
+    }
     // First-Class Hardware SIMD Lowering (F32X4 / I32X4 Native Vector Registers)
     if super::simd::try_compile_simd_call(ctx, dest, func, args, ty)? {
         return Ok(());
@@ -1118,6 +1127,128 @@ fn compile_sret_call<M: ClifModule>(
     }
     ctx.builder.ins().call(callee_ref, &arg_vals);
     ctx.val_map.insert(*dest, sret_buf);
+    let class = if ty.is_empty() {
+        ctx.dmir_module
+            .extern_functions
+            .get(func)
+            .map(|(_, ret)| ret.clone())
+            .unwrap_or_default()
+    } else {
+        ty.to_string()
+    };
+    if !class.is_empty() {
+        ctx.val_to_class.insert(*dest, class);
+    }
+    Ok(())
+}
+
+/// Lower a call to an imported C function that returns a 16-byte
+/// layout-compatible struct through the SysV AMD64 register pair (v1.3.3).
+///
+/// System V AMD64 convention: each eightbyte of the aggregate is classified
+/// independently, INTEGER eightbytes ride RAX then RDX and SSE eightbytes
+/// ride XMM0 then XMM1 (independent per-class sequences). The extern
+/// declaration carries the two field-order classes, so Cranelift's
+/// multi-value return semantics hand back exactly the register pair the C
+/// callee produced. The values are written into a runtime `malloc` buffer
+/// with the Datara object layout (field `i` at `i * 8`), and the Datara
+/// result value is that buffer — identical to the sret path's result shape,
+/// so field reads need no translation.
+fn compile_sysv_register_call<M: ClifModule>(
+    ctx: &mut FunctionCompileCtx<'_, '_, M>,
+    dest: &ValueId,
+    func: &str,
+    args: &[ValueId],
+    ty: &str,
+    classes: [crate::ast::SysVClass; 2],
+) -> Result<(), String> {
+    use crate::ast::SysVClass;
+
+    let Some((callee_id, callee_sig)) = ctx.func_ids.get(func).map(|(id, sig)| (*id, sig)) else {
+        return Err(format!(
+            "Code generation failed: unresolved function call '{}' in function '{}'",
+            func, ctx.current_func.name
+        ));
+    };
+    if callee_sig.call_conv != cranelift_codegen::isa::CallConv::SystemV {
+        return Err(format!(
+            "Code generation failed: C function '{}' returns a 16-byte struct through the SysV AMD64 register pair (RAX/RDX, XMM0/XMM1), which the native backend implements only for the SystemV calling convention (target uses {:?}). Use an out-pointer parameter (e.g. `void f(T* out)`).",
+            func, callee_sig.call_conv
+        ));
+    }
+    let expected: Vec<clif_types::Type> = classes
+        .iter()
+        .map(|c| match c {
+            SysVClass::Integer => clif_types::I64,
+            SysVClass::Sse => clif_types::F64,
+        })
+        .collect();
+    if callee_sig.returns.len() != 2
+        || callee_sig
+            .returns
+            .iter()
+            .zip(&expected)
+            .any(|(p, e)| p.value_type != *e)
+    {
+        return Err(format!(
+            "Code generation failed: C function '{}' is declared with a return signature that does not match its SysV register classes {:?}/{:?}; refusing to misread the return registers. Use an out-pointer parameter (e.g. `void f(T* out)`).",
+            func, classes[0], classes[1]
+        ));
+    }
+
+    // Mirror the StructInit/sret allocation: one 8-byte slot per field. CRT
+    // `malloc` returns memory aligned for any fundamental type (16 bytes on
+    // x86-64), so the buffer satisfies both fields' alignment.
+    let malloc_ref = ctx
+        .module
+        .declare_func_in_func(ctx.runtime.malloc_id, ctx.builder.func);
+    let size_val = ctx.builder.ins().iconst(clif_types::I64, 16);
+    let alloc_inst = ctx.builder.ins().call(malloc_ref, &[size_val]);
+    let ret_buf = ctx.builder.inst_results(alloc_inst)[0];
+
+    let callee_ref = ctx.module.declare_func_in_func(callee_id, ctx.builder.func);
+    let mut arg_vals = Vec::with_capacity(args.len());
+    for (i, a) in args.iter().enumerate() {
+        // Preserve arity: a missing value must still occupy its argument
+        // slot in the signature. The runtime ABI is all-I64, so an F64 value
+        // passed against an I64 parameter is bitcast to its raw pattern.
+        let mut av = ctx
+            .val_map
+            .get(a)
+            .copied()
+            .unwrap_or_else(|| ctx.builder.ins().iconst(clif_types::I64, 0));
+        if ctx.builder.func.dfg.value_type(av) == clif_types::F64
+            && callee_sig
+                .params
+                .get(i)
+                .map(|p| p.value_type == clif_types::I64)
+                .unwrap_or(false)
+        {
+            av = ctx.builder.ins().bitcast(
+                clif_types::I64,
+                cranelift_codegen::ir::MemFlagsData::new(),
+                av,
+            );
+        }
+        arg_vals.push(av);
+    }
+    let call_inst = ctx.builder.ins().call(callee_ref, &arg_vals);
+    let results = ctx.builder.inst_results(call_inst);
+    if results.len() != 2 {
+        return Err(format!(
+            "Code generation failed: call to '{}' did not produce the two SysV return registers the declaration promises",
+            func
+        ));
+    }
+    // Store each returned eightbyte into its Datara field slot (field `i` at
+    // offset `i * 8`). Integer classes store the raw I64, SSE classes the
+    // raw F64: both are the register contents, no reinterpretation.
+    let flags = cranelift_codegen::ir::MachMemFlags::new();
+    let (r0, r1) = (results[0], results[1]);
+    ctx.builder.ins().store(flags, r0, ret_buf, 0);
+    ctx.builder.ins().store(flags, r1, ret_buf, 8);
+    ctx.val_map.insert(*dest, ret_buf);
+
     let class = if ty.is_empty() {
         ctx.dmir_module
             .extern_functions

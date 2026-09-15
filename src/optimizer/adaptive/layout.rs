@@ -333,6 +333,11 @@ impl LayoutAdapter {
         if module.extern_sret.contains_key(class_name) {
             return true;
         }
+        // SysV register-pair returns read the same field layout; keep the
+        // C-side field order contractual for them too (v1.3.3).
+        if module.extern_sysv.contains_key(class_name) {
+            return true;
+        }
         for (_name, (params, ret)) in &module.extern_functions {
             if ret == class_name || params.iter().any(|p| p == class_name) {
                 return true;

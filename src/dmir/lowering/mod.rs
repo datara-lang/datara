@@ -625,6 +625,9 @@ impl<'a> Lowering<'a> {
                 if let Some(size) = ef.sret_size {
                     module.extern_sret.insert(ef.name.clone(), size);
                 }
+                if let Some(classes) = ef.sysv_classes {
+                    module.extern_sysv.insert(ef.name.clone(), classes);
+                }
                 self.function_return_types.insert(ef.name.clone(), ret);
             } else if let Decl::Impl(i) = decl {
                 for m in &i.methods {

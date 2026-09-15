@@ -9,11 +9,28 @@ use crate::cimport::types::*;
 use crate::diagnostics::{DiagnosticEngine, ErrorCode, SourceSpan};
 use std::path::{Path, PathBuf};
 
+/// Which struct-return ABI the native backend implements for C imports
+/// (v1.3.3). Computed by the driver from the host target and backend
+/// selection, then consumed by `expand_c_imports` to admit exactly the
+/// by-value struct returns the backend can lower.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructReturnAbi {
+    /// No struct-return lowering is available: every >1-word by-value
+    /// struct return is rejected at compile time (E0962).
+    None,
+    /// Microsoft x64 hidden sret return slot: the caller allocates the
+    /// return buffer and passes its pointer as the first integer argument.
+    Sret,
+    /// System V AMD64 register pair: a two-eightbyte aggregate rides
+    /// RAX/RDX (INTEGER classes) and XMM0/XMM1 (SSE classes).
+    SysVRegisters,
+}
+
 pub fn expand_c_imports(
     program: &mut Program,
     base_dir: Option<&Path>,
     diag: &mut DiagnosticEngine,
-    allow_sret_returns: bool,
+    struct_return_abi: StructReturnAbi,
 ) {
     let mut new_declarations = Vec::new();
     let mut extra_libs = Vec::new();
@@ -93,10 +110,12 @@ pub fn expand_c_imports(
                 // functions returning aggregates can be classified against
                 // the native calling convention: one machine word or less
                 // comes back in RAX as raw bits, larger layout-compatible
-                // aggregates come back through the hidden sret return slot,
-                // and everything else is rejected at compile time. The gate
-                // must never let an unsupported shape through to codegen:
-                // emitting a call to such a function crashes at run time.
+                // aggregates come back through the hidden sret return slot
+                // (Microsoft x64) or the SysV AMD64 register pair
+                // (RAX/RDX, XMM0/XMM1), and everything else is rejected at
+                // compile time. The gate must never let an unsupported
+                // shape through to codegen: emitting a call to such a
+                // function crashes at run time.
                 let struct_layouts = compute_struct_layouts(&c_decls);
 
                 for parser_diag in parser.diagnostics {
@@ -148,22 +167,31 @@ pub fn expand_c_imports(
                             );
 
                             let mut sret_size: Option<usize> = None;
+                            let mut sysv_classes: Option<[SysVClass; 2]> = None;
 
                             // Compile-time ABI classification for struct
                             // returns that the native ABI layer must lower:
                             // one machine word or less rides in RAX as raw
                             // bits, layout-compatible aggregates ride the
-                            // hidden sret return slot where the backend
-                            // supports it, and every other shape is rejected
-                            // with E0962 instead of emitting a call that
-                            // crashes at run time (missing hidden sret slot).
-                            // Variadic struct returns keep the rejection even
-                            // where sret is supported: the varargs call
-                            // convention adds ABI state (e.g. AL on System V)
-                            // the import path does not model.
-                            match classify_return(&cf.return_type, &struct_layouts) {
+                            // hidden sret return slot (Microsoft x64) or the
+                            // SysV AMD64 register pair, and every other
+                            // shape is rejected with E0962 instead of
+                            // emitting a call that crashes at run time
+                            // (missing hidden sret slot). Variadic struct
+                            // returns keep the rejection even where the
+                            // struct-return ABI is supported: the varargs
+                            // call convention adds ABI state (e.g. AL on
+                            // System V) the import path does not model.
+                            match classify_return(
+                                &cf.return_type,
+                                &struct_layouts,
+                                struct_return_abi,
+                            ) {
                                 ReturnAbi::Register => {}
-                                ReturnAbi::Sret(size) if allow_sret_returns && !cf.is_variadic => {
+                                ReturnAbi::Sret(size)
+                                    if !cf.is_variadic
+                                        && struct_return_abi == StructReturnAbi::Sret =>
+                                {
                                     sret_size = Some(size);
                                 }
                                 ReturnAbi::Sret(size) => {
@@ -177,6 +205,28 @@ pub fn expand_c_imports(
                                         format!(
                                             "C function '{}' returns a by-value struct of {} bytes, but {}, so the declaration is rejected at compile time instead of crashing at run time. Use an out-pointer parameter (e.g. `void f(T* out)`).",
                                             cf.name, size, reason
+                                        ),
+                                        Some(cimport.span.clone()),
+                                    );
+                                    continue;
+                                }
+                                ReturnAbi::SysVRegisters { classes }
+                                    if !cf.is_variadic
+                                        && struct_return_abi == StructReturnAbi::SysVRegisters =>
+                                {
+                                    sysv_classes = Some(classes);
+                                }
+                                ReturnAbi::SysVRegisters { classes } => {
+                                    let reason = if cf.is_variadic {
+                                        "the function is variadic and the import path does not model the variadic struct-return ABI"
+                                    } else {
+                                        "the current compilation target does not implement the SysV AMD64 register-pair return ABI for C imports yet"
+                                    };
+                                    diag.warning(
+                                        ErrorCode::CImportUnsupportedConstruct,
+                                        format!(
+                                            "C function '{}' returns a by-value struct of 16 bytes classified as {:?}/{:?} eightbytes, but {}, so the declaration is rejected at compile time instead of crashing at run time. Use an out-pointer parameter (e.g. `void f(T* out)`).",
+                                            cf.name, classes[0], classes[1], reason
                                         ),
                                         Some(cimport.span.clone()),
                                     );
@@ -216,6 +266,7 @@ pub fn expand_c_imports(
                                 params,
                                 return_type,
                                 sret_size,
+                                sysv_classes,
                                 span: f_span,
                             }));
                         }
@@ -432,6 +483,12 @@ struct StructLayout {
     /// translating copy, because Datara field access always reads the
     /// 8-byte slot at `index * 8`.
     sret_eligible: bool,
+    /// SysV AMD64 register classes of the two eightbytes, when the struct is
+    /// exactly two 8-byte scalars at offsets 0 and 8 (the same
+    /// layout-compatible zone the sret path covers). Each field maps to its
+    /// own eightbyte, so `classes[0]` is offset 0 and `classes[1]` is
+    /// offset 8. `None` for every other shape.
+    sysv_classes: Option<[SysVClass; 2]>,
 }
 
 /// Largest aggregate the native backend accepts through the hidden sret
@@ -446,13 +503,22 @@ struct StructLayout {
 const MAX_SRET_BYTES: usize = 16;
 
 /// How a C function's return value crosses the native ABI boundary.
+#[derive(Debug)]
 enum ReturnAbi {
     /// One machine word or less: returned in RAX (raw bits for small
     /// aggregates, the value itself for scalars). Existing path.
     Register,
     /// Aggregate larger than one machine word whose C layout matches the
-    /// Datara object layout: returned through the hidden sret slot.
+    /// Datara object layout: returned through the hidden sret slot
+    /// (Microsoft x64) or, for the two-eightbyte shape, through the SysV
+    /// AMD64 register pair — `classify_return` picks the variant from the
+    /// target's [`StructReturnAbi`].
     Sret(usize),
+    /// Two-eightbyte aggregate classified for the SysV AMD64 register
+    /// return: `classes[0]` (offset 0) rides RAX/XMM0, `classes[1]`
+    /// (offset 8) rides RDX/XMM1. Emitted only when the target declares
+    /// [`StructReturnAbi::SysVRegisters`].
+    SysVRegisters { classes: [SysVClass; 2] },
     /// Layout-compatible aggregate above `MAX_SRET_BYTES`: the ABI lowering
     /// is understood, but the shape is outside the tested support window.
     AboveWindow(usize),
@@ -467,9 +533,14 @@ enum ReturnAbi {
 /// user typedefs of scalars) keep the historical lenient treatment and are
 /// assumed to be register-sized: tightening that would reject real,
 /// working enum-returning imports.
+///
+/// For a layout-compatible two-eightbyte aggregate the `struct_return_abi`
+/// of the target decides which lowering the declaration carries: the SysV
+/// register pair on linux-x86_64, the hidden sret slot on Windows x64.
 fn classify_return(
     ty: &CType,
     structs: &std::collections::HashMap<String, StructLayout>,
+    struct_return_abi: StructReturnAbi,
 ) -> ReturnAbi {
     if let CType::Named(name) = ty
         && let Some(layout) = structs.get(name)
@@ -479,6 +550,11 @@ fn classify_return(
         }
         if layout.sret_eligible {
             if layout.size <= MAX_SRET_BYTES {
+                if let (StructReturnAbi::SysVRegisters, Some(classes)) =
+                    (struct_return_abi, layout.sysv_classes)
+                {
+                    return ReturnAbi::SysVRegisters { classes };
+                }
                 return ReturnAbi::Sret(layout.size);
             }
             return ReturnAbi::AboveWindow(layout.size);
@@ -495,7 +571,9 @@ fn classify_return(
 ///
 /// Field offsets follow the standard 64-bit C rules (natural alignment with
 /// tail padding). A struct is `sret_eligible` only when the result coincides
-/// exactly with the Datara object layout used to read the sret buffer.
+/// exactly with the Datara object layout used to read the sret buffer. A
+/// struct of exactly two such 8-byte scalars additionally carries its SysV
+/// AMD64 register classes: one field per eightbyte, in field order.
 fn compute_struct_layouts(decls: &[CDecl]) -> std::collections::HashMap<String, StructLayout> {
     let mut layouts = std::collections::HashMap::new();
     for decl in decls {
@@ -503,6 +581,7 @@ fn compute_struct_layouts(decls: &[CDecl]) -> std::collections::HashMap<String, 
             let mut size = 0usize;
             let mut align = 1usize;
             let mut eligible = true;
+            let mut classes = Some([SysVClass::Integer, SysVClass::Integer]);
             for (index, field) in cs.fields.iter().enumerate() {
                 let (f_size, f_align, f_scalar8) = c_field_layout(&field.ty, &layouts);
                 let offset = round_up(size, f_align);
@@ -511,6 +590,17 @@ fn compute_struct_layouts(decls: &[CDecl]) -> std::collections::HashMap<String, 
                 if !f_scalar8 || offset != index * 8 {
                     eligible = false;
                 }
+                // SysV register classification needs exactly one 8-byte
+                // scalar per eightbyte, two eightbytes total.
+                if let Some(cls) = c_field_reg_class(&field.ty) {
+                    match (index, classes.as_mut()) {
+                        (0, Some(arr)) => arr[0] = cls,
+                        (1, Some(arr)) => arr[1] = cls,
+                        _ => classes = None,
+                    }
+                } else {
+                    classes = None;
+                }
                 size = offset + f_size;
                 align = align.max(f_align);
             }
@@ -518,12 +608,16 @@ fn compute_struct_layouts(decls: &[CDecl]) -> std::collections::HashMap<String, 
             if cs.fields.is_empty() || total != cs.fields.len() * 8 {
                 eligible = false;
             }
+            if total != 16 {
+                classes = None;
+            }
             layouts.insert(
                 cs.name.clone(),
                 StructLayout {
                     size: total,
                     align,
                     sret_eligible: eligible,
+                    sysv_classes: classes,
                 },
             );
         }
@@ -534,6 +628,26 @@ fn compute_struct_layouts(decls: &[CDecl]) -> std::collections::HashMap<String, 
 fn round_up(value: usize, align: usize) -> usize {
     let a = align.max(1);
     value.div_ceil(a) * a
+}
+
+/// SysV AMD64 register class of one C field, when it occupies exactly one
+/// eightbyte: 8-byte integers and pointers are INTEGER, 8-byte floats are
+/// SSE. Sub-8-byte fields, `float`, nested aggregates and unknown named
+/// types occupy a fraction of, or more than, one eightbyte and have no
+/// single register class.
+fn c_field_reg_class(ty: &CType) -> Option<SysVClass> {
+    match ty {
+        CType::Int { bits, .. } if *bits == 64 => Some(SysVClass::Integer),
+        CType::Float { bits, .. } if *bits == 64 => Some(SysVClass::Sse),
+        CType::String | CType::RawPtr { .. } => Some(SysVClass::Integer),
+        CType::Named(name) => match name.as_str() {
+            "long" | "long long" | "size_t" | "ssize_t" | "int64_t" | "uint64_t" | "intptr_t"
+            | "uintptr_t" | "ptrdiff_t" => Some(SysVClass::Integer),
+            "double" => Some(SysVClass::Sse),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 /// Byte size, byte alignment and "is an 8-byte scalar" flag of one C field.
@@ -588,5 +702,198 @@ fn c_type_size(ty: &CType, structs: &std::collections::HashMap<String, usize>) -
             "double" => Some(8),
             other => structs.get(other).copied(),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn named(name: &str) -> CType {
+        CType::Named(name.to_string())
+    }
+
+    fn struct_with_fields(name: &str, fields: &[(&str, CType)]) -> CDecl {
+        CDecl::Struct(CStruct {
+            name: name.to_string(),
+            fields: fields
+                .iter()
+                .map(|(fname, ty)| CField {
+                    name: fname.to_string(),
+                    ty: ty.clone(),
+                    line: 1,
+                    col: 1,
+                })
+                .collect(),
+            line: 1,
+            col: 1,
+        })
+    }
+
+    fn layout_of(decls: &[CDecl], name: &str) -> StructLayout {
+        let layouts = compute_struct_layouts(decls);
+        *layouts.get(name).expect("struct must be laid out")
+    }
+
+    fn classes_of(fields: &[(&str, CType)]) -> Option<[SysVClass; 2]> {
+        let decl = struct_with_fields("S", fields);
+        layout_of(std::slice::from_ref(&decl), "S").sysv_classes
+    }
+
+    #[test]
+    fn sysv_class_table_two_eightbyte_structs() {
+        // The classification table: struct fields -> register classes.
+        // Every layout-compatible two-8-byte-scalar shape maps one field to
+        // one eightbyte, in field order. Pure function: runs on any OS.
+        let cases = [
+            (
+                &[("a", named("long long")), ("b", named("long long"))],
+                [SysVClass::Integer, SysVClass::Integer],
+            ),
+            (
+                &[("x", named("double")), ("y", named("double"))],
+                [SysVClass::Sse, SysVClass::Sse],
+            ),
+            (
+                &[("a", named("long long")), ("x", named("double"))],
+                [SysVClass::Integer, SysVClass::Sse],
+            ),
+            (
+                &[("x", named("double")), ("a", named("long long"))],
+                [SysVClass::Sse, SysVClass::Integer],
+            ),
+            (
+                &[
+                    ("a", named("int64_t")),
+                    ("p", CType::RawPtr { pointee: None }),
+                ],
+                [SysVClass::Integer, SysVClass::Integer],
+            ),
+            (
+                &[("s", CType::String), ("x", named("double"))],
+                [SysVClass::Integer, SysVClass::Sse],
+            ),
+        ];
+        for (fields, expected) in cases {
+            assert_eq!(classes_of(fields), Some(expected), "fields: {:?}", fields);
+        }
+    }
+
+    #[test]
+    fn sysv_class_table_rejects_out_of_zone_shapes() {
+        // Sub-8-byte fields, `float`, nested aggregates and unknown types
+        // have no single-eightbyte class; a third field disqualifies too.
+        let decls = [
+            struct_with_fields("TwoFloats", &[("x", named("float")), ("y", named("float"))]),
+            struct_with_fields(
+                "Wide",
+                &[
+                    ("a", named("int")),
+                    ("b", named("int")),
+                    ("c", named("long long")),
+                ],
+            ),
+            struct_with_fields(
+                "Triple",
+                &[
+                    ("a", named("long long")),
+                    ("b", named("long long")),
+                    ("c", named("long long")),
+                ],
+            ),
+            struct_with_fields("CharLong", &[("c", CType::Char), ("a", named("long long"))]),
+            struct_with_fields("Single", &[("v", named("long long"))]),
+        ];
+        let layouts = compute_struct_layouts(&decls);
+        for name in ["TwoFloats", "Wide", "Triple", "CharLong", "Single"] {
+            assert_eq!(
+                layouts[name].sysv_classes, None,
+                "{} must carry no SysV register classes",
+                name
+            );
+        }
+        // Triple stays layout-compatible but is above the 16-byte window.
+        assert!(layouts["Triple"].sret_eligible);
+        assert_eq!(layouts["Triple"].size, 24);
+        // The mixed Wide shape is not even layout-compatible.
+        assert!(!layouts["Wide"].sret_eligible);
+    }
+
+    #[test]
+    fn classify_return_selects_variant_by_target_abi() {
+        let decls = [struct_with_fields(
+            "Pair",
+            &[("a", named("long long")), ("b", named("long long"))],
+        )];
+        let layouts = compute_struct_layouts(&decls);
+        let pair = named("Pair");
+
+        // SysV target: the register-pair variant carries the classes.
+        match classify_return(&pair, &layouts, StructReturnAbi::SysVRegisters) {
+            ReturnAbi::SysVRegisters { classes } => {
+                assert_eq!(classes, [SysVClass::Integer, SysVClass::Integer]);
+            }
+            other => panic!(
+                "SysV target must classify Pair as SysVRegisters, got {:?}",
+                other
+            ),
+        }
+        // Windows and unsupported targets keep the sret shape; admission is
+        // the caller's decision (expand_c_imports rejects when the target
+        // does not implement it).
+        match classify_return(&pair, &layouts, StructReturnAbi::Sret) {
+            ReturnAbi::Sret(size) => assert_eq!(size, 16),
+            other => panic!("Windows target must classify Pair as Sret, got {:?}", other),
+        }
+        assert!(matches!(
+            classify_return(&pair, &layouts, StructReturnAbi::None),
+            ReturnAbi::Sret(16)
+        ));
+    }
+
+    #[test]
+    fn classify_return_mixed_and_above_window_shapes() {
+        let decls = [
+            struct_with_fields(
+                "IntFloat",
+                &[("a", named("long long")), ("x", named("double"))],
+            ),
+            struct_with_fields(
+                "Triple",
+                &[
+                    ("a", named("long long")),
+                    ("b", named("long long")),
+                    ("c", named("long long")),
+                ],
+            ),
+            struct_with_fields(
+                "Wide",
+                &[
+                    ("a", named("int")),
+                    ("b", named("int")),
+                    ("c", named("long long")),
+                ],
+            ),
+        ];
+        let layouts = compute_struct_layouts(&decls);
+        match classify_return(&named("IntFloat"), &layouts, StructReturnAbi::SysVRegisters) {
+            ReturnAbi::SysVRegisters { classes } => {
+                assert_eq!(classes, [SysVClass::Integer, SysVClass::Sse]);
+            }
+            other => panic!("IntFloat must classify as SysVRegisters, got {:?}", other),
+        }
+        assert!(matches!(
+            classify_return(&named("Triple"), &layouts, StructReturnAbi::SysVRegisters),
+            ReturnAbi::AboveWindow(24)
+        ));
+        assert!(matches!(
+            classify_return(&named("Wide"), &layouts, StructReturnAbi::SysVRegisters),
+            ReturnAbi::Unsupported(Some(16))
+        ));
+        // A pointer or double scalar keeps the raw register path.
+        assert!(matches!(
+            classify_return(&named("double"), &layouts, StructReturnAbi::SysVRegisters),
+            ReturnAbi::Register
+        ));
     }
 }

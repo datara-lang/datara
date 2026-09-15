@@ -126,6 +126,7 @@ pub fn generate_datara_extern_decls(functions: &[ResolvedRustFunction]) -> Vec<D
             params,
             return_type,
             sret_size: None,
+            sysv_classes: None,
             span: SourceSpan::default(),
         }));
     }

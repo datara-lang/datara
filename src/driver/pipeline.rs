@@ -301,11 +301,11 @@ pub(super) fn run_check_pipeline(
     diag: &mut DiagnosticEngine,
     mut timings: CompilationTimings,
     total_start: Instant,
-    allow_sret_returns: bool,
+    struct_return_abi: crate::cimport::StructReturnAbi,
 ) -> CompilationResult {
     let mut program = program;
     let base_dir = Path::new(&program.file).parent().map(|p| p.to_path_buf());
-    crate::cimport::expand_c_imports(&mut program, base_dir.as_deref(), diag, allow_sret_returns);
+    crate::cimport::expand_c_imports(&mut program, base_dir.as_deref(), diag, struct_return_abi);
     crate::rust_bridge::expand_rust_dependencies(&mut program, base_dir.as_deref(), diag);
     if diag.has_errors() {
         timings.total_ms = total_start.elapsed().as_millis();
@@ -460,12 +460,13 @@ pub(super) fn run_analysis_and_lower<R>(
     finish: impl FnOnce(AnalysisOutput<'_, '_>) -> R,
 ) -> Result<R, CompilationResult> {
     let base_dir = Path::new(file).parent();
-    // The hidden sret return-slot ABI for C struct returns is implemented
-    // by the native Cranelift backend for the Microsoft x64 calling
-    // convention only; the LLVM and WASM backends and every SystemV /
-    // AArch64 host keep the compile-time rejection.
-    let allow_sret_returns = compiler.sret_abi_supported();
-    crate::cimport::expand_c_imports(&mut program, base_dir, diag, allow_sret_returns);
+    // The struct-return ABI for C imports is implemented by the native
+    // Cranelift backend for the Microsoft x64 calling convention (hidden
+    // sret slot) and the System V AMD64 convention (register pair); the
+    // LLVM and WASM backends and every other host keep the compile-time
+    // rejection.
+    let struct_return_abi = compiler.struct_return_abi();
+    crate::cimport::expand_c_imports(&mut program, base_dir, diag, struct_return_abi);
     crate::rust_bridge::expand_rust_dependencies(&mut program, base_dir, diag);
     if diag.has_errors() {
         timings.total_ms = total_start.elapsed().as_millis();

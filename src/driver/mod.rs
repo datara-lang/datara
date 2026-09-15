@@ -94,26 +94,37 @@ impl ForgenCompiler {
         self
     }
 
-    /// Whether the hidden sret return-slot ABI for C struct returns is
-    /// implemented for this compilation configuration: the native Cranelift
-    /// backend on a Windows x64 host. The LLVM and WASM backends keep the
-    /// compile-time E0962 rejection, and so does every SystemV / AArch64
-    /// host, where the backend call convention does not match the Windows
-    /// x64 hidden-pointer lowering. The native Cranelift backend always
-    /// lowers for the host target (an explicit triple only steers the LLVM
-    /// pipeline), so only an explicit WASM target disables the ABI here.
-    pub fn sret_abi_supported(&self) -> bool {
+    /// Which struct-return ABI for C imports the native backend implements
+    /// for this compilation configuration (v1.3.3). The native Cranelift
+    /// backend on a Windows x64 host lowers by-value struct returns through
+    /// the hidden sret return slot; on a linux-x86_64 host it lowers the
+    /// two-eightbyte shape through the SysV AMD64 register pair (RAX/RDX,
+    /// XMM0/XMM1). The LLVM and WASM backends keep the compile-time E0962
+    /// rejection, and so does every other host (AArch64, 32-bit), where the
+    /// backend call convention does not match either lowering. The native
+    /// Cranelift backend always lowers for the host target (an explicit
+    /// triple only steers the LLVM pipeline), so only an explicit WASM
+    /// target disables the ABI here.
+    pub fn struct_return_abi(&self) -> crate::cimport::StructReturnAbi {
+        use crate::cimport::StructReturnAbi;
         if self.use_llvm {
-            return false;
+            return StructReturnAbi::None;
         }
-        if !cfg!(all(target_os = "windows", target_arch = "x86_64")) {
-            return false;
-        }
-        !self
+        if self
             .target_triple
             .as_deref()
             .map(|t| t.starts_with("wasm"))
             .unwrap_or(false)
+        {
+            return StructReturnAbi::None;
+        }
+        if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+            return StructReturnAbi::Sret;
+        }
+        if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+            return StructReturnAbi::SysVRegisters;
+        }
+        StructReturnAbi::None
     }
 
     pub fn compile_source(
@@ -173,7 +184,7 @@ impl ForgenCompiler {
             &mut diag,
             timings,
             total_start,
-            self.sret_abi_supported(),
+            self.struct_return_abi(),
         )
     }
 
@@ -226,7 +237,7 @@ impl ForgenCompiler {
             &mut diag,
             timings,
             total_start,
-            self.sret_abi_supported(),
+            self.struct_return_abi(),
         )
     }
 

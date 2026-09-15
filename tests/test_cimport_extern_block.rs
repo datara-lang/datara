@@ -12,9 +12,11 @@
 //!
 //! The struct-return ABI boundary is form-independent: since v1.3.2 M3 a
 //! layout-compatible struct return larger than one 64-bit machine word
-//! takes the hidden sret slot, while a layout-incompatible one (or any
-//! struct return on a backend without sret support) is still rejected with
-//! E0962 even when declared inside an extern "C" block.
+//! takes the hidden sret slot on Windows x64, and since v1.3.3 the same
+//! two-eightbyte shape is returned through the SysV AMD64 register pair on
+//! linux-x86-64, while a layout-incompatible one (or any struct return on
+//! a backend without struct-return support) is still rejected with E0962
+//! even when declared inside an extern "C" block.
 //!
 //! Structural and diagnostics assertions run through `check_source` (no
 //! native linking required). The native call round-trip mirrors the v1.3.1
@@ -188,14 +190,19 @@ fn main() {
 fn test_extern_block_struct_return_still_rejected_e0962() {
     // The struct-return ABI boundary is form-independent. Since v1.3.2 M3
     // the layout-compatible `big_add` return takes the hidden sret slot on
-    // platforms where the sret ABI is implemented (Windows x64 native);
-    // everywhere else (SysV/AArch64 hosts, LLVM/WASM targets) it is
-    // rejected with E0962 — a deliberate fail-closed boundary. `big_mixed`
-    // (C layout Datara cannot read back) is rejected with E0962 everywhere,
-    // and `big_sum` (struct-by-value params, scalar return) always imports
+    // Windows x64; since v1.3.3 the SAME two-eightbyte shape is returned in
+    // registers on linux-x86_64 (SysV AMD64: RAX/RDX for INTEGER eightbytes,
+    // XMM0/XMM1 for SSE — different mechanics, same eligibility envelope).
+    // Everywhere else (AArch64 hosts, LLVM/WASM targets) it is rejected
+    // with E0962 — a deliberate fail-closed boundary. `big_mixed` (C layout
+    // Datara cannot read back) is rejected with E0962 everywhere, and
+    // `big_sum` (struct-by-value params, scalar return) always imports
     // cleanly.
-    let sret_supported = cfg!(all(target_os = "windows", target_arch = "x86_64"));
-    let _ = sret_supported; // consumed below by the platform-split assertions
+    // abi_supported = (windows-x86_64 hidden sret slot) || (linux-x86_64
+    // SysV AMD64 register pair).
+    let abi_supported = cfg!(all(target_os = "windows", target_arch = "x86_64"))
+        || cfg!(all(target_os = "linux", target_arch = "x86_64"));
+    let _ = abi_supported; // consumed below by the platform-split assertions
     let source = r#"
 import c "tests/fixtures/test_extern_block_bad_ret.h";
 
@@ -250,13 +257,50 @@ fn main() {
             "Diagnostic must carry the E0962 unsupported-construct code:\n{}",
             report
         );
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        // v1.3.3: `big_add` (two long long fields, offsets 0/8) is
+        // classified INTEGER:INTEGER and returned through the SysV AMD64
+        // register pair RAX:RDX, so the program must typecheck cleanly on
+        // linux-x86_64 as well — via a different mechanism than the Windows
+        // sret slot, but with the same eligibility envelope.
+        assert!(
+            res.success,
+            "An eligible two-eightbyte struct return inside an extern block must compile through the SysV register-pair path:\n{}",
+            report
+        );
+        let names = imported_c_symbol_names(&res);
+        assert!(
+            names.iter().any(|n| n == "big_add"),
+            "Eligible register-pair-returning 'big_add' must survive expansion:\n{:?}",
+            names
+        );
+        assert!(
+            names.iter().any(|n| n == "big_sum"),
+            "Sibling function 'big_sum' from the same block must still import:\n{:?}",
+            names
+        );
+        assert!(
+            !names.iter().any(|n| n == "big_mixed"),
+            "Layout-incompatible struct-returning 'big_mixed' must not survive expansion"
+        );
+        assert!(
+            report.contains("big_mixed"),
+            "Diagnostic must name the rejected C function:\n{}",
+            report
+        );
+        assert!(
+            report.contains("E0962"),
+            "Diagnostic must carry the E0962 unsupported-construct code:\n{}",
+            report
+        );
     } else {
-        // Fail-closed boundary: on this target the sret ABI is not
-        // implemented, so the eligible struct return is rejected with E0962
-        // and the program must not compile.
+        // Fail-closed boundary: on this target neither the sret path nor
+        // the SysV register-pair path is implemented, so the eligible
+        // struct return is rejected with E0962 and the program must not
+        // compile.
         assert!(
             !res.success,
-            "On non-Windows-x64 targets the sret path is not implemented; compilation must fail closed:\n{}",
+            "On targets without a struct-return ABI, compilation must fail closed:\n{}",
             report
         );
         assert!(
