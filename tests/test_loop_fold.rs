@@ -210,3 +210,102 @@ fn main() {
     assert_eq!(code, 0, "non-zero exit: {}", err);
     assert_eq!(out.trim(), "100", "Sum of cubes 0..4 must equal 100");
 }
+
+#[test]
+fn test_loop_fold_const_expr_sum() {
+    let source = r#"
+fn compute(n: Int) -> Int {
+    mut sum = 0
+    mut i = 0
+    while i < n {
+        let c = 10 * 5
+        sum = sum + c
+        i = i + 1
+    }
+    return sum
+}
+
+fn main() {
+    out compute(12)
+}
+"#;
+    let compiler = ForgenCompiler::new("domain");
+    let res = compiler.compile_source(source, "loop_fold_const_expr_test.dtr", None);
+    assert!(res.success, "Compilation failed: {:?}", res.error);
+
+    let report = res
+        .optimization_report
+        .expect("optimization report missing");
+    let applied = report
+        .decision_trace
+        .iter()
+        .any(|r| r.pass == "LoopFold" && r.decision == "Applied");
+    assert!(
+        applied,
+        "LoopFold pass must report Applied when the accumulate operand is a constant expression"
+    );
+
+    let exe_path = res.exe_path.expect("executable path missing");
+    let (out, err, code, _) = compiler
+        .cranelift
+        .run_executable(&exe_path, &[])
+        .expect("execution failed");
+    assert_eq!(code, 0, "non-zero exit: {}", err);
+    // Reference: sum of the constant 10 * 5 = 50 added n = 12 times.
+    let n: i64 = 12;
+    let expected: i64 = 50 * n;
+    let produced: i64 = out.trim().parse().expect("output must be an integer");
+    assert_eq!(
+        produced, expected,
+        "folded const-expr sum must equal the sequential reference 50*n"
+    );
+}
+
+#[test]
+fn test_loop_fold_remainder_not_folded() {
+    let source = r#"
+fn compute(n: Int) -> Int {
+    mut sum = 0
+    mut i = 0
+    while i < n {
+        sum = sum + i % 3
+        i = i + 1
+    }
+    return sum
+}
+
+fn main() {
+    out compute(101)
+}
+"#;
+    let compiler = ForgenCompiler::new("domain");
+    let res = compiler.compile_source(source, "loop_fold_remainder_test.dtr", None);
+    assert!(res.success, "Compilation failed: {:?}", res.error);
+
+    let report = res
+        .optimization_report
+        .expect("optimization report missing");
+    let applied = report
+        .decision_trace
+        .iter()
+        .any(|r| r.pass == "LoopFold" && r.decision == "Applied");
+    assert!(
+        !applied,
+        "LoopFold must not fold a loop whose accumulate operand is a non-constant remainder"
+    );
+
+    let exe_path = res.exe_path.expect("executable path missing");
+    let (out, err, code, _) = compiler
+        .cranelift
+        .run_executable(&exe_path, &[])
+        .expect("execution failed");
+    assert_eq!(code, 0, "non-zero exit: {}", err);
+    // Reference: sequential sum of i % 3 for i in 0..101, computed here the
+    // same way the unfolded loop computes it.
+    let expected: i64 = (0..101).map(|i| i % 3).sum();
+    let produced: i64 = out.trim().parse().expect("output must be an integer");
+    assert_eq!(
+        produced, expected,
+        "unfolded loop result must match reference"
+    );
+}

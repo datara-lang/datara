@@ -48,7 +48,7 @@ fn loop_with_invariant(n: Int) -> Int {
     mut i = 0
     while i < n {
         mut inv = 0
-        inv = 100 * 2
+        inv = n * 2
         sum = sum + inv
         i = i + 1
     }
@@ -81,7 +81,12 @@ fn main() {
     let exe = res.exe_path.unwrap();
     let (stdout, _, code, _) = compiler.codegen.run_executable(&exe, &[]).unwrap();
     assert_eq!(code, 0);
-    assert_eq!(stdout.trim(), "2000");
+    // The invariant must be a runtime value (here the parameter n), not a
+    // compile-time constant: since v1.3.3 the LoopFold pass consumes loops
+    // whose invariant is a constant expression (`inv = 100 * 2`) before LICM
+    // ever runs, so a constant invariant no longer leaves an LICM record.
+    // sum += 2*n per iteration, 10 iterations with n = 10 gives 200.
+    assert_eq!(stdout.trim(), "200");
 }
 
 #[test]

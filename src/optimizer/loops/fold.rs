@@ -119,8 +119,9 @@ impl LoopOptimizer {
         // For `<=` the bound itself is the last tested value. When it is
         // i64::MAX the induction variable wraps (MAX + 1 == MIN, and MIN is
         // still <= MAX), so the original loop never terminates and the
-        // closed form is invalid.
-        if is_le && Self::const_int_value(f, n) == Some(i64::MAX) {
+        // closed form is invalid. The same holds for a bound that only
+        // *resolves* to i64::MAX through a constant expression.
+        if is_le && Self::const_expr_int_value(f, n) == Some(i64::MAX) {
             return None;
         }
         let (p_a, p_b) = (header_blk.params[0].val, header_blk.params[1].val);
@@ -258,19 +259,47 @@ impl LoopOptimizer {
         let mut inc: Option<ValueId> = None; // i_next
         let mut piecewise: Option<(ValueId, ValueId, i64, i64, bool)> = None; // (sum_next, threshold_vid, step1, step2, cmp_is_le)
 
+        // Names read anywhere in the function. An `AssignVar` that survived
+        // mem2reg is compiled as a store to a named slot; the loop deletion
+        // removes that store, which is only unobservable when nothing ever
+        // loads the variable back.
+        let loaded_names: HashSet<&str> = f
+            .blocks
+            .iter()
+            .flat_map(|b| b.instructions.iter())
+            .filter_map(|inst| match inst {
+                Inst::LoadVar { name, .. } => Some(name.as_str()),
+                _ => None,
+            })
+            .collect();
+
         let mut all_standard = true;
         for inst in &body_blk.instructions {
             match inst {
                 Inst::ConstInt { .. } if !is_float => {}
                 Inst::ConstFloat { .. } if is_float => {}
-                Inst::BinOp { op, dest, .. } if op == "*" => {
+                Inst::BinOp {
+                    op,
+                    dest,
+                    left,
+                    right,
+                    ..
+                } if op == "*" => {
                     if !scaled_terms.contains_key(dest)
                         && !quadratic_terms.contains(dest)
                         && !cubic_terms.contains(dest)
                         && !float_scaled_terms.contains_key(dest)
                     {
-                        all_standard = false;
-                        break;
+                        // A pure constant product (`let c = 10 * 5`) has no
+                        // iteration-dependent value: both operands resolve to
+                        // compile-time integers, so the instruction can be
+                        // deleted together with the loop body.
+                        let both_const = Self::const_expr_int_value(f, *left).is_some()
+                            && Self::const_expr_int_value(f, *right).is_some();
+                        if !both_const {
+                            all_standard = false;
+                            break;
+                        }
                     }
                 }
                 Inst::BinOp {
@@ -335,6 +364,21 @@ impl LoopOptimizer {
                 }
                 Inst::BinOp { dest, op, .. }
                     if (op == "-" || op == "wrapping_-") && affine_terms.contains_key(dest) => {}
+                Inst::AssignVar { name, value } => {
+                    // A named binding that survived mem2reg may stay in the
+                    // body (a dead store, or a variable the pass could not
+                    // promote). Deleting the loop removes the store, so the
+                    // binding is only droppable when its value is a
+                    // compile-time constant AND no code ever reads the
+                    // variable back — otherwise the fold would silently
+                    // discard an observable store.
+                    let const_value = Self::const_expr_int_value(f, *value).is_some();
+                    let never_read = !loaded_names.contains(name.as_str());
+                    if !(const_value && never_read) {
+                        all_standard = false;
+                        break;
+                    }
+                }
                 _ => {
                     all_standard = false;
                     break;
@@ -524,8 +568,10 @@ impl LoopOptimizer {
             return None;
         }
         // The induction must start at 0 or 1 for the closed form to hold.
+        // A start that only resolves to 0 or 1 through a constant expression
+        // is the same runtime value, so it qualifies identically.
         let i0_val = if !is_float {
-            match Self::const_int_value(f, i0) {
+            match Self::const_expr_int_value(f, i0) {
                 Some(0) => 0,
                 Some(1) => 1,
                 _ => return None,
@@ -623,7 +669,7 @@ impl LoopOptimizer {
                     start: i0_val,
                     is_le,
                 }
-            } else if let Some(v) = Self::const_int_value(f, x) {
+            } else if let Some(v) = Self::const_expr_int_value(f, x) {
                 SumTerm::InvariantConst {
                     val: v,
                     start: i0_val,
@@ -681,6 +727,51 @@ impl LoopOptimizer {
                     && *dest == vid
                 {
                     return Some(*value);
+                }
+            }
+        }
+        None
+    }
+
+    /// Resolves a `ValueId` to a compile-time integer through a bounded
+    /// constant-expression walk: a direct `ConstInt`, or a `BinOp`
+    /// `+`/`-`/`*` (plain or `wrapping_`) whose operands themselves resolve.
+    ///
+    /// Arithmetic uses `checked_*`: an expression whose mathematical value
+    /// does not fit in `i64` does not resolve. That is exact for plain
+    /// `+`/`-`/`*` (which trap on overflow at run time) and correct for the
+    /// `wrapping_` forms as long as no overflow occurs, so a value that only
+    /// exists modulo 2^64 is never mistaken for a constant.
+    fn const_expr_int_value(f: &Function, vid: ValueId) -> Option<i64> {
+        Self::const_expr_int_value_depth(f, vid, 4)
+    }
+
+    fn const_expr_int_value_depth(f: &Function, vid: ValueId, depth: u8) -> Option<i64> {
+        if depth == 0 {
+            return None;
+        }
+        if let Some(v) = Self::const_int_value(f, vid) {
+            return Some(v);
+        }
+        for b in &f.blocks {
+            for inst in &b.instructions {
+                if let Inst::BinOp {
+                    dest,
+                    op,
+                    left,
+                    right,
+                    ..
+                } = inst
+                    && *dest == vid
+                {
+                    let l = Self::const_expr_int_value_depth(f, *left, depth - 1)?;
+                    let r = Self::const_expr_int_value_depth(f, *right, depth - 1)?;
+                    return match op.as_str() {
+                        "+" | "wrapping_+" => l.checked_add(r),
+                        "-" | "wrapping_-" => l.checked_sub(r),
+                        "*" | "wrapping_*" => l.checked_mul(r),
+                        _ => None,
+                    };
                 }
             }
         }
