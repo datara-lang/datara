@@ -18,7 +18,7 @@
 //!
 //! Compilation and execution run inside a 64 MiB-stack thread (see bcfac07).
 
-#![cfg(windows)]
+#![cfg(any(windows, target_os = "linux"))]
 
 use forgen::ast::Decl;
 use forgen::codegen::linker::ensure_linker;
@@ -367,7 +367,7 @@ fn main() {
 // back in XMM0 and the long long in RAX). The Windows tests above are
 // untouched by this module.
 
-#[cfg(windows)]
+#[cfg(target_os = "linux")]
 mod sysv {
     use super::{CompilationResult, Decl, check_in_big_stack, compile_in_big_stack, extern_names};
     use forgen::ast::SysVClass;
