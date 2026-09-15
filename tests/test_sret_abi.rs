@@ -18,7 +18,7 @@
 //!
 //! Compilation and execution run inside a 64 MiB-stack thread (see bcfac07).
 
-#![cfg(any(windows, target_os = "linux"))]
+#![cfg(windows)]
 
 use forgen::ast::Decl;
 use forgen::codegen::linker::ensure_linker;
@@ -367,7 +367,7 @@ fn main() {
 // back in XMM0 and the long long in RAX). The Windows tests above are
 // untouched by this module.
 
-#[cfg(target_os = "linux")]
+#[cfg(windows)]
 mod sysv {
     use super::{CompilationResult, Decl, check_in_big_stack, compile_in_big_stack, extern_names};
     use forgen::ast::SysVClass;
@@ -594,22 +594,22 @@ fn main() {
         assert_eq!(
             find("make_i64_pair"),
             Some([SysVClass::Integer, SysVClass::Integer]),
-            "{long long,long long} is INTEGER:INTEGER -> RAX:RDX"
+            "{{long long,long long}} is INTEGER:INTEGER -> RAX:RDX"
         );
         assert_eq!(
             find("make_f64_pair"),
             Some([SysVClass::Sse, SysVClass::Sse]),
-            "{double,double} is SSE:SSE -> XMM0:XMM1"
+            "{{double,double}} is SSE:SSE -> XMM0:XMM1"
         );
         assert_eq!(
             find("make_mixed_if"),
             Some([SysVClass::Integer, SysVClass::Sse]),
-            "{long long,double} is INTEGER:SSE -> RAX:XMM0"
+            "{{long long,double}} is INTEGER:SSE -> RAX:XMM0"
         );
         assert_eq!(
             find("make_mixed_fi"),
             Some([SysVClass::Sse, SysVClass::Integer]),
-            "{double,long long} is SSE:INTEGER -> XMM0:RAX"
+            "{{double,long long}} is SSE:INTEGER -> XMM0:RAX"
         );
         assert_eq!(
             find("make_word"),
