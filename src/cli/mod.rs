@@ -10,6 +10,7 @@
 //! - [`misc`]    — explain, watch, completions, setup-tools, help, write_zip
 
 mod build;
+mod doctor;
 mod inspect;
 mod misc;
 mod mobile;
@@ -214,6 +215,8 @@ fn run_cli_inner(args: &[String]) {
         "clean" => project::cmd_clean(&args),
 
         "lint" | "audit" | "clippy" => tools::cmd_lint(command, &args),
+
+        "doctor" => doctor::cmd_doctor(&args),
 
         "explain" => misc::cmd_explain(&args),
 

@@ -1,5 +1,5 @@
-use crate::dmir::ValueId;
-use cranelift_codegen::ir::{BlockArg, InstBuilder, types as clif_types};
+use crate::dmir::{ArenaHint, ValueId};
+use cranelift_codegen::ir::{BlockArg, InstBuilder, Value as ClifValue, types as clif_types};
 use cranelift_module::Module as ClifModule;
 
 use super::types::FunctionCompileCtx;
@@ -80,9 +80,16 @@ pub fn compile_call<M: ClifModule>(
     {
         const LIST_HEADER_SIZE: i64 = 16; // { capacity: i64, magic: i64 }
         const LIST_MAGIC: i64 = 0x4441544C49535430; // DATARA_LIST_MAGIC
+        // v1.4.0: in @arena functions the header is bump-allocated from the
+        // frame arena so the return-time checkpoint restore reclaims it.
+        let list_alloc_id = if ctx.current_func.alloc_hint == ArenaHint::Arena {
+            ctx.runtime.rt_arena_alloc_id
+        } else {
+            ctx.runtime.malloc_id
+        };
         let malloc_ref = ctx
             .module
-            .declare_func_in_func(ctx.runtime.malloc_id, ctx.builder.func);
+            .declare_func_in_func(list_alloc_id, ctx.builder.func);
         let size_val = ctx.builder.ins().iconst(
             clif_types::I64,
             LIST_HEADER_SIZE.saturating_add((n.saturating_add(1) as i64).saturating_mul(8)),
@@ -784,6 +791,59 @@ pub fn compile_method_call<M: ClifModule>(
             .unwrap_or(false);
         if !class_shadows {
             return compile_numeric_convert(ctx, dest, object, method);
+        }
+    }
+    // v1.4.0: StrBuf builder methods. Dispatched on the declared class of
+    // the receiver (`val_to_class` is populated by StructInit), BEFORE the
+    // list protocol, so `StrBuf.push` can never reach rt_list_append.
+    if ctx
+        .val_to_class
+        .get(object)
+        .map(|c| c == "StrBuf")
+        .unwrap_or(false)
+    {
+        let special_id = match method {
+            "push" => Some(ctx.runtime.rt_strbuf_push_id),
+            "push_int" => Some(ctx.runtime.rt_strbuf_push_int_id),
+            "join" => Some(ctx.runtime.rt_strbuf_join_id),
+            "len" | "length" => Some(ctx.runtime.rt_strbuf_len_id),
+            _ => None,
+        };
+        if let Some(special_id) = special_id {
+            let mut call_args: Vec<ClifValue> = Vec::new();
+            if let Some(&obj_v) = ctx.val_map.get(object) {
+                call_args.push(obj_v);
+            }
+            for a in args {
+                let mut av = ctx
+                    .val_map
+                    .get(a)
+                    .copied()
+                    .unwrap_or_else(|| ctx.builder.ins().iconst(clif_types::I64, 0));
+                if ctx.builder.func.dfg.value_type(av) == clif_types::F64 {
+                    av = ctx.builder.ins().bitcast(
+                        clif_types::I64,
+                        cranelift_codegen::ir::MemFlagsData::new(),
+                        av,
+                    );
+                }
+                call_args.push(av);
+            }
+            let callee_ref = ctx
+                .module
+                .declare_func_in_func(special_id, ctx.builder.func);
+            let call_inst = ctx.builder.ins().call(callee_ref, &call_args);
+            let results = ctx.builder.inst_results(call_inst);
+            if let Some(&r) = results.first() {
+                ctx.val_map.insert(*dest, r);
+                if method == "join" {
+                    ctx.string_vids.insert(*dest);
+                }
+            } else {
+                let zero = ctx.builder.ins().iconst(clif_types::I64, 0);
+                ctx.val_map.insert(*dest, zero);
+            }
+            return Ok(());
         }
     }
     // List and String protocol methods: dispatch on the object's

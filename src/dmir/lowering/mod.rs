@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use crate::dmir::ir::*;
 
+pub mod asm;
 pub mod decl;
 pub mod expr;
 pub mod expr_call;

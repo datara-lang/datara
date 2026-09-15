@@ -12,6 +12,7 @@ pub mod effects;
 pub mod export;
 pub mod fmt;
 pub mod incremental;
+pub mod interop_audit;
 pub mod lexer;
 pub mod lint;
 pub mod lsp;

@@ -562,6 +562,97 @@ impl InlineHint {
     }
 }
 
+/// v1.4.0: the allocator-tier attributes `@arena` and `@pool(n)` on Datara
+/// functions, carried through DMIR so the backend can route the function's
+/// heap allocations to the runtime's region allocators.
+///
+/// * `Arena` — escaping class allocations and list-literal headers are
+///   bump-allocated through the runtime's thread-local arena
+///   (`datara_rt_arena_alloc`); a checkpoint taken at function entry is
+///   restored at every return, so the whole region is reclaimed wholesale.
+///   The checkpoint lives in a per-call local, which makes recursion safe
+///   (each invocation restores its own frame's checkpoint).
+/// * `Pool(n)` — a fixed slab of `n` object slots is bump-allocated once per
+///   call; class allocations are served from the slab under a runtime slot
+///   counter with an explicit capacity trap. Provable compile-time overflow
+///   is rejected with E1406 before codegen ever runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum ArenaHint {
+    #[default]
+    None,
+    Arena,
+    Pool(u64),
+}
+
+impl ArenaHint {
+    /// Extracts the allocator-tier hint from a declaration's attribute list.
+    ///
+    /// Returns the hint plus an error description when the attribute is
+    /// malformed (unknown argument, duplicate attribute, non-numeric or zero
+    /// `@pool` capacity). The caller turns the error into a diagnostic with
+    /// the right code; this function only classifies.
+    pub fn parse_from_attrs(attrs: &[crate::ast::Attribute]) -> (ArenaHint, Option<String>) {
+        let mut hint = ArenaHint::None;
+        let mut seen = false;
+        for a in attrs {
+            let tier = match a.name.as_str() {
+                "arena" => ArenaHint::Arena,
+                "pool" => ArenaHint::Pool(0),
+                _ => continue,
+            };
+            if seen {
+                return (
+                    ArenaHint::None,
+                    Some(
+                        "duplicate '@arena'/'@pool' attribute on the same function; the tiers are mutually exclusive"
+                            .to_string(),
+                    ),
+                );
+            }
+            seen = true;
+            hint = tier;
+            if a.name == "pool" {
+                // The parser stores `@pool(n)` as ("n", "") and
+                // `@pool(size: n)` as ("size", "n"); accept both spellings.
+                let capacity = a
+                    .args
+                    .first()
+                    .map(|(k, v)| {
+                        if v.trim().is_empty() {
+                            k.trim().to_string()
+                        } else {
+                            v.trim().to_string()
+                        }
+                    })
+                    .unwrap_or_default();
+                match capacity.parse::<u64>() {
+                    Ok(n) if n > 0 => hint = ArenaHint::Pool(n),
+                    _ => {
+                        let shown = if capacity.is_empty() {
+                            "<none>".to_string()
+                        } else {
+                            capacity
+                        };
+                        return (
+                            ArenaHint::None,
+                            Some(format!(
+                                "'@pool' expects a positive integer capacity, got '{}'",
+                                shown
+                            )),
+                        );
+                    }
+                }
+            } else if !a.args.is_empty() {
+                return (
+                    ArenaHint::None,
+                    Some("'@arena' does not take arguments".to_string()),
+                );
+            }
+        }
+        (hint, None)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Function {
     pub name: String,
@@ -576,6 +667,18 @@ pub struct Function {
     /// v1.3.4: inline attribute carried from the parsed `@inline` family.
     #[serde(default)]
     pub inline_hint: InlineHint,
+    /// v1.4.0: allocator tier carried from the parsed `@arena` / `@pool(n)`
+    /// attributes. The driver-level validation pass rejects malformed
+    /// attributes before lowering stores the hint.
+    #[serde(default)]
+    pub alloc_hint: ArenaHint,
+    /// v1.4.0: true when the function body contains a structured `asm { ...}`
+    /// block. Structured asm lowers to plain DMIR ops the Cranelift backend
+    /// can compile; LLVM and WASM reject structured-asm functions with E1405.
+    /// Legacy `asm!` template blocks keep their existing backend contract and
+    /// do NOT set this marker.
+    #[serde(default)]
+    pub has_inline_asm: bool,
     /// v1.3.4: `BinOp` results (`dest` ValueIds) whose arithmetic the
     /// optimizer statically proved cannot overflow, so the backend may
     /// emit unchecked (`iadd`/`isub`/`imul`) code for exactly these
@@ -596,6 +699,8 @@ impl Default for Function {
             entry_block: BasicBlockId(0),
             blocks: Vec::new(),
             inline_hint: InlineHint::None,
+            alloc_hint: ArenaHint::None,
+            has_inline_asm: false,
             proven_no_overflow: std::collections::BTreeSet::new(),
         }
     }

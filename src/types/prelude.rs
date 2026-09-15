@@ -1224,6 +1224,10 @@ impl<'a> TypeChecker<'a> {
             }
         }
 
+        // v1.4.0: StrBuf prelude class lives in its own file (prelude.rs
+        // stays under the 60 KB limit).
+        Self::register_strbuf(&mut class_fields, &mut class_methods);
+
         Self {
             resolver,
             symbol_types: HashMap::new(),

@@ -64,7 +64,174 @@ pub fn to_pascal_case(s: &str) -> String {
 pub fn run_all_rules(program: &Program) -> Vec<LintDiagnostic> {
     let mut diags = Vec::new();
     check_declarations(program, &mut diags);
+    check_string_concat_loops(program, &mut diags);
     diags
+}
+
+/// v1.4.0 (L1401): detects `s = s + <string>` self-concatenation inside
+/// while/for/loop bodies - the quadratic string-building anti-pattern - and
+/// suggests `StrBuf`, whose runtime builder appends in amortized O(1).
+///
+/// Linting runs on the raw AST before type checking, so string-ness is
+/// approximated: the rule only fires when the concatenated operand is a
+/// string-shaped literal (`"..."` or an interpolated `fmt"..."`), which
+/// keeps integer accumulation loops (`i = i + 1`) silent.
+fn check_string_concat_loops(program: &Program, diags: &mut Vec<LintDiagnostic>) {
+    for decl in &program.declarations {
+        match decl {
+            Decl::Function(f) | Decl::Flow(f) | Decl::Task(f) => {
+                scan_loops_for_concat(&f.body, diags);
+            }
+            Decl::Class(c) => {
+                for item in &c.body_items {
+                    if let ClassItem::Method(m) = item
+                        && let Some(body) = m.body.as_ref()
+                    {
+                        scan_loops_for_concat(body, diags);
+                    }
+                }
+            }
+            Decl::Behavior(b) => {
+                for item in &b.body_items {
+                    if let ClassItem::Method(m) = item
+                        && let Some(body) = m.body.as_ref()
+                    {
+                        scan_loops_for_concat(body, diags);
+                    }
+                }
+            }
+            Decl::Impl(i) => {
+                for m in &i.methods {
+                    scan_loops_for_concat(&m.body, diags);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Recurses the statement tree and scans every loop body it enters.
+fn scan_loops_for_concat(stmt: &Stmt, diags: &mut Vec<LintDiagnostic>) {
+    match stmt {
+        Stmt::Block(stmts, _) => {
+            for s in stmts {
+                scan_loops_for_concat(s, diags);
+            }
+        }
+        Stmt::While { body, .. }
+        | Stmt::For { body, .. }
+        | Stmt::ParallelFor { body, .. }
+        | Stmt::Loop { body, .. } => {
+            scan_concat_assigns(body, diags);
+            scan_loops_for_concat(body, diags);
+        }
+        Stmt::If {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            scan_loops_for_concat(then_branch, diags);
+            if let Some(e) = else_branch {
+                scan_loops_for_concat(e, diags);
+            }
+        }
+        Stmt::TryCatch {
+            try_block,
+            catch_block,
+            ..
+        } => {
+            scan_loops_for_concat(try_block, diags);
+            scan_loops_for_concat(catch_block, diags);
+        }
+        Stmt::Unsafe { body, .. } | Stmt::Parallel(body, _) | Stmt::With { body, .. } => {
+            scan_loops_for_concat(body, diags)
+        }
+        _ => {}
+    }
+}
+
+/// Reports `x = x + <string literal>` / `x = <string literal> + x` inside
+/// one loop body (including nested blocks and branches).
+fn scan_concat_assigns(stmt: &Stmt, diags: &mut Vec<LintDiagnostic>) {
+    match stmt {
+        Stmt::Assign {
+            target,
+            value: Expr::Binary {
+                op, left, right, ..
+            },
+            span,
+            ..
+        } if op == "+" => {
+            fn var_of(e: &Expr) -> Option<&str> {
+                match e {
+                    Expr::Identifier(n, _) => Some(n.as_str()),
+                    _ => None,
+                }
+            }
+            let self_ref = var_of(left).is_some_and(|n| var_of(target) == Some(n))
+                || var_of(right).is_some_and(|n| var_of(target) == Some(n));
+            let other_is_string = |e: &Expr| {
+                matches!(
+                    e,
+                    Expr::InterpolatedString { .. } | Expr::Literal(LiteralValue::String(_), _)
+                )
+            };
+            let concat_with_string = var_of(left).is_some_and(|n| var_of(target) == Some(n))
+                && other_is_string(right)
+                || var_of(right).is_some_and(|n| var_of(target) == Some(n))
+                    && other_is_string(left);
+            if self_ref && concat_with_string {
+                let name = var_of(target).unwrap_or("?");
+                diags.push(
+                    LintDiagnostic::new(
+                        "L1401",
+                        format!(
+                            "string concatenation `{} = {} + ...` inside a loop copies the whole string every iteration",
+                            name, name
+                        ),
+                        span.clone(),
+                    )
+                    .with_help(
+                        "build the string with StrBuf instead: `StrBuf { }`, `sb.push(...)`, `sb.join()`".to_string(),
+                    )
+                    .with_note(
+                        "repeated `s = s + ...` is O(n^2); StrBuf.push is amortized O(1)".to_string(),
+                    ),
+                );
+            }
+        }
+        Stmt::Block(stmts, _) => {
+            for s in stmts {
+                scan_concat_assigns(s, diags);
+            }
+        }
+        Stmt::If {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            scan_concat_assigns(then_branch, diags);
+            if let Some(e) = else_branch {
+                scan_concat_assigns(e, diags);
+            }
+        }
+        Stmt::While { body, .. }
+        | Stmt::For { body, .. }
+        | Stmt::ParallelFor { body, .. }
+        | Stmt::Loop { body, .. }
+        | Stmt::Unsafe { body, .. }
+        | Stmt::Parallel(body, _)
+        | Stmt::With { body, .. } => scan_concat_assigns(body, diags),
+        Stmt::TryCatch {
+            try_block,
+            catch_block,
+            ..
+        } => {
+            scan_concat_assigns(try_block, diags);
+            scan_concat_assigns(catch_block, diags);
+        }
+        _ => {}
+    }
 }
 
 fn check_declarations(program: &Program, diags: &mut Vec<LintDiagnostic>) {

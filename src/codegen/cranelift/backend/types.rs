@@ -55,6 +55,16 @@ pub struct RuntimeIds {
     pub str_byte_at_id: FuncId,
     pub str_chars_id: FuncId,
     pub str_len_id: FuncId,
+    // v1.4.0: allocator tiers (@arena/@pool), traps and StrBuf.
+    pub rt_arena_alloc_id: FuncId,
+    pub rt_arena_checkpoint_id: FuncId,
+    pub rt_arena_reset_id: FuncId,
+    pub rt_panic_id: FuncId,
+    pub rt_strbuf_new_id: FuncId,
+    pub rt_strbuf_push_id: FuncId,
+    pub rt_strbuf_push_int_id: FuncId,
+    pub rt_strbuf_join_id: FuncId,
+    pub rt_strbuf_len_id: FuncId,
 }
 
 #[derive(Clone, Copy)]
@@ -83,6 +93,12 @@ pub struct CoreRuntimeIds {
     pub str_byte_at_id: FuncId,
     pub str_chars_id: FuncId,
     pub str_len_id: FuncId,
+    // v1.4.0: allocator tiers (@arena/@pool) and traps. StrBuf dispatch
+    // lives in declare_ext; only the tier/trap symbols are core.
+    pub rt_arena_alloc_id: FuncId,
+    pub rt_arena_checkpoint_id: FuncId,
+    pub rt_arena_reset_id: FuncId,
+    pub rt_panic_id: FuncId,
 }
 
 pub struct ModuleDecls {

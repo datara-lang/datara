@@ -1,6 +1,6 @@
 # Maintainer: Datara Language Project <https://github.com/datara-lang/datara>
 pkgname=datara-bin
-pkgver=1.3.4
+pkgver=1.4.0
 pkgrel=1
 pkgdesc="High-performance Post-OOP systems and application programming language"
 arch=('x86_64' 'aarch64')

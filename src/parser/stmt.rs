@@ -534,6 +534,19 @@ impl<'a> Parser<'a> {
             });
         }
 
+        // v1.4.0: structured `asm { ... }` block. Bare `asm` is otherwise a
+        // plain identifier; at statement start followed by `{` it introduces
+        // the structured inline-assembly block (a contextual keyword).
+        let structured_asm_starts = matches!(&self.peek().token_type, TokenType::Identifier(id) if id == "asm")
+            && matches!(
+                self.tokens.get(self.current + 1).map(|t| &t.token_type),
+                Some(TokenType::LBrace)
+            );
+        if structured_asm_starts {
+            self.advance();
+            return self.parse_structured_asm_block(start_span);
+        }
+
         if self.match_token(&TokenType::Asm) {
             self.consume(&TokenType::LBrace, "Expected '{' after 'asm!'")?;
             let mut instructions = Vec::new();
@@ -570,6 +583,7 @@ impl<'a> Parser<'a> {
             return Some(Stmt::Asm {
                 instructions,
                 options,
+                structured: Vec::new(),
                 span: SourceSpan::new(
                     start_span.start_line,
                     start_span.start_col,
@@ -603,5 +617,122 @@ impl<'a> Parser<'a> {
 
         let span = expr.span().clone();
         Some(Stmt::Expr(expr, span))
+    }
+
+    /// v1.4.0: parses the structured `asm { ... }` safe subset.
+    ///
+    /// Lines are split on physical source lines (tokens carry line spans) or
+    /// on `;`. Each line must be `mov|add|sub DST, SRC` where an operand is
+    /// one of the four x86-64 GP scratch registers (`rax/eax`, `rbx/ebx`,
+    /// `rcx/ecx`, `rdx/edx`), a Datara variable, or an integer immediate.
+    /// Anything outside the subset is recorded as [`AsmLine::Unsupported`]
+    /// and rejected by the driver-level validation with E1402, keeping the
+    /// parser total instead of cascading generic syntax errors.
+    fn parse_structured_asm_block(&mut self, start_span: SourceSpan) -> Option<Stmt> {
+        self.consume(&TokenType::LBrace, "Expected '{' after 'asm'")?;
+        let mut structured: Vec<AsmLine> = Vec::new();
+        let mut line: Vec<Token> = Vec::new();
+        let mut last_line = self.peek().span.start_line;
+        while !self.check(&TokenType::RBrace) && !self.is_at_end() {
+            if self.match_token(&TokenType::Semicolon) {
+                self.flush_asm_line(std::mem::take(&mut line), &mut structured);
+                last_line = self.peek().span.start_line;
+                continue;
+            }
+            let tok = self.advance();
+            if tok.span.start_line > last_line {
+                self.flush_asm_line(std::mem::take(&mut line), &mut structured);
+            }
+            last_line = tok.span.start_line;
+            line.push(tok);
+        }
+        self.flush_asm_line(line, &mut structured);
+        self.consume(&TokenType::RBrace, "Expected '}' to close 'asm' block")?;
+        Some(Stmt::Asm {
+            instructions: Vec::new(),
+            options: Vec::new(),
+            structured,
+            span: SourceSpan::new(
+                start_span.start_line,
+                start_span.start_col,
+                self.previous().span.end_line,
+                self.previous().span.end_col,
+                self.file.clone(),
+            ),
+        })
+    }
+
+    fn flush_asm_line(&mut self, toks: Vec<Token>, out: &mut Vec<AsmLine>) {
+        if toks.is_empty() {
+            return;
+        }
+        let raw = toks
+            .iter()
+            .map(|t| t.lexeme.clone())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let span = SourceSpan::new(
+            toks[0].span.start_line,
+            toks[0].span.start_col,
+            toks[toks.len() - 1].span.end_line,
+            toks[toks.len() - 1].span.end_col,
+            self.file.clone(),
+        );
+        out.push(parse_asm_line_tokens(&toks, raw, span));
+    }
+}
+
+/// Parses one buffered asm line into the safe-subset IR, or `Unsupported`.
+fn parse_asm_line_tokens(toks: &[Token], raw: String, span: SourceSpan) -> AsmLine {
+    let op = match toks.first().map(|t| t.lexeme.as_str()) {
+        Some("mov") => AsmOp::Mov,
+        Some("add") => AsmOp::Add,
+        Some("sub") => AsmOp::Sub,
+        _ => return AsmLine::Unsupported { raw, span },
+    };
+    let operands = &toks[1..];
+    let mut groups: Vec<&[Token]> = Vec::new();
+    let mut start = 0usize;
+    for (i, t) in operands.iter().enumerate() {
+        if matches!(t.token_type, TokenType::Comma) {
+            groups.push(&operands[start..i]);
+            start = i + 1;
+        }
+    }
+    groups.push(&operands[start..]);
+    if groups.len() != 2 || groups.iter().any(|g| g.is_empty()) {
+        return AsmLine::Unsupported { raw, span };
+    }
+    let Some(dst) = parse_asm_operand(groups[0]) else {
+        return AsmLine::Unsupported { raw, span };
+    };
+    let Some(src) = parse_asm_operand(groups[1]) else {
+        return AsmLine::Unsupported { raw, span };
+    };
+    AsmLine::Inst { op, dst, src, span }
+}
+
+/// Parses one asm operand: a GP scratch register, an integer immediate
+/// (optionally negative), or a Datara variable name.
+fn parse_asm_operand(toks: &[Token]) -> Option<AsmOperand> {
+    match toks {
+        [single] => match &single.token_type {
+            TokenType::Identifier(id) => {
+                if let Some(reg) = AsmReg::from_name(id) {
+                    Some(AsmOperand::Reg(reg))
+                } else {
+                    Some(AsmOperand::Var(id.clone(), single.span.clone()))
+                }
+            }
+            TokenType::IntLiteral(n) => Some(AsmOperand::Imm(*n)),
+            _ => None,
+        },
+        [minus, int_tok] if matches!(minus.token_type, TokenType::Minus) => {
+            match &int_tok.token_type {
+                TokenType::IntLiteral(n) => Some(AsmOperand::Imm(-n)),
+                _ => None,
+            }
+        }
+        _ => None,
     }
 }

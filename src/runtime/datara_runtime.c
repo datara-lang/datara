@@ -165,6 +165,15 @@ static DATARA_TLS void* tls_pool_freelist[DATARA_POOL_NUM_CLASSES] = {0};
 static DATARA_TLS char* tls_pool_slab = NULL;
 static DATARA_TLS size_t tls_pool_slab_remaining = 0;
 static DATARA_TLS int64_t tls_heap_alloc_count = 0;
+// v1.4.0: live count over the runtime's MANAGED (pool-class) allocator:
+// every datara_rt_pool_alloc request increments, every datara_rt_pool_free
+// release decrements. This is not a global malloc hook — allocations that
+// bypass the pool allocator are intentionally not tracked.
+static DATARA_TLS int64_t tls_heap_live = 0;
+
+int64_t datara_rt_heap_live(void) {
+    return tls_heap_live;
+}
 
 int64_t datara_rt_heap_alloc_count(void) {
     return tls_heap_alloc_count;
@@ -176,6 +185,7 @@ void datara_rt_reset_heap_alloc_count(void) {
 
 void* datara_rt_pool_alloc(size_t sz) {
     if (sz == 0) return NULL;
+    tls_heap_live++;
     int cls = pool_class_for_size(sz);
     if (cls < 0) {
         tls_heap_alloc_count++;
@@ -204,6 +214,7 @@ void* datara_rt_pool_alloc(size_t sz) {
 
 void datara_rt_pool_free(void* ptr, size_t sz) {
     if (!ptr) return;
+    if (tls_heap_live > 0) tls_heap_live--;
     int cls = pool_class_for_size(sz);
     if (cls >= 0) {
         *(void**)ptr = tls_pool_freelist[cls];
@@ -5997,4 +6008,88 @@ void datara_rt_cap_require(uint64_t required_bit, const char* op_name) {
     if ((current & required_bit) != required_bit) {
         datara_rt_trigger_hardware_cap_trap(required_bit, op_name);
     }
+}
+
+
+// ---------------------------------------------------------------------------
+// v1.4.0 StrBuf: growable string builder with amortized doubling.
+// join() materializes through the never-freed scratch ring, so the result
+// safely outlives further builder mutation (same ownership conventions as
+// every other runtime string).
+// ---------------------------------------------------------------------------
+typedef struct DataraStrBuf {
+    size_t len;
+    size_t cap;
+    char* data;
+} DataraStrBuf;
+
+void* datara_rt_strbuf_new(void) {
+    DataraStrBuf* sb = (DataraStrBuf*)malloc(sizeof(DataraStrBuf));
+    if (!sb) return NULL;
+    sb->cap = 64;
+    sb->len = 0;
+    sb->data = (char*)malloc(sb->cap);
+    if (!sb->data) {
+        free(sb);
+        return NULL;
+    }
+    sb->data[0] = '\0';
+    return sb;
+}
+
+static int datara_strbuf_reserve(DataraStrBuf* sb, size_t extra) {
+    size_t needed = sb->len + extra + 1;
+    if (needed <= sb->cap) return 1;
+    size_t new_cap = sb->cap;
+    while (new_cap < needed) {
+        new_cap *= 2;
+    }
+    char* grown = (char*)realloc(sb->data, new_cap);
+    if (!grown) return 0;
+    sb->data = grown;
+    sb->cap = new_cap;
+    return 1;
+}
+
+void* datara_rt_strbuf_push(void* sb_ptr, const char* s) {
+    DataraStrBuf* sb = (DataraStrBuf*)sb_ptr;
+    if (!sb) return NULL;
+    if (!s || s[0] == '\0') return sb;
+    size_t slen = strlen(s);
+    if (!datara_strbuf_reserve(sb, slen)) return sb;
+    datara_fast_copy(sb->data + sb->len, s, slen);
+    sb->len += slen;
+    sb->data[sb->len] = '\0';
+    return sb;
+}
+
+void* datara_rt_strbuf_push_int(void* sb_ptr, int64_t v) {
+    DataraStrBuf* sb = (DataraStrBuf*)sb_ptr;
+    if (!sb) return NULL;
+    char tmp[32];
+    snprintf(tmp, sizeof(tmp), "%lld", (long long)v);
+    return datara_rt_strbuf_push(sb, tmp);
+}
+
+const char* datara_rt_strbuf_join(void* sb_ptr) {
+    DataraStrBuf* sb = (DataraStrBuf*)sb_ptr;
+    if (!sb) return "";
+    char* out = datara_scratch_alloc(sb->len + 1);
+    if (!out) return "";
+    datara_fast_copy(out, sb->data, sb->len);
+    out[sb->len] = '\0';
+    return out;
+}
+
+int64_t datara_rt_strbuf_len(void* sb_ptr) {
+    DataraStrBuf* sb = (DataraStrBuf*)sb_ptr;
+    if (!sb) return 0;
+    return (int64_t)sb->len;
+}
+
+void datara_rt_strbuf_free(void* sb_ptr) {
+    DataraStrBuf* sb = (DataraStrBuf*)sb_ptr;
+    if (!sb) return;
+    free(sb->data);
+    free(sb);
 }

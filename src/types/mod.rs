@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 mod check;
 mod match_check;
 mod prelude;
+mod prelude_strbuf;
 mod refine;
 mod resolve;
 

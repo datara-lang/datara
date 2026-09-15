@@ -4,12 +4,24 @@ use cranelift_codegen::isa::CallConv;
 use cranelift_module::{FuncId, Linkage, Module as ClifModule};
 use std::collections::HashMap;
 
+/// v1.4.0: FuncIds of the `StrBuf` runtime family (declared alongside the
+/// other runtime extensions so every AOT/JIT module can dispatch the
+/// prelude class methods).
+#[derive(Clone, Copy)]
+pub struct StrBufIds {
+    pub rt_strbuf_new_id: FuncId,
+    pub rt_strbuf_push_id: FuncId,
+    pub rt_strbuf_push_int_id: FuncId,
+    pub rt_strbuf_join_id: FuncId,
+    pub rt_strbuf_len_id: FuncId,
+}
+
 pub fn declare_runtime_ext<M: ClifModule>(
     module: &mut M,
     dmir_module: &Module,
     call_conv: CallConv,
     func_ids: &mut HashMap<String, (FuncId, Signature)>,
-) -> Result<(FuncId, FuncId), String> {
+) -> Result<(FuncId, FuncId, StrBufIds), String> {
     // String helpers
     let mut rt_str_contains_sig = Signature::new(call_conv);
     rt_str_contains_sig
@@ -1287,5 +1299,70 @@ pub fn declare_runtime_ext<M: ClifModule>(
     );
     func_ids.insert("cap_require".into(), (cap_req_id, cap_req_sig));
 
-    Ok((rt_str_char_at_id, rt_str_eq_id))
+    // v1.4.0: StrBuf runtime family. All-I64 runtime ABI: the builder is a
+    // pointer, strings are `const char*`.
+    let strbuf_ptr_str_sig = |call_conv: CallConv| {
+        let mut sig = Signature::new(call_conv);
+        sig.params.push(AbiParam::new(clif_types::I64));
+        sig.params.push(AbiParam::new(clif_types::I64));
+        sig.returns.push(AbiParam::new(clif_types::I64));
+        sig
+    };
+    let rt_strbuf_new_id = {
+        let mut sig = Signature::new(call_conv);
+        sig.returns.push(AbiParam::new(clif_types::I64));
+        let id = module
+            .declare_function("datara_rt_strbuf_new", Linkage::Import, &sig)
+            .map_err(|e| e.to_string())?;
+        func_ids.insert("datara_rt_strbuf_new".into(), (id, sig));
+        id
+    };
+    let rt_strbuf_push_id = {
+        let sig = strbuf_ptr_str_sig(call_conv);
+        let id = module
+            .declare_function("datara_rt_strbuf_push", Linkage::Import, &sig)
+            .map_err(|e| e.to_string())?;
+        func_ids.insert("datara_rt_strbuf_push".into(), (id, sig));
+        id
+    };
+    let rt_strbuf_push_int_id = {
+        let sig = strbuf_ptr_str_sig(call_conv);
+        let id = module
+            .declare_function("datara_rt_strbuf_push_int", Linkage::Import, &sig)
+            .map_err(|e| e.to_string())?;
+        func_ids.insert("datara_rt_strbuf_push_int".into(), (id, sig));
+        id
+    };
+    let rt_strbuf_join_id = {
+        let mut sig = Signature::new(call_conv);
+        sig.params.push(AbiParam::new(clif_types::I64));
+        sig.returns.push(AbiParam::new(clif_types::I64));
+        let id = module
+            .declare_function("datara_rt_strbuf_join", Linkage::Import, &sig)
+            .map_err(|e| e.to_string())?;
+        func_ids.insert("datara_rt_strbuf_join".into(), (id, sig));
+        id
+    };
+    let rt_strbuf_len_id = {
+        let mut sig = Signature::new(call_conv);
+        sig.params.push(AbiParam::new(clif_types::I64));
+        sig.returns.push(AbiParam::new(clif_types::I64));
+        let id = module
+            .declare_function("datara_rt_strbuf_len", Linkage::Import, &sig)
+            .map_err(|e| e.to_string())?;
+        func_ids.insert("datara_rt_strbuf_len".into(), (id, sig));
+        id
+    };
+
+    Ok((
+        rt_str_char_at_id,
+        rt_str_eq_id,
+        StrBufIds {
+            rt_strbuf_new_id,
+            rt_strbuf_push_id,
+            rt_strbuf_push_int_id,
+            rt_strbuf_join_id,
+            rt_strbuf_len_id,
+        },
+    ))
 }

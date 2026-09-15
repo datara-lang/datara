@@ -1,3 +1,4 @@
+mod alloc_tier;
 pub mod compile_func;
 pub mod declare_core;
 pub mod declare_ext;
@@ -147,8 +148,15 @@ impl RealCraneliftBackend {
     ) -> Result<ModuleCompileArtifacts, String> {
         let mut func_ids = HashMap::new();
         let core_ids = declare_core::declare_runtime_core(module, call_conv, &mut func_ids)?;
-        let (rt_str_char_at_id, rt_str_eq_id) =
+        let (rt_str_char_at_id, rt_str_eq_id, strbuf_ids) =
             declare_ext::declare_runtime_ext(module, dmir_module, call_conv, &mut func_ids)?;
+        let declare_ext::StrBufIds {
+            rt_strbuf_new_id,
+            rt_strbuf_push_id,
+            rt_strbuf_push_int_id,
+            rt_strbuf_join_id,
+            rt_strbuf_len_id,
+        } = strbuf_ids;
 
         let runtime = RuntimeIds {
             rt_out_int_id: core_ids.rt_out_int_id,
@@ -177,6 +185,15 @@ impl RealCraneliftBackend {
             str_byte_at_id: core_ids.str_byte_at_id,
             str_chars_id: core_ids.str_chars_id,
             str_len_id: core_ids.str_len_id,
+            rt_arena_alloc_id: core_ids.rt_arena_alloc_id,
+            rt_arena_checkpoint_id: core_ids.rt_arena_checkpoint_id,
+            rt_arena_reset_id: core_ids.rt_arena_reset_id,
+            rt_panic_id: core_ids.rt_panic_id,
+            rt_strbuf_new_id,
+            rt_strbuf_push_id,
+            rt_strbuf_push_int_id,
+            rt_strbuf_join_id,
+            rt_strbuf_len_id,
         };
 
         let decls = declare_module::declare_module_symbols(

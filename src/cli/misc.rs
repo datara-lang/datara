@@ -99,7 +99,7 @@ pub(crate) fn cmd_completions(args: &[String]) -> bool {
                 r#"# PowerShell Completion for Forgen
 Register-ArgumentCompleter -Native -CommandName forgen -ScriptBlock {{
     param($wordToComplete, $commandAst, $cursorPosition)
-    $subcommands = @("init","new","clean","lint","audit","explain","watch","tree","add","remove","install","restore","publish","search","info","package","lsp","ui","run","build","test","bench","check","domain","sae","profile","format","fmt","repl","doc","export","update","upgrade","vendor","completions","why","context","inspect")
+    $subcommands = @("init","new","clean","lint","audit","explain","watch","tree","add","remove","install","restore","publish","search","info","package","lsp","ui","run","build","test","bench","check","doctor","domain","sae","profile","format","fmt","repl","doc","export","update","upgrade","vendor","completions","why","context","inspect")
     $flags = @("--llvm","--release","--check","--fix","--effects","--all","--pgo","--indent","--operators","--loops","--style","--mut","--open")
     if ($wordToComplete -like "-*") {{
         $flags | Where-Object {{ $_ -like "$wordToComplete*" }} | ForEach-Object {{
@@ -119,7 +119,7 @@ Register-ArgumentCompleter -Native -CommandName forgen -ScriptBlock {{
 _forgen() {{
     local cur prev words cword
     _init_completion || return
-    local commands="init new clean lint audit explain watch tree add remove install restore publish search info package lsp ui run build test bench check domain sae profile format fmt repl doc export update upgrade vendor completions why context inspect"
+    local commands="init new clean lint audit explain watch tree add remove install restore publish search info package lsp ui run build test bench check doctor domain sae profile format fmt repl doc export update upgrade vendor completions why context inspect"
     local flags="--llvm --release --check --fix --effects --all --pgo --indent --operators --loops --style --mut --open"
     if [[ ${{cur}} == -* ]]; then
         COMPREPLY=( $(compgen -W "${{flags}}" -- ${{cur}}) )
@@ -140,6 +140,7 @@ _forgen() {{
         'run:Run project'
         'build:Compile native standalone binary'
         'test:Execute test suites'
+        'doctor:Toolchain and bridge health diagnostics'
         'format:Format source code'
         'lint:Static code analyzer'
         'audit:Security capability lattice audit'
@@ -160,7 +161,7 @@ _forgen"#
             println!(
                 r#"# Fish completion for forgen
 complete -c forgen -f
-complete -c forgen -n "__fish_use_subcommand" -a "run build test format lint audit repl doc export clean tree vendor update explain"
+complete -c forgen -n "__fish_use_subcommand" -a "run build test format lint audit repl doc export clean tree vendor update explain doctor"
 complete -c forgen -l llvm -d "Enable LLVM pipeline"
 complete -c forgen -l check -d "Check mode"
 complete -c forgen -l fix -d "Auto-repair mode"
@@ -688,6 +689,7 @@ Project Commands:
   test [target]           Auto-discover and run project integration tests in tests/
   bench [target]          Auto-discover and run benchmarks in benches/
   check [target]          Fast static verification (types, ownership, effects), 0 binaries
+  doctor [--bridges]      Toolchain diagnostics; --bridges audits C/Python/JS/Rust interop
   domain [target] [--llvm] Maximum whole-program specialization & SAE adaptation report (--llvm enables LLVM)
   sae [target]            Inspect Semantic Adaptation Engine decisions (WHAT -> HOW)
   profile [target]        Run execution profile and generate PGO runtime data

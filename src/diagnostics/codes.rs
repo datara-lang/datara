@@ -90,6 +90,16 @@ pub enum ErrorCode {
     InlineAlwaysExtern,
     InlineAttributeInvalid,
 
+    // Allocator Tier Errors (E1401, E1406, v1.4.0)
+    ArenaEscape,
+    PoolCapacityExceeded,
+
+    // Structured Inline Assembly Errors (E1402-E1405, v1.4.0)
+    AsmUnsupportedInst,
+    AsmOperandNotInt,
+    AsmRequiresUnsafe,
+    AsmUnsupportedBackend,
+
     // Optimizer Correctness Warnings (E-OPT-*)
     OptimizationUnproven,
 
@@ -168,6 +178,12 @@ impl ErrorCode {
             ErrorCode::CrossCompilationMissingToolchain => "E0980",
             ErrorCode::InlineAlwaysExtern => "E0956",
             ErrorCode::InlineAttributeInvalid => "E0957",
+            ErrorCode::ArenaEscape => "E1401",
+            ErrorCode::AsmUnsupportedInst => "E1402",
+            ErrorCode::AsmOperandNotInt => "E1403",
+            ErrorCode::AsmRequiresUnsafe => "E1404",
+            ErrorCode::AsmUnsupportedBackend => "E1405",
+            ErrorCode::PoolCapacityExceeded => "E1406",
             ErrorCode::OptimizationUnproven => "E-OPT-001",
             ErrorCode::DeprecatedFeature => "W0100",
         }
@@ -310,6 +326,22 @@ impl ErrorCode {
                 ErrorCode::InlineAttributeInvalid => {
                     "Некорректный атрибут '@inline': ожидается '@inline', '@inline(always)' или '@inline(never)'"
                 }
+                ErrorCode::ArenaEscape => {
+                    "Значение, размещённое в @arena-функции, покидает область арены: возвращать можно только копируемые типы"
+                }
+                ErrorCode::AsmUnsupportedInst => {
+                    "Инструкция вне поддерживаемого безопасного подмножества asm: доступны mov/add/sub между регистрами, переменными Int и целыми константами"
+                }
+                ErrorCode::AsmOperandNotInt => "Операнд asm-блока должен иметь тип Int",
+                ErrorCode::AsmRequiresUnsafe => {
+                    "asm-блок требует обёртки unsafe(justification: \"...\")"
+                }
+                ErrorCode::AsmUnsupportedBackend => {
+                    "Структурированные asm-блоки не поддерживаются этим бэкендом: используйте Cranelift"
+                }
+                ErrorCode::PoolCapacityExceeded => {
+                    "Пул @pool переполнен: количество доказуемо размещаемых значений превышает ёмкость"
+                }
                 ErrorCode::OptimizationUnproven => {
                     "Трансформация раскладки пропущена: семантическая эквивалентность не доказана"
                 }
@@ -449,6 +481,22 @@ impl ErrorCode {
                 }
                 ErrorCode::InlineAttributeInvalid => {
                     "Malformed '@inline' attribute: expected '@inline', '@inline(always)' or '@inline(never)'"
+                }
+                ErrorCode::ArenaEscape => {
+                    "A value allocated inside an @arena function escapes the arena region: only Copy types (Int, Float, Bool, Str) may be returned"
+                }
+                ErrorCode::AsmUnsupportedInst => {
+                    "Instruction outside the supported asm safe subset: only mov/add/sub between GP registers, Int variables and integer immediates are accepted"
+                }
+                ErrorCode::AsmOperandNotInt => "Asm block operands must be Int variables",
+                ErrorCode::AsmRequiresUnsafe => {
+                    "Asm blocks must be wrapped in an unsafe(justification: \"...\") block"
+                }
+                ErrorCode::AsmUnsupportedBackend => {
+                    "Structured asm blocks are not supported on this backend: use the Cranelift backend"
+                }
+                ErrorCode::PoolCapacityExceeded => {
+                    "The @pool capacity is exceeded: the function provably allocates more values than the pool holds"
                 }
                 ErrorCode::OptimizationUnproven => {
                     "Optimizer layout transformation skipped: semantic equivalence could not be proven"

@@ -167,6 +167,9 @@ impl<'a> Lowering<'a> {
             // driver-level validation pass before lowering runs, so only
             // the classified hint is carried here.
             inline_hint: InlineHint::parse_from_attrs(&f.attributes).0,
+            // v1.4.0: allocator tier (@arena/@pool) and the asm marker.
+            alloc_hint: ArenaHint::parse_from_attrs(&f.attributes).0,
+            has_inline_asm: stmt_contains_structured_asm(&f.body),
             proven_no_overflow: std::collections::BTreeSet::new(),
         }
     }
@@ -397,6 +400,8 @@ impl<'a> Lowering<'a> {
             entry_block: entry_id,
             blocks: self.current_blocks.clone(),
             inline_hint: InlineHint::parse_from_attrs(&f.attributes).0,
+            alloc_hint: ArenaHint::parse_from_attrs(&f.attributes).0,
+            has_inline_asm: stmt_contains_structured_asm(&f.body),
             proven_no_overflow: std::collections::BTreeSet::new(),
         }
     }
@@ -710,6 +715,12 @@ impl<'a> Lowering<'a> {
             entry_block: entry_id,
             blocks: self.current_blocks.clone(),
             inline_hint: InlineHint::parse_from_attrs(&m.attributes).0,
+            alloc_hint: ArenaHint::parse_from_attrs(&m.attributes).0,
+            has_inline_asm: m
+                .body
+                .as_ref()
+                .map(|b| stmt_contains_structured_asm(b))
+                .unwrap_or(false),
             proven_no_overflow: std::collections::BTreeSet::new(),
         }
     }

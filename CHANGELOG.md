@@ -4,6 +4,39 @@ All notable changes to the Datara compiler and toolchain (`forgen`) are document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-09-16
+
+### Added
+- **Allocator tiers** (`@arena`, `@pool`, `@heap` on scopes/functions): explicit
+  region-based memory management with deterministic bulk teardown; the default
+  tier remains fully automatic (stack + RAII + escape-analysis promotion).
+- **Inline assembly with two-way variable binding** (x86-64 JIT+AOT): Datara
+  variables are addressable inside `asm` blocks by symbolic name, registers
+  are allocated by the compiler, every `asm` block requires an
+  `unsafe(justification: ...)` context, and the operand types are checked.
+- **Bridge diagnostics and interop audit harness** (`forgen doctor --bridges`):
+  per-bridge (C/C/FFI, Python, JS, Rust) scenario matrix report — call
+  round-trip, primitive/aggregate/map/error data transfer, ownership
+  handover, leak smoke checks — with a plain verdict line per bridge.
+- **String builder** (`StrBuf`): amortized O(1) append for hot string
+  assembly; plain `+` stays as-is for readability, loops with `+=` now emit
+  a performance lint (`forgen lint`) suggesting `StrBuf`.
+- **Production readiness gate** (`forgen verify --prod`): runs the full
+  correctness gate (types, ownership, security, optimizer evidence, bridge
+  audit) and refuses to pass on any WARNING-level optimizer diagnostic.
+
+### Fixed
+- LLVM backend baseline ISA is now target-guarded (`-march=x86-64-v2` only
+  on x86-64 hosts; AArch64 uses the compiler default), closing the macOS CI
+  regression and keeping cloud-vCPU SIGILL protection.
+- All GitHub commit-message `@mention` false positives removed from the
+  release history (rewritten via filter-branch).
+
+### Changed
+- Test suite reorganized: fast gate (<5 min) vs slow tier (nightly
+  \`Slow Tests\` job); benches moved under \`--skip bench\` as before, flaky
+  timing thresholds now use CI-aware medians.
+
 ## [1.3.4] - 2026-09-16
 
 ### Fixed

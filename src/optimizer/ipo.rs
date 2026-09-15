@@ -239,6 +239,13 @@ impl InterproceduralOptimizer {
                         if callee.inline_hint == crate::dmir::InlineHint::Never {
                             continue;
                         }
+                        // v1.4.0: keep @arena/@pool/asm frames out of IPO
+                        // cloning (same reason as the cost-model inliner).
+                        if callee.alloc_hint != crate::dmir::ArenaHint::None
+                            || callee.has_inline_asm
+                        {
+                            continue;
+                        }
 
                         // Check size threshold using full recursive count
                         let total_insts: usize = Self::count_function_instructions(callee);
@@ -393,6 +400,8 @@ impl InterproceduralOptimizer {
                     if is_pure
                         && b.instructions.len() <= 15
                         && f.inline_hint != crate::dmir::InlineHint::Never
+                        && f.alloc_hint == crate::dmir::ArenaHint::None
+                        && !f.has_inline_asm
                     {
                         inline_candidates.insert(fname.clone(), f.clone());
                     }

@@ -1058,6 +1058,44 @@ pub fn declare_runtime_core<M: ClifModule>(
         (get_core_id, get_core_sig),
     );
 
+    // v1.4.0: allocator tiers (@arena / @pool) and the pool capacity trap.
+    let mut arena_alloc_sig = Signature::new(call_conv);
+    arena_alloc_sig.params.push(AbiParam::new(clif_types::I64));
+    arena_alloc_sig.returns.push(AbiParam::new(clif_types::I64));
+    let rt_arena_alloc_id = module
+        .declare_function("datara_rt_arena_alloc", Linkage::Import, &arena_alloc_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_arena_alloc".into(),
+        (rt_arena_alloc_id, arena_alloc_sig),
+    );
+
+    let mut arena_checkpoint_sig = Signature::new(call_conv);
+    arena_checkpoint_sig
+        .returns
+        .push(AbiParam::new(clif_types::I64));
+    let rt_arena_checkpoint_id = module
+        .declare_function(
+            "datara_rt_arena_checkpoint",
+            Linkage::Import,
+            &arena_checkpoint_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_arena_checkpoint".into(),
+        (rt_arena_checkpoint_id, arena_checkpoint_sig),
+    );
+
+    let mut arena_reset_sig = Signature::new(call_conv);
+    arena_reset_sig.params.push(AbiParam::new(clif_types::I64));
+    let rt_arena_reset_id = module
+        .declare_function("datara_rt_arena_reset", Linkage::Import, &arena_reset_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_arena_reset".into(),
+        (rt_arena_reset_id, arena_reset_sig),
+    );
+
     let pin_workers_sig = Signature::new(call_conv);
     let pin_workers_id = module
         .declare_function(
@@ -1096,5 +1134,9 @@ pub fn declare_runtime_core<M: ClifModule>(
         str_byte_at_id,
         str_chars_id,
         str_len_id,
+        rt_arena_alloc_id,
+        rt_arena_checkpoint_id,
+        rt_arena_reset_id,
+        rt_panic_id,
     })
 }

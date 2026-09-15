@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 pub mod adaptive;
+pub mod alloc_attr;
+pub mod asm_safe;
 pub mod cache_tiling;
 pub mod comptime_eval;
 pub mod const_fold;
@@ -454,13 +456,20 @@ impl Optimizer {
             if ScalarOptimizer::apply_strength_reduction(f, &self.cost_model, &mut self.trace) > 0 {
                 changed = true;
             }
-            let eliminated_mem =
-                MemoryOptimizer::scalarize_structures(f, &self.cost_model, &mut self.trace);
+            // v1.4.0: @arena/@pool frames keep every StructInit intact —
+            // the pool's runtime slot accounting (and its capacity trap)
+            // only works if the allocation actually reaches the backend.
+            let tier_exempt = f.alloc_hint != crate::dmir::ArenaHint::None;
+            let eliminated_mem = if tier_exempt {
+                0
+            } else {
+                MemoryOptimizer::scalarize_structures(f, &self.cost_model, &mut self.trace)
+            };
             if eliminated_mem > 0 {
                 self.report.allocations_eliminated += eliminated_mem;
                 changed = true;
             }
-            if self.scalarize_structures(f) {
+            if !tier_exempt && self.scalarize_structures(f) {
                 changed = true;
             }
             // v1.3.4: under `--opt speed` the effect lattice (not just the

@@ -1,13 +1,14 @@
 use crate::dmir::{BasicBlockId, Inst, Module, Terminator, ValueId};
 use cranelift_codegen::ir::{
-    Block, BlockArg, Function as ClifFunction, InstBuilder, Signature, StackSlotData,
-    StackSlotKind, Value as ClifValue, types as clif_types,
+    Block, BlockArg, Function as ClifFunction, InstBuilder, Signature, Value as ClifValue,
+    types as clif_types,
 };
 use cranelift_codegen::isa::TargetFrontendConfig;
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Variable};
 use cranelift_module::{FuncId, Module as ClifModule};
 use std::collections::HashMap;
 
+use super::alloc_tier::{self, TierFrame};
 use super::inst_binop::{compile_binop, compile_unop};
 use super::inst_call::{compile_call, compile_method_call};
 use super::types::{FunctionCompileCtx, ModuleDecls, RuntimeIds, clif_type};
@@ -177,6 +178,12 @@ pub fn compile_all_functions<M: ClifModule>(
             var_map.insert(p_name.clone(), var);
         }
 
+        // v1.4.0 allocator tiers. The prologue is emitted inside the block
+        // loop, right after the entry block is switched to
+        // (switch_to_block requires the previous position to be pristine or
+        // filled); see alloc_tier for the frame/checkpoint design.
+        let mut tier_frame = TierFrame::none();
+
         for b in &f.blocks {
             let current_clif_block = *block_map.get(&b.id).ok_or_else(|| {
                 format!(
@@ -185,6 +192,10 @@ pub fn compile_all_functions<M: ClifModule>(
                 )
             })?;
             builder.switch_to_block(current_clif_block);
+
+            if b.id == f.entry_block {
+                tier_frame = alloc_tier::emit_prologue(&mut builder, module, runtime, f);
+            }
 
             for inst in &b.instructions {
                 match inst {
@@ -461,16 +472,43 @@ pub fn compile_all_functions<M: ClifModule>(
                                     })
                             });
                         let byte_size = fields.len().saturating_mul(8).max(16) as u32;
-                        let slot_addr = if !escapes {
-                            let slot_data =
-                                StackSlotData::new(StackSlotKind::ExplicitSlot, byte_size, 3);
-                            let slot = builder.create_sized_stack_slot(slot_data);
-                            builder.ins().stack_addr(clif_types::I64, slot, 0)
+                        // v1.4.0 allocation decision tree (see alloc_tier):
+                        // StrBuf -> runtime builder; @pool -> slab slot with
+                        // the capacity trap (it takes priority over stack
+                        // promotion, which would bypass slot accounting);
+                        // non-escaping -> stack slot; @arena -> frame bump
+                        // allocation; otherwise -> malloc.
+                        let strbuf = class_name == "StrBuf";
+                        let pooled = tier_frame.pool_state.is_some()
+                            && (byte_size as i64) <= alloc_tier::POOL_SLOT_SIZE;
+                        let slot_addr = if strbuf || pooled || !escapes {
+                            if strbuf || pooled {
+                                alloc_tier::emit_escaping_alloc(
+                                    &mut builder,
+                                    module,
+                                    runtime,
+                                    string_literal_map,
+                                    &tier_frame,
+                                    malloc_id,
+                                    f,
+                                    class_name,
+                                    byte_size,
+                                )
+                            } else {
+                                alloc_tier::emit_stack_slot_alloc(&mut builder, byte_size)
+                            }
                         } else {
-                            let malloc_ref = module.declare_func_in_func(malloc_id, builder.func);
-                            let size_val = builder.ins().iconst(clif_types::I64, byte_size as i64);
-                            let call_inst = builder.ins().call(malloc_ref, &[size_val]);
-                            builder.inst_results(call_inst)[0]
+                            alloc_tier::emit_escaping_alloc(
+                                &mut builder,
+                                module,
+                                runtime,
+                                string_literal_map,
+                                &tier_frame,
+                                malloc_id,
+                                f,
+                                class_name,
+                                byte_size,
+                            )
                         };
                         let flags = cranelift_codegen::ir::MachMemFlags::new();
                         for (idx, (fname, fval)) in fields.iter().enumerate() {
@@ -961,6 +999,9 @@ pub fn compile_all_functions<M: ClifModule>(
                     }
                 }
                 Terminator::Return { value } => {
+                    // v1.4.0: @arena/@pool frames reclaim their region
+                    // wholesale on return (one checkpoint restore).
+                    alloc_tier::emit_return_reset(&mut builder, module, runtime, &tier_frame);
                     if f.return_type == "Unit" {
                         builder.ins().return_(&[]);
                     } else if f.return_type == "Float" {

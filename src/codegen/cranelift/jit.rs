@@ -305,6 +305,12 @@ unsafe extern "C" {
     pub fn datara_rt_arena_alloc(bytes: i64) -> *mut ();
     pub fn datara_rt_arena_checkpoint() -> i64;
     pub fn datara_rt_arena_reset(saved_top: i64);
+    pub fn datara_rt_strbuf_new() -> *mut ();
+    pub fn datara_rt_strbuf_push(sb: *mut (), s: *const c_char) -> *mut ();
+    pub fn datara_rt_strbuf_push_int(sb: *mut (), v: i64) -> *mut ();
+    pub fn datara_rt_strbuf_join(sb: *mut ()) -> *const c_char;
+    pub fn datara_rt_strbuf_len(sb: *mut ()) -> i64;
+    pub fn datara_rt_heap_live() -> i64;
     pub fn datara_rt_free(ptr: *mut ());
     pub fn datara_rt_str_free(s: *const c_char);
     pub fn datara_rt_list_free(list: *mut ());
@@ -761,6 +767,12 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_arena_alloc", datara_rt_arena_alloc);
     reg!("datara_rt_arena_checkpoint", datara_rt_arena_checkpoint);
     reg!("datara_rt_arena_reset", datara_rt_arena_reset);
+    reg!("datara_rt_strbuf_new", datara_rt_strbuf_new);
+    reg!("datara_rt_strbuf_push", datara_rt_strbuf_push);
+    reg!("datara_rt_strbuf_push_int", datara_rt_strbuf_push_int);
+    reg!("datara_rt_strbuf_join", datara_rt_strbuf_join);
+    reg!("datara_rt_strbuf_len", datara_rt_strbuf_len);
+    reg!("datara_rt_heap_live", datara_rt_heap_live);
     reg!("datara_rt_free", datara_rt_free);
     reg!("datara_rt_str_free", datara_rt_str_free);
     reg!("datara_rt_list_free", datara_rt_list_free);

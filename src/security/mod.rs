@@ -1061,7 +1061,28 @@ impl<'a> SecurityVerifier<'a> {
                 self.verify_stmt(catch_block, &mut catch_ctx, diag);
             }
             Stmt::Break(_) | Stmt::Continue(_) => {}
-            Stmt::Asm { .. } => {}
+            Stmt::Asm {
+                structured, span, ..
+            } => {
+                // v1.4.0: structured asm blocks (even the safe subset) are
+                // raw register manipulation and therefore require an
+                // explicit unsafe(justification: "...") enclosure, exactly
+                // like foreign calls. Legacy asm! template blocks keep
+                // their existing contract.
+                if !structured.is_empty() {
+                    let justified = match &ctx.unsafe_justification {
+                        Some(j) => !j.trim().is_empty(),
+                        None => false,
+                    };
+                    if !justified {
+                        diag.error(
+                            ErrorCode::AsmRequiresUnsafe,
+                            "Security Violation: structured 'asm' block requires an 'unsafe(justification: \"...\")' block".to_string(),
+                            Some(span.clone()),
+                        );
+                    }
+                }
+            }
         }
     }
 }

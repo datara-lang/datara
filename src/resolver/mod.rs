@@ -431,9 +431,53 @@ impl Resolver {
             );
         }
 
+        // v1.4.0: StrBuf prelude class so `StrBuf { }` initializations and
+        // `sb.push(...)` method calls resolve before the type checker's
+        // prelude tables take over typing.
+        let strbuf_methods: HashMap<String, Symbol> = ["new", "push", "push_int", "join", "len"]
+            .iter()
+            .map(|m| {
+                (
+                    m.to_string(),
+                    Symbol {
+                        name: m.to_string(),
+                        kind: SymbolKind::Method,
+                        is_mut: false,
+                        is_export: true,
+                        span: SourceSpan::default(),
+                        fields: HashMap::new(),
+                        methods: HashMap::new(),
+                        base_type: None,
+                        compositions: Vec::new(),
+                        generic_params: Vec::new(),
+                        type_node: None,
+                        return_type: None,
+                    },
+                )
+            })
+            .collect();
+        let strbuf_sym = Symbol {
+            name: "StrBuf".to_string(),
+            kind: SymbolKind::Class,
+            is_mut: false,
+            is_export: true,
+            span: SourceSpan::default(),
+            fields: HashMap::new(),
+            methods: strbuf_methods,
+            base_type: None,
+            compositions: Vec::new(),
+            generic_params: Vec::new(),
+            type_node: None,
+            return_type: None,
+        };
+        global_scope.define("StrBuf".to_string(), strbuf_sym.clone());
+
+        let mut classes: HashMap<String, Symbol> = HashMap::new();
+        classes.insert("StrBuf".to_string(), strbuf_sym);
+
         Self {
             scopes: vec![global_scope],
-            classes: HashMap::new(),
+            classes,
             components: HashMap::new(),
             roles: HashMap::new(),
             traits: HashMap::new(),

@@ -318,6 +318,10 @@ pub(super) fn run_check_pipeline(
     // `#[inline]` attributes and `#[inline(always)]` on extern declarations
     // exactly like the compile pipeline does.
     crate::optimizer::inline_attr::validate_inline_attributes(&program, diag);
+    // v1.4.0: allocator-tier (@arena/@pool) and structured asm validation
+    // run before lowering so bad attributes never reach codegen.
+    crate::optimizer::alloc_attr::validate_alloc_attributes(&program, diag);
+    crate::optimizer::asm_safe::validate_asm_blocks(&program, diag);
     if diag.has_errors() {
         timings.total_ms = total_start.elapsed().as_millis();
         let d_str = diag.format_all();
@@ -495,6 +499,10 @@ pub(super) fn run_analysis_and_lower<R>(
     // Running this before lowering guarantees every hint the lowering stored
     // is well-formed.
     crate::optimizer::inline_attr::validate_inline_attributes(&program, diag);
+    // v1.4.0: allocator-tier (@arena/@pool) and structured asm validation
+    // run before lowering so bad attributes never reach codegen.
+    crate::optimizer::alloc_attr::validate_alloc_attributes(&program, diag);
+    crate::optimizer::asm_safe::validate_asm_blocks(&program, diag);
     if diag.has_errors() {
         timings.total_ms = total_start.elapsed().as_millis();
         let d_str = diag.format_all();
@@ -739,6 +747,54 @@ pub(super) fn run_analysis_and_lower<R>(
         );
     }
     timings.optimizer_ms = opt_start.elapsed().as_millis();
+
+    // 9b. v1.4.0: structured asm blocks are Cranelift-only. The LLVM and
+    // WASM backends reject asm-bearing functions with E1405, so the choice
+    // of backend can never silently change asm semantics.
+    {
+        let wasm_target = compiler
+            .target_triple
+            .as_deref()
+            .map(|t| t.contains("wasm"))
+            .unwrap_or(false);
+        if compiler.use_llvm || wasm_target {
+            let offenders: Vec<crate::diagnostics::Diagnostic> = dmir_module
+                .functions
+                .values()
+                .filter(|f| f.has_inline_asm)
+                .map(|f| {
+                    crate::diagnostics::Diagnostic::error(
+                        crate::diagnostics::ErrorCode::AsmUnsupportedBackend,
+                        format!(
+                            "function '{}': structured 'asm' blocks are only supported on the Cranelift backend; rebuild without --llvm/--target=wasm",
+                            f.name
+                        ),
+                        dmir_module.function_spans.get(&f.name).cloned(),
+                    )
+                })
+                .collect();
+            if !offenders.is_empty() {
+                let msg = offenders[0].message.clone();
+                let rendered = offenders
+                    .iter()
+                    .map(|d| {
+                        format!(
+                            "error[{}] at {:?}: {}
+",
+                            d.code, d.span, d.message
+                        )
+                    })
+                    .collect::<String>();
+                return Err(CompilationResult::failure_with_diagnostics(
+                    msg.clone(),
+                    rendered,
+                    offenders,
+                    Some(program),
+                    timings,
+                ));
+            }
+        }
+    }
 
     // 10. Proof-Carrying Scheduler: Precompute ScheduleProof DAG and Kahn waves
     let schedule_proof = Some(std::sync::Arc::new(crate::schedule::ScheduleProof::build(

@@ -457,6 +457,17 @@ void        datara_rt_free(void* ptr);
 void        datara_rt_str_free(const char* s);
 void        datara_rt_list_free(void* list);
 
+// v1.4.0: live count over the runtime's managed (pool-class) allocator.
+int64_t     datara_rt_heap_live(void);
+
+// v1.4.0 StrBuf: growable string builder (amortized doubling).
+void*       datara_rt_strbuf_new(void);
+void*       datara_rt_strbuf_push(void* sb, const char* s);
+void*       datara_rt_strbuf_push_int(void* sb, int64_t v);
+const char* datara_rt_strbuf_join(void* sb);
+int64_t     datara_rt_strbuf_len(void* sb);
+void        datara_rt_strbuf_free(void* sb);
+
 // ============================================================================
 // 3-Tier Zero-Lock Allocator (v1.2.0 Phase 4)
 // ============================================================================

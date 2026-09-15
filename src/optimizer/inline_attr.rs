@@ -139,6 +139,18 @@ impl Optimizer {
             if name == "main" || f.inline_hint != InlineHint::Always {
                 continue;
             }
+            // v1.4.0: @arena/@pool and asm frames stay outline.
+            if f.alloc_hint != crate::dmir::ArenaHint::None || f.has_inline_asm {
+                self.trace.record(
+                    "InlineAlways",
+                    name,
+                    "Rejected",
+                    "None",
+                    "None",
+                    "allocator-tier or asm-bearing function keeps outline dispatch",
+                );
+                continue;
+            }
             if f.blocks.len() != 1 {
                 self.trace.record(
                     "InlineAlways",

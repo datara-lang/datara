@@ -390,6 +390,21 @@ impl Optimizer {
                 );
                 continue;
             }
+            // v1.4.0: allocator-tier and asm frames keep outline dispatch.
+            // Splicing an @arena/@pool body into a caller would move its
+            // region routing to a frame that never reset it; an asm-bearing
+            // body is rejected outright by the LLVM/WASM backends.
+            if f.alloc_hint != crate::dmir::ArenaHint::None || f.has_inline_asm {
+                self.trace.record(
+                    "Inlining",
+                    name,
+                    "Rejected",
+                    "None",
+                    "None",
+                    "allocator-tier (@arena/@pool) or asm-bearing functions keep outline dispatch",
+                );
+                continue;
+            }
             if f.blocks.len() == 1 {
                 let inst_count = f.blocks[0].instructions.len();
                 let is_inst_pure = f.blocks[0].instructions.iter().all(|i| {

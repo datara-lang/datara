@@ -10,7 +10,15 @@ impl<'a> Parser<'a> {
                 let mut args = Vec::new();
                 if self.match_token(&TokenType::LParen) {
                     while !self.check(&TokenType::RParen) && !self.is_at_end() {
-                        if let Some(arg_name) =
+                        if let TokenType::IntLiteral(n) = &self.peek().token_type {
+                            // v1.4.0: a bare integer argument (e.g.
+                            // `@pool(64)`) is stored as ("64", "") so
+                            // positional attribute arguments keep the
+                            // first-element-is-the-token convention.
+                            let literal = n.to_string();
+                            self.advance();
+                            args.push((literal, String::new()));
+                        } else if let Some(arg_name) =
                             self.consume_ident_or_keyword("Expected argument name")
                         {
                             let mut val = String::new();

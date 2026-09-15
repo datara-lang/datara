@@ -1112,19 +1112,24 @@ impl<'a> Lowering<'a> {
             Stmt::Asm {
                 instructions,
                 options,
+                structured,
                 ..
             } => {
-                let template = instructions.join("; ");
-                self.get_block_mut(cur_block)
-                    .instructions
-                    .push(Inst::InlineAsm {
-                        template,
-                        outputs: Vec::new(),
-                        inputs: Vec::new(),
-                        clobbers: Vec::new(),
-                        options: options.clone(),
-                    });
-                (cur_block, None)
+                if !structured.is_empty() {
+                    super::asm::lower_structured_asm(self, structured, cur_block)
+                } else {
+                    let template = instructions.join("; ");
+                    self.get_block_mut(cur_block)
+                        .instructions
+                        .push(Inst::InlineAsm {
+                            template,
+                            outputs: Vec::new(),
+                            inputs: Vec::new(),
+                            clobbers: Vec::new(),
+                            options: options.clone(),
+                        });
+                    (cur_block, None)
+                }
             }
         }
     }

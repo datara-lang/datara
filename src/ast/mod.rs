@@ -8,6 +8,245 @@ pub struct Attribute {
     pub span: SourceSpan,
 }
 
+/// v1.4.0: the four x86-64 general-purpose scratch registers the structured
+/// `asm { ... }` safe subset supports. The 32-bit aliases (`eax`..`edx`)
+/// lex to the same 64-bit register: the whole subset is Int (i64) typed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AsmReg {
+    Ax,
+    Bx,
+    Cx,
+    Dx,
+}
+
+impl AsmReg {
+    /// Maps a register name (Intel, 32- or 64-bit spelling) to its slot.
+    pub fn from_name(name: &str) -> Option<AsmReg> {
+        match name {
+            "rax" | "eax" | "ax" => Some(AsmReg::Ax),
+            "rbx" | "ebx" | "bx" => Some(AsmReg::Bx),
+            "rcx" | "ecx" | "cx" => Some(AsmReg::Cx),
+            "rdx" | "edx" | "dx" => Some(AsmReg::Dx),
+            _ => None,
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            AsmReg::Ax => "rax",
+            AsmReg::Bx => "rbx",
+            AsmReg::Cx => "rcx",
+            AsmReg::Dx => "rdx",
+        }
+    }
+
+    pub fn slot(&self) -> usize {
+        match self {
+            AsmReg::Ax => 0,
+            AsmReg::Bx => 1,
+            AsmReg::Cx => 2,
+            AsmReg::Dx => 3,
+        }
+    }
+}
+
+/// v1.4.0: one operand of a structured asm line.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AsmOperand {
+    Reg(AsmReg),
+    /// A Datara variable in scope. Must be Int (E1403 otherwise).
+    Var(String, SourceSpan),
+    /// Integer immediate.
+    Imm(i64),
+}
+
+/// v1.4.0: mnemonics of the structured asm safe subset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AsmOp {
+    Mov,
+    Add,
+    Sub,
+}
+
+/// v1.4.0: a single line of a structured `asm { ... }` block.
+///
+/// Well-formed lines inside the safe subset parse to `Inst`; anything else
+/// (unknown mnemonic, memory operands, floating-point, unparsable text) is
+/// kept as `Unsupported` so the driver-level validation can reject it with
+/// E1402 instead of a generic syntax error.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AsmLine {
+    Inst {
+        op: AsmOp,
+        dst: AsmOperand,
+        src: AsmOperand,
+        span: SourceSpan,
+    },
+    Unsupported {
+        raw: String,
+        span: SourceSpan,
+    },
+}
+
+impl AsmLine {
+    pub fn span(&self) -> &SourceSpan {
+        match self {
+            AsmLine::Inst { span, .. } | AsmLine::Unsupported { span, .. } => span,
+        }
+    }
+}
+
+/// True when the statement tree contains any `asm`/`asm!` block (structured
+/// or legacy template).
+pub fn stmt_contains_asm(stmt: &Stmt) -> bool {
+    stmt_has_asm_kind(stmt, false)
+}
+
+/// True when the statement tree contains a structured `asm { ... }` block.
+/// Used to set the DMIR `Function::has_inline_asm` marker that non-Cranelift
+/// backends reject with E1405. Legacy `asm!` template blocks keep their
+/// existing LLVM-only contract and do NOT set the marker.
+pub fn stmt_contains_structured_asm(stmt: &Stmt) -> bool {
+    stmt_has_asm_kind(stmt, true)
+}
+
+fn stmt_has_asm_kind(stmt: &Stmt, structured_only: bool) -> bool {
+    match stmt {
+        Stmt::Asm { structured, .. } => !structured_only || !structured.is_empty(),
+        Stmt::Block(stmts, _) => stmts.iter().any(|s| stmt_has_asm_kind(s, structured_only)),
+        Stmt::Let { init, .. }
+        | Stmt::Mut { init, .. }
+        | Stmt::Const { init, .. }
+        | Stmt::Val { init, .. }
+        | Stmt::CompactBind { init, .. } => expr_has_asm_kind(init, structured_only),
+        Stmt::Assign { target, value, .. } => {
+            expr_has_asm_kind(target, structured_only) || expr_has_asm_kind(value, structured_only)
+        }
+        Stmt::Expr(e, _) | Stmt::Out(e, _) | Stmt::Err(e, _) => {
+            expr_has_asm_kind(e, structured_only)
+        }
+        Stmt::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            expr_has_asm_kind(condition, structured_only)
+                || stmt_has_asm_kind(then_branch, structured_only)
+                || else_branch
+                    .as_ref()
+                    .is_some_and(|b| stmt_has_asm_kind(b, structured_only))
+        }
+        Stmt::For { iterable, body, .. } | Stmt::ParallelFor { iterable, body, .. } => {
+            expr_has_asm_kind(iterable, structured_only) || stmt_has_asm_kind(body, structured_only)
+        }
+        Stmt::While {
+            condition, body, ..
+        } => {
+            expr_has_asm_kind(condition, structured_only)
+                || stmt_has_asm_kind(body, structured_only)
+        }
+        Stmt::Loop { body, .. } | Stmt::Parallel(body, _) | Stmt::Unsafe { body, .. } => {
+            stmt_has_asm_kind(body, structured_only)
+        }
+        Stmt::TryCatch {
+            try_block,
+            catch_block,
+            ..
+        } => {
+            stmt_has_asm_kind(try_block, structured_only)
+                || stmt_has_asm_kind(catch_block, structured_only)
+        }
+        Stmt::With { init, body, .. } => {
+            expr_has_asm_kind(init, structured_only) || stmt_has_asm_kind(body, structured_only)
+        }
+        Stmt::Return(Some(e), _) => expr_has_asm_kind(e, structured_only),
+        Stmt::Break(_) | Stmt::Continue(_) | Stmt::Return(None, _) => false,
+    }
+}
+
+fn expr_has_asm_kind(expr: &Expr, structured_only: bool) -> bool {
+    match expr {
+        Expr::Block(stmts, trailing, _) => {
+            stmts.iter().any(|s| stmt_has_asm_kind(s, structured_only))
+                || trailing
+                    .as_ref()
+                    .is_some_and(|t| expr_has_asm_kind(t, structured_only))
+        }
+        Expr::Binary { left, right, .. } => {
+            expr_has_asm_kind(left, structured_only) || expr_has_asm_kind(right, structured_only)
+        }
+        Expr::Unary { expr, .. }
+        | Expr::ErrorPropagate(expr, _)
+        | Expr::Wrapping(expr, _)
+        | Expr::Saturating(expr, _)
+        | Expr::Comptime { expr, .. } => expr_has_asm_kind(expr, structured_only),
+        Expr::Call { callee, args, .. } => {
+            expr_has_asm_kind(callee, structured_only)
+                || args.iter().any(|a| expr_has_asm_kind(a, structured_only))
+        }
+        Expr::MemberAccess { object, .. } => expr_has_asm_kind(object, structured_only),
+        Expr::IndexAccess { object, index, .. } => {
+            expr_has_asm_kind(object, structured_only) || expr_has_asm_kind(index, structured_only)
+        }
+        Expr::Range { start, end, .. } => {
+            expr_has_asm_kind(start, structured_only) || expr_has_asm_kind(end, structured_only)
+        }
+        Expr::Tuple(exprs, _) | Expr::ListLiteral(exprs, _) => {
+            exprs.iter().any(|e| expr_has_asm_kind(e, structured_only))
+        }
+        Expr::MapLiteral(entries, _) => entries.iter().any(|(k, v)| {
+            expr_has_asm_kind(k, structured_only) || expr_has_asm_kind(v, structured_only)
+        }),
+        Expr::ObjectInit { fields, .. } => fields
+            .iter()
+            .any(|(_, e)| expr_has_asm_kind(e, structured_only)),
+        Expr::Pipeline { stages, .. } => {
+            stages.iter().any(|e| expr_has_asm_kind(e, structured_only))
+        }
+        Expr::InterpolatedString { expressions, .. } => expressions
+            .iter()
+            .any(|e| expr_has_asm_kind(e, structured_only)),
+        Expr::Decide { arms, else_arm, .. } => {
+            arms.iter().any(|a| {
+                expr_has_asm_kind(&a.condition, structured_only)
+                    || expr_has_asm_kind(&a.body, structured_only)
+            }) || else_arm
+                .as_ref()
+                .is_some_and(|e| expr_has_asm_kind(e, structured_only))
+        }
+        Expr::Match { value, arms, .. } => {
+            expr_has_asm_kind(value, structured_only)
+                || arms.iter().any(|a| {
+                    a.guard
+                        .as_ref()
+                        .is_some_and(|g| expr_has_asm_kind(g, structured_only))
+                        || expr_has_asm_kind(&a.body, structured_only)
+                })
+        }
+        Expr::Select { arms, else_arm, .. } => {
+            arms.iter().any(|a| {
+                expr_has_asm_kind(&a.condition, structured_only)
+                    || expr_has_asm_kind(&a.body, structured_only)
+            }) || else_arm
+                .as_ref()
+                .is_some_and(|e| expr_has_asm_kind(e, structured_only))
+        }
+        Expr::Lambda { body, .. } => expr_has_asm_kind(body, structured_only),
+        Expr::OrRecovery { expr, arms, .. } => {
+            expr_has_asm_kind(expr, structured_only)
+                || arms.iter().any(|a| {
+                    a.guard
+                        .as_ref()
+                        .is_some_and(|g| expr_has_asm_kind(g, structured_only))
+                        || expr_has_asm_kind(&a.body, structured_only)
+                })
+        }
+        Expr::ArrayRepeatLiteral { elem, .. } => expr_has_asm_kind(elem, structured_only),
+        Expr::Literal(..) | Expr::Identifier(..) => false,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BitFieldRange {
     Single(usize),
@@ -466,6 +705,11 @@ pub enum Stmt {
     Asm {
         instructions: Vec<String>,
         options: Vec<String>,
+        /// v1.4.0: structured safe-subset lines parsed from an `asm { ... }`
+        /// block. Legacy `asm!` template blocks keep this empty and stay on
+        /// the raw-template path (LLVM only).
+        #[serde(default)]
+        structured: Vec<AsmLine>,
         span: SourceSpan,
     },
     Return(Option<Expr>, SourceSpan),
@@ -1127,4 +1371,9 @@ pub fn is_contract_statically_true(
         }
         _ => false,
     }
+}
+
+/// True when the expression tree contains any `asm` block.
+pub fn expr_contains_asm(expr: &Expr) -> bool {
+    expr_has_asm_kind(expr, false)
 }

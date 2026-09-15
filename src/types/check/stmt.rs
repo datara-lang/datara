@@ -727,7 +727,32 @@ impl<'a> TypeChecker<'a> {
                 self.check_stmt(body, diag);
                 DataraType::Unit
             }
-            Stmt::Asm { .. } => DataraType::Unit,
+            Stmt::Asm { structured, .. } => {
+                // v1.4.0: every variable operand of a structured asm block
+                // must be Int (i64); registers and immediates are typed by
+                // the subset itself.
+                for line in structured {
+                    if let crate::ast::AsmLine::Inst { dst, src, .. } = line {
+                        for opnd in [dst, src] {
+                            if let crate::ast::AsmOperand::Var(name, vspan) = opnd {
+                                if let Some(t) = self.symbol_types.get(name) {
+                                    if !matches!(t, DataraType::Int) {
+                                        diag.error(
+                                            ErrorCode::AsmOperandNotInt,
+                                            format!(
+                                                "asm operand '{}' has type {:?}; asm blocks accept only Int (i64) variables",
+                                                name, t
+                                            ),
+                                            Some(vspan.clone()),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                DataraType::Unit
+            }
         }
     }
 

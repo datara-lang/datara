@@ -519,6 +519,17 @@ pub fn declare_module_symbols<M: ClifModule>(
             }
         }
     }
+    // v1.4.0: the @pool capacity trap message must be in the string table
+    // whenever a pool function can reach the backend trap path.
+    if dmir_module
+        .functions
+        .values()
+        .any(|f| matches!(f.alloc_hint, crate::dmir::ArenaHint::Pool(_)))
+        && !string_literal_map.contains_key(super::alloc_tier::POOL_OVERFLOW_MSG)
+    {
+        let id = add_str_literal(super::alloc_tier::POOL_OVERFLOW_MSG, module)?;
+        string_literal_map.insert(super::alloc_tier::POOL_OVERFLOW_MSG.to_string(), id);
+    }
     for s in all_literals {
         if !string_literal_map.contains_key(&s) {
             let id = add_str_literal(&s, module)?;
