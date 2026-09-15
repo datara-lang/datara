@@ -18,6 +18,9 @@ pub struct Resolver {
     pub type_aliases: HashMap<String, TypeDecl>,
     pub enums: HashMap<String, EnumDecl>,
     pub current_target_type: Option<String>,
+    /// v1.3.3: module namespace aliases (`use path as alias`) so qualified
+    /// callee objects (`alias.func()`) resolve without "undefined symbol".
+    pub module_aliases: std::collections::HashMap<String, Vec<String>>,
 }
 
 impl Default for Resolver {
@@ -440,6 +443,7 @@ impl Resolver {
             type_aliases: HashMap::new(),
             enums: HashMap::new(),
             current_target_type: None,
+            module_aliases: std::collections::HashMap::new(),
         }
     }
 

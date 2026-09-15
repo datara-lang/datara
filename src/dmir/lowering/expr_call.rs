@@ -470,6 +470,35 @@ impl<'a> Lowering<'a> {
         }
 
         if let Expr::MemberAccess { object, member, .. } = callee {
+            // v1.3.3 namespace-qualified calls: `alias.func(args)` where
+            // `alias` names an imported module lowers to a plain call of
+            // the module's function (modules are inlined at load time).
+            if let Expr::Identifier(ns_name, _) = &**object {
+                if self
+                    .module_alias_functions
+                    .get(ns_name)
+                    .map(|funcs| funcs.contains(member))
+                    .unwrap_or(false)
+                {
+                    let mut arg_vals = Vec::new();
+                    for a in args {
+                        if let Some(av) = self.lower_expr(a, cur_block) {
+                            arg_vals.push(av);
+                        }
+                    }
+                    let dest = self.next_val();
+                    let ret_ty = self.infer_fn_ret_ty(member);
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest,
+                            func: member.clone(),
+                            args: arg_vals,
+                            ty: ret_ty,
+                        });
+                    return Some(dest);
+                }
+            }
             if let Expr::Identifier(class_name, _) = &**object {
                 let enum_key = format!("{}.{}", class_name, member);
                 if let Some(&tag) = self.enum_variant_tags.get(&enum_key) {

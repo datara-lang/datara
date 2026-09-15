@@ -237,6 +237,12 @@ impl Resolver {
                 } else {
                     name.as_str()
                 };
+                // v1.3.3: a module namespace alias (`use path as alias`) is
+                // a valid qualifier for member calls (`alias.func(...)`) and
+                // must not be reported as an undefined symbol.
+                if self.module_aliases.contains_key(lookup_name) {
+                    return;
+                }
                 if let Some(sym) = self.resolve_symbol(lookup_name) {
                     if !sym.is_export
                         && !sym.span.file.is_empty()

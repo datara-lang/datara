@@ -26,6 +26,8 @@ pub struct Lowering<'a> {
     pub current_fn_name: String,
     pub local_var_types: HashMap<String, DataraType>,
     pub enum_variant_tags: HashMap<String, i64>,
+    /// v1.3.3: module namespace aliases for qualified calls `alias.func()`.
+    pub module_alias_functions: HashMap<String, Vec<String>>,
     pub enum_variant_names: HashMap<i64, String>,
     pub enum_slots: HashMap<String, Vec<String>>,
     pub current_line_spans: Vec<crate::diagnostics::SourceSpan>,
@@ -367,6 +369,7 @@ impl<'a> Lowering<'a> {
             current_fn_name: String::new(),
             local_var_types: HashMap::new(),
             enum_variant_tags: HashMap::new(),
+            module_alias_functions: HashMap::new(),
             enum_variant_names: HashMap::new(),
             enum_slots: HashMap::new(),
             current_line_spans: Vec::new(),
@@ -505,6 +508,11 @@ impl<'a> Lowering<'a> {
     pub fn lower_program(&mut self, program: &Program, name: &str) -> Module {
         let mut module = Module::new(name);
         module.link_libraries = program.link_libraries.clone();
+        self.module_alias_functions = program
+            .module_aliases
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
 
         for decl in &program.declarations {
             if let Decl::Class(c) = decl {

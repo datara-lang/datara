@@ -140,6 +140,7 @@ impl<'a> Parser<'a> {
             attributes: file_attributes,
             file: self.file.clone(),
             link_libraries: Vec::new(),
+            module_aliases: std::collections::HashMap::new(),
         }
     }
 }

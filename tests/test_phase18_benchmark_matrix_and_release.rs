@@ -239,7 +239,7 @@ fn test_cargo_toml_version_invariant() {
     let minor: u64 = parts.next().unwrap_or("").parse().unwrap_or(0);
     let _patch: u64 = parts.next().unwrap_or("").parse().unwrap_or(0);
     assert!(
-        major >= 1 && minor >= 0,
+        major >= 1,
         "Cargo.toml version must be a valid 1.x.y semver (found: {})",
         version_line
     );

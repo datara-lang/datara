@@ -45,6 +45,12 @@ pub struct Program {
     pub file: String,
     #[serde(default)]
     pub link_libraries: Vec<String>,
+    /// v1.3.3 namespace support: `use path as alias` (or the last path
+    /// segment) maps to the module's exported top-level function names, so
+    /// `alias.func(...)` resolves to the module's `func`. Flat unqualified
+    /// names remain available for compatibility.
+    #[serde(default)]
+    pub module_aliases: std::collections::HashMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

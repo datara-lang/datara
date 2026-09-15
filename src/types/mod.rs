@@ -486,6 +486,10 @@ pub struct TypeChecker<'a> {
     pub impls: HashMap<(String, String), ImplBlock>,
     pub trait_bounds: HashMap<String, Vec<String>>,
     pub current_target_type: Option<String>,
+    /// v1.3.3: module namespace aliases (`use path as alias`), populated
+    /// from Program::module_aliases at check_program time. Maps alias ->
+    /// exported function names for qualified `alias.func(...)` calls.
+    pub program_module_aliases: HashMap<String, Vec<String>>,
     /// Current expression recursion depth. Incremented on every `check_expr`
     /// entry, decremented on exit. When it exceeds `MAX_EXPR_DEPTH` the
     /// checker emits E0999 and returns immediately to prevent stack overflow.

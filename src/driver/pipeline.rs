@@ -286,6 +286,7 @@ pub(super) fn parse_multi_sources(
         attributes: combined_attributes,
         file: main_file.to_string(),
         link_libraries: Vec::new(),
+        module_aliases: HashMap::new(),
     };
     Ok((combined_program, timings))
 }
@@ -316,6 +317,7 @@ pub(super) fn run_check_pipeline(
     // 2. Resolver
     let res_start = Instant::now();
     let mut resolver = Resolver::new();
+    resolver.module_aliases = program.module_aliases.clone();
     resolver.resolve_program(&program, diag);
     timings.resolve_ms = res_start.elapsed().as_millis();
     if diag.has_errors() {
@@ -327,6 +329,7 @@ pub(super) fn run_check_pipeline(
     // 3. Type Checker
     let tc_start = Instant::now();
     let mut type_checker = TypeChecker::new(&resolver);
+    type_checker.program_module_aliases = program.module_aliases.clone();
     type_checker.check_program(&program, diag);
     timings.typecheck_ms = tc_start.elapsed().as_millis();
     if diag.has_errors() {
@@ -479,6 +482,7 @@ pub(super) fn run_analysis_and_lower<R>(
     // 3. Resolver
     let res_start = Instant::now();
     let mut resolver = Resolver::new();
+    resolver.module_aliases = program.module_aliases.clone();
     resolver.resolve_program(&program, diag);
     timings.resolve_ms = res_start.elapsed().as_millis();
     if diag.has_errors() {
@@ -495,6 +499,7 @@ pub(super) fn run_analysis_and_lower<R>(
     // 4. Type Checker
     let tc_start = Instant::now();
     let mut type_checker = TypeChecker::new(&resolver);
+    type_checker.program_module_aliases = program.module_aliases.clone();
     type_checker.check_program(&program, diag);
     timings.typecheck_ms = tc_start.elapsed().as_millis();
     if diag.has_errors() {

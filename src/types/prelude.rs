@@ -1246,6 +1246,7 @@ impl<'a> TypeChecker<'a> {
             impls: HashMap::new(),
             trait_bounds: HashMap::new(),
             current_target_type: None,
+            program_module_aliases: HashMap::new(),
             expr_depth: 0,
             loop_depth: 0,
         }

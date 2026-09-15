@@ -946,6 +946,48 @@ impl ForgenCompiler {
                 let mut parser = Parser::new(tokens, diag, &name);
                 let sub = parser.parse_program();
 
+                // v1.3.3 namespace aliases: bind every `use X as A` (or last
+                // path segment) that resolves to THIS file to its exported
+                // function names, enabling qualified calls `A.func(...)`.
+                {
+                    let canon_file = file.canonicalize().unwrap_or_else(|_| file.clone());
+                    for u in program.declarations.iter().filter_map(|d| match d {
+                        Decl::Use(u) => Some(u),
+                        _ => None,
+                    }) {
+                        let alias = u
+                            .alias
+                            .clone()
+                            .or_else(|| u.path.last().cloned())
+                            .unwrap_or_default();
+                        if alias.is_empty() {
+                            continue;
+                        }
+                        let resolved = self
+                            .local_module_path(u, &base_dirs)
+                            .or_else(|| self.stdlib_module_path(u, stdlib_dir.as_deref()));
+                        let canon_resolved = resolved
+                            .and_then(|rp| rp.canonicalize().ok())
+                            .unwrap_or_default();
+                        if canon_resolved == canon_file {
+                            let exported: Vec<String> = sub
+                                .declarations
+                                .iter()
+                                .filter_map(|d| match d {
+                                    Decl::Function(f) if f.is_export => Some(f.name.clone()),
+                                    _ => None,
+                                })
+                                .collect();
+                            let entry = program.module_aliases.entry(alias).or_default();
+                            for name in exported {
+                                if !entry.contains(&name) {
+                                    entry.push(name);
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Record this file's imports for cycle detection.
                 let mut file_deps = Vec::new();
                 for decl in &sub.declarations {
@@ -1109,6 +1151,72 @@ impl ForgenCompiler {
                     };
                     if !is_dup {
                         program.declarations.push(d);
+                    } else {
+                        // v1.3.3: an ambiguous import is a correctness error,
+                        // not a silent last-wins drop. Two distinct source
+                        // modules exporting the same top-level name make any
+                        // unqualified use of that name undefined; the old
+                        // silent first-wins behavior hid real bugs.
+                        let (dup_name, dup_span) = match &d {
+                            Decl::Class(c) => (c.name.clone(), Some(c.span.clone())),
+                            Decl::Enum(e) => (e.name.clone(), Some(e.span.clone())),
+                            Decl::Function(f) => (f.name.clone(), Some(f.span.clone())),
+                            Decl::Component(c) => (c.name.clone(), None),
+                            Decl::Role(r) => (r.name.clone(), None),
+                            Decl::Trait(t) => (t.name.clone(), None),
+                            Decl::Type(td) => (td.name.clone(), None),
+                            _ => (String::new(), None),
+                        };
+                        if !dup_name.is_empty() {
+                            let existing_file = program.declarations.iter().find_map(|existing| {
+                                let sp = match existing {
+                                    Decl::Class(ec) => ec.name == dup_name,
+                                    Decl::Enum(ee) => ee.name == dup_name,
+                                    Decl::Function(ef) => ef.name == dup_name,
+                                    Decl::Component(ec) => ec.name == dup_name,
+                                    Decl::Role(er) => er.name == dup_name,
+                                    Decl::Trait(et) => et.name == dup_name,
+                                    Decl::Type(etd) => etd.name == dup_name,
+                                    _ => false,
+                                };
+                                if sp {
+                                    let f = match existing {
+                                        Decl::Class(ec) => Some(&ec.span.file),
+                                        Decl::Enum(ee) => Some(&ee.span.file),
+                                        Decl::Function(ef) => Some(&ef.span.file),
+                                        Decl::Component(ec) => Some(&ec.span.file),
+                                        Decl::Role(er) => Some(&er.span.file),
+                                        Decl::Trait(et) => Some(&et.span.file),
+                                        Decl::Type(etd) => Some(&etd.span.file),
+                                        _ => None,
+                                    };
+                                    f.map(|x| x.to_string())
+                                } else {
+                                    None
+                                }
+                            });
+                            let same_origin = existing_file
+                                .as_deref()
+                                .map(|ef| {
+                                    crate::diagnostics::is_same_file_or_module(ef, &d.span().file)
+                                })
+                                .unwrap_or(false);
+                            // Re-exporting the same underlying file through a
+                            // diamond import is fine; two different modules
+                            // exporting the same name is ambiguous.
+                            if !same_origin {
+                                diag.error(
+                                    ErrorCode::ResolveDuplicateSymbol,
+                                    format!(
+                                        "Ambiguous import: '{}' is exported by two different modules ({} and {}); qualify the name or rename one export",
+                                        dup_name,
+                                        existing_file.as_deref().unwrap_or("<current>"),
+                                        file.display()
+                                    ),
+                                    dup_span,
+                                );
+                            }
+                        }
                     }
                 }
             }
