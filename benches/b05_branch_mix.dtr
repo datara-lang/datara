@@ -1,0 +1,14 @@
+fn main() {
+    mut hot = 0
+    mut cold = 0
+    mut i = 0
+    while i < 20_000_000 {
+        if i % 2 == 0 {
+            hot = hot + 1
+        } else {
+            cold = cold + 1
+        }
+        i = i + 1
+    }
+    print(hot + cold)
+}

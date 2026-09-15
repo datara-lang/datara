@@ -1,5 +1,5 @@
 use super::*;
-use crate::dmir::{Function, Inst, Module, Terminator, ValueId};
+use crate::dmir::{Function, InlineHint, Inst, Module, Terminator, ValueId};
 use std::collections::{HashMap, HashSet};
 
 impl Optimizer {
@@ -377,6 +377,19 @@ impl Optimizer {
             if name == "main" {
                 continue;
             }
+            // v1.3.4: `@inline(never)` is a hard veto over the cost model —
+            // the user explicitly asked for outline dispatch.
+            if f.inline_hint == InlineHint::Never {
+                self.trace.record(
+                    "Inlining",
+                    name,
+                    "Rejected",
+                    "None",
+                    "None",
+                    "'@inline(never)' attribute forbids inlining",
+                );
+                continue;
+            }
             if f.blocks.len() == 1 {
                 let inst_count = f.blocks[0].instructions.len();
                 let is_inst_pure = f.blocks[0].instructions.iter().all(|i| {
@@ -458,6 +471,45 @@ impl Optimizer {
             return;
         }
 
+        let (_, inlined_set) = self.inline_candidates_into_callers(module, &candidates, false);
+
+        for (name, benefit, cost, reason) in candidate_records {
+            if inlined_set.contains(&name) {
+                self.trace
+                    .record("Inlining", &name, "Applied", &benefit, &cost, &reason);
+            } else {
+                self.trace.record(
+                    "Inlining",
+                    &name,
+                    "Rejected",
+                    &benefit,
+                    &cost,
+                    "Pure leaf function within budget, but no call sites were present in callers",
+                );
+            }
+        }
+    }
+
+    /// Splices every call site of the `candidates` functions into the
+    /// calling function's body.
+    ///
+    /// Shared by the cost-model inliner (`inline_pure_functions`) and the
+    /// `#[inline(always)]` forced inliner (`inline_attr`), so both paths use
+    /// one tested splicing implementation. `skip_if_callee_calls_caller`
+    /// adds a call-graph cycle guard for the forced path: a hint-marked
+    /// callee whose body calls back into the current caller is skipped,
+    /// because inlining it would recreate the call it came from (mutual
+    /// recursion must not become an inlining loop).
+    ///
+    /// Returns the number of call sites replaced and the set of callee
+    /// names that had at least one site replaced.
+    pub(crate) fn inline_candidates_into_callers(
+        &mut self,
+        module: &mut Module,
+        candidates: &HashMap<String, Function>,
+        skip_if_callee_calls_caller: bool,
+    ) -> (usize, HashSet<String>) {
+        let mut sites_inlined = 0usize;
         let mut inlined_set: HashSet<String> = HashSet::new();
 
         let mut caller_names: Vec<String> = module.functions.keys().cloned().collect();
@@ -534,6 +586,16 @@ impl Optimizer {
                             // An arity mismatch means this call resolves to
                             // something else; splicing would bind wrong params.
                             .filter(|c| c.params.len() == args.len())
+                            // Forced-inlining cycle guard: a callee whose body
+                            // calls the current caller would re-create the very
+                            // call being replaced.
+                            .filter(|c| {
+                                !skip_if_callee_calls_caller
+                                    || !c.blocks[0]
+                                        .instructions
+                                        .iter()
+                                        .any(|ci| matches!(ci, Inst::Call { func: f, .. } if f == caller_name))
+                            })
                             .map(|c| (*dest, c, args.clone())),
                         Inst::MethodCall {
                             dest,
@@ -560,6 +622,14 @@ impl Optimizer {
                                     candidates
                                         .get(method)
                                         .filter(|c| c.params.len() == all_args.len())
+                                })
+                                // Same cycle guard as the direct-call path.
+                                .filter(|c| {
+                                    !skip_if_callee_calls_caller
+                                        || !c.blocks[0]
+                                            .instructions
+                                            .iter()
+                                            .any(|ci| matches!(ci, Inst::Call { func: f, .. } if f == caller_name))
                                 });
                             callee.map(|c| (*dest, c, all_args))
                         }
@@ -656,6 +726,7 @@ impl Optimizer {
 
                         fresh_base += stride;
                         inlined_set.insert(callee.name.clone());
+                        sites_inlined += 1;
                         self.report.functions_inlined += 1;
                         continue;
                     }
@@ -677,20 +748,6 @@ impl Optimizer {
             }
         }
 
-        for (name, benefit, cost, reason) in candidate_records {
-            if inlined_set.contains(&name) {
-                self.trace
-                    .record("Inlining", &name, "Applied", &benefit, &cost, &reason);
-            } else {
-                self.trace.record(
-                    "Inlining",
-                    &name,
-                    "Rejected",
-                    &benefit,
-                    &cost,
-                    "Pure leaf function within budget, but no call sites were present in callers",
-                );
-            }
-        }
+        (sites_inlined, inlined_set)
     }
 }

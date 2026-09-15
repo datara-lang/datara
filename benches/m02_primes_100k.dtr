@@ -1,0 +1,17 @@
+fn main() {
+    mut count = 0
+    mut n = 2
+    while n < 100_000 {
+        mut is_p = 1
+        mut d = 2
+        while d * d <= n {
+            if n % d == 0 {
+                is_p = 0
+            }
+            d = d + 1
+        }
+        count = count + is_p
+        n = n + 1
+    }
+    print(count)
+}

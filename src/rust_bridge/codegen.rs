@@ -125,6 +125,7 @@ pub fn generate_datara_extern_decls(functions: &[ResolvedRustFunction]) -> Vec<D
             name: f.name.clone(),
             params,
             return_type,
+            attributes: Vec::new(),
             sret_size: None,
             sysv_classes: None,
             span: SourceSpan::default(),

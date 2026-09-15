@@ -275,6 +275,12 @@ pub struct ExternFnDecl {
     pub name: String,
     pub params: Vec<Param>,
     pub return_type: Option<TypeNode>,
+    /// Attributes written before the `extern` declaration (v1.3.4). They are
+    /// kept so the frontend can validate them — e.g. `@inline(always)` on
+    /// an extern "C" declaration is rejected with E0956 instead of being
+    /// silently dropped.
+    #[serde(default)]
+    pub attributes: Vec<Attribute>,
     /// Set by `cimport` when the C function returns a by-value struct that
     /// the native backend lowers through the hidden sret return-slot ABI:
     /// the value is the struct size in bytes. `None` for every other shape

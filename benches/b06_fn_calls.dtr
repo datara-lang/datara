@@ -1,0 +1,12 @@
+fn add(a: Int, b: Int) -> Int {
+    return a + b
+}
+fn main() {
+    mut acc = 0
+    mut i = 0
+    while i < 10_000_000 {
+        acc = add(acc, i)
+        i = i + 1
+    }
+    print(acc)
+}

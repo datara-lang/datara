@@ -1,0 +1,9 @@
+fn main() {
+    mut x = 1
+    mut i = 0
+    while i < 100_000_000 {
+        x = x + i
+        i = i + 1
+    }
+    print(x)
+}

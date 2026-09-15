@@ -1,0 +1,9 @@
+fn main() {
+    mut s = ""
+    mut i = 0
+    while i < 20_000 {
+        s = s + "x"
+        i = i + 1
+    }
+    print(s.len())
+}

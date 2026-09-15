@@ -4,6 +4,38 @@ All notable changes to the Datara compiler and toolchain (`forgen`) are document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.4] - 2026-09-16
+
+### Fixed
+- **Root cause of the v1.3.3 Ubuntu CI failures**: `lower_program` built
+  `class_fields` by alphabetically sorting field names. Classes whose
+  declaration order was not alphabetical (e.g. cimport
+  `MixedFI {double x; long long a}`) got silently renumbered field offsets,
+  while the SysV register-pair signature kept the header-order
+  classification — both eightbytes read swapped values across the FFI
+  boundary. Field order is now taken from the Program AST in declaration
+  order, with composition (`using`, including components), inheritance and
+  type synonyms spliced in the same sequence the resolver merges them.
+- Zero compiler warnings on MSRV 1.94.0 (3 unused imports, 1 unused mut).
+
+### Added
+- **Optimizer speed tier for hot loops (`--opt speed`)**: LLVM-grade
+  configuration for Cranelift-side loop passes — aggressive LoopFold,
+  overflow-check elision in loops proven trap-free, induction-variable
+  strength reduction, loop-invariant hoisting, and vectorization-friendly
+  16-byte alignment for class fields on the fast path.
+- **`#[inline]`, `#[inline(always)]`, `#[inline(never)]`** attributes on
+  Datara functions honored by the Cranelift backend call builder.
+- **`forgen bench`**: reproducible benchmark suite (10 micro + 4 macro
+  benchmarks) with per-benchmark median of 7 runs and a
+  compare-vs-baseline JSON report.
+
+### Changed
+- Overflow-check strategy is now tiered: traps stay ON by default
+  (correctness first), `--opt speed` elides checks only inside loops whose
+  trip bounds are statically proven safe; `unsafe(justification: ...)`
+  blocks always compile without checks.
+
 ## [1.3.3] - 2026-09-15
 
 ### Added

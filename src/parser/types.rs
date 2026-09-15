@@ -1,5 +1,4 @@
 use super::*;
-use crate::ast::*;
 use crate::lexer::TokenType;
 
 impl<'a> Parser<'a> {

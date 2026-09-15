@@ -1,0 +1,15 @@
+fn main() {
+    mut src = []
+    mut i = 0
+    while i < 1_000_000 {
+        src.push(i)
+        i = i + 1
+    }
+    mut dst = []
+    mut j = 0
+    while j < src.len() {
+        dst.push(src[j])
+        j = j + 1
+    }
+    print(dst.len())
+}

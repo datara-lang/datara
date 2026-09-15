@@ -1,6 +1,7 @@
 pub(crate) mod bce;
 pub(crate) mod engine_v2;
 pub(crate) mod fold;
+pub mod ovf_elide;
 pub mod polyhedral;
 pub(crate) mod unswitch;
 
@@ -36,8 +37,22 @@ impl LoopOptimizer {
         trace: &mut OptimizationDecisionTrace,
         bce_proven: &mut usize,
     ) -> usize {
+        Self::optimize_loops_tiered(f, cost_model, trace, bce_proven, &HashSet::new())
+    }
+
+    /// v1.3.4 tier-aware entry point: `extra_pure` holds function names the
+    /// effect lattice proved pure. Under `--opt speed` LICM may hoist calls
+    /// to those functions out of loops; under `--opt default` the set is
+    /// empty and behavior is identical to v1.3.3.
+    pub fn optimize_loops_tiered(
+        f: &mut Function,
+        cost_model: &CostModel,
+        trace: &mut OptimizationDecisionTrace,
+        bce_proven: &mut usize,
+        extra_pure: &HashSet<String>,
+    ) -> usize {
         let mut transformed = 0;
-        transformed += Self::licm_pass(f, cost_model, trace);
+        transformed += Self::licm_pass(f, cost_model, trace, extra_pure);
         transformed += Self::forward_invariants_pass(f, cost_model, trace);
         transformed += unswitch::LoopUnswitcher::unswitch_loops(f, cost_model, trace);
         let bce_count = Self::bce_pass(f, cost_model, trace);
@@ -162,18 +177,22 @@ impl LoopOptimizer {
 
     /// Pure instructions whose operands are loop-invariant may be hoisted.
     /// Everything else (non-pure calls, I/O, stores, control flow) stays in the loop.
-    fn gather_loop_facts(f: &Function, loop_blocks: &HashSet<BasicBlockId>) -> LoopFacts {
+    fn gather_loop_facts(
+        f: &Function,
+        loop_blocks: &HashSet<BasicBlockId>,
+        extra_pure: &HashSet<String>,
+    ) -> LoopFacts {
         let mut facts = LoopFacts {
             assigned: HashSet::new(),
             may_alias: false,
         };
-        fn inspect_inst(inst: &Inst, facts: &mut LoopFacts) {
+        fn inspect_inst(inst: &Inst, facts: &mut LoopFacts, extra_pure: &HashSet<String>) {
             match inst {
                 Inst::AssignVar { name, .. } => {
                     facts.assigned.insert(name.clone());
                 }
                 Inst::Call { func, .. } => {
-                    if !LoopOptimizer::is_pure_call(func) {
+                    if !LoopOptimizer::is_pure_call(func) && !extra_pure.contains(func) {
                         facts.may_alias = true;
                     }
                 }
@@ -186,7 +205,7 @@ impl LoopOptimizer {
                     ..
                 } => {
                     for i in condition_insts.iter().chain(body_insts.iter()) {
-                        inspect_inst(i, facts);
+                        inspect_inst(i, facts, extra_pure);
                     }
                 }
                 Inst::TryCatch {
@@ -195,7 +214,7 @@ impl LoopOptimizer {
                     ..
                 } => {
                     for i in try_insts.iter().chain(catch_insts.iter()) {
-                        inspect_inst(i, facts);
+                        inspect_inst(i, facts, extra_pure);
                     }
                 }
                 _ => {}
@@ -204,14 +223,14 @@ impl LoopOptimizer {
         for &bid in loop_blocks {
             if let Some(blk) = f.get_block(bid) {
                 for inst in &blk.instructions {
-                    inspect_inst(inst, &mut facts);
+                    inspect_inst(inst, &mut facts, extra_pure);
                 }
             }
         }
         facts
     }
 
-    fn is_hoistable(inst: &Inst, facts: &LoopFacts) -> bool {
+    fn is_hoistable(inst: &Inst, facts: &LoopFacts, extra_pure: &HashSet<String>) -> bool {
         match inst {
             // Loading a variable that the loop never writes produces the same
             // value on every iteration, so the load is loop-invariant.
@@ -236,7 +255,9 @@ impl LoopOptimizer {
             | Inst::ConstStr { .. } => true,
             // Plain copy and negation (arithmetic/float) are pure and non-trapping.
             Inst::UnOp { op, .. } => op == "copy" || op == "-",
-            Inst::Call { func, .. } => Self::is_pure_call(func),
+            // v1.3.4: functions the effect lattice proved pure (`--opt speed`)
+            // are hoistable in addition to the name-prefix heuristic.
+            Inst::Call { func, .. } => Self::is_pure_call(func) || extra_pure.contains(func),
             Inst::InlineAsm { options, .. } => options.iter().any(|o| o == "pure"),
             _ => false,
         }
@@ -347,10 +368,15 @@ impl LoopOptimizer {
     /// Hoists pure, dependency-free instructions out of a loop into a dedicated
     /// preheader block (created when necessary), so they execute once instead of
     /// once per iteration.
+    ///
+    /// v1.3.4: `extra_pure` names effect-lattice-pure functions (populated
+    /// only under `--opt speed`); passing an empty set restores the exact
+    /// v1.3.3 behavior.
     pub fn licm_pass(
         f: &mut Function,
         cost_model: &CostModel,
         trace: &mut OptimizationDecisionTrace,
+        extra_pure: &HashSet<String>,
     ) -> usize {
         let mut total_hoisted = 0;
 
@@ -389,7 +415,7 @@ impl LoopOptimizer {
                     }
                 }
 
-                let facts = Self::gather_loop_facts(f, &lp.blocks);
+                let facts = Self::gather_loop_facts(f, &lp.blocks, extra_pure);
 
                 // Fixpoint: an instruction is invariant when every operand is
                 // either defined outside the loop or already known invariant.
@@ -400,7 +426,7 @@ impl LoopOptimizer {
                     for &bid in &lp.blocks {
                         if let Some(blk) = f.get_block(bid) {
                             for inst in &blk.instructions {
-                                if !Self::is_hoistable(inst, &facts) {
+                                if !Self::is_hoistable(inst, &facts, extra_pure) {
                                     continue;
                                 }
                                 if let Some(d) = Self::dest(inst) {
@@ -431,7 +457,7 @@ impl LoopOptimizer {
                 for bid in Self::ordered_loop_blocks(&cfg, lp) {
                     if let Some(blk) = f.get_block(bid) {
                         for inst in &blk.instructions {
-                            if Self::is_hoistable(inst, &facts)
+                            if Self::is_hoistable(inst, &facts, extra_pure)
                                 && let Some(d) = Self::dest(inst)
                                 && invariant.contains(&d)
                             {

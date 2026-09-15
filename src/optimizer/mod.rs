@@ -11,6 +11,7 @@ pub mod dce;
 pub mod escape;
 pub mod evidence;
 pub mod inline;
+pub mod inline_attr;
 pub mod ipo;
 pub mod loops;
 pub mod mem2reg;
@@ -22,6 +23,37 @@ pub mod scalar;
 pub mod slp;
 pub mod sra;
 pub mod symbolic;
+
+/// v1.3.4 optimization tier, selected with `--opt speed` or `--opt default`
+/// on `forgen build` / `forgen run`.
+///
+/// * [`OptTier::Default`] reproduces the pre-1.3.4 pipeline bit for bit:
+///   every correctness gate stays on, no overflow check is ever elided and
+///   `#[inline]` hints are validated but only honored by the existing
+///   cost-model-driven inliner.
+/// * [`OptTier::Speed`] adds three provably-safe passes on top of the
+///   default pipeline: induction-variable overflow-check elision
+///   (`loops::ovf_elide`), forced inlining of `#[inline(always)]` callees
+///   (`inline_attr`) and effect-lattice LICM. Both tiers keep user body
+///   arithmetic checked unless the pass can prove the specific instruction
+///   cannot overflow.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum OptTier {
+    #[default]
+    Default,
+    Speed,
+}
+
+impl OptTier {
+    /// Parses the `--opt` CLI value; `None` means the value is invalid.
+    pub fn from_cli(value: &str) -> Option<OptTier> {
+        match value {
+            "default" => Some(OptTier::Default),
+            "speed" => Some(OptTier::Speed),
+            _ => None,
+        }
+    }
+}
 
 use adaptive::SemanticAdaptationEngine;
 use cost_model::{CostModel, OptimizationDecisionTrace};
@@ -63,6 +95,8 @@ pub struct OptimizationReport {
 
 pub struct Optimizer {
     pub mode: String,
+    /// v1.3.4 optimization tier (`--opt speed` / `--opt default`).
+    pub opt_tier: OptTier,
     pub report: OptimizationReport,
     pub cost_model: CostModel,
     pub trace: OptimizationDecisionTrace,
@@ -78,6 +112,7 @@ impl Optimizer {
 
         Self {
             mode: mode.to_string(),
+            opt_tier: OptTier::Default,
             function_effects: HashMap::new(),
             report: OptimizationReport {
                 modules_analyzed: 1,
@@ -170,6 +205,16 @@ impl Optimizer {
 
         for _iter in 0..max_iterations {
             let fp_before = evidence::ir_fingerprint(module);
+
+            // 0.9 Forced inlining of `#[inline(always)]` callees (v1.3.4,
+            // `--opt speed` only). Runs before the cost-model inliner so a
+            // hint-marked callee is honored even where the heuristic would
+            // reject it.
+            if self.opt_tier == OptTier::Speed && self.cost_model.inlining_threshold > 0 {
+                self.run_mutating_pass("inline_always", module, |opt, m| {
+                    opt.inline_always_functions(m);
+                })?;
+            }
 
             // 1. Inlining pass (Inter-procedural optimization)
             if self.cost_model.inlining_threshold > 0 {
@@ -282,6 +327,27 @@ impl Optimizer {
             self.run_mutating_pass("dead_symbol_elimination", module, |opt, m| {
                 opt.dead_symbol_elimination(m);
             })?;
+        }
+
+        // 4. Induction-variable overflow-check elision (v1.3.4, `--opt speed`).
+        // Runs last, after every IR-reshaping pass, so the marked `BinOp`
+        // ValueIds still denote the exact instructions the proof covered.
+        // The pass only *marks* — it never rewrites instructions — so it is
+        // not wrapped in `run_mutating_pass`: the evidence gate would see an
+        // unchanged fingerprint and dishonestly "downgrade" a real proof.
+        if self.opt_tier == OptTier::Speed {
+            let elided = loops::ovf_elide::elide_induction_overflow(module, &mut self.trace);
+            if elided > 0 {
+                self.trace.record(
+                    "OverflowElision",
+                    "module:induction_vars",
+                    "Applied",
+                    &format!("{} proven-safe induction increment(s)", elided),
+                    "None (proof-only marking)",
+                    "Loop bound and step are compile-time constants; the per-iteration \
+                     increment cannot overflow within the statically bounded trip range",
+                );
+            }
         }
 
         if let Err(error) = crate::dmir::verify_module(module) {
@@ -397,11 +463,25 @@ impl Optimizer {
             if self.scalarize_structures(f) {
                 changed = true;
             }
-            if LoopOptimizer::optimize_loops(
+            // v1.3.4: under `--opt speed` the effect lattice (not just the
+            // name-prefix heuristic) certifies additional hoistable pure
+            // calls. Under the default tier the extra set stays empty and
+            // LICM behaves exactly as in v1.3.3.
+            let extra_pure: HashSet<String> = if self.opt_tier == OptTier::Speed {
+                self.function_effects
+                    .iter()
+                    .filter(|(_, s)| s.is_pure())
+                    .map(|(name, _)| name.clone())
+                    .collect()
+            } else {
+                HashSet::new()
+            };
+            if LoopOptimizer::optimize_loops_tiered(
                 f,
                 &self.cost_model,
                 &mut self.trace,
                 &mut self.report.bce_proven,
+                &extra_pure,
             ) > 0
             {
                 changed = true;

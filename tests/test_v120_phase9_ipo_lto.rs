@@ -42,6 +42,7 @@ fn test_v120_ipo_constant_argument_specialization_cloning() {
                 value: Some(ValueId(3)),
             },
         }],
+        ..Default::default()
     };
     module.functions.insert("scale".into(), callee);
 
@@ -73,6 +74,7 @@ fn test_v120_ipo_constant_argument_specialization_cloning() {
                 value: Some(ValueId(12)),
             },
         }],
+        ..Default::default()
     };
     module.functions.insert("main".into(), caller);
 
@@ -132,6 +134,7 @@ fn test_v120_ipo_trait_devirtualization() {
                 value: Some(ValueId(2)),
             },
         }],
+        ..Default::default()
     };
     module
         .functions
@@ -165,6 +168,7 @@ fn test_v120_ipo_trait_devirtualization() {
                 value: Some(ValueId(11)),
             },
         }],
+        ..Default::default()
     };
     module.functions.insert("execute".into(), caller);
 
@@ -225,6 +229,7 @@ fn test_v120_ipo_cross_module_pure_inlining() {
                 value: Some(ValueId(2)),
             },
         }],
+        ..Default::default()
     };
     module.functions.insert("square".into(), square);
 
@@ -250,6 +255,7 @@ fn test_v120_ipo_cross_module_pure_inlining() {
                 value: Some(ValueId(11)),
             },
         }],
+        ..Default::default()
     };
     module.functions.insert("compute".into(), caller);
 
@@ -293,6 +299,7 @@ fn test_v120_ipo_dead_clone_elimination() {
                 value: Some(ValueId(1)),
             },
         }],
+        ..Default::default()
     };
     module
         .functions
@@ -317,6 +324,7 @@ fn test_v120_ipo_dead_clone_elimination() {
                 value: Some(ValueId(1)),
             },
         }],
+        ..Default::default()
     };
     module.functions.insert("main".into(), main_fn);
 

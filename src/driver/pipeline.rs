@@ -314,6 +314,16 @@ pub(super) fn run_check_pipeline(
     }
     crate::derive::expand_derives_and_comptime(&mut program);
 
+    // Inline attribute validation (v1.3.4): `forgen check` reports malformed
+    // `#[inline]` attributes and `#[inline(always)]` on extern declarations
+    // exactly like the compile pipeline does.
+    crate::optimizer::inline_attr::validate_inline_attributes(&program, diag);
+    if diag.has_errors() {
+        timings.total_ms = total_start.elapsed().as_millis();
+        let d_str = diag.format_all();
+        return CompilationResult::failure(d_str.clone(), d_str, Some(program), timings);
+    }
+
     // 2. Resolver
     let res_start = Instant::now();
     let mut resolver = Resolver::new();
@@ -480,6 +490,22 @@ pub(super) fn run_analysis_and_lower<R>(
     }
     crate::derive::expand_derives_and_comptime(&mut program);
 
+    // 2b. Inline attribute validation (v1.3.4): unknown `#[inline]` arguments
+    // and `#[inline(always)]` on extern "C" declarations are hard errors.
+    // Running this before lowering guarantees every hint the lowering stored
+    // is well-formed.
+    crate::optimizer::inline_attr::validate_inline_attributes(&program, diag);
+    if diag.has_errors() {
+        timings.total_ms = total_start.elapsed().as_millis();
+        let d_str = diag.format_all();
+        return Err(CompilationResult::failure(
+            d_str.clone(),
+            d_str,
+            Some(program),
+            timings,
+        ));
+    }
+
     // 3. Resolver
     let res_start = Instant::now();
     let mut resolver = Resolver::new();
@@ -622,6 +648,8 @@ pub(super) fn run_analysis_and_lower<R>(
     // 9. Optimizer
     let opt_start = Instant::now();
     let mut optimizer = Optimizer::new(&compiler.mode);
+    // v1.3.4: tier selected by `--opt speed` / `--opt default`.
+    optimizer.opt_tier = compiler.opt_tier;
     let mut sorted_ownership_reports: Vec<(&String, &crate::ownership::OwnershipFunctionReport)> =
         ownership_reports.iter().collect();
     sorted_ownership_reports.sort_by_key(|(name, _)| (*name).clone());

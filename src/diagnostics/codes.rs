@@ -86,6 +86,10 @@ pub enum ErrorCode {
     // Cross-compilation Errors (E0980)
     CrossCompilationMissingToolchain,
 
+    // Inline Attribute Errors (E0956-E0957, v1.3.4)
+    InlineAlwaysExtern,
+    InlineAttributeInvalid,
+
     // Optimizer Correctness Warnings (E-OPT-*)
     OptimizationUnproven,
 
@@ -162,6 +166,8 @@ impl ErrorCode {
             ErrorCode::CApiArgLimitExceeded => "E0904",
             ErrorCode::AsyncBackendUnsupported => "E0955",
             ErrorCode::CrossCompilationMissingToolchain => "E0980",
+            ErrorCode::InlineAlwaysExtern => "E0956",
+            ErrorCode::InlineAttributeInvalid => "E0957",
             ErrorCode::OptimizationUnproven => "E-OPT-001",
             ErrorCode::DeprecatedFeature => "W0100",
         }
@@ -298,6 +304,12 @@ impl ErrorCode {
                 ErrorCode::CrossCompilationMissingToolchain => {
                     "Отсутствует инструментарий кросс-компиляции для целевой платформы (требуется lld или кросс-линкер)"
                 }
+                ErrorCode::InlineAlwaysExtern => {
+                    "'@inline(always)' запрещён для extern-объявлений: тело внешней функции недоступно компилятору"
+                }
+                ErrorCode::InlineAttributeInvalid => {
+                    "Некорректный атрибут '@inline': ожидается '@inline', '@inline(always)' или '@inline(never)'"
+                }
                 ErrorCode::OptimizationUnproven => {
                     "Трансформация раскладки пропущена: семантическая эквивалентность не доказана"
                 }
@@ -431,6 +443,12 @@ impl ErrorCode {
                 }
                 ErrorCode::CrossCompilationMissingToolchain => {
                     "Cross-compilation toolchain not found for target triple (lld or cross-linker required)"
+                }
+                ErrorCode::InlineAlwaysExtern => {
+                    "'@inline(always)' is rejected on extern declarations: the compiler cannot inline a body it does not have"
+                }
+                ErrorCode::InlineAttributeInvalid => {
+                    "Malformed '@inline' attribute: expected '@inline', '@inline(always)' or '@inline(never)'"
                 }
                 ErrorCode::OptimizationUnproven => {
                     "Optimizer layout transformation skipped: semantic equivalence could not be proven"

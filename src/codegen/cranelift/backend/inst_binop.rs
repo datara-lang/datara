@@ -278,27 +278,48 @@ pub fn compile_binop<M: ClifModule>(
             }
         }
     } else {
+        // v1.3.4 tiered overflow-check strategy: the optimizer's
+        // `ovf_elide` pass marks the dest of an induction-variable
+        // increment whose trip range is statically proven to keep the
+        // result inside i64 (see optimizer/loops/ovf_elide.rs). For exactly
+        // those instructions the `trapnz(INTEGER_OVERFLOW)` gate is
+        // dropped; every other integer op — in particular all user body
+        // arithmetic — keeps its checked lowering. `wrapping_`/`saturating_`
+        // forms are unaffected (they never trapped in the first place).
+        let proven_safe = ctx.current_func.proven_no_overflow.contains(dest);
         match op {
             "+" => {
-                let (res, ovf) = ctx.builder.ins().sadd_overflow(lv, rv);
-                ctx.builder
-                    .ins()
-                    .trapnz(ovf, cranelift_codegen::ir::TrapCode::INTEGER_OVERFLOW);
-                res
+                if proven_safe {
+                    ctx.builder.ins().iadd(lv, rv)
+                } else {
+                    let (res, ovf) = ctx.builder.ins().sadd_overflow(lv, rv);
+                    ctx.builder
+                        .ins()
+                        .trapnz(ovf, cranelift_codegen::ir::TrapCode::INTEGER_OVERFLOW);
+                    res
+                }
             }
             "-" => {
-                let (res, ovf) = ctx.builder.ins().ssub_overflow(lv, rv);
-                ctx.builder
-                    .ins()
-                    .trapnz(ovf, cranelift_codegen::ir::TrapCode::INTEGER_OVERFLOW);
-                res
+                if proven_safe {
+                    ctx.builder.ins().isub(lv, rv)
+                } else {
+                    let (res, ovf) = ctx.builder.ins().ssub_overflow(lv, rv);
+                    ctx.builder
+                        .ins()
+                        .trapnz(ovf, cranelift_codegen::ir::TrapCode::INTEGER_OVERFLOW);
+                    res
+                }
             }
             "*" => {
-                let (res, ovf) = ctx.builder.ins().smul_overflow(lv, rv);
-                ctx.builder
-                    .ins()
-                    .trapnz(ovf, cranelift_codegen::ir::TrapCode::INTEGER_OVERFLOW);
-                res
+                if proven_safe {
+                    ctx.builder.ins().imul(lv, rv)
+                } else {
+                    let (res, ovf) = ctx.builder.ins().smul_overflow(lv, rv);
+                    ctx.builder
+                        .ins()
+                        .trapnz(ovf, cranelift_codegen::ir::TrapCode::INTEGER_OVERFLOW);
+                    res
+                }
             }
             "wrapping_+" => ctx.builder.ins().iadd(lv, rv),
             "wrapping_-" => ctx.builder.ins().isub(lv, rv),

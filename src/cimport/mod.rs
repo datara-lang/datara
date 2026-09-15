@@ -265,6 +265,7 @@ pub fn expand_c_imports(
                                 name: cf.name,
                                 params,
                                 return_type,
+                                attributes: Vec::new(),
                                 sret_size,
                                 sysv_classes,
                                 span: f_span,

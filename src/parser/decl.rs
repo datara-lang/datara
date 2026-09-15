@@ -1,5 +1,4 @@
 use super::*;
-use crate::ast::*;
 use crate::lexer::TokenType;
 
 impl<'a> Parser<'a> {
@@ -230,7 +229,7 @@ impl<'a> Parser<'a> {
             return self.parse_packet_decl().map(Decl::Packet);
         }
         if self.match_token(&TokenType::Extern) {
-            return self.parse_extern_fn_decl().map(Decl::ExternFn);
+            return self.parse_extern_fn_decl(attrs).map(Decl::ExternFn);
         }
         if self.match_token(&TokenType::Type) {
             return self.parse_type_decl(is_export).map(Decl::Type);
@@ -1191,7 +1190,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    pub(crate) fn parse_extern_fn_decl(&mut self) -> Option<ExternFnDecl> {
+    pub(crate) fn parse_extern_fn_decl(&mut self, attrs: Vec<Attribute>) -> Option<ExternFnDecl> {
         let start_span = self.previous().span.clone();
         let abi = if let TokenType::StringLiteral(ref s) = self.peek().token_type {
             let s = s.clone();
@@ -1214,6 +1213,7 @@ impl<'a> Parser<'a> {
             name,
             params,
             return_type,
+            attributes: attrs,
             sret_size: None,
             sysv_classes: None,
             span: SourceSpan::new(

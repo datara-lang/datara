@@ -30,6 +30,8 @@ use std::time::Instant;
 
 pub struct ForgenCompiler {
     pub mode: String,
+    /// v1.3.4 optimization tier (`--opt speed` / `--opt default`).
+    pub opt_tier: crate::optimizer::OptTier,
     pub locale: String,
     pub codegen: CraneliftBackend,
     pub cranelift: CraneliftBackend,
@@ -47,6 +49,7 @@ impl ForgenCompiler {
         let debug_info = mode == "debug" || mode == "quick";
         Self {
             mode: mode.to_string(),
+            opt_tier: crate::optimizer::OptTier::Default,
             locale: "en".to_string(),
             codegen: backend.clone(),
             cranelift: backend,
@@ -57,6 +60,13 @@ impl ForgenCompiler {
             target_triple: None,
             native: false,
         }
+    }
+
+    /// v1.3.4: selects the optimization tier; the default tier preserves the
+    /// pre-1.3.4 pipeline behavior exactly.
+    pub fn with_opt_tier(mut self, tier: crate::optimizer::OptTier) -> Self {
+        self.opt_tier = tier;
+        self
     }
 
     pub fn with_llvm(mut self, use_llvm: bool) -> Self {

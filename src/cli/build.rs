@@ -2,11 +2,41 @@
 
 use super::{extract_target_arg, keyword_set, to_json_value, to_pretty_json};
 use crate::driver::ForgenCompiler;
+use crate::optimizer::OptTier;
 use crate::pgo::ProfileData;
 use crate::project::{ProjectDiscovery, ProjectRunner};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+
+/// v1.3.4: parses the `--opt <tier>` flag (accepted as `--opt speed` or
+/// `--opt=speed`). Returns `Ok(None)` when the flag is absent and `Err` for
+/// an unknown tier value, which the caller turns into a hard CLI error.
+fn parse_opt_tier(args: &[String]) -> Result<Option<OptTier>, String> {
+    let mut iter = args.iter().peekable();
+    while let Some(arg) = iter.next() {
+        if let Some(value) = arg.strip_prefix("--opt=") {
+            return OptTier::from_cli(value).map(Some).ok_or_else(|| {
+                format!(
+                    "unknown --opt tier '{}': expected 'speed' or 'default'",
+                    value
+                )
+            });
+        }
+        if arg == "--opt" {
+            let value = iter.next().cloned().ok_or_else(|| {
+                "missing value for --opt: expected 'speed' or 'default'".to_string()
+            })?;
+            return OptTier::from_cli(&value).map(Some).ok_or_else(|| {
+                format!(
+                    "unknown --opt tier '{}': expected 'speed' or 'default'",
+                    value
+                )
+            });
+        }
+    }
+    Ok(None)
+}
 
 /// `forgen check` — fast static verification, no binaries.
 pub(crate) fn cmd_check(args: &[String]) -> bool {
@@ -159,7 +189,14 @@ pub(crate) fn cmd_run(command: &str, args: &[String]) -> bool {
         .with_profile_generate(profile_gen.clone())
         .with_debug(debug_info)
         .with_target(target_triple)
-        .with_native(is_native);
+        .with_native(is_native)
+        .with_opt_tier(match parse_opt_tier(args) {
+            Ok(tier) => tier.unwrap_or_default(),
+            Err(e) => {
+                eprintln!("Run error: {}", e);
+                std::process::exit(1);
+            }
+        });
 
     // Cranelift in-memory JIT execution: zero disk artifacts, sub-millisecond launch
     if !is_llvm {
@@ -567,7 +604,14 @@ pub(crate) fn cmd_build(command: &str, args: &[String]) -> bool {
         .with_profile_generate(profile_generate.clone())
         .with_debug(debug_info)
         .with_target(target_triple)
-        .with_native(is_native);
+        .with_native(is_native)
+        .with_opt_tier(match parse_opt_tier(args) {
+            Ok(tier) => tier.unwrap_or_default(),
+            Err(e) => {
+                eprintln!("Build error: {}", e);
+                std::process::exit(1);
+            }
+        });
 
     let start = Instant::now();
     let bin_name = layout.binary_name();

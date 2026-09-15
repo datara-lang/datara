@@ -234,6 +234,12 @@ impl InterproceduralOptimizer {
                             continue;
                         }
 
+                        // v1.3.4: `@inline(never)` also vetoes specialization
+                        // cloning, which is inlining under another name.
+                        if callee.inline_hint == crate::dmir::InlineHint::Never {
+                            continue;
+                        }
+
                         // Check size threshold using full recursive count
                         let total_insts: usize = Self::count_function_instructions(callee);
                         if total_insts > Self::SPECIALIZATION_THRESHOLD || total_insts == 0 {
@@ -383,7 +389,11 @@ impl InterproceduralOptimizer {
                                 | Inst::Select { .. }
                         )
                     });
-                    if is_pure && b.instructions.len() <= 15 {
+                    // v1.3.4: `@inline(never)` vetoes IPO inlining as well.
+                    if is_pure
+                        && b.instructions.len() <= 15
+                        && f.inline_hint != crate::dmir::InlineHint::Never
+                    {
                         inline_candidates.insert(fname.clone(), f.clone());
                     }
                 }

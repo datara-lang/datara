@@ -1,0 +1,9 @@
+fn main() {
+    mut acc = 0
+    mut i = 0
+    while i < 50_000_000 {
+        acc = acc + i * 3 + 7
+        i = i + 1
+    }
+    print(acc)
+}

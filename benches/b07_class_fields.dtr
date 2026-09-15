@@ -1,0 +1,14 @@
+class Point {
+    x: Float
+    y: Float
+}
+fn main() {
+    mut p = Point { x: 0.0, y: 0.0 }
+    mut i = 0
+    while i < 20_000_000 {
+        p.x = p.x + 1.0
+        p.y = p.y + 2.0
+        i = i + 1
+    }
+    print(p.x + p.y)
+}

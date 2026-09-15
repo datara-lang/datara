@@ -1,11 +1,11 @@
 {
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "High-Performance Post-OOP Systems & Application Language and Forgen Compiler",
   "homepage": "https://github.com/datara-lang/datara",
   "license": "Apache-2.0 OR MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/datara-lang/datara/releases/download/v1.3.3/forgen-windows-x64.zip",
+      "url": "https://github.com/datara-lang/datara/releases/download/v1.3.4/forgen-windows-x64.zip",
       "bin": [
         "forgen.exe",
         ["forgen.exe", "datara"]
@@ -26,7 +26,7 @@
   "autoupdate": {
     "architecture": {
       "64bit": {
-        "url": "https://github.com/datara-lang/datara/releases/download/v1.3.3/forgen-windows-x64.zip"
+        "url": "https://github.com/datara-lang/datara/releases/download/v1.3.4/forgen-windows-x64.zip"
       }
     }
   }

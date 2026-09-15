@@ -1,0 +1,9 @@
+fn main() {
+    mut m = {}
+    mut i = 0
+    while i < 200_000 {
+        m["k" + int_to_str(i)] = i
+        i = i + 1
+    }
+    print(m.len())
+}

@@ -163,6 +163,11 @@ impl<'a> Lowering<'a> {
                 .unwrap_or_else(|| "Unit".into()),
             entry_block: entry_id,
             blocks: self.current_blocks.clone(),
+            // v1.3.4: malformed inline attributes are rejected by the
+            // driver-level validation pass before lowering runs, so only
+            // the classified hint is carried here.
+            inline_hint: InlineHint::parse_from_attrs(&f.attributes).0,
+            proven_no_overflow: std::collections::BTreeSet::new(),
         }
     }
 
@@ -391,6 +396,8 @@ impl<'a> Lowering<'a> {
             return_type,
             entry_block: entry_id,
             blocks: self.current_blocks.clone(),
+            inline_hint: InlineHint::parse_from_attrs(&f.attributes).0,
+            proven_no_overflow: std::collections::BTreeSet::new(),
         }
     }
 
@@ -702,6 +709,8 @@ impl<'a> Lowering<'a> {
                 .unwrap_or_else(|| "Unit".into()),
             entry_block: entry_id,
             blocks: self.current_blocks.clone(),
+            inline_hint: InlineHint::parse_from_attrs(&m.attributes).0,
+            proven_no_overflow: std::collections::BTreeSet::new(),
         }
     }
 }

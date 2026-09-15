@@ -742,11 +742,11 @@ impl LoopOptimizer {
     /// `+`/`-`/`*` (which trap on overflow at run time) and correct for the
     /// `wrapping_` forms as long as no overflow occurs, so a value that only
     /// exists modulo 2^64 is never mistaken for a constant.
-    fn const_expr_int_value(f: &Function, vid: ValueId) -> Option<i64> {
+    pub(crate) fn const_expr_int_value(f: &Function, vid: ValueId) -> Option<i64> {
         Self::const_expr_int_value_depth(f, vid, 4)
     }
 
-    fn const_expr_int_value_depth(f: &Function, vid: ValueId, depth: u8) -> Option<i64> {
+    pub(crate) fn const_expr_int_value_depth(f: &Function, vid: ValueId, depth: u8) -> Option<i64> {
         if depth == 0 {
             return None;
         }

@@ -1,0 +1,10 @@
+fn main() {
+    mut total = 0
+    mut i = 0
+    while i < 50_000 {
+        let s = "v" + int_to_str(i)
+        total = total + s.len()
+        i = i + 1
+    }
+    print(total)
+}

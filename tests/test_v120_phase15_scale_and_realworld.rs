@@ -224,6 +224,7 @@ fn test_v120_phase15_redundant_call_elimination_dmir() {
                 value: Some(ValueId(5)),
             },
         }],
+        ..Default::default()
     };
 
     let mut trace = OptimizationDecisionTrace::new();

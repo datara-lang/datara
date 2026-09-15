@@ -2,7 +2,9 @@ use crate::ast::{ContractClause, Refinement};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Default,
+)]
 pub struct ValueId(pub usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
@@ -494,6 +496,72 @@ pub struct BasicBlock {
     pub terminator: Terminator,
 }
 
+/// v1.3.4: the `@inline`, `@inline(always)` and `@inline(never)`
+/// attributes on Datara functions, carried through DMIR so the optimizer
+/// (forced inlining) and future backends can honor them. `None` is the
+/// default for every function without an inline attribute.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum InlineHint {
+    #[default]
+    None,
+    Inline,
+    Always,
+    Never,
+}
+
+impl InlineHint {
+    /// Extracts the inline hint from a declaration's attribute list.
+    ///
+    /// Returns the hint plus an error description when the attribute is
+    /// malformed (`@inline(sometimes)`, duplicated `@inline`, or an
+    /// unknown argument). The caller turns the error into a diagnostic with
+    /// the right code; this function only classifies.
+    pub fn parse_from_attrs(attrs: &[crate::ast::Attribute]) -> (InlineHint, Option<String>) {
+        let mut hint = InlineHint::None;
+        let mut seen = false;
+        for a in attrs {
+            if a.name != "inline" {
+                continue;
+            }
+            if seen {
+                return (
+                    InlineHint::None,
+                    Some("duplicate '@inline' attribute on the same function".to_string()),
+                );
+            }
+            seen = true;
+            if a.args.is_empty() {
+                hint = InlineHint::Inline;
+                continue;
+            }
+            if a.args.len() > 1 {
+                return (
+                    InlineHint::None,
+                    Some(format!(
+                        "'@inline' accepts at most one argument, got {}",
+                        a.args.len()
+                    )),
+                );
+            }
+            let (arg, _val) = &a.args[0];
+            match arg.as_str() {
+                "always" => hint = InlineHint::Always,
+                "never" => hint = InlineHint::Never,
+                other => {
+                    return (
+                        InlineHint::None,
+                        Some(format!(
+                            "unknown '@inline' argument '{}': expected 'always' or 'never'",
+                            other
+                        )),
+                    );
+                }
+            }
+        }
+        (hint, None)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Function {
     pub name: String,
@@ -505,6 +573,16 @@ pub struct Function {
     pub return_type: String,
     pub entry_block: BasicBlockId,
     pub blocks: Vec<BasicBlock>,
+    /// v1.3.4: inline attribute carried from the parsed `@inline` family.
+    #[serde(default)]
+    pub inline_hint: InlineHint,
+    /// v1.3.4: `BinOp` results (`dest` ValueIds) whose arithmetic the
+    /// optimizer statically proved cannot overflow, so the backend may
+    /// emit unchecked (`iadd`/`isub`/`imul`) code for exactly these
+    /// instructions. Only populated under `--opt speed`; user body
+    /// arithmetic is never added to this set.
+    #[serde(default)]
+    pub proven_no_overflow: std::collections::BTreeSet<ValueId>,
 }
 
 impl Default for Function {
@@ -517,6 +595,8 @@ impl Default for Function {
             return_type: String::new(),
             entry_block: BasicBlockId(0),
             blocks: Vec::new(),
+            inline_hint: InlineHint::None,
+            proven_no_overflow: std::collections::BTreeSet::new(),
         }
     }
 }

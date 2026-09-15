@@ -1,0 +1,10 @@
+fn main() {
+    mut m = {}
+    mut i = 0
+    while i < 20_000 {
+        m["key" + int_to_str(i)] = int_to_str(i * 31)
+        i = i + 1
+    }
+    let parts = m.len()
+    print(parts)
+}

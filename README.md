@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://github.com/datara-lang/datara"><img src="https://img.shields.io/badge/language-Datara-%23E3B341.svg" alt="Language" /></a>
   <a href="LICENSE-APACHE"><img src="https://img.shields.io/badge/License-Apache_2.0_OR_MIT-blue.svg" alt="License" /></a>
-  <img src="https://img.shields.io/badge/version-1.3.3-blue.svg" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.3.4-blue.svg" alt="Version" />
   <a href="https://github.com/datara-lang/datara/actions/workflows/ci.yml"><img src="https://github.com/datara-lang/datara/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <img src="https://img.shields.io/badge/tests-148%20suites%20%7C%20668%20passing-brightgreen.svg" alt="Tests" />
   <a href="docs/CONFORMANCE_MATRIX.md"><img src="https://img.shields.io/badge/Spec_V1_Conformance-84%2F84_Gates_PASS-brightgreen.svg" alt="Conformance" /></a>
@@ -181,10 +181,10 @@ Datara is distributed through verified official packages, container images, and 
 Official native system packages built directly in CI for Debian/Ubuntu and Fedora/RHEL:
 ```bash
 # Debian / Ubuntu / Pop!_OS / Linux Mint (download from GitHub Releases):
-sudo dpkg -i datara_1.3.3_amd64.deb
+sudo dpkg -i datara_1.3.4_amd64.deb
 
 # Fedora / RHEL / CentOS / openSUSE:
-sudo rpm -ivh datara-1.3.3-1.x86_64.rpm
+sudo rpm -ivh datara-1.3.4-1.x86_64.rpm
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/windows.svg" height="20" valign="middle" alt="Windows" /> Windows: Standalone GUI Setup & Scoop
@@ -204,7 +204,7 @@ cargo install --git https://github.com/datara-lang/datara.git forgen
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/vscode.svg" height="20" valign="middle" alt="VS Code" /> VS Code & Cursor Extension (.vsix)
 Install syntax highlighting, type hover, and icon themes directly from the release bundle:
 ```bash
-code --install-extension datara-language-1.3.3.vsix
+code --install-extension datara-language-1.3.4.vsix
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/python.svg" height="20" valign="middle" alt="Python" /> Python Wheel (`pip install`)
@@ -1864,7 +1864,7 @@ forgen repl
 ```
 ```datara
 ================================================================================
- Datara Interactive REPL (Zero-Latency In-Process JIT Console v1.3.3)
+ Datara Interactive REPL (Zero-Latency In-Process JIT Console v1.3.4)
  Type ':help' for commands, ':exit' or Ctrl+C to quit.
 ================================================================================
 >> let x = 10

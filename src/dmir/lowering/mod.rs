@@ -729,7 +729,7 @@ impl<'a> Lowering<'a> {
                 return;
             }
             let mut merged: Vec<String> = Vec::new();
-            let mut push_unique = |src: &Vec<String>, merged: &mut Vec<String>| {
+            let push_unique = |src: &Vec<String>, merged: &mut Vec<String>| {
                 for f in src {
                     if !merged.iter().any(|m| m == f) {
                         merged.push(f.clone());
