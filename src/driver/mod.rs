@@ -10,6 +10,7 @@
 #![allow(clippy::result_large_err)]
 
 mod modules;
+mod namespace;
 mod pipeline;
 pub mod polyglot;
 
