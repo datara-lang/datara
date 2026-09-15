@@ -110,6 +110,10 @@ pub enum TokenType {
     And,          // &&
     Or,           // ||
     Ampersand,    // &
+    BitOr,        // | (bitwise or; `||` is logical Or, `|>` is Pipe)
+    Caret,        // ^ (bitwise xor)
+    Shl,          // << (bitwise shift left)
+    Shr,          // >> (bitwise shift right)
     Bang,         // !
     Question,     // ?
     Equal,        // =

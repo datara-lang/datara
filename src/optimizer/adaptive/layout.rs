@@ -30,8 +30,12 @@ impl LayoutAdapter {
     pub fn adapt_layout(
         module: &mut Module,
         log: &mut AdaptationDecisionLog,
-    ) -> HashMap<String, ClassLayout> {
+    ) -> (
+        HashMap<String, ClassLayout>,
+        Vec<crate::diagnostics::Diagnostic>,
+    ) {
         let mut layouts = HashMap::new();
+        let mut layout_warnings: Vec<crate::diagnostics::Diagnostic> = Vec::new();
         let mut class_names: Vec<String> = module.class_fields.keys().cloned().collect();
         class_names.sort();
 
@@ -135,11 +139,50 @@ impl LayoutAdapter {
                 rank_b.cmp(&rank_a).then_with(|| a.cmp(b))
             });
 
-            let reordered = sorted_fields != fields;
-            if reordered {
-                module
-                    .class_fields
-                    .insert(class_name.clone(), sorted_fields.clone());
+            // Layout-sensitivity gate (v1.3.2): field reordering is only
+            // semantics-preserving when every field is an 8-byte scalar
+            // (codegen assigns offsets as idx*8, so mixed-size fields would
+            // change the data layout) and the class never crosses an
+            // extern/FFI boundary, where the C-side struct layout is fixed by
+            // the header. Unprovable cases keep the source order and emit an
+            // E-OPT-001 warning instead of silently changing observable
+            // memory layout.
+            let all_fields_8byte = fields.iter().all(|f| {
+                let ty = module
+                    .class_field_types
+                    .get(&format!("{}.{}", class_name, f))
+                    .or_else(|| module.class_field_types.get(f))
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
+                Self::type_rank(ty) == 8
+                    && matches!(ty, "Int" | "Float" | "Str" | "ptr" | "Ptr" | "RawPtr")
+            });
+            let mut reordered_applied = false;
+            let layout_sensitive =
+                !all_fields_8byte || Self::class_is_extern_visible(&class_name, module);
+            if layout_sensitive {
+                layout_warnings.push(crate::diagnostics::Diagnostic {
+                    code: crate::diagnostics::ErrorCode::OptimizationUnproven
+                        .as_str()
+                        .to_string(),
+                    severity: "WARNING".to_string(),
+                    message: format!(
+                        "Layout transformation for class '{}' skipped: semantic equivalence could not be proven (mixed field sizes or extern/FFI visibility)",
+                        class_name
+                    ),
+                    span: None,
+                    help: Some(
+                        "Field order is preserved as written; the optimizer will not silently change memory layout that C code or serialization may depend on"
+                            .to_string(),
+                    ),
+                });
+            } else {
+                reordered_applied = sorted_fields != fields;
+                if reordered_applied {
+                    module
+                        .class_fields
+                        .insert(class_name.clone(), sorted_fields.clone());
+                }
             }
 
             let field_count = sorted_fields.len();
@@ -179,10 +222,10 @@ impl LayoutAdapter {
                 format!(
                     "Aligned {} bytes, reordered: {}",
                     alignment,
-                    if reordered { "yes" } else { "no" }
+                    if reordered_applied { "yes" } else { "no" }
                 ),
                 0.0,
-                if reordered { 1.30 } else { 1.15 },
+                if reordered_applied { 1.30 } else { 1.15 },
                 format!(
                     "Optimized aggregate layout: {}-byte alignment to prevent cache-line splits and eliminate padding",
                     alignment
@@ -279,7 +322,23 @@ impl LayoutAdapter {
             );
         }
 
-        layouts
+        (layouts, layout_warnings)
+    }
+
+    /// A class is extern-visible when its name appears in any imported or
+    /// exported C-ABI signature (parameter or struct-return type). Such
+    /// layouts are contractual: the C side fixes field order and padding,
+    /// so any reorder is an observable ABI change.
+    fn class_is_extern_visible(class_name: &str, module: &Module) -> bool {
+        if module.extern_sret.contains_key(class_name) {
+            return true;
+        }
+        for (_name, (params, ret)) in &module.extern_functions {
+            if ret == class_name || params.iter().any(|p| p == class_name) {
+                return true;
+            }
+        }
+        false
     }
 
     /// Evaluates whether a collection layout benefits from Structure-of-Arrays

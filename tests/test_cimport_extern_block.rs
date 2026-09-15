@@ -10,9 +10,11 @@
 //!    type, parameter list and terminating semicolon span several source
 //!    lines parses correctly.
 //!
-//! The v1.3.1 soundness gate is form-independent: a function returning a
-//! by-value struct larger than one 64-bit machine word is still rejected
-//! with E0962 even when declared inside an extern "C" block.
+//! The struct-return ABI boundary is form-independent: since v1.3.2 M3 a
+//! layout-compatible struct return larger than one 64-bit machine word
+//! takes the hidden sret slot, while a layout-incompatible one (or any
+//! struct return on a backend without sret support) is still rejected with
+//! E0962 even when declared inside an extern "C" block.
 //!
 //! Structural and diagnostics assertions run through `check_source` (no
 //! native linking required). The native call round-trip mirrors the v1.3.1
@@ -184,8 +186,10 @@ fn main() {
 
 #[test]
 fn test_extern_block_struct_return_still_rejected_e0962() {
-    // The v1.3.1 sret soundness gate must be form-independent: rejecting
-    // `big_add` inside the block while `big_sum` (struct-by-value params,
+    // The struct-return ABI boundary is form-independent: since v1.3.2 M3
+    // the layout-compatible `big_add` return takes the hidden sret slot and
+    // survives expansion, while `big_mixed` (C layout Datara cannot read
+    // back) is rejected with E0962 and `big_sum` (struct-by-value params,
     // scalar return) keeps importing cleanly.
     let source = r#"
 import c "tests/fixtures/test_extern_block_bad_ret.h";
@@ -194,12 +198,12 @@ fn main() {
     let a = BigPoint { x: 1, y: 2 }
     let b = BigPoint { x: 3, y: 4 }
     mut s = 0
-    mut r = 0
+    mut r = BigPoint { x: 0, y: 0 }
     unsafe(justification: "Calling block-form extern C functions") {
         r = big_add(a, b)
         s = big_sum(a, b)
     }
-    out s + r
+    out s + r.x + r.y
 }
 "#;
     let res = compile_in_big_stack(source.to_string(), "test_extern_block_bad_ret.dtr");
@@ -208,26 +212,37 @@ fn main() {
         res.error.clone().unwrap_or_default(),
         res.diagnostics
     );
+    // `big_add` returns a layout-compatible 16-byte struct through the sret
+    // slot, so the program must now typecheck cleanly.
     assert!(
-        !res.success,
-        "A >8-byte struct return inside an extern block must be rejected, got success:\n{}",
+        res.success,
+        "An eligible >8-byte struct return inside an extern block must compile through the sret path:\n{}",
+        report
+    );
+    let names = imported_c_symbol_names(&res);
+    assert!(
+        names.iter().any(|n| n == "big_add"),
+        "Eligible struct-returning 'big_add' must survive expansion:\n{:?}",
+        names
+    );
+    assert!(
+        names.iter().any(|n| n == "big_sum"),
+        "Sibling function 'big_sum' from the same block must still import:\n{:?}",
+        names
+    );
+    assert!(
+        !names.iter().any(|n| n == "big_mixed"),
+        "Layout-incompatible struct-returning 'big_mixed' must not survive expansion"
+    );
+    assert!(
+        report.contains("big_mixed"),
+        "Diagnostic must name the rejected C function:\n{}",
         report
     );
     assert!(
         report.contains("E0962"),
         "Diagnostic must carry the E0962 unsupported-construct code:\n{}",
         report
-    );
-    assert!(
-        report.contains("big_add"),
-        "Diagnostic must name the rejected C function:\n{}",
-        report
-    );
-
-    // The sibling declaration from the same block is still imported.
-    assert!(
-        imported_c_symbol_names(&res).iter().any(|n| n == "big_sum"),
-        "Sibling function 'big_sum' from the same block must still import"
     );
 }
 

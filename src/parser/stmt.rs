@@ -437,6 +437,30 @@ impl<'a> Parser<'a> {
             });
         }
 
+        // `break;` / `continue;` (v1.3.2): legal only inside a loop body;
+        // the loop context is enforced by the type checker, not the parser.
+        if self.match_token(&TokenType::Break) {
+            self.match_token(&TokenType::Semicolon);
+            return Some(Stmt::Break(SourceSpan::new(
+                start_span.start_line,
+                start_span.start_col,
+                self.previous().span.end_line,
+                self.previous().span.end_col,
+                self.file.clone(),
+            )));
+        }
+
+        if self.match_token(&TokenType::Continue) {
+            self.match_token(&TokenType::Semicolon);
+            return Some(Stmt::Continue(SourceSpan::new(
+                start_span.start_line,
+                start_span.start_col,
+                self.previous().span.end_line,
+                self.previous().span.end_col,
+                self.file.clone(),
+            )));
+        }
+
         if self.match_token(&TokenType::While) {
             let condition = self.parse_condition()?;
             let body = Box::new(self.parse_block()?);

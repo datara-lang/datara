@@ -445,15 +445,42 @@ fn explain_code(code: &str) {
             println!("   let x: Int = 3.14");
             println!();
             println!("[VALID] Good Code:");
-            println!("   let x: Int = 3.14 as Int");
-            println!("   // or use explicit mathematical floor:");
-            println!("   let x: Int = datara_rt_math_floor(3.14)");
+            println!("   let x: Int = 3.14.to_int()");
+            println!();
+            println!("[VALID] Good Code (Int to Float):");
+            println!("   let f: Float = 7.to_float()");
+            println!("   // .to_float() / .to_int() are compiler intrinsics: no runtime call");
             println!();
             println!("[INVALID] Bad Code (Integer in Boolean condition):");
             println!("   if counter {{ ... }}");
             println!();
             println!("[VALID] Good Code:");
             println!("   if counter != 0 {{ ... }}");
+            println!(
+                "================================================================================"
+            );
+        }
+        "E-TYPE-009" | "unknown_method" => {
+            println!(
+                "================================================================================"
+            );
+            println!(" EXPLANATION: E-TYPE-009 (Unknown Method)");
+            println!(
+                "================================================================================"
+            );
+            println!("A method call named a method that does not exist for the receiver's type.");
+            println!("The type checker rejected the call before code generation, so no invalid");
+            println!("call instruction can be emitted for it.");
+            println!();
+            println!("[INVALID] Bad Code (Int has no method 'trim'):");
+            println!("   let n = 42.trim()");
+            println!();
+            println!("[VALID] Good Code:");
+            println!("   let s = int_to_str(42)");
+            println!("   let t = s.trim()");
+            println!();
+            println!("Numeric receivers (Int, Float, Dec64, Dec128) provide '.to_float()' and");
+            println!(".to_int()' for explicit numeric conversion (Gate 7).");
             println!(
                 "================================================================================"
             );

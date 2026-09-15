@@ -18,6 +18,19 @@ impl WasmEmitter {
     /// Compiles a DMIR module to a WebAssembly binary (`.wasm`), companion JS runtime shim,
     /// human-readable `.wat`, and machine-auditable `.capabilities.json` sidecar.
     pub fn emit_wasm_binary(module: &Module, output_wasm_path: &Path) -> Result<PathBuf, String> {
+        // Backstop for the sret gate: the cimport expansion rejects sret
+        // struct returns when an explicit WASM target is set, but a module
+        // can still reach this emitter through other entry paths (e.g.
+        // `-o out.wasm` without `--target`). The WASM ABI has no hidden
+        // sret return slot, so such a call would be silently wrong — fail
+        // loudly instead.
+        if !module.extern_sret.is_empty() {
+            let names: Vec<&str> = module.extern_sret.keys().map(|s| s.as_str()).collect();
+            return Err(format!(
+                "WASM code generation failed: imported C function(s) {} return by-value structs through the hidden sret return-slot ABI, which the WASM backend does not implement. Use out-pointer parameters (e.g. `void f(T* out)`) for these imports.",
+                names.join(", ")
+            ));
+        }
         let (wasm_bytes, wat_text, sidecar, js_shim) = Self::compile_module(module)?;
 
         // Ensure parent output directory exists

@@ -542,6 +542,12 @@ pub struct Module {
     pub name: String,
     pub functions: HashMap<String, Function>,
     pub extern_functions: HashMap<String, (Vec<String>, String)>,
+    /// Imported C functions that return a by-value struct through the
+    /// hidden sret return-slot ABI, mapped to the struct size in bytes.
+    /// Only the native Cranelift backends consume this; every other backend
+    /// keeps rejecting such declarations at the cimport gate.
+    #[serde(default)]
+    pub extern_sret: HashMap<String, usize>,
     pub class_fields: HashMap<String, Vec<String>>,
     pub class_field_types: HashMap<String, String>,
     #[serde(default)]
@@ -558,6 +564,7 @@ impl Module {
             name: name.to_string(),
             functions: HashMap::new(),
             extern_functions: HashMap::new(),
+            extern_sret: HashMap::new(),
             class_fields: HashMap::new(),
             class_field_types: HashMap::new(),
             function_spans: HashMap::new(),

@@ -395,6 +395,7 @@ impl EffectAnalyzer {
                     self.analyze_expr(e, effects);
                 }
             }
+            Stmt::Break(_) | Stmt::Continue(_) => {}
             Stmt::Unsafe { body, .. } => {
                 effects.add(Effect::Unsafe);
                 let mut unsafe_locals = local_vars.clone();

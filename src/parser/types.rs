@@ -105,7 +105,10 @@ impl<'a> Parser<'a> {
                     });
                 }
             } else {
-                while !self.check(&TokenType::Greater) && !self.is_at_end() {
+                while !self.check(&TokenType::Greater)
+                    && !self.check(&TokenType::Shr)
+                    && !self.is_at_end()
+                {
                     if let TokenType::Identifier(ref id) = self.peek().token_type {
                         // A generic argument starting with an identifier is a
                         // nested type when followed by `<` (e.g. `Vec<Vec<Int>>`);
@@ -155,10 +158,7 @@ impl<'a> Parser<'a> {
                     }
                 }
             }
-            self.consume(
-                &TokenType::Greater,
-                "Expected '>' after generic type arguments",
-            )?;
+            self.consume_generic_close("Expected '>' after generic type arguments")?;
         }
 
         let is_option = self.match_token(&TokenType::Question);

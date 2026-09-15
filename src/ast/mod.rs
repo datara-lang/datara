@@ -256,6 +256,12 @@ pub struct ExternFnDecl {
     pub name: String,
     pub params: Vec<Param>,
     pub return_type: Option<TypeNode>,
+    /// Set by `cimport` when the C function returns a by-value struct that
+    /// the native backend lowers through the hidden sret return-slot ABI:
+    /// the value is the struct size in bytes. `None` for every other shape
+    /// (scalar returns, pointer returns, non-sret-capable aggregates).
+    #[serde(default)]
+    pub sret_size: Option<usize>,
     pub span: SourceSpan,
 }
 
@@ -399,6 +405,8 @@ pub enum Stmt {
         body: Box<Stmt>,
         span: SourceSpan,
     },
+    Break(SourceSpan),
+    Continue(SourceSpan),
     TryCatch {
         try_block: Box<Stmt>,
         err_var: String,
@@ -448,6 +456,8 @@ impl Stmt {
             | Stmt::For { span: s, .. }
             | Stmt::While { span: s, .. }
             | Stmt::Loop { span: s, .. }
+            | Stmt::Break(s)
+            | Stmt::Continue(s)
             | Stmt::TryCatch { span: s, .. }
             | Stmt::Parallel(_, s)
             | Stmt::ParallelFor { span: s, .. }

@@ -400,6 +400,8 @@ impl<'a> SecurityVerifier<'a> {
             | Stmt::Return(_, _)
             | Stmt::Out(_, _)
             | Stmt::Err(_, _)
+            | Stmt::Break(_)
+            | Stmt::Continue(_)
             | Stmt::Asm { .. } => {}
         }
     }

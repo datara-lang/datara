@@ -14,6 +14,25 @@ impl<'a> TypeChecker<'a> {
         let lt = self.check_expr(left, diag);
         let rt = self.check_expr(right, diag);
 
+        // --- Shift amount validation (v1.3.2 bitwise operators) ---
+        // `Int` is a signed 64-bit integer, so a constant shift amount must
+        // lie in 0..64. Anything else has no defined result (fail-closed:
+        // reject at compile time instead of silently producing garbage).
+        if matches!(op, "<<" | ">>") {
+            if let Expr::Literal(LiteralValue::Int(amount), shift_span) = &**right {
+                if *amount < 0 || *amount >= 64 {
+                    diag.error(
+                        ErrorCode::RangeViolation,
+                        format!(
+                            "Shift amount {} is out of range for Int (64-bit): the shift count must be in 0..64",
+                            amount
+                        ),
+                        Some(shift_span.clone()),
+                    );
+                }
+            }
+        }
+
         // --- Units of Measure Dimensional Analysis ---
         if let (
             DataraType::Measure { base: b1, unit: u1 },
@@ -416,6 +435,14 @@ impl<'a> TypeChecker<'a> {
                         report_bad_operands(diag);
                     }
                 }
+                "&" | "|" | "^" | "<<" | ">>" => {
+                    // Bitwise operators (v1.3.2) are defined only on
+                    // Int. No implicit numeric conversion (SPEC_V1
+                    // Gate 7): `1.5 & 2` is a type error, not a truncation.
+                    if lt != DataraType::Int || rt != DataraType::Int {
+                        report_bad_operands(diag);
+                    }
+                }
                 _ => {}
             }
         }
@@ -430,6 +457,7 @@ impl<'a> TypeChecker<'a> {
                 }
             }
             "==" | "!=" | "<" | "<=" | ">" | ">=" | "&&" | "||" => DataraType::Bool,
+            "&" | "|" | "^" | "<<" | ">>" => DataraType::Int,
             _ => lt,
         }
     }

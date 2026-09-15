@@ -18,6 +18,14 @@ Datara v1.2.0 supports the following standard target triples:
 | `x86_64-apple-darwin` | x86_64 | macOS | Mach-O 64-bit | Intel Mac |
 | `wasm32-unknown-unknown` | 32-bit WASM | Bare / Web | WebAssembly v1 / SIMD128 | WASM Standard |
 
+> **C import struct returns (v1.3.2)**: the hidden sret return-slot ABI for
+> `import c` functions returning by-value structs is implemented by the native
+> Cranelift backend for the Microsoft x64 calling convention only
+> (`x86_64-pc-windows-msvc` host or explicit target). On SystemV and AArch64
+> targets — and on the LLVM and WASM backends — such declarations keep the
+> compile-time `E0962` rejection; use an out-pointer parameter
+> (e.g. `void f(T* out)`) for portable imports.
+
 ---
 
 ## 2. Command Line Usage

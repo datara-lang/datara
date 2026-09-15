@@ -377,6 +377,19 @@ impl Lexer {
                                 self.file.clone(),
                             ),
                         ));
+                    } else if self.peek() == '<' {
+                        self.advance();
+                        tokens.push(Token::new(
+                            TokenType::Shl,
+                            "<<".into(),
+                            SourceSpan::new(
+                                start_line,
+                                start_col,
+                                self.line,
+                                self.col,
+                                self.file.clone(),
+                            ),
+                        ));
                     } else {
                         tokens.push(Token::new(
                             TokenType::Less,
@@ -397,6 +410,19 @@ impl Lexer {
                         tokens.push(Token::new(
                             TokenType::GreaterEqual,
                             ">=".into(),
+                            SourceSpan::new(
+                                start_line,
+                                start_col,
+                                self.line,
+                                self.col,
+                                self.file.clone(),
+                            ),
+                        ));
+                    } else if self.peek() == '>' {
+                        self.advance();
+                        tokens.push(Token::new(
+                            TokenType::Shr,
+                            ">>".into(),
                             SourceSpan::new(
                                 start_line,
                                 start_col,
@@ -475,15 +501,33 @@ impl Lexer {
                             ),
                         ));
                     } else {
-                        // A lone '|' used to produce no token at all, so `a | b`
-                        // was silently rewritten to `a b`. Report it instead.
-                        diag.error(
-                            ErrorCode::SyntaxUnexpectedToken,
-                            "Unexpected character '|'. Datara has no bitwise-or operator; did you mean '||' (logical or) or '|>' (pipe)?".into(),
-                            Some(SourceSpan::new(start_line, start_col, self.line, self.col, self.file.clone())),
-                        );
+                        // A lone '|' is the bitwise-or operator (v1.3.2): `a | b`.
+                        // Logical or is `||` (Or) and the stream operator is `|>`
+                        // (Pipe); both are matched by the arms above.
+                        tokens.push(Token::new(
+                            TokenType::BitOr,
+                            "|".into(),
+                            SourceSpan::new(
+                                start_line,
+                                start_col,
+                                self.line,
+                                self.col,
+                                self.file.clone(),
+                            ),
+                        ));
                     }
                 }
+                '^' => tokens.push(Token::new(
+                    TokenType::Caret,
+                    "^".into(),
+                    SourceSpan::new(
+                        start_line,
+                        start_col,
+                        self.line,
+                        self.col,
+                        self.file.clone(),
+                    ),
+                )),
                 '?' => tokens.push(Token::new(
                     TokenType::Question,
                     "?".into(),
@@ -974,6 +1018,49 @@ impl Lexer {
                     '\\' => s.push('\\'),
                     '"' => s.push('"'),
                     '0' => s.push('\0'),
+                    'u' => {
+                        // `\u{XXXX}` / `\u{XXXXXX}`: one to six hex digits
+                        // naming a Unicode scalar value, encoded as UTF-8.
+                        // A missing brace, an empty or over-long digit run,
+                        // a surrogate code point or a value above U+10FFFF is
+                        // a hard error, never a silent byte copy.
+                        let mut hex = String::new();
+                        let mut closed_brace = false;
+                        if self.peek() == '{' {
+                            self.advance();
+                            while !self.is_at_end() && self.peek() != '}' {
+                                hex.push(self.advance());
+                            }
+                            if self.peek() == '}' {
+                                self.advance();
+                                closed_brace = true;
+                            }
+                        }
+                        let parsed = if closed_brace && !hex.is_empty() && hex.len() <= 6 {
+                            u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32)
+                        } else {
+                            None
+                        };
+                        match parsed {
+                            Some(ch) => s.push(ch),
+                            None => {
+                                diag.error(
+                                    ErrorCode::SyntaxInvalidEscape,
+                                    format!(
+                                        "Invalid unicode escape: expected '\\u{{XXXX}}' with 1-6 hex digits naming a Unicode scalar value, found '\\u{{{}}}'",
+                                        hex
+                                    ),
+                                    Some(SourceSpan::new(
+                                        self.line,
+                                        self.col,
+                                        self.line,
+                                        self.col,
+                                        self.file.clone(),
+                                    )),
+                                );
+                            }
+                        }
+                    }
                     '{' => {
                         if allow_interpolation {
                             s.push('\\');

@@ -35,14 +35,22 @@ use crate::lexer::{Lexer, Token, TokenType};
 /// We safely lift `MAX_PARSE_DEPTH` from 16 to 64.
 pub(crate) const MAX_PARSE_DEPTH: usize = 64;
 
-// Precedence levels for binary expressions
+// Precedence levels for binary expressions.
+// Bitwise operators (v1.3.2) slot between comparison and the arithmetic
+// levels, mirroring C-family expectations: shift binds tighter than `&`,
+// `&` tighter than `^`, `^` tighter than `|`, and all of them tighter than
+// comparisons but looser than `+`/`-`.
 const PREC_LOGICAL_OR: u8 = 1;
 const PREC_LOGICAL_AND: u8 = 2;
 const PREC_EQUALITY: u8 = 3;
 const PREC_COMPARISON: u8 = 4;
-const PREC_RANGE: u8 = 5;
-const PREC_ADDITIVE: u8 = 6;
-const PREC_MULTIPLICATIVE: u8 = 7;
+const PREC_BIT_OR: u8 = 5;
+const PREC_BIT_XOR: u8 = 6;
+const PREC_BIT_AND: u8 = 7;
+const PREC_SHIFT: u8 = 8;
+const PREC_RANGE: u8 = 9;
+const PREC_ADDITIVE: u8 = 10;
+const PREC_MULTIPLICATIVE: u8 = 11;
 
 pub struct Parser<'a> {
     tokens: Vec<Token>,

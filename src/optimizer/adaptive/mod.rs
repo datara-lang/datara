@@ -15,6 +15,8 @@ use crate::dmir::Module;
 pub struct SemanticAdaptationEngine {
     pub mode: String,
     pub log: AdaptationDecisionLog,
+    /// Diagnostics emitted by adaptation gates (e.g. E-OPT-001 layout gate).
+    pub pending_warnings: Vec<crate::diagnostics::Diagnostic>,
 }
 
 impl SemanticAdaptationEngine {
@@ -22,6 +24,7 @@ impl SemanticAdaptationEngine {
         Self {
             mode: mode.to_string(),
             log: AdaptationDecisionLog::new(),
+            pending_warnings: Vec::new(),
         }
     }
 
@@ -33,7 +36,8 @@ impl SemanticAdaptationEngine {
         }
 
         // 0. Aggregate layout & field reordering adaptation (Phase 13)
-        LayoutAdapter::adapt_layout(module, &mut self.log);
+        let (_layouts, layout_warnings) = LayoutAdapter::adapt_layout(module, &mut self.log);
+        self.pending_warnings.extend(layout_warnings);
 
         // Sorted-name iteration so adaptation decisions and log entries are
         // deterministic regardless of HashMap ordering.

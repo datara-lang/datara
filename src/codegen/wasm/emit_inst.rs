@@ -653,6 +653,56 @@ impl WasmEmitter {
                     args,
                     ..
                 } => {
+                    // Numeric conversion intrinsics (Gate 7 explicit casts):
+                    // a single WASM conversion opcode, no runtime call. The
+                    // generic fallback below would silently yield 0 for an
+                    // unresolved dispatch, which must never happen for an
+                    // accepted conversion.
+                    if (method == "to_float" || method == "to_int") && args.is_empty() {
+                        let obj_loc = local_map.get(object).copied().unwrap_or(0);
+                        let obj_ty = value_types.get(object).copied().unwrap_or(WasmValType::I64);
+                        let dest_loc = local_map.get(dest).copied().unwrap_or(0);
+                        body.push(0x20); // local.get object
+                        encode_u32_leb128(obj_loc, body);
+                        match (obj_ty, method.as_str()) {
+                            // Real conversion: single opcode.
+                            (WasmValType::I64, "to_float") => {
+                                body.push(0xB9); // f64.convert_i64_s
+                            }
+                            (WasmValType::F64, "to_int") => {
+                                body.push(0xB0); // i64.trunc_f64_s
+                            }
+                            // Identity: the value already has the target
+                            // representation; the local.get above feeds the
+                            // local.set below unchanged.
+                            (WasmValType::F64, "to_float") | (WasmValType::I64, "to_int") => {}
+                            _ => {
+                                return Err(format!(
+                                    "WASM code generation failed: unsupported receiver type for '.{method}()' in a conversion intrinsic"
+                                ));
+                            }
+                        }
+                        body.push(0x21); // local.set dest
+                        encode_u32_leb128(dest_loc, body);
+                        match (obj_ty, method.as_str()) {
+                            (WasmValType::I64, "to_float") => {
+                                wat.push_str(&format!(
+                                    "    (local.set $v{dest} (f64.convert_i64_s (local.get $v{object})))\n"
+                                ));
+                            }
+                            (WasmValType::F64, "to_int") => {
+                                wat.push_str(&format!(
+                                    "    (local.set $v{dest} (i64.trunc_f64_s (local.get $v{object})))\n"
+                                ));
+                            }
+                            _ => {
+                                wat.push_str(&format!(
+                                    "    (local.set $v{dest} (local.get $v{object}))\n"
+                                ));
+                            }
+                        }
+                        return Ok(());
+                    }
                     let mut full_args = vec![*object];
                     full_args.extend(args.iter().copied());
                     let runtime_fn = match method.as_str() {
@@ -665,7 +715,23 @@ impl WasmEmitter {
                         "byte_at" => "datara_rt_str_byte_at",
                         "char_at" => "datara_rt_str_char_at",
                         "insert" => "datara_rt_map_insert",
-                        _ => method.as_str(),
+                        _ => {
+                            // Unknown method: neither a runtime builtin, a
+                            // defined function nor a mapped import. Letting
+                            // it reach the compile_call fallback would
+                            // silently yield 0 for the result; fail loudly
+                            // instead, mirroring the native backend.
+                            if !module.functions.contains_key(method.as_str())
+                                && !defined_fn_indices.contains_key(method.as_str())
+                                && !import_fn_indices.contains_key(method.as_str())
+                            {
+                                return Err(format!(
+                                    "WASM code generation failed: unresolved method call '{}' (no defined function, import, or runtime builtin with this name)",
+                                    method
+                                ));
+                            }
+                            method.as_str()
+                        }
                     };
                     Self::compile_call(
                         *dest,

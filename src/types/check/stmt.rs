@@ -298,6 +298,18 @@ impl<'a> TypeChecker<'a> {
             } => {
                 let val_type = self.check_expr(value, diag);
                 if let Expr::Identifier(name, _) = target {
+                    // Keep the tracked list length in step with a literal
+                    // reassignment, so a later `xs[i]` is not checked against
+                    // the length of the value that was replaced.
+                    match &value {
+                        Expr::ListLiteral(elements, _) => {
+                            self.var_array_lengths.insert(name.clone(), elements.len());
+                        }
+                        Expr::ArrayRepeatLiteral { count, .. } => {
+                            self.var_array_lengths.insert(name.clone(), *count);
+                        }
+                        _ => {}
+                    }
                     if let Some(tn) = self.var_refinements.get(name).cloned() {
                         self.check_refinement(&tn, value, span, diag);
                     }
@@ -589,63 +601,24 @@ impl<'a> TypeChecker<'a> {
                 iterable,
                 body,
                 ..
+            } => {
+                // `for` opens a breakable loop scope: `break` / `continue`
+                // inside the body refer to this loop.
+                self.loop_depth += 1;
+                let res = self.check_for_arm(var_name, iterable, body, diag);
+                self.loop_depth -= 1;
+                res
             }
-            | Stmt::ParallelFor {
+            Stmt::ParallelFor {
                 var_name,
                 iterable,
                 body,
                 ..
             } => {
-                let iter_type = self.check_expr(iterable, diag);
-                // Parametric collections carry their element types into the
-                // loop variable: `for x in List(t)` binds `x: t`. Maps have no
-                // key/value iterator protocol (the runtime lowers iteration to
-                // the list protocol), so their elements stay dynamic `Val`.
-                let elem_type = match &iter_type {
-                    DataraType::List(elem) => (**elem).clone(),
-                    DataraType::Map(..) => DataraType::Val,
-                    DataraType::GenericInstance { name, args }
-                        if name == "List" && !args.is_empty() =>
-                    {
-                        args[0].clone()
-                    }
-                    DataraType::Range { base, .. } => (**base).clone(),
-                    DataraType::Class(c) if c == "Range" => DataraType::Int,
-                    DataraType::String => DataraType::Char,
-                    DataraType::Class(c) if c == "List" => {
-                        // Erased collections: fall back to the recorded element
-                        // type, else the dynamic type — never a silent Int.
-                        if let Expr::Identifier(n, _) = iterable {
-                            self.var_element_types
-                                .get(n)
-                                .cloned()
-                                .unwrap_or(DataraType::Val)
-                        } else {
-                            self.last_list_element.clone().unwrap_or(DataraType::Val)
-                        }
-                    }
-                    _ => DataraType::Val,
-                };
-                if let Some(ref fn_name) = self.current_fn_name {
-                    self.fn_symbol_types
-                        .insert((fn_name.clone(), var_name.clone()), elem_type.clone());
-                }
-                let prev = self.symbol_types.insert(var_name.clone(), elem_type);
-                let prev_mut = self
-                    .symbol_mutability
-                    .insert(var_name.clone(), MutabilityKind::Immutable);
-                self.check_stmt(body, diag);
-                if let Some(p) = prev {
-                    self.symbol_types.insert(var_name.clone(), p);
-                } else {
-                    self.symbol_types.remove(var_name);
-                }
-                if let Some(m) = prev_mut {
-                    self.symbol_mutability.insert(var_name.clone(), m);
-                } else {
-                    self.symbol_mutability.remove(var_name);
-                }
-                DataraType::Unit
+                // A parallel body runs as concurrent tasks: `break` /
+                // `continue` have no single control flow to target, so the
+                // parallel scope does not open a breakable loop scope.
+                self.check_for_arm(var_name, iterable, body, diag)
             }
             Stmt::While {
                 condition,
@@ -660,12 +633,37 @@ impl<'a> TypeChecker<'a> {
                         Some(span.clone()),
                     );
                 }
+                self.loop_depth += 1;
                 self.check_stmt(body, diag);
+                self.loop_depth -= 1;
                 DataraType::Unit
             }
             Stmt::Loop { body, .. } => {
+                self.loop_depth += 1;
                 self.check_stmt(body, diag);
+                self.loop_depth -= 1;
                 DataraType::Unit
+            }
+            Stmt::Break(span) => {
+                if self.loop_depth == 0 {
+                    diag.error(
+                        ErrorCode::LoopControlOutsideLoop,
+                        "'break' is only allowed inside a loop body (while/for/loop)".to_string(),
+                        Some(span.clone()),
+                    );
+                }
+                DataraType::Never
+            }
+            Stmt::Continue(span) => {
+                if self.loop_depth == 0 {
+                    diag.error(
+                        ErrorCode::LoopControlOutsideLoop,
+                        "'continue' is only allowed inside a loop body (while/for/loop)"
+                            .to_string(),
+                        Some(span.clone()),
+                    );
+                }
+                DataraType::Never
             }
             Stmt::TryCatch {
                 try_block,
@@ -786,11 +784,14 @@ impl<'a> TypeChecker<'a> {
             Stmt::Expr(Expr::Match { arms, .. }, _) => !arms.is_empty(),
             Stmt::Expr(Expr::Decide { else_arm, .. }, _) => else_arm.is_some(),
             Stmt::Expr(..) => true,
-            Stmt::Loop { .. } => true,
+            // An unconditional loop only guarantees the enclosing function
+            // never returns normally when its body cannot `break` out of it.
+            Stmt::Loop { body, .. } => !Self::stmt_can_break(body),
             Stmt::While {
                 condition: Expr::Literal(LiteralValue::Bool(true), _),
+                body,
                 ..
-            } => true,
+            } => !Self::stmt_can_break(body),
             Stmt::TryCatch {
                 try_block,
                 catch_block,
@@ -800,5 +801,96 @@ impl<'a> TypeChecker<'a> {
             }
             _ => false,
         }
+    }
+
+    /// True when the statement subtree contains a `break` that escapes the
+    /// *enclosing* loop. Breaks inside nested `while`/`for`/`loop` bodies
+    /// target their own loop and do not count; `parallel` bodies are
+    /// rejected by the checker before this matters.
+    fn stmt_can_break(stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Break(_) => true,
+            Stmt::Block(stmts, _) => stmts.iter().any(Self::stmt_can_break),
+            Stmt::If {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                Self::stmt_can_break(then_branch)
+                    || else_branch
+                        .as_ref()
+                        .is_some_and(|s| Self::stmt_can_break(s))
+            }
+            Stmt::TryCatch {
+                try_block,
+                catch_block,
+                ..
+            } => Self::stmt_can_break(try_block) || Self::stmt_can_break(catch_block),
+            Stmt::With { body, .. } | Stmt::Unsafe { body, .. } | Stmt::Parallel(body, _) => {
+                Self::stmt_can_break(body)
+            }
+            // A nested loop body is its own break scope.
+            Stmt::While { .. } | Stmt::For { .. } | Stmt::Loop { .. } => false,
+            _ => false,
+        }
+    }
+
+    /// Shared body of `for` / `parallel for` checking: infer the element
+    /// type, bind the loop variable, and check the loop body.
+    fn check_for_arm(
+        &mut self,
+        var_name: &str,
+        iterable: &Expr,
+        body: &Box<Stmt>,
+        diag: &mut DiagnosticEngine,
+    ) -> DataraType {
+        let iter_type = self.check_expr(iterable, diag);
+        // Parametric collections carry their element types into the
+        // loop variable: `for x in List(t)` binds `x: t`. Maps have no
+        // key/value iterator protocol (the runtime lowers iteration to
+        // the list protocol), so their elements stay dynamic `Val`.
+        let elem_type = match &iter_type {
+            DataraType::List(elem) => (**elem).clone(),
+            DataraType::Map(..) => DataraType::Val,
+            DataraType::GenericInstance { name, args } if name == "List" && !args.is_empty() => {
+                args[0].clone()
+            }
+            DataraType::Range { base, .. } => (**base).clone(),
+            DataraType::Class(c) if c == "Range" => DataraType::Int,
+            DataraType::String => DataraType::Char,
+            DataraType::Class(c) if c == "List" => {
+                // Erased collections: fall back to the recorded element
+                // type, else the dynamic type — never a silent Int.
+                if let Expr::Identifier(n, _) = iterable {
+                    self.var_element_types
+                        .get(n)
+                        .cloned()
+                        .unwrap_or(DataraType::Val)
+                } else {
+                    self.last_list_element.clone().unwrap_or(DataraType::Val)
+                }
+            }
+            _ => DataraType::Val,
+        };
+        if let Some(ref fn_name) = self.current_fn_name {
+            self.fn_symbol_types
+                .insert((fn_name.clone(), var_name.to_string()), elem_type.clone());
+        }
+        let prev = self.symbol_types.insert(var_name.to_string(), elem_type);
+        let prev_mut = self
+            .symbol_mutability
+            .insert(var_name.to_string(), MutabilityKind::Immutable);
+        self.check_stmt(body, diag);
+        if let Some(p) = prev {
+            self.symbol_types.insert(var_name.to_string(), p);
+        } else {
+            self.symbol_types.remove(var_name);
+        }
+        if let Some(m) = prev_mut {
+            self.symbol_mutability.insert(var_name.to_string(), m);
+        } else {
+            self.symbol_mutability.remove(var_name);
+        }
+        DataraType::Unit
     }
 }

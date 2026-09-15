@@ -361,8 +361,19 @@ impl<'a> TypeChecker<'a> {
             match &obj_type {
                 DataraType::List(elem) => match member.as_str() {
                     "length" | "count" | "len" => return DataraType::Int,
-                    "get" | "pop" => return (**elem).clone(),
-                    "set" | "push" | "append" => return DataraType::List(elem.clone()),
+                    "get" => return (**elem).clone(),
+                    "pop" => {
+                        self.note_list_len_mutation(object, false);
+                        return (**elem).clone();
+                    }
+                    "set" | "push" | "append" => {
+                        // `push`/`append` grow the receiver in place; `set`
+                        // replaces an element and leaves the length alone.
+                        if member != "set" {
+                            self.note_list_len_mutation(object, true);
+                        }
+                        return DataraType::List(elem.clone());
+                    }
                     "map" => {
                         if let Some(first_arg) = arg_types.first() {
                             if let DataraType::Function { return_type, .. } = first_arg {
@@ -417,6 +428,29 @@ impl<'a> TypeChecker<'a> {
                     DataraType::Option(val) => return (**val).clone(),
                     _ => return obj_type,
                 }
+            }
+            // Numeric conversion intrinsics (Gate 7 explicit casts):
+            // `.to_float()` and `.to_int()` on numeric receivers are
+            // compiler intrinsics lowered to a single conversion
+            // instruction, never a method dispatch.
+            if matches!(
+                &obj_type,
+                DataraType::Int | DataraType::Float | DataraType::Dec64 | DataraType::Dec128
+            ) && matches!(member.as_str(), "to_float" | "to_int")
+            {
+                if !arg_types.is_empty() {
+                    diag.error(
+                        ErrorCode::TypeMismatch,
+                        format!("Conversion method '{}' takes no arguments", member),
+                        Some(span.clone()),
+                    );
+                    return DataraType::Unit;
+                }
+                return if member == "to_float" {
+                    DataraType::Float
+                } else {
+                    DataraType::Int
+                };
             }
             let (cls_opt, gen_args_opt) = match &obj_type {
                 DataraType::Class(cls) => (Some(cls.as_str()), None),
@@ -557,6 +591,67 @@ impl<'a> TypeChecker<'a> {
             {
                 return ret_ty.clone();
             }
+            // Borrow-system semantic markers: `view` / `clone` /
+            // `mut_view` produce a borrowed view of the receiver instead
+            // of a dispatched call. This mirrors the MemberAccess rule in
+            // `check_expr`, which resolves the same markers to the
+            // receiver's own type.
+            if matches!(member.as_str(), "view" | "clone" | "mut_view") {
+                return obj_type.clone();
+            }
+            // UFCS: a method call that names a module-level function (or
+            // extern) resolves to that function; the native dispatch
+            // falls back to the bare name in its function table, so the
+            // call is real, not a silent fallback.
+            if self.resolver.functions.contains_key(member)
+                || self.resolver.extern_functions.contains_key(member)
+            {
+                if let Some((_, ret_ty, _)) = self.function_signatures.get(member) {
+                    return ret_ty.clone();
+                }
+                return obj_type.clone();
+            }
+            // Unknown-method gate (E-TYPE-009): the receiver type is
+            // fully known and no class method, specialized function,
+            // trait method, prelude builtin or conversion intrinsic
+            // resolved the call. The diagnostic keeps unknown methods
+            // from reaching code generation, where a dynamic dispatch
+            // fallback once emitted calls to unresolved symbols.
+            let receiver_known = cls_opt.is_some()
+                || matches!(
+                    &obj_type,
+                    DataraType::Int
+                        | DataraType::Float
+                        | DataraType::Bool
+                        | DataraType::String
+                        | DataraType::Char
+                        | DataraType::Dec64
+                        | DataraType::Dec128
+                        | DataraType::List(_)
+                        | DataraType::Map(_, _)
+                        | DataraType::Result(_, _)
+                        | DataraType::Option(_)
+                );
+            if receiver_known {
+                let help = if matches!(
+                    &obj_type,
+                    DataraType::Int | DataraType::Float | DataraType::Dec64 | DataraType::Dec128
+                ) {
+                    Some(
+                        "numeric receivers provide the conversion methods '.to_float()' and '.to_int()'"
+                            .to_string(),
+                    )
+                } else {
+                    None
+                };
+                diag.error_with_help(
+                    ErrorCode::TypeUnknownMethod,
+                    format!("Unknown method '{}' on type '{}'", member, obj_type),
+                    Some(span.clone()),
+                    help,
+                );
+                return DataraType::Unit;
+            }
         }
 
         let callee_ty = self.check_expr(callee, diag);
@@ -564,6 +659,26 @@ impl<'a> TypeChecker<'a> {
             return *return_type;
         }
         DataraType::Unit
+    }
+
+    /// Track the in-place length change of `List.push` / `append` / `pop` on a
+    /// plain-identifier receiver.
+    ///
+    /// These methods mutate the receiver in place at run time, so the
+    /// statically tracked array length must move with them. Without this a
+    /// following `xs[i]` is compared against the pre-mutation length and
+    /// `E0947` rejects an index that is in bounds. Receivers that are not a
+    /// plain identifier, and variables whose length was never tracked, are
+    /// left untouched so the real out-of-bounds catches keep firing.
+    fn note_list_len_mutation(&mut self, object: &Expr, grow: bool) {
+        let Expr::Identifier(name, _) = object else {
+            return;
+        };
+        let Some(len) = self.var_array_lengths.get(name).copied() else {
+            return;
+        };
+        let updated = if grow { len + 1 } else { len.saturating_sub(1) };
+        self.var_array_lengths.insert(name.clone(), updated);
     }
 }
 

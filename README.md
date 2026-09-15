@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://github.com/datara-lang/datara"><img src="https://img.shields.io/badge/language-Datara-%23E3B341.svg" alt="Language" /></a>
   <a href="LICENSE-APACHE"><img src="https://img.shields.io/badge/License-Apache_2.0_OR_MIT-blue.svg" alt="License" /></a>
-  <img src="https://img.shields.io/badge/version-1.3.1-blue.svg" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.3.2-blue.svg" alt="Version" />
   <a href="https://github.com/datara-lang/datara/actions/workflows/ci.yml"><img src="https://github.com/datara-lang/datara/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <img src="https://img.shields.io/badge/tests-148%20suites%20%7C%20668%20passing-brightgreen.svg" alt="Tests" />
   <a href="docs/CONFORMANCE_MATRIX.md"><img src="https://img.shields.io/badge/Spec_V1_Conformance-84%2F84_Gates_PASS-brightgreen.svg" alt="Conformance" /></a>
@@ -181,10 +181,10 @@ Datara is distributed through verified official packages, container images, and 
 Official native system packages built directly in CI for Debian/Ubuntu and Fedora/RHEL:
 ```bash
 # Debian / Ubuntu / Pop!_OS / Linux Mint (download from GitHub Releases):
-sudo dpkg -i datara_1.3.1_amd64.deb
+sudo dpkg -i datara_1.3.2_amd64.deb
 
 # Fedora / RHEL / CentOS / openSUSE:
-sudo rpm -ivh datara-1.3.1-1.x86_64.rpm
+sudo rpm -ivh datara-1.3.2-1.x86_64.rpm
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/windows.svg" height="20" valign="middle" alt="Windows" /> Windows: Standalone GUI Setup & Scoop
@@ -204,7 +204,7 @@ cargo install --git https://github.com/datara-lang/datara.git forgen
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/vscode.svg" height="20" valign="middle" alt="VS Code" /> VS Code & Cursor Extension (.vsix)
 Install syntax highlighting, type hover, and icon themes directly from the release bundle:
 ```bash
-code --install-extension datara-language-1.3.1.vsix
+code --install-extension datara-language-1.3.2.vsix
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/python.svg" height="20" valign="middle" alt="Python" /> Python Wheel (`pip install`)
@@ -599,6 +599,17 @@ Datara provides comprehensive arithmetic, logical, and bitwise hardware operator
 - Binary Arithmetic: `+`, `-`, `*`, `/`, `%`
 - Relational: `==`, `!=`, `<`, `>`, `<=`, `>=`
 - Logical: `&&` (short-circuit AND), `||` (short-circuit OR), `!` (NOT)
+
+#### Bitwise Operators (v1.3.2)
+Infix bitwise operators on `Int` (signed 64-bit); no implicit conversions, so both operands must be `Int`:
+```datara
+let combined = 0xFF00 | 0x00FF      // 0xFFFF (OR)
+let masked   = combined & 0x00F0    // 0x00F0 (AND)
+let flipped  = masked ^ 0x00FF      // 0x000F (XOR)
+let up       = 1 << 10              // 1024   (shift left)
+let down     = -16 >> 2             // -4     (arithmetic shift right)
+```
+Operator precedence (high to low): `*` `/` `%`, then `+` `-`, then `<<` `>>`, then `&`, then `^`, then `|`, then the relational and equality operators, then `&&`, then `||`. Constant shift counts must lie in `0..64` (Int is 64-bit); `1 << 64` or a negative count is a compile-time error (`E0947`).
 
 #### Hardware Bitwise Intrinsics (Zero-Cost Machine Instructions)
 Datara maps bitwise math directly to native x86_64 and ARM64 CPU assembly instructions:
@@ -1139,6 +1150,7 @@ High-speed UTF-8 string manipulation and conversion primitives.
 | `str_len` | `(s: Str) -> Int` | Returns byte length of UTF-8 string |
 | `str_concat` | `(a: Str, b: Str) -> Str` | Concatenates two strings |
 | `str_substring`| `(s: Str, start: Int, len: Int) -> Str` | Extracts zero-copy substring slice |
+| `str_substr` | `(s: Str, start: Int, len: Int) -> Str` | Alias of `str_substring` (v1.3.2) |
 | `str_contains` | `(s: Str, needle: Str) -> Bool` | Checks if `needle` occurs in `s` |
 | `str_starts_with`| `(s: Str, prefix: Str) -> Bool` | Returns true if `s` begins with `prefix` |
 | `str_ends_with`| `(s: Str, suffix: Str) -> Bool` | Returns true if `s` terminates with `suffix` |
@@ -1154,6 +1166,7 @@ High-speed UTF-8 string manipulation and conversion primitives.
 | `str_to_float` | `(s: Str) -> Float` | Parses string to 64-bit float |
 | `int_to_str` | `(n: Int) -> Str` | Converts integer to string |
 | `float_to_str` | `(f: Float) -> Str` | Converts float to formatted string |
+| `bool_to_str` | `(b: Bool) -> Str` | Converts boolean to `"true"`/`"false"` (v1.3.2) |
 | `format_percent` | `(val: Float, decimals: Int) -> Str` | Formats float as percentage |
 | `format_int_with_commas` | `(n: Int) -> Str` | Formats integer with comma thousands separators |
 
@@ -1294,7 +1307,7 @@ fn main() {
   );
   ```
   Multi-line struct fields and typedefs are handled as well.
-- **Soundness gate (v1.3.1)**: C functions returning a by-value struct larger than one 64-bit machine word are rejected at compile time with `E0962` in every declaration form, since the native backend does not implement the hidden sret return-slot ABI yet.
+- **Struct-return ABI (v1.3.2)**: C functions returning a by-value struct of 9..16 bytes take the hidden sret return slot on the native Windows x64 backend, provided the C layout is byte-for-byte compatible with the Datara object layout (two 8-byte scalars at offsets 0 and 8, e.g. `{ double x; double y; }` or `{ long long a; long long b; }`). The gate stays a compile-time `E0962` rejection — in every declaration form — for everything outside that envelope: C layouts Datara cannot read back (sub-8-byte fields, nested aggregates, tail padding), layout-compatible aggregates above the 16-byte window, variadic returns, the LLVM and WASM backends, and SystemV / AArch64 targets where the two-eightbyte INTEGER/SSE classification is not implemented.
 
 #### 3. CPython Dynamic Bridge (`import python`)
 Dynamic in-process Python engine leveraging host `python3.dll` / `libpython3.so`:
@@ -1851,7 +1864,7 @@ forgen repl
 ```
 ```datara
 ================================================================================
- Datara Interactive REPL (Zero-Latency In-Process JIT Console v1.3.1)
+ Datara Interactive REPL (Zero-Latency In-Process JIT Console v1.3.2)
  Type ':help' for commands, ':exit' or Ctrl+C to quit.
 ================================================================================
 >> let x = 10

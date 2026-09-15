@@ -200,6 +200,25 @@ fn main() {
 "#,
         expected_output: "99",
     },
+    // 11. Bitwise operators (v1.3.2): & | ^ << >> with precedence.
+    // (a | b) = 14, (1 << 3) = 8, 14 ^ 8 = 6, 6 >> 2 = 1.
+    // Shifts must use the arithmetic right shift (shr_s / ashr) on all
+    // backends: (-16 >> 2) must stay -4, not logical 4611686018427387900.
+    DifferentialTestCase {
+        name: "bitwise_operators",
+        source: r#"
+fn main() {
+    let a = 12
+    let b = 10
+    let comb = (a | b) ^ (1 << 3)
+    let shifted = comb >> 2
+    out shifted
+    out -16 >> 2
+    out a & b
+}
+"#,
+        expected_output: "1\n-4\n8",
+    },
 ];
 
 fn run_wasm_node(wasm_path: &Path) -> Result<String, String> {

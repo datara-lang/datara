@@ -67,6 +67,11 @@ impl DiagnosticEngine {
         });
     }
 
+    /// Push a pre-built diagnostic (already WARNING-severity) into the engine.
+    pub fn warning_raw(&mut self, d: crate::diagnostics::Diagnostic) {
+        self.diagnostics.push(d);
+    }
+
     pub fn warning(&mut self, code: ErrorCode, message: String, span: Option<SourceSpan>) {
         self.diagnostics.push(Diagnostic {
             code: code.as_str().to_string(),

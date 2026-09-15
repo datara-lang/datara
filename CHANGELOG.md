@@ -4,6 +4,36 @@ All notable changes to the Datara compiler and toolchain (`forgen`) are document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-09-15»
+
+### Added
+- **Hidden sret return-slot ABI for C imports (Microsoft x64)**: C functions returning by-value structs of 9..16 bytes now compile and run when the C layout is byte-for-byte compatible with the Datara object layout (two 8-byte scalars at offsets 0 and 8 — e.g. `{ f64 x; f64 y; }` or `{ i64 a; i64 b; }`). The caller allocates the buffer, passes it as the hidden first argument (RCX, echoed in RAX), and Datara reads fields straight out of the buffer the C callee filled. The v1.3.1 compile-time rejection (E0962) is lifted only inside this supported envelope.
+- **ABI-collision guard for extern signatures**: extern parameter/return types that name an imported struct map to the raw word carrier even when the class name collides with a SIMD alias (a C struct named `Vec2d` no longer lowers as an `F64X2` register return).
+
+### Changed
+- **Struct-return gate boundary**: E0962 remains the honest compile-time rejection for every shape outside the 9..16-byte envelope, with a distinct reason per shape: C layouts Datara cannot read back (sub-8-byte fields, nested aggregates, tail padding), layout-compatible aggregates above the 16-byte window (a deliberate fail-closed scope limit — `MAX_SRET_BYTES` in `src/cimport/mod.rs`, one constant to widen), variadic struct-returning functions, the LLVM and WASM backends, and every SystemV / AArch64 host (the native Cranelift backend implements the hidden-pointer lowering for the Microsoft x64 calling convention only; on those targets the SysV two-eightbyte INTEGER/SSE classification is not implemented and struct returns keep the E0962 rejection instead of silent miscompilation).
+
+### Fixed
+- **SROA miscompilation on whole-struct variable reassignment**: scalar-replacement passes forwarded a variable's *initial* field values through a reassignment to an opaque value (e.g. an extern call result), silently reading stale data (`mut s = S{...}; s = f(); use s.x`). Both the single-block field-forwarding pass and the multi-block escape analysis now disqualify a variable's allocation from scalarization once it is rebound to a non-struct value.
+
+
+
+### Added
+- **Strict mixed-type comparison rejection (E-TYPE-008)**: ordering comparisons (`<`, `<=`, `>`, `>=`) between incompatible operand types (e.g. `Int < Float`, `Int < Str`) now fail compilation with a human-readable help text, matching SPEC_V1 Gate 7 "No implicit widening between Int and Float".
+- **Explicit numeric conversion intrinsics (Gate 7)**: `.to_float()` and `.to_int()` methods on `Int`/`Float`/`Dec64`/`Dec128` compile to a single hardware instruction (`sitofp`/`fptosi`, WASM `f64.convert_i64_s`/`i64.trunc_f64_s`), with no runtime call. Unknown methods on any type are now a compile-time error (E-TYPE-009) instead of a silent `call func 0` miscompilation.
+- **Infix bitwise operators**: `&` (and), `|` (or), `^` (xor), `<<`/`>>` (arithmetic shifts) on `Int`, with C-like precedence (`<<`/`>>` above `&` above `^` above `|`), constant-folding, compile-time rejection of out-of-range shift counts, and machine-instruction lowering in all three backends.
+- **`break` and `continue` statements** in loops, with compile-time rejection outside a loop body.
+- **Optimizer safety gate (E-OPT-001)**: the adaptive layout pass no longer silently reorders struct fields. Reordering is applied only when semantic equivalence is provable (all fields 8-byte scalars, class not extern/FFI-visible); otherwise the source order is preserved and a WARNING diagnostic is surfaced to the user even on a successful build. Differential tests prove optimized and unoptimized builds print identical output.
+- **String builtins**: `str_substr` (alias of `str_substring`), `bool_to_str`; README now matches actual behavior (verified by running the snippets).
+
+### Fixed
+- **False-positive E0947** on indexing (`acc[0]`) right after `push`: list-length mutation tracking now understands in-place growth and variable reassignment.
+- **Lexer keyword matching**: identifiers prefixed by reserved words (`async_mode`, `match_result`, `let_me_in`) no longer fail to parse; keywords match whole tokens only.
+- **JIT/AOT exit-code parity**: `fn main() -> Int` and `exit(N)` now produce identical process exit codes in JIT and AOT builds.
+- **`str_substring`/`str_substr` result typing in the lowering heuristic** previously fell back to `Int` when the typechecker signature was unavailable, printing a raw pointer; the type now resolves as `Str` on every path.
+- **UFCS and view-marker calls** rejected by the new E-TYPE-009 gate: bare-function UFCS (`x.double()`), `view`/`clone`/`mut_view` markers and class-method shadowing of the `to_int`/`to_float` intrinsics are resolved before the unknown-method check.
+- **WASM silent `dest=0`** for unresolved calls replaced with a loud compile-time error, symmetric with the native backend.
+
 ## [1.3.1] - 2026-09-14 «EXTREME GAMEDEV & MOBILE ARCHITECTURES, SOA OPTIMIZATION & WORK-STEALING PARALLEL ENGINE»
 
 ### Added

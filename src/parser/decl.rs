@@ -476,7 +476,10 @@ impl<'a> Parser<'a> {
 
         let mut generic_params = Vec::new();
         if self.match_token(&TokenType::Less) {
-            while !self.check(&TokenType::Greater) && !self.is_at_end() {
+            while !self.check(&TokenType::Greater)
+                && !self.check(&TokenType::Shr)
+                && !self.is_at_end()
+            {
                 if let Some(param) = self.consume_ident("Expected generic parameter name") {
                     generic_params.push(param);
                 }
@@ -484,7 +487,7 @@ impl<'a> Parser<'a> {
                     break;
                 }
             }
-            self.consume(&TokenType::Greater, "Expected '>' after generic parameters")?;
+            self.consume_generic_close("Expected '>' after generic parameters")?;
         }
 
         let base_type = None;
@@ -558,7 +561,7 @@ impl<'a> Parser<'a> {
                     break;
                 }
             }
-            self.consume(&TokenType::Greater, "Expected '>' after generic parameters")?;
+            self.consume_generic_close("Expected '>' after generic parameters")?;
         }
 
         self.consume(&TokenType::LBrace, "Expected '{' before enum body")?;
@@ -714,7 +717,10 @@ impl<'a> Parser<'a> {
 
         let mut generic_params = Vec::new();
         if self.match_token(&TokenType::Less) {
-            while !self.check(&TokenType::Greater) && !self.is_at_end() {
+            while !self.check(&TokenType::Greater)
+                && !self.check(&TokenType::Shr)
+                && !self.is_at_end()
+            {
                 if let Some(param) = self.consume_ident("Expected generic parameter name") {
                     generic_params.push(param);
                 }
@@ -722,7 +728,7 @@ impl<'a> Parser<'a> {
                     break;
                 }
             }
-            self.consume(&TokenType::Greater, "Expected '>' after generic parameters")?;
+            self.consume_generic_close("Expected '>' after generic parameters")?;
         }
 
         let mut super_traits = Vec::new();
@@ -773,7 +779,10 @@ impl<'a> Parser<'a> {
 
         let mut generic_params = Vec::new();
         if self.match_token(&TokenType::Less) {
-            while !self.check(&TokenType::Greater) && !self.is_at_end() {
+            while !self.check(&TokenType::Greater)
+                && !self.check(&TokenType::Shr)
+                && !self.is_at_end()
+            {
                 if let Some(p) = self.consume_ident("Expected generic parameter name") {
                     generic_params.push(p);
                 }
@@ -781,7 +790,7 @@ impl<'a> Parser<'a> {
                     break;
                 }
             }
-            self.consume(&TokenType::Greater, "Expected '>' after generic parameters")?;
+            self.consume_generic_close("Expected '>' after generic parameters")?;
         }
 
         self.consume(&TokenType::LParen, "Expected '(' after method name")?;
@@ -834,7 +843,10 @@ impl<'a> Parser<'a> {
 
         let mut target_type_args = Vec::new();
         if self.match_token(&TokenType::Less) {
-            while !self.check(&TokenType::Greater) && !self.is_at_end() {
+            while !self.check(&TokenType::Greater)
+                && !self.check(&TokenType::Shr)
+                && !self.is_at_end()
+            {
                 if let Some(arg) = self.consume_ident("Expected type argument") {
                     target_type_args.push(arg);
                 }
@@ -842,7 +854,7 @@ impl<'a> Parser<'a> {
                     break;
                 }
             }
-            self.consume(&TokenType::Greater, "Expected '>' after type arguments")?;
+            self.consume_generic_close("Expected '>' after type arguments")?;
         }
 
         self.consume(&TokenType::LBrace, "Expected '{' before impl body")?;
@@ -1053,7 +1065,10 @@ impl<'a> Parser<'a> {
         let mut generic_params = Vec::new();
         let mut generic_constraints = Vec::new();
         if self.match_token(&TokenType::Less) {
-            while !self.check(&TokenType::Greater) && !self.is_at_end() {
+            while !self.check(&TokenType::Greater)
+                && !self.check(&TokenType::Shr)
+                && !self.is_at_end()
+            {
                 if let Some(param) = self.consume_ident("Expected generic parameter name") {
                     if self.match_token(&TokenType::Colon) {
                         loop {
@@ -1073,7 +1088,7 @@ impl<'a> Parser<'a> {
                     break;
                 }
             }
-            self.consume(&TokenType::Greater, "Expected '>' after generic parameters")?;
+            self.consume_generic_close("Expected '>' after generic parameters")?;
         }
 
         self.consume(&TokenType::LParen, "Expected '(' after function name")?;
@@ -1199,6 +1214,7 @@ impl<'a> Parser<'a> {
             name,
             params,
             return_type,
+            sret_size: None,
             span: SourceSpan::new(
                 start_line_from(&start_span),
                 start_col_from(&start_span),

@@ -536,7 +536,7 @@ if is_ready and not is_busy {
 ```datara
 let mask = 0xFF00
 let flags = 0x00FF
-let combined = (mask | flags) & ~0x0010
+let combined = (mask | flags) & 0xFFEF
 let shifted = flags << 4
 
 // Аппаратные интринсики процессора (компилируются в POPCNT, LZCNT, TZCNT, ROR/ROL):
@@ -545,6 +545,9 @@ let leading_zeros = clz(mask)
 let trailing_zeros = ctz(mask)
 let rotated = rot_left(flags, 2)
 ```
+Операторы `&`, `|`, `^`, `<<`, `>>` определены только для `Int`
+
+Строковые встроенные функции: `str_contains` возвращает `Bool`; `str_substring(s, start, len)` выделяет подстроку, `str_substr` — её алиас (v1.3.2); `bool_to_str(b)` → `"true"`/`"false"` (v1.3.2). (64 бита, знаковый); неявные преобразования запрещены. Приоритет (по убыванию): `*` `/` `%`, затем `+` `-`, затем `<<` `>>`, затем `&`, затем `^`, затем `|`, затем сравнения, затем `&&`, затем `||`. Константная величина сдвига должна лежать в `0..64`; `1 << 64` или отрицательный сдвиг — ошибка компиляции (`E0947`). Инверсия бита выражается через `xor`: `(mask | flags) ^ 0x0010`.
 
 ---
 

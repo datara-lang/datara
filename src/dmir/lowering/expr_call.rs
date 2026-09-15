@@ -640,28 +640,38 @@ impl<'a> Lowering<'a> {
                     arg_vals.push(av);
                 }
             }
-            let mut method_ty = self
-                .function_return_types
-                .get(member)
-                .or_else(|| self.class_field_types.get(member))
-                .cloned()
-                .unwrap_or_else(|| {
-                    if member.contains("float") || member.contains("flt") {
-                        "Float".into()
-                    } else if member.contains("string")
-                        || member.contains("to_str")
-                        || member.starts_with("str_")
-                        || member.ends_with("_str")
-                        || member.contains("render")
-                        || member.contains("format")
-                        || member.contains("quote")
-                        || member.starts_with("wrap")
-                    {
-                        "String".into()
-                    } else {
-                        "Int".into()
-                    }
-                });
+            let mut method_ty = if member == "to_float" || member == "to_int" {
+                // Numeric conversion intrinsics (Gate 7 explicit casts):
+                // the result type comes from the method name, never from
+                // the name heuristics below.
+                if member == "to_float" {
+                    "Float".to_string()
+                } else {
+                    "Int".to_string()
+                }
+            } else {
+                self.function_return_types
+                    .get(member)
+                    .or_else(|| self.class_field_types.get(member))
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        if member.contains("float") || member.contains("flt") {
+                            "Float".into()
+                        } else if member.contains("string")
+                            || member.contains("to_str")
+                            || member.starts_with("str_")
+                            || member.ends_with("_str")
+                            || member.contains("render")
+                            || member.contains("format")
+                            || member.contains("quote")
+                            || member.starts_with("wrap")
+                        {
+                            "String".into()
+                        } else {
+                            "Int".into()
+                        }
+                    })
+            };
             if member == "unwrap" || member == "unwrap_or" {
                 let obj_ty = match &**object {
                     Expr::Identifier(name, _) => self.lookup_var_type(name),

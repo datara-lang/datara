@@ -365,6 +365,7 @@ impl<'a> OwnershipTracker<'a> {
                     }
                 }
             }
+            Stmt::Break(_) | Stmt::Continue(_) => {}
             Stmt::If {
                 condition,
                 then_branch,

@@ -6,6 +6,22 @@ use std::collections::HashMap;
 
 use super::types::{ModuleDecls, clif_type};
 
+/// ABI carrier of one extern parameter/return type.
+///
+/// An imported C struct becomes a Datara class, and its ABI carrier is a
+/// raw word (a pointer for aggregates the callee accesses through memory,
+/// the bit pattern itself for one-word scalars). It must therefore never
+/// take a named vector type, even when the class name collides with a SIMD
+/// alias: a C struct named `Vec2d` would otherwise be declared as an F64X2
+/// register return instead of the raw word the C ABI actually passes.
+fn extern_abi_type(dmir_module: &Module, ty: &str) -> cranelift_codegen::ir::Type {
+    if dmir_module.class_fields.contains_key(ty) {
+        clif_types::I64
+    } else {
+        clif_type(ty)
+    }
+}
+
 pub fn declare_module_symbols<M: ClifModule>(
     module: &mut M,
     dmir_module: &Module,
@@ -72,11 +88,24 @@ pub fn declare_module_symbols<M: ClifModule>(
     for ef_name in sorted_ef_names {
         let (ef_params, ef_ret) = &dmir_module.extern_functions[ef_name];
         let mut sig = Signature::new(call_conv);
+        // Hidden sret return-slot (Microsoft x64): a by-value struct return
+        // larger than one machine word takes a caller-allocated buffer whose
+        // pointer is passed as the FIRST integer argument (RCX) and echoed
+        // back in RAX. Only declared when the target call convention is the
+        // Microsoft x64 ABI; SystemV targets classify small aggregates into
+        // register pairs and are refused at the call site instead.
+        let is_sret = dmir_module.extern_sret.contains_key(ef_name)
+            && call_conv == cranelift_codegen::isa::CallConv::WindowsFastcall;
+        if is_sret {
+            sig.params.push(AbiParam::new(clif_types::I64));
+        }
         for p_ty in ef_params {
-            sig.params.push(AbiParam::new(clif_type(p_ty)));
+            sig.params
+                .push(AbiParam::new(extern_abi_type(dmir_module, p_ty)));
         }
         if ef_ret != "Unit" && ef_ret != "Never" {
-            sig.returns.push(AbiParam::new(clif_type(ef_ret)));
+            sig.returns
+                .push(AbiParam::new(extern_abi_type(dmir_module, ef_ret)));
         }
         if let Ok(fid) = module.declare_function(ef_name, Linkage::Import, &sig) {
             func_ids.insert(ef_name.clone(), (fid, sig));

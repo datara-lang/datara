@@ -2,10 +2,13 @@
 //!
 //! The tokenizer used to end with a bare `_ => {}`: since `self.advance()`
 //! runs before the match, an unrecognised character was consumed and silently
-//! discarded. `out 6 ^ 3` therefore compiled cleanly and printed `6`. Single
-//! `&` and `|` were dropped the same way because their match arms had no
-//! `else`. These tests pin down that such characters are now reported, while a
-//! leading UTF-8 BOM is still accepted.
+//! discarded. `out 6 ~ 3` therefore compiled cleanly and printed `6`. These
+//! tests pin down that such characters are still reported, while a leading
+//! UTF-8 BOM is still accepted.
+//!
+//! Since v1.3.2 the characters `&`, `|` and `^` are no longer in this list:
+//! they tokenize as the bitwise operators `&`, `|` and `^` (see
+//! tests/test_bitwise_ops.rs).
 
 use forgen::driver::{CompilationResult, ForgenCompiler};
 
@@ -16,7 +19,6 @@ fn compile(source: &str, name: &str) -> CompilationResult {
 #[test]
 fn test_unexpected_character_is_reported() {
     for (ch, label) in [
-        ("^", "caret"),
         ("~", "tilde"),
         ("@", "at sign"),
         ("$", "dollar"),
@@ -49,28 +51,22 @@ fn test_unexpected_character_is_reported() {
 }
 
 #[test]
-fn test_lone_ampersand_and_pipe_are_reported() {
-    // `&&` and `||` are valid; a single `&` or `|` is not.
+fn test_lone_ampersand_and_pipe_are_now_bitwise_operators() {
+    // Until v1.3.2 a lone `&` or `|` was rejected as a syntax error.
+    // Both are now the bitwise operators promised by README_RU; the
+    // full operator behavior is covered by tests/test_bitwise_ops.rs.
     let res = compile("fn main() {\n    out 6 & 3\n}\n", "test_lexer_lone_amp.dtr");
-    assert!(!res.success, "a lone '&' must be rejected");
-    let err = res.error.unwrap_or_default();
     assert!(
-        err.contains("&"),
-        "error should name the character, got: {}",
-        err
+        res.success,
+        "a lone '&' is now bitwise and: {:?}",
+        res.error
     );
 
     let res = compile(
         "fn main() {\n    out 6 | 3\n}\n",
         "test_lexer_lone_pipe.dtr",
     );
-    assert!(!res.success, "a lone '|' must be rejected");
-    let err = res.error.unwrap_or_default();
-    assert!(
-        err.contains("|"),
-        "error should name the character, got: {}",
-        err
-    );
+    assert!(res.success, "a lone '|' is now bitwise or: {:?}", res.error);
 }
 
 #[test]

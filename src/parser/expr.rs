@@ -295,6 +295,11 @@ impl<'a> Parser<'a> {
             TokenType::LessEqual => Some((PREC_COMPARISON, false, "<=")),
             TokenType::Greater => Some((PREC_COMPARISON, false, ">")),
             TokenType::GreaterEqual => Some((PREC_COMPARISON, false, ">=")),
+            TokenType::Ampersand => Some((PREC_BIT_AND, false, "&")),
+            TokenType::Caret => Some((PREC_BIT_XOR, false, "^")),
+            TokenType::BitOr => Some((PREC_BIT_OR, false, "|")),
+            TokenType::Shl => Some((PREC_SHIFT, false, "<<")),
+            TokenType::Shr => Some((PREC_SHIFT, false, ">>")),
             TokenType::DotDot => Some((PREC_RANGE, true, "..")),
             TokenType::DotDotEq => Some((PREC_RANGE, true, "..=")),
             TokenType::DotDotLt => Some((PREC_RANGE, true, "..<")),
@@ -563,7 +568,10 @@ impl<'a> Parser<'a> {
         let mut generic_args = Vec::new();
 
         if is_capital && self.match_token(&TokenType::Less) {
-            while !self.check(&TokenType::Greater) && !self.is_at_end() {
+            while !self.check(&TokenType::Greater)
+                && !self.check(&TokenType::Shr)
+                && !self.is_at_end()
+            {
                 if let Some(arg) = self.parse_type() {
                     generic_args.push(arg);
                 }
@@ -571,10 +579,7 @@ impl<'a> Parser<'a> {
                     break;
                 }
             }
-            self.consume(
-                &TokenType::Greater,
-                "Expected '>' after generic type arguments",
-            )?;
+            self.consume_generic_close("Expected '>' after generic type arguments")?;
         }
 
         if is_capital && self.check(&TokenType::LBrace) {

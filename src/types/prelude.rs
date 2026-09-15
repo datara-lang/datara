@@ -432,6 +432,14 @@ impl<'a> TypeChecker<'a> {
             ),
         );
         function_signatures.insert(
+            "str_substr".to_string(),
+            (
+                vec![DataraType::String, DataraType::Int, DataraType::Int],
+                DataraType::String,
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
             "str_char_at".to_string(),
             (
                 vec![DataraType::String, DataraType::Int],
@@ -1069,6 +1077,14 @@ impl<'a> TypeChecker<'a> {
             (vec![DataraType::Float], DataraType::String, Vec::new()),
         );
         function_signatures.insert(
+            "bool_to_str".to_string(),
+            (vec![DataraType::Bool], DataraType::String, Vec::new()),
+        );
+        function_signatures.insert(
+            "datara_rt_bool_to_str".to_string(),
+            (vec![DataraType::Bool], DataraType::String, Vec::new()),
+        );
+        function_signatures.insert(
             "uuid_v4".to_string(),
             (Vec::new(), DataraType::String, Vec::new()),
         );
@@ -1231,6 +1247,7 @@ impl<'a> TypeChecker<'a> {
             trait_bounds: HashMap::new(),
             current_target_type: None,
             expr_depth: 0,
+            loop_depth: 0,
         }
     }
 }

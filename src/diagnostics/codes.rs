@@ -11,6 +11,7 @@ pub enum ErrorCode {
     SyntaxExpectedExpression,
     SyntaxExpectedIdentifier,
     SyntaxExpectedType,
+    SyntaxInvalidEscape,
     RecursionLimitExceeded,
 
     // Resolution Errors (E-RESOLVE-*)
@@ -30,6 +31,7 @@ pub enum ErrorCode {
     TypeInvalidMemberAccess,
     TypeGenericMismatch,
     TypeIncomparableOperands,
+    TypeUnknownMethod,
 
     // Borrow & Ownership Errors (E-BORROW-*)
     BorrowUseAfterMove,
@@ -67,6 +69,7 @@ pub enum ErrorCode {
     // Language Safety & Formal Verification Errors (E0310-E0947)
     NonExhaustiveMatch,
     UnreachablePattern,
+    LoopControlOutsideLoop,
     DimensionMismatch,
     InvariantViolation,
     TerminationViolation,
@@ -83,6 +86,9 @@ pub enum ErrorCode {
     // Cross-compilation Errors (E0980)
     CrossCompilationMissingToolchain,
 
+    // Optimizer Correctness Warnings (E-OPT-*)
+    OptimizationUnproven,
+
     // Deprecation & Modernization Warnings (W0100)
     DeprecatedFeature,
 }
@@ -98,6 +104,7 @@ impl ErrorCode {
             ErrorCode::SyntaxExpectedExpression => "E-SYNTAX-006",
             ErrorCode::SyntaxExpectedIdentifier => "E-SYNTAX-007",
             ErrorCode::SyntaxExpectedType => "E-SYNTAX-008",
+            ErrorCode::SyntaxInvalidEscape => "E-SYNTAX-009",
             ErrorCode::RecursionLimitExceeded => "E0105",
 
             ErrorCode::ResolveUndefinedSymbol => "E-RESOLVE-001",
@@ -115,6 +122,7 @@ impl ErrorCode {
             ErrorCode::TypeInvalidMemberAccess => "E-TYPE-006",
             ErrorCode::TypeGenericMismatch => "E-TYPE-007",
             ErrorCode::TypeIncomparableOperands => "E-TYPE-008",
+            ErrorCode::TypeUnknownMethod => "E-TYPE-009",
 
             ErrorCode::BorrowUseAfterMove => "E-BORROW-001",
             ErrorCode::BorrowCannotMutateImmutable => "E-BORROW-002",
@@ -142,6 +150,7 @@ impl ErrorCode {
             ErrorCode::CImportUnsupportedConstruct => "E0962",
             ErrorCode::NonExhaustiveMatch => "E0310",
             ErrorCode::UnreachablePattern => "E0311",
+            ErrorCode::LoopControlOutsideLoop => "E0312",
             ErrorCode::DimensionMismatch => "E0420",
             ErrorCode::InvariantViolation => "E0945",
             ErrorCode::TerminationViolation => "E0946",
@@ -153,6 +162,7 @@ impl ErrorCode {
             ErrorCode::CApiArgLimitExceeded => "E0904",
             ErrorCode::AsyncBackendUnsupported => "E0955",
             ErrorCode::CrossCompilationMissingToolchain => "E0980",
+            ErrorCode::OptimizationUnproven => "E-OPT-001",
             ErrorCode::DeprecatedFeature => "W0100",
         }
     }
@@ -168,6 +178,9 @@ impl ErrorCode {
                 ErrorCode::SyntaxExpectedExpression => "Ожидалось выражение",
                 ErrorCode::SyntaxExpectedIdentifier => "Ожидался идентификатор",
                 ErrorCode::SyntaxExpectedType => "Ожидалось имя типа",
+                ErrorCode::SyntaxInvalidEscape => {
+                    "Некорректная escape-последовательность в строковом литерале"
+                }
                 ErrorCode::RecursionLimitExceeded => {
                     "Превышен лимит глубины вложенности выражений (64)"
                 }
@@ -190,6 +203,9 @@ impl ErrorCode {
                 ErrorCode::TypeGenericMismatch => "Несоответствие аргументов обобщённого типа",
                 ErrorCode::TypeIncomparableOperands => {
                     "Сравнение порядка над несовместимыми типами: неявные преобразования запрещены"
+                }
+                ErrorCode::TypeUnknownMethod => {
+                    "Метод с таким именем не существует для типа получателя"
                 }
 
                 ErrorCode::BorrowUseAfterMove => {
@@ -248,6 +264,9 @@ impl ErrorCode {
                 ErrorCode::UnreachablePattern => {
                     "Недостижимый паттерн в сопоставлении с образцом (match)"
                 }
+                ErrorCode::LoopControlOutsideLoop => {
+                    "'break' или 'continue' вне тела цикла (while/for/loop)"
+                }
                 ErrorCode::DimensionMismatch => {
                     "Несоответствие размерностей единиц измерения (Units of Measure)"
                 }
@@ -279,6 +298,10 @@ impl ErrorCode {
                 ErrorCode::CrossCompilationMissingToolchain => {
                     "Отсутствует инструментарий кросс-компиляции для целевой платформы (требуется lld или кросс-линкер)"
                 }
+                ErrorCode::OptimizationUnproven => {
+                    "Трансформация раскладки пропущена: семантическая эквивалентность не доказана"
+                }
+
                 ErrorCode::DeprecatedFeature => {
                     "Устаревшая языковая конструкция: используйте современный аналог"
                 }
@@ -290,6 +313,7 @@ impl ErrorCode {
                 ErrorCode::SyntaxUnterminatedComment => "Unterminated multi-line comment",
                 ErrorCode::SyntaxInvalidNumber => "Invalid numeric literal format",
                 ErrorCode::SyntaxInvalidChar => "Invalid character in input stream",
+                ErrorCode::SyntaxInvalidEscape => "Invalid escape sequence in string literal",
                 ErrorCode::SyntaxExpectedExpression => "Expected an expression",
                 ErrorCode::SyntaxExpectedIdentifier => "Expected an identifier",
                 ErrorCode::SyntaxExpectedType => "Expected a type annotation",
@@ -315,6 +339,9 @@ impl ErrorCode {
                 ErrorCode::TypeGenericMismatch => "Generic type argument mismatch",
                 ErrorCode::TypeIncomparableOperands => {
                     "Ordering comparison over incompatible types: implicit conversions are forbidden"
+                }
+                ErrorCode::TypeUnknownMethod => {
+                    "No method with this name exists for the receiver type"
                 }
 
                 ErrorCode::BorrowUseAfterMove => "Use of moved value (use-after-move)",
@@ -369,6 +396,9 @@ impl ErrorCode {
                     "Non-exhaustive patterns in match expression: missing patterns"
                 }
                 ErrorCode::UnreachablePattern => "Unreachable pattern in match expression",
+                ErrorCode::LoopControlOutsideLoop => {
+                    "'break' or 'continue' outside of a loop body (while/for/loop)"
+                }
                 ErrorCode::DimensionMismatch => {
                     "Dimension mismatch: incompatible units of measure in arithmetic expression"
                 }
@@ -402,6 +432,10 @@ impl ErrorCode {
                 ErrorCode::CrossCompilationMissingToolchain => {
                     "Cross-compilation toolchain not found for target triple (lld or cross-linker required)"
                 }
+                ErrorCode::OptimizationUnproven => {
+                    "Optimizer layout transformation skipped: semantic equivalence could not be proven"
+                }
+
                 ErrorCode::DeprecatedFeature => {
                     "Deprecated language construct: use the modern equivalent"
                 }

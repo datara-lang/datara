@@ -41,9 +41,14 @@ pub fn declare_runtime_core<M: ClifModule>(
 
     let mut exit_sig = Signature::new(call_conv);
     exit_sig.params.push(AbiParam::new(clif_types::I32));
-    let _exit_id = module
+    let exit_id = module
         .declare_function("datara_rt_exit", Linkage::Import, &exit_sig)
         .map_err(|e| e.to_string())?;
+    // `exit(code)` is declared in the prelude and lowered to
+    // `datara_rt_exit`; register the symbol under both names so the call
+    // resolves instead of failing with "unresolved function call".
+    func_ids.insert("datara_rt_exit".into(), (exit_id, exit_sig.clone()));
+    func_ids.insert("exit".into(), (exit_id, exit_sig));
 
     let mut pgo_str_sig = Signature::new(call_conv);
     pgo_str_sig.params.push(AbiParam::new(clif_types::I64));

@@ -166,6 +166,23 @@ impl Optimizer {
                         if let (Some(l_val), Some(r_val)) =
                             (int_constants.get(left), int_constants.get(right))
                         {
+                            // Shift amounts are validated here as well: DMIR
+                            // constants can reach this point through variables
+                            // (`mut s = 64; x << s`), not only through the
+                            // literals already rejected by the type checker.
+                            // Fail closed: an out-of-range constant shift has
+                            // no defined result, so reject the compilation.
+                            if matches!(op.as_str(), "<<" | ">>") && (*r_val < 0 || *r_val >= 64) {
+                                let diag = crate::diagnostics::Diagnostic::error(
+                                    crate::diagnostics::ErrorCode::RangeViolation,
+                                    format!(
+                                        "[E0947] Shift amount {} is out of range for Int (64-bit): the shift count must be in 0..64",
+                                        r_val
+                                    ),
+                                    None,
+                                );
+                                self.diagnostics.push(diag);
+                            }
                             let folded = match op.as_str() {
                                 "+" => l_val.checked_add(*r_val),
                                 "-" => l_val.checked_sub(*r_val),
@@ -176,6 +193,17 @@ impl Optimizer {
                                 "saturating_+" => Some(l_val.saturating_add(*r_val)),
                                 "saturating_-" => Some(l_val.saturating_sub(*r_val)),
                                 "saturating_*" => Some(l_val.saturating_mul(*r_val)),
+                                "&" => Some(l_val & r_val),
+                                "|" => Some(l_val | r_val),
+                                "^" => Some(l_val ^ r_val),
+                                // The range guard above reports out-of-range
+                                // shift counts; these arms still re-check so
+                                // an invalid count falls through to `_ => None`
+                                // instead of panicking on a negative shift.
+                                "<<" if *r_val >= 0 && *r_val < 64 => {
+                                    Some(l_val.wrapping_shl(*r_val as u32))
+                                }
+                                ">>" if *r_val >= 0 && *r_val < 64 => Some(l_val >> *r_val),
                                 "/" if *r_val != 0 && !(*l_val == i64::MIN && *r_val == -1) => {
                                     l_val.checked_div(*r_val)
                                 }
@@ -581,6 +609,65 @@ impl Optimizer {
                             if let Some(res) = folded {
                                 float_constants.insert(*dest, res);
                                 new_instructions.push(Inst::ConstFloat {
+                                    dest: *dest,
+                                    value: res,
+                                });
+                                self.report.constants_folded += 1;
+                                changed = true;
+                                continue;
+                            }
+                        }
+                        new_instructions.push(inst.clone());
+                    }
+                    Inst::MethodCall {
+                        dest,
+                        object,
+                        method,
+                        args,
+                        ty: _,
+                    } if (method == "to_float" || method == "to_int") && args.is_empty() => {
+                        // Numeric conversion intrinsics (Gate 7): a constant
+                        // receiver folds to a constant result instead of a
+                        // runtime conversion. `to_int` folds only when the
+                        // float is finite and inside the i64 range, matching
+                        // the in-range fptosi the hardware path executes.
+                        if method == "to_float" {
+                            if let Some(i) = int_constants.get(object).copied() {
+                                let res = i as f64;
+                                float_constants.insert(*dest, res);
+                                new_instructions.push(Inst::ConstFloat {
+                                    dest: *dest,
+                                    value: res,
+                                });
+                                self.report.constants_folded += 1;
+                                changed = true;
+                                continue;
+                            } else if let Some(f) = float_constants.get(object).copied() {
+                                float_constants.insert(*dest, f);
+                                new_instructions.push(Inst::ConstFloat {
+                                    dest: *dest,
+                                    value: f,
+                                });
+                                self.report.constants_folded += 1;
+                                changed = true;
+                                continue;
+                            }
+                        } else if let Some(i) = int_constants.get(object).copied() {
+                            int_constants.insert(*dest, i);
+                            new_instructions.push(Inst::ConstInt {
+                                dest: *dest,
+                                value: i,
+                            });
+                            self.report.constants_folded += 1;
+                            changed = true;
+                            continue;
+                        } else if let Some(f) = float_constants.get(object).copied() {
+                            let in_i64_range = f.is_finite()
+                                && (-9223372036854775808.0..9223372036854775808.0).contains(&f);
+                            if in_i64_range {
+                                let res = f as i64;
+                                int_constants.insert(*dest, res);
+                                new_instructions.push(Inst::ConstInt {
                                     dest: *dest,
                                     value: res,
                                 });

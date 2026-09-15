@@ -224,6 +224,7 @@ impl Resolver {
             Stmt::Unsafe { body, .. } => {
                 self.resolve_stmt(body, diag);
             }
+            Stmt::Break(_) | Stmt::Continue(_) => {}
             Stmt::Asm { .. } => {}
         }
     }

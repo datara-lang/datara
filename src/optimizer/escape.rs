@@ -23,6 +23,10 @@ pub enum EscapeState {
     EscapedHeapContainer,
     /// Object escapes because its address was stored into an already escaping object.
     EscapedStoreField,
+    /// A variable bound to this object was reassigned to an opaque value
+    /// (e.g. an extern call result), so the object no longer represents
+    /// that variable's storage and must not be scalarized.
+    EscapedVariableRebind,
 }
 
 /// Metadata for an allocated struct candidate.
@@ -124,6 +128,18 @@ impl EscapeAnalyzer {
                                     if let Some(alloc) = result.allocations.get_mut(&root) {
                                         alloc.bound_variables.insert(name.clone());
                                     }
+                                    changed = true;
+                                }
+                            } else if let Some(&old_root) = var_to_alloc_root.get(name) {
+                                // The variable is rebound to an opaque value (an
+                                // extern call result, a field read, ...): the
+                                // allocation no longer represents the variable's
+                                // storage, so it must not be scalarized while
+                                // stale aliases may still point at it.
+                                if let Some(alloc) = result.allocations.get_mut(&old_root)
+                                    && alloc.state == EscapeState::NonEscaping
+                                {
+                                    alloc.state = EscapeState::EscapedVariableRebind;
                                     changed = true;
                                 }
                             }

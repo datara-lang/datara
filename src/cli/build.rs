@@ -661,6 +661,7 @@ pub(crate) fn cmd_build(command: &str, args: &[String]) -> bool {
     let elapsed = start.elapsed().as_millis();
 
     if res.success {
+        print_optimizer_warnings(&res);
         if is_llvm {
             println!("[Forgen LLVM] Ultra-optimized AOT LLVM pipeline completed.");
         }
@@ -898,6 +899,7 @@ pub(crate) fn cmd_domain(args: &[String]) -> bool {
         compiler.compile_files(&layout.source_files, None)
     };
     if res.success {
+        print_optimizer_warnings(&res);
         if is_llvm {
             println!(
                 "[Forgen LLVM] Whole-program Domain compilation with LLVM pipeline completed."
@@ -1106,4 +1108,18 @@ pub(crate) fn cmd_profile(args: &[String]) -> bool {
     }
 
     true
+}
+
+/// Print WARNING-severity diagnostics (e.g. E-OPT-001 layout gate) after a
+/// successful build: correctness advisories must reach the user even when
+/// compilation succeeds.
+fn print_optimizer_warnings(res: &crate::driver::CompilationResult) {
+    for d in &res.diagnostic_records {
+        if d.severity == "WARNING" {
+            eprintln!("warning[{}]: {}", d.code, d.message);
+            if let Some(h) = &d.help {
+                eprintln!("  help: {}", h);
+            }
+        }
+    }
 }

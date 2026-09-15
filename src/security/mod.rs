@@ -1060,6 +1060,7 @@ impl<'a> SecurityVerifier<'a> {
                 catch_ctx.outer_vars.insert(err_var.clone());
                 self.verify_stmt(catch_block, &mut catch_ctx, diag);
             }
+            Stmt::Break(_) | Stmt::Continue(_) => {}
             Stmt::Asm { .. } => {}
         }
     }

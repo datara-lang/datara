@@ -193,11 +193,12 @@ fn main() {{
 }
 
 #[test]
-fn test_ffi_abi_struct_return_rejected_cleanly() {
-    // Soundness gate: the native backend does not implement the hidden sret
-    // return-slot ABI for by-value structs larger than one machine word.
-    // Importing such a function must produce a clean compile-time rejection
-    // (E0962 warning + unresolved symbol) instead of a crashing binary.
+fn test_ffi_abi_struct_return_sret_roundtrip() {
+    // v1.3.2 M3: the native backend implements the hidden sret return-slot
+    // ABI for layout-compatible structs, so the 16-byte Point return of
+    // `add_points` now round-trips cleanly: add_points -> Point (sret) ->
+    // sum_point (by-reference parameter) -> 110. The same source used to be
+    // rejected at compile time with E0962 before the sret implementation.
     let (fixture_h, out_lib) = build_test_lib("test_abi_edge_cases_struct.lib");
     let h_path_str = fixture_h.to_string_lossy().replace('\\', "/");
     let lib_path_str = out_lib.to_string_lossy().replace('\\', "/");
@@ -219,22 +220,27 @@ fn main() {{
     );
 
     let res = compile_in_big_stack(source, "test_ffi_struct_return.dtr");
-    let report = format!("{}\n{}", res.error.unwrap_or_default(), res.diagnostics);
     assert!(
-        !res.success,
-        "A struct-returning C import must be rejected at compile time, got success:\n{}",
-        report
-    );
-    assert!(
-        report.contains("add_points"),
-        "Diagnostic must name the rejected C function:\n{}",
-        report
-    );
-    assert!(
-        report.contains("E0962"),
-        "Diagnostic must carry the E0962 unsupported-construct code:\n{}",
-        report
+        res.success,
+        "A layout-compatible struct-returning C import must compile through the sret path: {:?}\n{}",
+        res.error, res.diagnostics
     );
 
+    let exe = res.exe_path.expect("Must produce native executable");
+    let compiler = ForgenCompiler::new("release");
+    let (stdout, stderr, code, _) = compiler
+        .cranelift
+        .run_executable(&exe, &[])
+        .expect("Must run native executable");
+    assert_eq!(code, 0, "Execution failed: {}", stderr);
+    assert!(
+        stdout.contains("STRUCT_RETURN: 110"),
+        "Nested sret struct return round trip failed:\n{}",
+        stdout
+    );
+
+    let _ = std::fs::remove_file(&exe);
+    let _ = std::fs::remove_file(exe.with_extension("obj"));
+    let _ = std::fs::remove_file(exe.with_extension("pdb"));
     let _ = std::fs::remove_file(&out_lib);
 }

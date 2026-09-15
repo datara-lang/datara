@@ -93,6 +93,28 @@ impl ForgenCompiler {
         self
     }
 
+    /// Whether the hidden sret return-slot ABI for C struct returns is
+    /// implemented for this compilation configuration: the native Cranelift
+    /// backend on a Windows x64 host. The LLVM and WASM backends keep the
+    /// compile-time E0962 rejection, and so does every SystemV / AArch64
+    /// host, where the backend call convention does not match the Windows
+    /// x64 hidden-pointer lowering. The native Cranelift backend always
+    /// lowers for the host target (an explicit triple only steers the LLVM
+    /// pipeline), so only an explicit WASM target disables the ABI here.
+    pub fn sret_abi_supported(&self) -> bool {
+        if self.use_llvm {
+            return false;
+        }
+        if !cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+            return false;
+        }
+        !self
+            .target_triple
+            .as_deref()
+            .map(|t| t.starts_with("wasm"))
+            .unwrap_or(false)
+    }
+
     pub fn compile_source(
         &self,
         source: &str,
@@ -145,7 +167,13 @@ impl ForgenCompiler {
         let base_dirs = self.module_base_dirs(Path::new(file));
         self.resolve_modules(&mut program, &mut diag, &[], base_dirs);
 
-        run_check_pipeline(program, &mut diag, timings, total_start)
+        run_check_pipeline(
+            program,
+            &mut diag,
+            timings,
+            total_start,
+            self.sret_abi_supported(),
+        )
     }
 
     pub fn check_file(&self, path: &Path) -> CompilationResult {
@@ -192,7 +220,13 @@ impl ForgenCompiler {
         let base_dirs = self.module_base_dirs(paths[0].as_path());
         self.resolve_modules(&mut combined_program, &mut diag, paths, base_dirs);
 
-        run_check_pipeline(combined_program, &mut diag, timings, total_start)
+        run_check_pipeline(
+            combined_program,
+            &mut diag,
+            timings,
+            total_start,
+            self.sret_abi_supported(),
+        )
     }
 
     pub fn compile_source_native(

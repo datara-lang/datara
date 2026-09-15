@@ -194,6 +194,13 @@ pub fn declare_runtime_ext<M: ClifModule>(
         "str_substring".into(),
         (rt_str_substring_id, rt_str_substring_sig.clone()),
     );
+
+    // str_substr: documented convenience alias of str_substring.
+    let rt_str_substr_sig = rt_str_substring_sig.clone();
+    func_ids.insert(
+        "str_substr".into(),
+        (rt_str_substring_id, rt_str_substr_sig),
+    );
     func_ids.insert(
         "substring".into(),
         (rt_str_substring_id, rt_str_substring_sig),
@@ -785,7 +792,7 @@ pub fn declare_runtime_ext<M: ClifModule>(
         "datara_rt_int_to_str".into(),
         (rt_i2s_id, rt_i2s_sig.clone()),
     );
-    func_ids.insert("int_to_str".into(), (rt_i2s_id, rt_i2s_sig));
+    func_ids.insert("int_to_str".into(), (rt_i2s_id, rt_i2s_sig.clone()));
 
     // String: float_to_str
     let mut rt_f2s_sig = Signature::new(call_conv);
@@ -798,7 +805,22 @@ pub fn declare_runtime_ext<M: ClifModule>(
         "datara_rt_float_to_str".into(),
         (rt_f2s_id, rt_f2s_sig.clone()),
     );
-    func_ids.insert("float_to_str".into(), (rt_f2s_id, rt_f2s_sig));
+    func_ids.insert("float_to_str".into(), (rt_f2s_id, rt_f2s_sig.clone()));
+
+    // String: bool_to_str (same shape as int_to_str: i64 -> ptr). Registered
+    // in the JIT reg!-table since v1.3.1 but missing from the AOT table and
+    // the typechecker prelude; exposed for parity (README documents it).
+    // NOTE: the runtime signature is (i64) -> i64 (C returns const char*),
+    // same as int_to_str — NOT float_to_str, whose parameter is an f64.
+    let rt_b2s_sig = rt_i2s_sig.clone();
+    let rt_b2s_id = module
+        .declare_function("datara_rt_bool_to_str", Linkage::Import, &rt_b2s_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_bool_to_str".into(),
+        (rt_b2s_id, rt_b2s_sig.clone()),
+    );
+    func_ids.insert("bool_to_str".into(), (rt_b2s_id, rt_b2s_sig));
 
     // Crypto: sha256
     let mut rt_sha256_sig = Signature::new(call_conv);

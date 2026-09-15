@@ -300,10 +300,11 @@ pub(super) fn run_check_pipeline(
     diag: &mut DiagnosticEngine,
     mut timings: CompilationTimings,
     total_start: Instant,
+    allow_sret_returns: bool,
 ) -> CompilationResult {
     let mut program = program;
     let base_dir = Path::new(&program.file).parent().map(|p| p.to_path_buf());
-    crate::cimport::expand_c_imports(&mut program, base_dir.as_deref(), diag);
+    crate::cimport::expand_c_imports(&mut program, base_dir.as_deref(), diag, allow_sret_returns);
     crate::rust_bridge::expand_rust_dependencies(&mut program, base_dir.as_deref(), diag);
     if diag.has_errors() {
         timings.total_ms = total_start.elapsed().as_millis();
@@ -456,7 +457,12 @@ pub(super) fn run_analysis_and_lower<R>(
     finish: impl FnOnce(AnalysisOutput<'_, '_>) -> R,
 ) -> Result<R, CompilationResult> {
     let base_dir = Path::new(file).parent();
-    crate::cimport::expand_c_imports(&mut program, base_dir, diag);
+    // The hidden sret return-slot ABI for C struct returns is implemented
+    // by the native Cranelift backend for the Microsoft x64 calling
+    // convention only; the LLVM and WASM backends and every SystemV /
+    // AArch64 host keep the compile-time rejection.
+    let allow_sret_returns = compiler.sret_abi_supported();
+    crate::cimport::expand_c_imports(&mut program, base_dir, diag, allow_sret_returns);
     crate::rust_bridge::expand_rust_dependencies(&mut program, base_dir, diag);
     if diag.has_errors() {
         timings.total_ms = total_start.elapsed().as_millis();
@@ -647,12 +653,18 @@ pub(super) fn run_analysis_and_lower<R>(
             timings,
         ));
     }
-    if !optimizer.diagnostics.is_empty() {
-        let msg = optimizer.diagnostics[0].message.clone();
+    let hard_errors: Vec<crate::diagnostics::Diagnostic> = optimizer
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity != "WARNING")
+        .cloned()
+        .collect();
+    if !hard_errors.is_empty() {
+        let msg = hard_errors[0].message.clone();
         return Err(CompilationResult::failure_with_diagnostics(
             msg.clone(),
             msg,
-            optimizer.diagnostics,
+            hard_errors,
             Some(program),
             timings,
         ));
@@ -675,6 +687,16 @@ pub(super) fn run_analysis_and_lower<R>(
                 timings,
             ));
         }
+    }
+    // Surface optimizer/adaptation WARNINGs (e.g. E-OPT-001 layout gate) to
+    // the user without failing compilation: re-run them through the diagnostics
+    // engine as warnings, filtered out of hard-error handling above.
+    for w in optimizer
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == "WARNING")
+    {
+        diag.warning_raw(w.clone());
     }
     if let Some(ref pgo_gen) = compiler.profile_generate {
         crate::pgo::ProfileInstrumenter::instrument_module(

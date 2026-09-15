@@ -233,6 +233,12 @@ impl MemoryOptimizer {
                 Inst::AssignVar { name, value } => {
                     if let Some(s_def) = struct_defs.get(value) {
                         var_to_struct.insert(name.clone(), s_def.clone());
+                    } else if var_to_struct.contains_key(name) {
+                        // Reassigned to an opaque value (e.g. an extern call
+                        // result): the earlier struct binding no longer
+                        // represents the variable's storage, so later LoadVars
+                        // must not forward the stale field map.
+                        var_to_struct.remove(name);
                     }
                     new_instructions.push(inst.clone());
                 }

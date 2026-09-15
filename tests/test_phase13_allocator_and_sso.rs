@@ -155,7 +155,7 @@ fn test_layout_adapter_alignment_and_field_reordering() {
         .insert("Particle.velocity".to_string(), "Float".to_string());
 
     let mut sae = SemanticAdaptationEngine::new("release");
-    let layouts = LayoutAdapter::adapt_layout(&mut module, &mut sae.log);
+    let (layouts, _layout_warnings) = LayoutAdapter::adapt_layout(&mut module, &mut sae.log);
 
     let particle_layout = layouts
         .get("Particle")

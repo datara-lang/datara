@@ -353,7 +353,12 @@ impl<'a> Lowering<'a> {
                     else_args: Vec::new(),
                 };
 
+                // `continue` re-enters the loop at the header so the full
+                // (possibly short-circuiting) condition chain re-runs;
+                // `break` leaves at the exit block.
+                self.loop_stack.push((loop_header_id, exit_id));
                 let (body_end, _) = self.lower_stmt_cfg(body, body_id);
+                self.loop_stack.pop();
                 self.set_back_edge(body_end, loop_header_id);
 
                 // No compound `WhileLoop` snapshot is emitted here. The legacy
@@ -441,42 +446,53 @@ impl<'a> Lowering<'a> {
                             else_args: Vec::new(),
                         };
 
+                        // The increment lives in its own block so `continue`
+                        // can jump to it: a continued iteration must still
+                        // advance the induction variable before re-testing
+                        // the loop condition.
+                        let incr_id = self.create_block("for_incr");
+                        self.loop_stack.push((incr_id, exit_id));
                         let (body_end, _) = self.lower_stmt_cfg(body, body_id);
+                        self.loop_stack.pop();
 
-                        // A body that ends in `return` has no back edge, so
-                        // there is nothing to increment either.
+                        // A body that ends in `return` or `break` has no
+                        // fall-through edge, so it never reaches the increment.
                         if self.block_falls_through(body_end) {
-                            // Increment: v = v + 1
-                            let one = self.next_val();
-                            self.get_block_mut(body_end)
-                                .instructions
-                                .push(Inst::ConstInt {
-                                    dest: one,
-                                    value: 1,
-                                });
-                            let loaded = self.next_val();
-                            self.get_block_mut(body_end)
-                                .instructions
-                                .push(Inst::LoadVar {
-                                    dest: loaded,
-                                    name: var_name.clone(),
-                                });
-                            let next = self.next_val();
-                            self.get_block_mut(body_end).instructions.push(Inst::BinOp {
-                                dest: next,
-                                op: "+".into(),
-                                left: loaded,
-                                right: one,
-                                ty: "Int".into(),
-                            });
-                            self.get_block_mut(body_end)
-                                .instructions
-                                .push(Inst::AssignVar {
-                                    name: var_name.clone(),
-                                    value: next,
-                                });
+                            self.set_back_edge(body_end, incr_id);
                         }
-                        self.set_back_edge(body_end, header_id);
+                        // Increment: v = v + 1
+                        let one = self.next_val();
+                        self.get_block_mut(incr_id)
+                            .instructions
+                            .push(Inst::ConstInt {
+                                dest: one,
+                                value: 1,
+                            });
+                        let loaded = self.next_val();
+                        self.get_block_mut(incr_id)
+                            .instructions
+                            .push(Inst::LoadVar {
+                                dest: loaded,
+                                name: var_name.clone(),
+                            });
+                        let next = self.next_val();
+                        self.get_block_mut(incr_id).instructions.push(Inst::BinOp {
+                            dest: next,
+                            op: "+".into(),
+                            left: loaded,
+                            right: one,
+                            ty: "Int".into(),
+                        });
+                        self.get_block_mut(incr_id)
+                            .instructions
+                            .push(Inst::AssignVar {
+                                name: var_name.clone(),
+                                value: next,
+                            });
+                        self.get_block_mut(incr_id).terminator = Terminator::Branch {
+                            target: header_id,
+                            args: Vec::new(),
+                        };
 
                         (exit_id, None)
                     }
@@ -561,31 +577,38 @@ impl<'a> Lowering<'a> {
                                     });
                                 self.symbol_values.insert(var_name.clone(), scalar_val);
 
+                                let incr_id = self.create_block("for_str_incr");
+                                self.loop_stack.push((incr_id, exit_id));
                                 let (body_end, _) = self.lower_stmt_cfg(body, body_id);
+                                self.loop_stack.pop();
 
                                 if self.block_falls_through(body_end) {
-                                    let body_off = self.next_val();
-                                    self.get_block_mut(body_end)
-                                        .instructions
-                                        .push(Inst::LoadVar {
-                                            dest: body_off,
-                                            name: offset_name.clone(),
-                                        });
-                                    let next_off = self.next_val();
-                                    self.get_block_mut(body_end).instructions.push(Inst::Call {
-                                        dest: next_off,
-                                        func: "datara_rt_str_next_offset".into(),
-                                        args: vec![sv, body_off],
-                                        ty: "Int".into(),
-                                    });
-                                    self.get_block_mut(body_end).instructions.push(
-                                        Inst::AssignVar {
-                                            name: offset_name.clone(),
-                                            value: next_off,
-                                        },
-                                    );
+                                    self.set_back_edge(body_end, incr_id);
                                 }
-                                self.set_back_edge(body_end, header_id);
+                                let body_off = self.next_val();
+                                self.get_block_mut(incr_id)
+                                    .instructions
+                                    .push(Inst::LoadVar {
+                                        dest: body_off,
+                                        name: offset_name.clone(),
+                                    });
+                                let next_off = self.next_val();
+                                self.get_block_mut(incr_id).instructions.push(Inst::Call {
+                                    dest: next_off,
+                                    func: "datara_rt_str_next_offset".into(),
+                                    args: vec![sv, body_off],
+                                    ty: "Int".into(),
+                                });
+                                self.get_block_mut(incr_id)
+                                    .instructions
+                                    .push(Inst::AssignVar {
+                                        name: offset_name.clone(),
+                                        value: next_off,
+                                    });
+                                self.get_block_mut(incr_id).terminator = Terminator::Branch {
+                                    target: header_id,
+                                    args: Vec::new(),
+                                };
 
                                 (exit_id, None)
                             }
@@ -717,39 +740,47 @@ impl<'a> Lowering<'a> {
                                     });
                                 self.symbol_values.insert(var_name.clone(), item_val);
 
+                                let incr_id = self.create_block("for_incr");
+                                self.loop_stack.push((incr_id, exit_id));
                                 let (body_end, _) = self.lower_stmt_cfg(body, body_id);
+                                self.loop_stack.pop();
 
                                 if self.block_falls_through(body_end) {
-                                    let one = self.next_val();
-                                    self.get_block_mut(body_end).instructions.push(
-                                        Inst::ConstInt {
-                                            dest: one,
-                                            value: 1,
-                                        },
-                                    );
-                                    let loaded = self.next_val();
-                                    self.get_block_mut(body_end)
-                                        .instructions
-                                        .push(Inst::LoadVar {
-                                            dest: loaded,
-                                            name: idx_name.clone(),
-                                        });
-                                    let next = self.next_val();
-                                    self.get_block_mut(body_end).instructions.push(Inst::BinOp {
-                                        dest: next,
-                                        op: "+".into(),
-                                        left: loaded,
-                                        right: one,
-                                        ty: "Int".into(),
-                                    });
-                                    self.get_block_mut(body_end).instructions.push(
-                                        Inst::AssignVar {
-                                            name: idx_name.clone(),
-                                            value: next,
-                                        },
-                                    );
+                                    self.set_back_edge(body_end, incr_id);
                                 }
-                                self.set_back_edge(body_end, header_id);
+                                // Increment: idx = idx + 1
+                                let one = self.next_val();
+                                self.get_block_mut(incr_id)
+                                    .instructions
+                                    .push(Inst::ConstInt {
+                                        dest: one,
+                                        value: 1,
+                                    });
+                                let loaded = self.next_val();
+                                self.get_block_mut(incr_id)
+                                    .instructions
+                                    .push(Inst::LoadVar {
+                                        dest: loaded,
+                                        name: idx_name.clone(),
+                                    });
+                                let next = self.next_val();
+                                self.get_block_mut(incr_id).instructions.push(Inst::BinOp {
+                                    dest: next,
+                                    op: "+".into(),
+                                    left: loaded,
+                                    right: one,
+                                    ty: "Int".into(),
+                                });
+                                self.get_block_mut(incr_id)
+                                    .instructions
+                                    .push(Inst::AssignVar {
+                                        name: idx_name.clone(),
+                                        value: next,
+                                    });
+                                self.get_block_mut(incr_id).terminator = Terminator::Branch {
+                                    target: header_id,
+                                    args: Vec::new(),
+                                };
 
                                 (exit_id, None)
                             }
@@ -786,10 +817,37 @@ impl<'a> Lowering<'a> {
                     else_args: Vec::new(),
                 };
 
+                self.loop_stack.push((header_id, exit_id));
                 let (body_end, _) = self.lower_stmt_cfg(body, body_id);
+                self.loop_stack.pop();
                 self.set_back_edge(body_end, header_id);
 
                 (exit_id, None)
+            }
+            Stmt::Break(_) => {
+                // The type checker guarantees a surrounding loop (E0312);
+                // defensively fall through to the next statement otherwise.
+                if let Some((_, break_id)) = self.loop_stack.last().copied() {
+                    self.get_block_mut(cur_block).terminator = Terminator::Branch {
+                        target: break_id,
+                        args: Vec::new(),
+                    };
+                    // Statements after `break` in the same block are dead
+                    // code; route them into a fresh unreachable block that
+                    // the DCE pass removes.
+                    cur_block = self.create_block("after_break");
+                }
+                (cur_block, None)
+            }
+            Stmt::Continue(_) => {
+                if let Some((continue_id, _)) = self.loop_stack.last().copied() {
+                    self.get_block_mut(cur_block).terminator = Terminator::Branch {
+                        target: continue_id,
+                        args: Vec::new(),
+                    };
+                    cur_block = self.create_block("after_continue");
+                }
+                (cur_block, None)
             }
             Stmt::TryCatch { try_block, .. } => self.lower_stmt_cfg(try_block, cur_block),
             Stmt::Parallel(body, _) => {

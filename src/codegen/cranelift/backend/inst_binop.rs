@@ -558,8 +558,20 @@ pub fn compile_binop<M: ClifModule>(
             "&" | "&&" => ctx.builder.ins().band(lv, rv),
             "|" | "||" => ctx.builder.ins().bor(lv, rv),
             "^" => ctx.builder.ins().bxor(lv, rv),
-            "<<" => ctx.builder.ins().ishl(lv, rv),
-            ">>" => ctx.builder.ins().sshr(lv, rv),
+            // Shift counts are masked to 0..63: Cranelift leaves ishl/sshr
+            // results undefined for out-of-range counts, and the mask makes
+            // the runtime behavior deterministic and identical to the x86
+            // native semantics and the WASM i64.shl / i64.shr_s rules.
+            "<<" => {
+                let mask = ctx.builder.ins().iconst(clif_types::I64, 63);
+                let count = ctx.builder.ins().band(rv, mask);
+                ctx.builder.ins().ishl(lv, count)
+            }
+            ">>" => {
+                let mask = ctx.builder.ins().iconst(clif_types::I64, 63);
+                let count = ctx.builder.ins().band(rv, mask);
+                ctx.builder.ins().sshr(lv, count)
+            }
             // Used to be a silent `iadd` fallback. That is
             // how `a && b` compiled to `a + b`: the operator
             // had no arm here, so it silently became

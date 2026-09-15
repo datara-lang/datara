@@ -16,6 +16,24 @@ impl<'a> Parser<'a> {
         self.consume_ident_or_keyword(msg)
     }
 
+    /// Consume the closing angle of a generic parameter/argument list.
+    ///
+    /// The lexer emits `>>` as a single `Shr` token so right-shift expressions
+    /// work. In type position that same `Shr` closes a *nested* generic list
+    /// (`List<List<Int>>`); split it into two `>` tokens and consume one half
+    /// so each enclosing list terminates correctly.
+    pub(crate) fn consume_generic_close(&mut self, msg: &str) -> Option<Token> {
+        if self.check(&TokenType::Shr) {
+            let span = self.peek().span.clone();
+            self.tokens[self.current] = Token::new(TokenType::Greater, ">".into(), span.clone());
+            self.tokens.insert(
+                self.current + 1,
+                Token::new(TokenType::Greater, ">".into(), span),
+            );
+        }
+        self.consume(&TokenType::Greater, msg)
+    }
+
     pub(crate) fn match_token(&mut self, token_type: &TokenType) -> bool {
         if self.check(token_type) {
             self.advance();

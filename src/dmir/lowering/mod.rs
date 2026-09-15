@@ -32,6 +32,11 @@ pub struct Lowering<'a> {
     pub in_wrapping_mode: bool,
     pub in_saturating_mode: bool,
     pub local_lambdas: HashMap<String, (Vec<Param>, Expr)>,
+    /// Stack of open loops: `(continue_target, break_target)`. `continue`
+    /// branches to the first element, `break` to the second. For counted
+    /// loops the continue target is the increment block so the induction
+    /// variable still advances.
+    pub loop_stack: Vec<(BasicBlockId, BasicBlockId)>,
 }
 
 impl<'a> Lowering<'a> {
@@ -368,6 +373,7 @@ impl<'a> Lowering<'a> {
             in_wrapping_mode: false,
             in_saturating_mode: false,
             local_lambdas: HashMap::new(),
+            loop_stack: Vec::new(),
         }
     }
 
@@ -608,6 +614,9 @@ impl<'a> Lowering<'a> {
                 module
                     .extern_functions
                     .insert(ef.name.clone(), (params, ret.clone()));
+                if let Some(size) = ef.sret_size {
+                    module.extern_sret.insert(ef.name.clone(), size);
+                }
                 self.function_return_types.insert(ef.name.clone(), ret);
             } else if let Decl::Impl(i) = decl {
                 for m in &i.methods {

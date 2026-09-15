@@ -323,18 +323,32 @@ impl<'a> LlvmEmitter<'a> {
                                 dest.0, left.0, right.0
                             ));
                         }
+                        // Shift counts are masked to 0..63 first: LLVM marks
+                        // `shl`/`ashr` with an out-of-range count as poison,
+                        // and the mask makes runtime behavior deterministic
+                        // (same rule as WASM i64.shl / i64.shr_s and x86).
                         "<<" => {
                             value_types.insert(*dest, "i64");
+                            let shift_temp = format!("%shift_{}", dest.0);
                             out.push_str(&format!(
-                                "  %v{} = shl i64 %v{}, %v{}\n",
-                                dest.0, left.0, right.0
+                                "  {} = and i64 %v{}, 63\n",
+                                shift_temp, right.0
+                            ));
+                            out.push_str(&format!(
+                                "  %v{} = shl i64 %v{}, {}\n",
+                                dest.0, left.0, shift_temp
                             ));
                         }
                         ">>" => {
                             value_types.insert(*dest, "i64");
+                            let shift_temp = format!("%shift_{}", dest.0);
                             out.push_str(&format!(
-                                "  %v{} = ashr i64 %v{}, %v{}\n",
-                                dest.0, left.0, right.0
+                                "  {} = and i64 %v{}, 63\n",
+                                shift_temp, right.0
+                            ));
+                            out.push_str(&format!(
+                                "  %v{} = ashr i64 %v{}, {}\n",
+                                dest.0, left.0, shift_temp
                             ));
                         }
                         _ => {
@@ -622,6 +636,38 @@ impl<'a> LlvmEmitter<'a> {
                 args,
                 ty,
             } => {
+                // Numeric conversion intrinsics (Gate 7 explicit casts):
+                // a single LLVM conversion instruction, no runtime call.
+                if (method == "to_float" || method == "to_int") && args.is_empty() {
+                    let obj_ty = value_types.get(object).copied().unwrap_or("i64");
+                    if method == "to_float" {
+                        value_types.insert(*dest, "double");
+                        if obj_ty == "i64" {
+                            out.push_str(&format!(
+                                "  %v{} = sitofp i64 %v{} to double\n",
+                                dest.0, object.0
+                            ));
+                        } else {
+                            // Identity for an already-double receiver; freeze
+                            // preserves the bit pattern including -0.0.
+                            out.push_str(&format!(
+                                "  %v{} = freeze double %v{}\n",
+                                dest.0, object.0
+                            ));
+                        }
+                    } else {
+                        value_types.insert(*dest, "i64");
+                        if obj_ty == "double" {
+                            out.push_str(&format!(
+                                "  %v{} = fptosi double %v{} to i64\n",
+                                dest.0, object.0
+                            ));
+                        } else {
+                            out.push_str(&format!("  %v{} = add i64 0, %v{}\n", dest.0, object.0));
+                        }
+                    }
+                    return;
+                }
                 let mut ret_ty = self.dmir_type_to_llvm(ty);
 
                 let actual_func = match method.as_str() {

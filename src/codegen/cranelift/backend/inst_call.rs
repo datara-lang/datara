@@ -16,6 +16,16 @@ pub fn compile_call<M: ClifModule>(
             .insert(*dest, ctx.builder.ins().iconst(clif_types::I64, 0));
         return Ok(());
     }
+    // Hidden sret return-slot ABI (Microsoft x64): a C function returning a
+    // by-value struct larger than one machine word takes a caller-allocated
+    // buffer whose pointer is passed as the first argument. Allocate the
+    // buffer as a regular Datara heap object (one 8-byte slot per field, the
+    // same layout StructInit produces), pass it as the hidden first argument,
+    // and let the Datara result value be that pointer: subsequent field reads
+    // then load directly from the buffer the C callee filled.
+    if let Some(&sret_size) = ctx.dmir_module.extern_sret.get(func) {
+        return compile_sret_call(ctx, dest, func, args, ty, sret_size);
+    }
     // First-Class Hardware SIMD Lowering (F32X4 / I32X4 Native Vector Registers)
     if super::simd::try_compile_simd_call(ctx, dest, func, args, ty)? {
         return Ok(());
@@ -742,6 +752,31 @@ pub fn compile_method_call<M: ClifModule>(
             ctx.list_vids.contains(object)
         );
     }
+    // Numeric conversion intrinsics (Gate 7 explicit casts): `.to_float()`
+    // and `.to_int()` lower to a single conversion instruction
+    // (sitofp / fptosi / bitcast), never a runtime call or method
+    // dispatch. Collection and string receivers are excluded: their
+    // protocol dispatch below must stay authoritative. A user-defined
+    // class method with the same name also shadows the intrinsic: the
+    // class's specialized function is dispatched below instead of
+    // bit-converting the receiver's pointer.
+    if matches!(method, "to_float" | "to_int")
+        && !ctx.list_vids.contains(object)
+        && !ctx.map_vids.contains(object)
+        && !ctx.string_vids.contains(object)
+    {
+        let class_shadows = ctx
+            .val_to_class
+            .get(object)
+            .map(|c| {
+                let base = c.split('<').next().unwrap_or(c);
+                ctx.func_ids.contains_key(&format!("{}_{}", base, method))
+            })
+            .unwrap_or(false);
+        if !class_shadows {
+            return compile_numeric_convert(ctx, dest, object, method);
+        }
+    }
     // List and String protocol methods: dispatch on the object's
     // runtime shape, not the class method table.
     let list_special = if ctx.map_vids.contains(object) {
@@ -1008,5 +1043,170 @@ pub fn compile_method_call<M: ClifModule>(
         }
     }
 
+    Ok(())
+}
+
+/// Lower a call to an imported C function that returns a by-value struct
+/// through the hidden sret return-slot ABI.
+///
+/// Microsoft x64 convention: the caller allocates the return buffer and
+/// passes its pointer as the FIRST integer argument (RCX; user arguments
+/// shift into RDX/R8/R9/stack), and the callee echoes that pointer in RAX.
+/// The buffer is allocated with the same runtime `malloc` the StructInit
+/// lowering uses, so the returned value is an ordinary Datara heap object:
+/// field reads load the 8-byte slot at `index * 8`, which the cimport gate
+/// guarantees matches the C layout.
+fn compile_sret_call<M: ClifModule>(
+    ctx: &mut FunctionCompileCtx<'_, '_, M>,
+    dest: &ValueId,
+    func: &str,
+    args: &[ValueId],
+    ty: &str,
+    sret_size: usize,
+) -> Result<(), String> {
+    let Some((callee_id, callee_sig)) = ctx.func_ids.get(func).map(|(id, sig)| (*id, sig)) else {
+        return Err(format!(
+            "Code generation failed: unresolved function call '{}' in function '{}'",
+            func, ctx.current_func.name
+        ));
+    };
+    if callee_sig.call_conv != cranelift_codegen::isa::CallConv::WindowsFastcall {
+        return Err(format!(
+            "Code generation failed: C function '{}' returns a by-value struct of {} bytes through the hidden sret return slot, which the native backend implements only for the Microsoft x64 calling convention (target uses {:?}). Use an out-pointer parameter (e.g. `void f(T* out)`).",
+            func, sret_size, callee_sig.call_conv
+        ));
+    }
+
+    // Mirror the StructInit allocation: heap object with one 8-byte slot per
+    // field, minimum 16 bytes. CRT `malloc` returns memory aligned for any
+    // fundamental type (16 bytes on x64), so the buffer satisfies every
+    // struct alignment the cimport gate admits.
+    let malloc_ref = ctx
+        .module
+        .declare_func_in_func(ctx.runtime.malloc_id, ctx.builder.func);
+    let size_val = ctx
+        .builder
+        .ins()
+        .iconst(clif_types::I64, sret_size.max(16) as i64);
+    let alloc_inst = ctx.builder.ins().call(malloc_ref, &[size_val]);
+    let sret_buf = ctx.builder.inst_results(alloc_inst)[0];
+
+    let callee_ref = ctx.module.declare_func_in_func(callee_id, ctx.builder.func);
+    let mut arg_vals = vec![sret_buf];
+    for (i, a) in args.iter().enumerate() {
+        // Preserve arity: a missing value must still occupy its argument
+        // slot in the signature (index shifted by the hidden sret pointer).
+        let mut av = ctx
+            .val_map
+            .get(a)
+            .copied()
+            .unwrap_or_else(|| ctx.builder.ins().iconst(clif_types::I64, 0));
+        if ctx.builder.func.dfg.value_type(av) == clif_types::F64
+            && callee_sig
+                .params
+                .get(i + 1)
+                .map(|p| p.value_type == clif_types::I64)
+                .unwrap_or(false)
+        {
+            av = ctx.builder.ins().bitcast(
+                clif_types::I64,
+                cranelift_codegen::ir::MemFlagsData::new(),
+                av,
+            );
+        }
+        arg_vals.push(av);
+    }
+    ctx.builder.ins().call(callee_ref, &arg_vals);
+    ctx.val_map.insert(*dest, sret_buf);
+    let class = if ty.is_empty() {
+        ctx.dmir_module
+            .extern_functions
+            .get(func)
+            .map(|(_, ret)| ret.clone())
+            .unwrap_or_default()
+    } else {
+        ty.to_string()
+    };
+    if !class.is_empty() {
+        ctx.val_to_class.insert(*dest, class);
+    }
+    Ok(())
+}
+
+/// Lower `.to_float()` / `.to_int()` on a numeric receiver to the single
+/// machine conversion the target provides.
+///
+/// The receiver's Cranelift type is authoritative: an F64 SSA value is a
+/// float, an integer-typed value is an integer. One exception exists for
+/// the all-I64 runtime ABI, where a float can travel as its IEEE-754 bit
+/// pattern inside an I64 slot; `val_to_class` identifies that case so the
+/// conversion bitcasts instead of reinterpreting the bits as an integer.
+fn compile_numeric_convert<M: ClifModule>(
+    ctx: &mut FunctionCompileCtx<'_, '_, M>,
+    dest: &ValueId,
+    object: &ValueId,
+    method: &str,
+) -> Result<(), String> {
+    let Some(&obj) = ctx.val_map.get(object) else {
+        return Err(format!(
+            "Code generation failed: conversion method '{}' on a receiver that was never materialized in function '{}'",
+            method, ctx.current_func.name
+        ));
+    };
+    let obj_ty = ctx.builder.func.dfg.value_type(obj);
+    let class_says_float = ctx
+        .val_to_class
+        .get(object)
+        .map(|c| c.contains("Float") || c.contains("float"))
+        .unwrap_or(false);
+
+    // All-I64 ABI: float bit pattern stored in an integer slot.
+    let obj = if obj_ty == clif_types::I64 && class_says_float {
+        ctx.builder.ins().bitcast(
+            clif_types::F64,
+            cranelift_codegen::ir::MemFlagsData::new(),
+            obj,
+        )
+    } else {
+        obj
+    };
+    let obj_ty = ctx.builder.func.dfg.value_type(obj);
+
+    let result = if method == "to_float" {
+        match obj_ty {
+            clif_types::F64 => obj,
+            clif_types::F32 => ctx.builder.ins().fpromote(clif_types::F64, obj),
+            clif_types::I64 => ctx.builder.ins().fcvt_from_sint(clif_types::F64, obj),
+            clif_types::I32 | clif_types::I16 | clif_types::I8 => {
+                let widened = ctx.builder.ins().sextend(clif_types::I64, obj);
+                ctx.builder.ins().fcvt_from_sint(clif_types::F64, widened)
+            }
+            other => {
+                return Err(format!(
+                    "Code generation failed: '.to_float()' cannot convert a value of Cranelift type {} in function '{}'",
+                    other, ctx.current_func.name
+                ));
+            }
+        }
+    } else {
+        match obj_ty {
+            clif_types::F64 => ctx.builder.ins().fcvt_to_sint(clif_types::I64, obj),
+            clif_types::F32 => {
+                let widened = ctx.builder.ins().fpromote(clif_types::F64, obj);
+                ctx.builder.ins().fcvt_to_sint(clif_types::I64, widened)
+            }
+            clif_types::I64 => obj,
+            clif_types::I32 | clif_types::I16 | clif_types::I8 => {
+                ctx.builder.ins().sextend(clif_types::I64, obj)
+            }
+            other => {
+                return Err(format!(
+                    "Code generation failed: '.to_int()' cannot convert a value of Cranelift type {} in function '{}'",
+                    other, ctx.current_func.name
+                ));
+            }
+        }
+    };
+    ctx.val_map.insert(*dest, result);
     Ok(())
 }

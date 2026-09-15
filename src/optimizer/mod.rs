@@ -158,6 +158,9 @@ impl Optimizer {
         // 0. Semantic Adaptation Engine (SAE) pass
         self.sae.adapt_module(module);
         self.report.adaptation_records = self.sae.log.records.clone();
+        // Adaptation gates (e.g. E-OPT-001 layout-sensitivity) emit WARNING
+        // diagnostics, surfaced without failing compilation.
+        self.diagnostics.extend(self.sae.pending_warnings.drain(..));
 
         let max_iterations = if self.mode == "domain" || self.mode == "release" {
             3

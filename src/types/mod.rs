@@ -490,6 +490,10 @@ pub struct TypeChecker<'a> {
     /// entry, decremented on exit. When it exceeds `MAX_EXPR_DEPTH` the
     /// checker emits E0999 and returns immediately to prevent stack overflow.
     pub expr_depth: usize,
+    /// Nesting depth of `while` / `for` / `loop` bodies currently being
+    /// checked. `break` / `continue` outside any loop (E0312) are rejected;
+    /// `parallel` bodies do not open a breakable scope.
+    pub loop_depth: usize,
 }
 
 /// Maximum nesting depth for expression type-checking. Expressions nested

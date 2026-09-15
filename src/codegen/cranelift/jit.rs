@@ -374,6 +374,7 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_out_int", datara_rt_out_int);
     reg!("datara_rt_out_bool", datara_rt_out_bool);
     reg!("datara_rt_bool_to_str", datara_rt_bool_to_str);
+    reg!("bool_to_str", datara_rt_bool_to_str);
     reg!("datara_rt_out_float", datara_rt_out_float);
     reg!("datara_rt_float_to_str", datara_rt_float_to_str);
     reg!("float_to_str", datara_rt_float_to_str);
@@ -482,6 +483,7 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("str_to_float", datara_rt_str_to_float);
     reg!("datara_rt_str_substring", datara_rt_str_substring);
     reg!("str_substring", datara_rt_str_substring);
+    reg!("str_substr", datara_rt_str_substring);
     reg!("datara_rt_str_char_at", datara_rt_str_char_at);
     reg!("str_char_at", datara_rt_str_char_at);
     reg!("datara_rt_str_repeat", datara_rt_str_repeat);

@@ -1088,6 +1088,7 @@ pub fn substitute_self_in_stmt(stmt: &mut Stmt, target: &str) {
                 substitute_self_in_expr(e, target);
             }
         }
+        Stmt::Break(_) | Stmt::Continue(_) => {}
         Stmt::Asm { .. } => {}
     }
 }
