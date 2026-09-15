@@ -4,6 +4,19 @@ All notable changes to the Datara compiler and toolchain (`forgen`) are document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2026-09-15
+
+### Added
+- **SysV AMD64 struct-return ABI (Linux x86-64)**: C functions returning by-value structs of 9..16 bytes with two 8-byte scalar fields now work on Linux through register pairs (INTEGER → RAX/RDX, SSE → XMM0/XMM1, independent class sequences per the SysV ABI — `{f64,i64}` returns in XMM0:RAX, matching gcc/clang). The compiler selects the mechanism per target: hidden sret pointer on Windows x64, register pair on Linux x86-64; classification is a pure, unit-tested function. Everything outside the envelope (mixed sub-8-byte fields, >16 bytes, variadic struct returns, AArch64, LLVM/WASM backends) stays a fail-closed E0962.
+- **Module namespace aliases**: `use mathx as mx` (or the last path segment) enables qualified calls `mx.double(21)`; flat unqualified imports keep working. Qualified calls typecheck through the module's exported signatures and lower to plain calls (modules are inlined).
+- **Ambiguous-import detection (E-RESOLVE-002)**: two different modules exporting the same top-level name is now a compile-time error instead of silent first-import-wins; diamond re-exports of the same file stay legal.
+
+### Changed
+- **LoopFold constant-expression resolution**: loop-local constant definitions (`let c = 10 * 5` inside the body) no longer block closed-form folding — countable loops folding to `s += const` now collapse to O(1) arithmetic (200M-iteration loop: 89 ms → 0 ms, mathematically verified). Guards hardened to use the same resolver (const-expr `i64::MAX` bound and start value checks).
+
+### Fixed
+- CI (Ubuntu): platform-split sret expectations in the extern-block test (Windows sret / Linux SysV / other targets fail-closed); semver-aware Cargo.toml version invariant in the phase-18 release test (the hardcoded version list broke on every bump).
+
 ## [1.3.2] - 2026-09-15»
 
 ### Added

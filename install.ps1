@@ -33,7 +33,7 @@ New-Item -ItemType Directory -Force -Path $AssetsDir | Out-Null
 Write-Host "[2/5] Resolving latest Datara version..." -ForegroundColor Yellow
 $Repo = "datara-lang/datara"
 $ApiUrl = "https://api.github.com/repos/$Repo/releases/latest"
-$LatestTag = "v1.3.2"
+$LatestTag = "v1.3.3"
 $DownloadUrl = ""
 
 try {
