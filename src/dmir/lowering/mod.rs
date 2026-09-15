@@ -643,9 +643,137 @@ impl<'a> Lowering<'a> {
             }
         }
 
+        // Field DECLARATION order is ABI-visible: SysV AMD64 register-pair
+        // struct returns (v1.3.3) hand each eightbyte to the caller in C
+        // header order, and GetField/StructInit address fields by their
+        // index in this vector. Sorting names here silently renumbered
+        // field offsets whenever the declaration order was not
+        // alphabetical (e.g. cimport structs), corrupting every
+        // mixed-class FFI boundary. HashMap iteration order is
+        // nondeterministic, so the order source is the Program AST:
+        // ClassDecl body_items in declaration order, with the resolver's
+        // sorted view kept only as a fallback for programmatically
+        // injected prelude classes.
+        let mut type_synonyms: HashMap<String, String> = HashMap::new();
+        let mut decl_field_order: HashMap<String, Vec<String>> = HashMap::new();
+        // Raw per-class pieces in source order, plus inheritance shape.
+        let mut own_fields: HashMap<String, Vec<String>> = HashMap::new();
+        let mut class_shape: HashMap<String, (Option<String>, Vec<String>)> = HashMap::new();
+        for decl in &program.declarations {
+            match decl {
+                Decl::Class(c) => {
+                    let names: Vec<String> = c
+                        .body_items
+                        .iter()
+                        .filter_map(|item| match item {
+                            ClassItem::Field(f) => Some(f.name.clone()),
+                            _ => None,
+                        })
+                        .collect();
+                    let uses: Vec<String> = c
+                        .body_items
+                        .iter()
+                        .filter_map(|item| match item {
+                            ClassItem::Using(u, _) => Some(u.clone()),
+                            _ => None,
+                        })
+                        .collect();
+                    own_fields.insert(c.name.clone(), names);
+                    class_shape.insert(c.name.clone(), (c.base_type.clone(), uses));
+                }
+                Decl::Component(comp) => {
+                    let names: Vec<String> = comp
+                        .body_items
+                        .iter()
+                        .filter_map(|item| match item {
+                            ClassItem::Field(f) => Some(f.name.clone()),
+                            _ => None,
+                        })
+                        .collect();
+                    own_fields.entry(comp.name.clone()).or_insert(names);
+                }
+                Decl::Type(t) => {
+                    // A type synonym inherits its target's field order.
+                    type_synonyms.insert(t.name.clone(), t.base_type.name.clone());
+                }
+                _ => {}
+            }
+        }
+        // Resolve the full field order per class: own fields first (they
+        // win, matching the resolver's skip-existing merge), then the base
+        // class order, then each composition's order -- the same sequence
+        // merge_class_hierarchy uses when inserting inherited fields.
+        fn compose_order(
+            name: &str,
+            own: &HashMap<String, Vec<String>>,
+            shape: &HashMap<String, (Option<String>, Vec<String>)>,
+            synonyms: &HashMap<String, String>,
+            out: &mut HashMap<String, Vec<String>>,
+            seen: &mut Vec<String>,
+        ) {
+            if out.contains_key(name) || seen.iter().any(|s| s == name) {
+                return;
+            }
+            seen.push(name.to_string());
+            // Follow type synonyms to the underlying class, if any.
+            let effective = synonyms
+                .get(name)
+                .cloned()
+                .unwrap_or_else(|| name.to_string());
+            if effective != *name {
+                compose_order(&effective, own, shape, synonyms, out, seen);
+                if let Some(order) = out.get(&effective).cloned() {
+                    out.insert(name.to_string(), order);
+                }
+                seen.pop();
+                return;
+            }
+            let mut merged: Vec<String> = Vec::new();
+            let mut push_unique = |src: &Vec<String>, merged: &mut Vec<String>| {
+                for f in src {
+                    if !merged.iter().any(|m| m == f) {
+                        merged.push(f.clone());
+                    }
+                }
+            };
+            if let Some(fields) = own.get(name) {
+                push_unique(fields, &mut merged);
+            }
+            if let Some((base, comps)) = shape.get(name) {
+                if let Some(base) = base {
+                    compose_order(base, own, shape, synonyms, out, seen);
+                    if let Some(order) = out.get(base) {
+                        push_unique(order, &mut merged);
+                    }
+                }
+                for comp in comps {
+                    compose_order(comp, own, shape, synonyms, out, seen);
+                    if let Some(order) = out.get(comp) {
+                        push_unique(order, &mut merged);
+                    }
+                }
+            }
+            out.insert(name.to_string(), merged);
+            seen.pop();
+        }
+        let class_keys: Vec<String> = own_fields.keys().cloned().collect();
+        for name in &class_keys {
+            let mut seen: Vec<String> = Vec::new();
+            compose_order(
+                name,
+                &own_fields,
+                &class_shape,
+                &type_synonyms,
+                &mut decl_field_order,
+                &mut seen,
+            );
+        }
         for (cls_name, cls_sym) in &self.resolver.classes {
-            let mut f_names: Vec<String> = cls_sym.fields.keys().cloned().collect();
-            f_names.sort();
+            let f_names = decl_field_order.get(cls_name).cloned().unwrap_or_else(|| {
+                let mut names: Vec<String> = cls_sym.fields.keys().cloned().collect();
+                names.sort();
+                names
+            });
             module.class_fields.insert(cls_name.clone(), f_names);
         }
 
