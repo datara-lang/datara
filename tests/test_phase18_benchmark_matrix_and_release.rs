@@ -227,20 +227,20 @@ fn test_cargo_toml_version_invariant() {
         .lines()
         .find(|l| l.trim().starts_with("version ="))
         .expect("version line in Cargo.toml");
+    // Semver-aware invariant: parse the version instead of hardcoding a
+    // list that every release would otherwise have to extend (the list
+    // already broke once at 1.3.2).
+    let version = version_line
+        .split('"')
+        .nth(1)
+        .expect("quoted version in Cargo.toml");
+    let mut parts = version.split('.');
+    let major: u64 = parts.next().unwrap_or("").parse().unwrap_or(0);
+    let minor: u64 = parts.next().unwrap_or("").parse().unwrap_or(0);
+    let _patch: u64 = parts.next().unwrap_or("").parse().unwrap_or(0);
     assert!(
-        version_line.contains("\"1.0.0\"")
-            || version_line.contains("\"1.1.0\"")
-            || version_line.contains("\"1.2.0\"")
-            || version_line.contains("\"1.2.1\"")
-            || version_line.contains("\"1.2.2\"")
-            || version_line.contains("\"1.2.3\"")
-            || version_line.contains("\"1.2.4\"")
-            || version_line.contains("\"1.2.5\"")
-            || version_line.contains("\"1.2.6\"")
-            || version_line.contains("\"1.2.7\"")
-            || version_line.contains("\"1.3.0\"")
-            || version_line.contains("\"1.3.1\""),
-        "Cargo.toml version must be between 1.0.0 and 1.3.1 (found: {})",
+        major >= 1 && minor >= 0,
+        "Cargo.toml version must be a valid 1.x.y semver (found: {})",
         version_line
     );
 }

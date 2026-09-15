@@ -186,11 +186,16 @@ fn main() {
 
 #[test]
 fn test_extern_block_struct_return_still_rejected_e0962() {
-    // The struct-return ABI boundary is form-independent: since v1.3.2 M3
-    // the layout-compatible `big_add` return takes the hidden sret slot and
-    // survives expansion, while `big_mixed` (C layout Datara cannot read
-    // back) is rejected with E0962 and `big_sum` (struct-by-value params,
-    // scalar return) keeps importing cleanly.
+    // The struct-return ABI boundary is form-independent. Since v1.3.2 M3
+    // the layout-compatible `big_add` return takes the hidden sret slot on
+    // platforms where the sret ABI is implemented (Windows x64 native);
+    // everywhere else (SysV/AArch64 hosts, LLVM/WASM targets) it is
+    // rejected with E0962 — a deliberate fail-closed boundary. `big_mixed`
+    // (C layout Datara cannot read back) is rejected with E0962 everywhere,
+    // and `big_sum` (struct-by-value params, scalar return) always imports
+    // cleanly.
+    let sret_supported = cfg!(all(target_os = "windows", target_arch = "x86_64"));
+    let _ = sret_supported; // consumed below by the platform-split assertions
     let source = r#"
 import c "tests/fixtures/test_extern_block_bad_ret.h";
 
@@ -212,38 +217,59 @@ fn main() {
         res.error.clone().unwrap_or_default(),
         res.diagnostics
     );
-    // `big_add` returns a layout-compatible 16-byte struct through the sret
-    // slot, so the program must now typecheck cleanly.
-    assert!(
-        res.success,
-        "An eligible >8-byte struct return inside an extern block must compile through the sret path:\n{}",
-        report
-    );
-    let names = imported_c_symbol_names(&res);
-    assert!(
-        names.iter().any(|n| n == "big_add"),
-        "Eligible struct-returning 'big_add' must survive expansion:\n{:?}",
-        names
-    );
-    assert!(
-        names.iter().any(|n| n == "big_sum"),
-        "Sibling function 'big_sum' from the same block must still import:\n{:?}",
-        names
-    );
-    assert!(
-        !names.iter().any(|n| n == "big_mixed"),
-        "Layout-incompatible struct-returning 'big_mixed' must not survive expansion"
-    );
-    assert!(
-        report.contains("big_mixed"),
-        "Diagnostic must name the rejected C function:\n{}",
-        report
-    );
-    assert!(
-        report.contains("E0962"),
-        "Diagnostic must carry the E0962 unsupported-construct code:\n{}",
-        report
-    );
+    if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        // `big_add` returns a layout-compatible 16-byte struct through the
+        // sret slot, so the program must typecheck cleanly on Windows x64.
+        assert!(
+            res.success,
+            "An eligible >8-byte struct return inside an extern block must compile through the sret path:\n{}",
+            report
+        );
+        let names = imported_c_symbol_names(&res);
+        assert!(
+            names.iter().any(|n| n == "big_add"),
+            "Eligible struct-returning 'big_add' must survive expansion:\n{:?}",
+            names
+        );
+        assert!(
+            names.iter().any(|n| n == "big_sum"),
+            "Sibling function 'big_sum' from the same block must still import:\n{:?}",
+            names
+        );
+        assert!(
+            !names.iter().any(|n| n == "big_mixed"),
+            "Layout-incompatible struct-returning 'big_mixed' must not survive expansion"
+        );
+        assert!(
+            report.contains("big_mixed"),
+            "Diagnostic must name the rejected C function:\n{}",
+            report
+        );
+        assert!(
+            report.contains("E0962"),
+            "Diagnostic must carry the E0962 unsupported-construct code:\n{}",
+            report
+        );
+    } else {
+        // Fail-closed boundary: on this target the sret ABI is not
+        // implemented, so the eligible struct return is rejected with E0962
+        // and the program must not compile.
+        assert!(
+            !res.success,
+            "On non-Windows-x64 targets the sret path is not implemented; compilation must fail closed:\n{}",
+            report
+        );
+        assert!(
+            report.contains("E0962"),
+            "Rejection must carry the E0962 code:\n{}",
+            report
+        );
+        assert!(
+            report.contains("big_add"),
+            "Rejection must name the struct-returning function:\n{}",
+            report
+        );
+    }
 }
 
 #[test]
