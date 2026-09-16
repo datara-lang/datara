@@ -205,11 +205,17 @@ sudo dpkg -i datara_1.4.1_amd64.deb
 sudo rpm -ivh datara-1.4.1-1.x86_64.rpm
 ```
 
-#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/windows.svg" height="20" valign="middle" alt="Windows" /> Windows: Standalone GUI Setup & Scoop
+#### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/windows.svg" height="20" valign="middle" alt="Windows" /> Windows: Standalone GUI Setup, WinGet & Scoop
+
 ```powershell
 # 1. Download & launch the official standalone GUI installer: Datara-Setup.exe
-# 2. Or install via Scoop using the verified repository manifest:
-scoop install https://raw.githubusercontent.com/datara-lang/datara/main/packaging/scoop/datara.json
+
+# 2. Install via WinGet (Windows Package Manager):
+winget install Datara.Datara
+
+# 3. Install via Scoop (official bucket):
+scoop bucket add datara https://github.com/datara-lang/scoop-bucket
+scoop install datara
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/rust.svg" height="20" valign="middle" alt="Rust" /> Rust / Cargo (From Source)
@@ -242,11 +248,40 @@ npm install -g @datara-lang/datara --registry=https://npm.pkg.github.com
 npx --registry=https://npm.pkg.github.com @datara-lang/datara run main.dtr
 ```
 
-#### Upstream Registries (Manifests Prepared & In Review)
-Manifests and package configurations are maintained in the `packaging/` directory for upstream inclusion:
-- **Windows Winget**: Manifest in `packaging/winget/waters1ze.Datara.yaml` (pending merge in `microsoft/winget-pkgs`).
-- **Homebrew**: Formula in `packaging/homebrew/Formula/datara.rb`.
-- **Arch Linux (AUR)**: PKGBUILD in `packaging/aur/PKGBUILD`.
+#### macOS & Linux: Homebrew
+
+```bash
+# macOS (Intel and Apple Silicon) or Linux (x86-64):
+brew tap datara-lang/tap
+brew install datara
+```
+
+#### Arch Linux & Manjaro: AUR
+
+```bash
+# With an AUR helper (yay or paru):
+yay -S datara-bin
+# or
+paru -S datara-bin
+
+# Manual installation via makepkg:
+git clone https://github.com/datara-lang/aur-datara-bin.git
+cd aur-datara-bin && makepkg -si
+```
+
+#### Debian / Ubuntu / Linux Mint (.deb native package)
+
+```bash
+wget https://github.com/datara-lang/datara/releases/latest/download/datara_amd64.deb
+sudo apt install ./datara_amd64.deb
+```
+
+#### Fedora / RHEL / openSUSE (.rpm native package)
+
+```bash
+wget https://github.com/datara-lang/datara/releases/latest/download/datara-1.4.1-1.x86_64.rpm
+sudo dnf install ./datara-1.4.1-1.x86_64.rpm
+```
 
 ---
 
