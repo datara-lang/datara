@@ -78,7 +78,12 @@ impl ForgenCompiler {
             candidates.push(PathBuf::from(home).join(".datara").join("stdlib"));
         }
         if let Ok(local_app) = std::env::var("LOCALAPPDATA") {
-            candidates.push(PathBuf::from(local_app).join("Programs").join("Datara").join("stdlib"));
+            candidates.push(
+                PathBuf::from(local_app)
+                    .join("Programs")
+                    .join("Datara")
+                    .join("stdlib"),
+            );
         }
         if let Ok(pf) = std::env::var("ProgramFiles") {
             candidates.push(PathBuf::from(pf).join("Datara").join("stdlib"));

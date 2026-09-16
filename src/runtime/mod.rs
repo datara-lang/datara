@@ -101,7 +101,11 @@ pub fn runtime_lib_path() -> PathBuf {
             if in_parent_lib64.exists() {
                 return in_parent_lib64;
             }
-            let in_parent_share = parent.join("share").join("datara").join("runtime").join(lib_name);
+            let in_parent_share = parent
+                .join("share")
+                .join("datara")
+                .join("runtime")
+                .join(lib_name);
             if in_parent_share.exists() {
                 return in_parent_share;
             }
@@ -132,7 +136,10 @@ pub fn runtime_lib_path() -> PathBuf {
 
     // 4. User profile, AppData, and ProgramFiles paths
     if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
-        let in_user_datara = PathBuf::from(&home).join(".datara").join("runtime").join(lib_name);
+        let in_user_datara = PathBuf::from(&home)
+            .join(".datara")
+            .join("runtime")
+            .join(lib_name);
         if in_user_datara.exists() {
             return in_user_datara;
         }
@@ -142,13 +149,20 @@ pub fn runtime_lib_path() -> PathBuf {
         }
     }
     if let Ok(local_app) = std::env::var("LOCALAPPDATA") {
-        let in_local = PathBuf::from(local_app).join("Programs").join("Datara").join("runtime").join(lib_name);
+        let in_local = PathBuf::from(local_app)
+            .join("Programs")
+            .join("Datara")
+            .join("runtime")
+            .join(lib_name);
         if in_local.exists() {
             return in_local;
         }
     }
     if let Ok(pf) = std::env::var("ProgramFiles") {
-        let in_pf = PathBuf::from(pf).join("Datara").join("runtime").join(lib_name);
+        let in_pf = PathBuf::from(pf)
+            .join("Datara")
+            .join("runtime")
+            .join(lib_name);
         if in_pf.exists() {
             return in_pf;
         }
@@ -212,7 +226,11 @@ pub fn runtime_source_path() -> Option<PathBuf> {
             let p_cands = [
                 parent.join("runtime").join("datara_runtime.c"),
                 parent.join("src").join("runtime").join("datara_runtime.c"),
-                parent.join("share").join("datara").join("runtime").join("datara_runtime.c"),
+                parent
+                    .join("share")
+                    .join("datara")
+                    .join("runtime")
+                    .join("datara_runtime.c"),
             ];
             for p in p_cands {
                 if p.exists() {
@@ -243,8 +261,15 @@ pub fn runtime_source_path() -> Option<PathBuf> {
     // 4. User profile, AppData, and System paths
     if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
         let u_cands = [
-            PathBuf::from(&home).join(".datara").join("runtime").join("datara_runtime.c"),
-            PathBuf::from(&home).join(".datara").join("src").join("runtime").join("datara_runtime.c"),
+            PathBuf::from(&home)
+                .join(".datara")
+                .join("runtime")
+                .join("datara_runtime.c"),
+            PathBuf::from(&home)
+                .join(".datara")
+                .join("src")
+                .join("runtime")
+                .join("datara_runtime.c"),
         ];
         for u in u_cands {
             if u.exists() {
@@ -253,7 +278,11 @@ pub fn runtime_source_path() -> Option<PathBuf> {
         }
     }
     if let Ok(local_app) = std::env::var("LOCALAPPDATA") {
-        let l_cand = PathBuf::from(local_app).join("Programs").join("Datara").join("runtime").join("datara_runtime.c");
+        let l_cand = PathBuf::from(local_app)
+            .join("Programs")
+            .join("Datara")
+            .join("runtime")
+            .join("datara_runtime.c");
         if l_cand.exists() {
             return Some(l_cand);
         }
