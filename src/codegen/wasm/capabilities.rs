@@ -60,9 +60,8 @@ pub fn classify_capability_call(func: &str) -> Option<(&'static str, &'static st
         "socket_listen" | "socket_bind" | "net_listen" => Some(("datara:net@1.0", "listen")),
 
         // System capability
-        "proc_spawn" | "process_run" | "system" | "exec" | "process_output" => {
-            Some(("datara:sys@1.0", "exec"))
-        }
+        "proc_spawn" | "process_run" | "system" | "exec" | "process_output"
+        | "exec_utf8" | "datara_rt_exec_utf8" => Some(("datara:sys@1.0", "exec")),
         "env_get" | "datara_rt_env_get" | "env_get_checked" | "datara_rt_env_get_checked" => {
             Some(("datara:sys@1.0", "env_get"))
         }
@@ -84,6 +83,33 @@ pub fn classify_capability_call(func: &str) -> Option<(&'static str, &'static st
         | "datara_rt_list_set_unchecked"
         | "list_len"
         | "datara_rt_list_len"
+        // v1.4.1: full List<T> protocol.
+        | "list_sort"
+        | "datara_rt_list_sort"
+        | "list_remove_at"
+        | "datara_rt_list_remove_at"
+        | "list_remove_value"
+        | "datara_rt_list_remove_value"
+        | "list_insert_at"
+        | "datara_rt_list_insert_at"
+        | "list_contains"
+        | "datara_rt_list_contains"
+        | "list_index_of"
+        | "datara_rt_list_index_of"
+        | "list_reverse"
+        | "datara_rt_list_reverse"
+        | "list_clear"
+        | "datara_rt_list_clear"
+        | "list_slice"
+        | "datara_rt_list_slice"
+        | "list_first"
+        | "datara_rt_list_first"
+        | "list_last"
+        | "datara_rt_list_last"
+        | "list_pop_outcome"
+        | "datara_rt_list_pop_outcome"
+        | "list_is_empty"
+        | "datara_rt_list_is_empty"
         | "str_len"
         | "datara_rt_str_len"
         | "byte_len"
@@ -137,6 +163,20 @@ pub fn classify_capability_call(func: &str) -> Option<(&'static str, &'static st
                 | "list_set_unchecked"
                 | "datara_rt_list_set_unchecked" => "list_set",
                 "list_len" | "datara_rt_list_len" => "list_len",
+                // v1.4.1: full List<T> protocol.
+                "list_sort" | "datara_rt_list_sort" => "list_sort",
+                "list_remove_at" | "datara_rt_list_remove_at" => "list_remove_at",
+                "list_remove_value" | "datara_rt_list_remove_value" => "list_remove_value",
+                "list_insert_at" | "datara_rt_list_insert_at" => "list_insert_at",
+                "list_contains" | "datara_rt_list_contains" => "list_contains",
+                "list_index_of" | "datara_rt_list_index_of" => "list_index_of",
+                "list_reverse" | "datara_rt_list_reverse" => "list_reverse",
+                "list_clear" | "datara_rt_list_clear" => "list_clear",
+                "list_slice" | "datara_rt_list_slice" => "list_slice",
+                "list_first" | "datara_rt_list_first" => "list_first",
+                "list_last" | "datara_rt_list_last" => "list_last",
+                "list_pop_outcome" | "datara_rt_list_pop_outcome" => "list_pop_outcome",
+                "list_is_empty" | "datara_rt_list_is_empty" => "list_is_empty",
                 "str_len" | "datara_rt_str_len" | "byte_len" | "datara_rt_byte_len" => "str_len",
                 "str_chars" | "datara_rt_str_chars" | "char_len" | "datara_rt_char_len" => {
                     "str_chars"
@@ -200,6 +240,20 @@ pub fn collect_transitive_calls(module: &Module) -> BTreeSet<String> {
                             "set" => "datara_rt_list_set",
                             "len" | "count" => "datara_rt_list_len",
                             "insert" => "datara_rt_map_insert",
+                            // v1.4.1: full List<T> protocol.
+                            "pop" => "datara_rt_list_pop_outcome",
+                            "first" => "datara_rt_list_first",
+                            "last" => "datara_rt_list_last",
+                            "sort" => "datara_rt_list_sort",
+                            "remove_at" => "datara_rt_list_remove_at",
+                            "remove_value" => "datara_rt_list_remove_value",
+                            "insert_at" => "datara_rt_list_insert_at",
+                            "contains" => "datara_rt_list_contains",
+                            "index_of" => "datara_rt_list_index_of",
+                            "reverse" => "datara_rt_list_reverse",
+                            "clear" => "datara_rt_list_clear",
+                            "slice" => "datara_rt_list_slice",
+                            "is_empty" => "datara_rt_list_is_empty",
                             _ => method.as_str(),
                         };
                         called.insert(runtime_fn.to_string());

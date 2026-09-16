@@ -114,6 +114,16 @@ impl<'a> Lowering<'a> {
         function_return_types.insert("datara_rt_args_get".into(), "String".into());
         function_return_types.insert("env_get".into(), "String".into());
         function_return_types.insert("datara_rt_env_get".into(), "String".into());
+        function_return_types.insert("env_set".into(), "Int".into());
+        function_return_types.insert("datara_rt_env_set".into(), "Int".into());
+        function_return_types.insert("str_cmp".into(), "Int".into());
+        function_return_types.insert("datara_rt_str_cmp".into(), "Int".into());
+        function_return_types.insert("str_from_byte".into(), "String".into());
+        function_return_types.insert("datara_rt_str_from_byte".into(), "String".into());
+        function_return_types.insert("str_from_bytes".into(), "String".into());
+        function_return_types.insert("datara_rt_str_from_bytes".into(), "String".into());
+        function_return_types.insert("str_bytes".into(), "List<Int>".into());
+        function_return_types.insert("datara_rt_str_bytes".into(), "List<Int>".into());
         function_return_types.insert("path_join".into(), "String".into());
         function_return_types.insert("datara_rt_path_join".into(), "String".into());
         function_return_types.insert("now".into(), "Int".into());
@@ -159,6 +169,12 @@ impl<'a> Lowering<'a> {
         function_return_types.insert("system".into(), "Int".into());
         function_return_types.insert("process_output".into(), "String".into());
         function_return_types.insert("exec".into(), "String".into());
+        // v1.4.1: UTF-8 checked exec returns an Outcome<Str> object (stdlib
+        // Outcome<T> layout); the codegen call classifier special-cases the
+        // "Outcome<...>" prefix so the object pointer is tagged as a class
+        // value, never as a raw string.
+        function_return_types.insert("exec_utf8".into(), "Outcome<Str>".into());
+        function_return_types.insert("datara_rt_exec_utf8".into(), "Outcome<Str>".into());
         for f in &[
             "math_sqrt",
             "datara_rt_math_sqrt",

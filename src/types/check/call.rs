@@ -424,9 +424,23 @@ impl<'a> TypeChecker<'a> {
                 DataraType::List(elem) => match member.as_str() {
                     "length" | "count" | "len" => return DataraType::Int,
                     "get" => return (**elem).clone(),
+                    // v1.4.1: pop/first/last return the checked Outcome<T>
+                    // object, not a bare element -- an empty list must be
+                    // observable through is_err()/err()/`?`, never guessed.
+                    // Checker-level representation is Result(T, Str),
+                    // matching the checked-I/O builtins and `?` propagation.
                     "pop" => {
                         self.note_list_len_mutation(object, false);
-                        return (**elem).clone();
+                        return DataraType::Result(
+                            Box::new((**elem).clone()),
+                            Box::new(DataraType::String),
+                        );
+                    }
+                    "first" | "last" => {
+                        return DataraType::Result(
+                            Box::new((**elem).clone()),
+                            Box::new(DataraType::String),
+                        );
                     }
                     "set" | "push" | "append" => {
                         // `push`/`append` grow the receiver in place; `set`
@@ -436,7 +450,28 @@ impl<'a> TypeChecker<'a> {
                         }
                         return DataraType::List(elem.clone());
                     }
+                    "insert_at" => {
+                        // May grow the receiver (idx == count appends).
+                        self.note_list_len_mutation(object, true);
+                        return DataraType::List(elem.clone());
+                    }
+                    "remove_at" | "remove_value" => {
+                        // Honest "nothing removed" (Int 0) on a miss; the
+                        // length can only shrink.
+                        self.note_list_len_mutation(object, false);
+                        return DataraType::Int;
+                    }
+                    "clear" => {
+                        self.note_list_len_mutation(object, false);
+                        return DataraType::List(elem.clone());
+                    }
+                    "sort" | "reverse" | "slice" => {
+                        return DataraType::List(elem.clone());
+                    }
+                    "contains" | "is_empty" => return DataraType::Bool,
+                    "index_of" => return DataraType::Int,
                     "map" => {
+                        check_list_combinator_args(diag, member, &arg_types, 1, span);
                         if let Some(first_arg) = arg_types.first() {
                             if let DataraType::Function { return_type, .. } = first_arg {
                                 return DataraType::List(return_type.clone());
@@ -444,12 +479,20 @@ impl<'a> TypeChecker<'a> {
                         }
                         return DataraType::List(elem.clone());
                     }
-                    "filter" => return DataraType::List(elem.clone()),
-                    "reduce" => {
+                    "filter" => {
+                        check_list_combinator_args(diag, member, &arg_types, 1, span);
+                        return DataraType::List(elem.clone());
+                    }
+                    "reduce" | "fold" => {
+                        check_list_combinator_args(diag, member, &arg_types, 2, span);
                         if let Some(init_ty) = arg_types.first() {
                             return init_ty.clone();
                         }
                         return DataraType::Int;
+                    }
+                    "collect" => {
+                        check_list_combinator_args(diag, member, &arg_types, 0, span);
+                        return DataraType::List(elem.clone());
                     }
                     "find" => return (**elem).clone(),
                     "any" | "all" => return DataraType::Bool,
@@ -539,7 +582,7 @@ impl<'a> TypeChecker<'a> {
                 if cls == "List" {
                     match member.as_str() {
                         "length" | "count" | "len" => return DataraType::Int,
-                        "get" | "pop" => {
+                        "get" => {
                             // Element type recorded from the initializer
                             // when the receiver is a named variable;
                             // otherwise the dynamic type, never Int.
@@ -550,13 +593,44 @@ impl<'a> TypeChecker<'a> {
                             }
                             return DataraType::Val;
                         }
-                        "set" | "push" | "append" | "map" | "filter" => {
+                        // v1.4.1: checked accessors wrap the (recorded or
+                        // dynamic) element type in Outcome -- checker-level
+                        // Result(T, Str), like the checked-I/O builtins.
+                        "pop" => {
+                            self.note_list_len_mutation(object, false);
+                            let payload = if let Expr::Identifier(name, _) = &**object
+                                && let Some(elem) = self.var_element_types.get(name)
+                            {
+                                elem.clone()
+                            } else {
+                                DataraType::Val
+                            };
+                            return DataraType::Result(
+                                Box::new(payload),
+                                Box::new(DataraType::String),
+                            );
+                        }
+                        "first" | "last" => {
+                            let payload = if let Expr::Identifier(name, _) = &**object
+                                && let Some(elem) = self.var_element_types.get(name)
+                            {
+                                elem.clone()
+                            } else {
+                                DataraType::Val
+                            };
+                            return DataraType::Result(
+                                Box::new(payload),
+                                Box::new(DataraType::String),
+                            );
+                        }
+                        "set" | "push" | "append" | "map" | "filter" | "insert_at" | "sort"
+                        | "reverse" | "clear" | "slice" | "collect" => {
                             return DataraType::Class("List".into());
                         }
-                        "reduce" | "find" => {
+                        "remove_at" | "remove_value" | "reduce" | "fold" | "find" | "index_of" => {
                             return DataraType::Int;
                         }
-                        "any" | "all" => {
+                        "any" | "all" | "contains" | "is_empty" => {
                             return DataraType::Bool;
                         }
                         _ => {}
@@ -754,6 +828,59 @@ impl<'a> TypeChecker<'a> {
         };
         let updated = if grow { len + 1 } else { len.saturating_sub(1) };
         self.var_array_lengths.insert(name.clone(), updated);
+    }
+}
+
+/// v1.4.1 E-TYPE-008 gate for the List combinators: a wrong arity or a
+/// definitively non-callable argument is a hard type error instead of the
+/// old silent "returns the receiver list" fallback. Named functions surface
+/// as RawPtr and lambdas as Function, so only concrete primitives are
+/// rejected as non-callable here.
+fn check_list_combinator_args(
+    diag: &mut DiagnosticEngine,
+    member: &str,
+    arg_types: &[DataraType],
+    expected_arity: usize,
+    span: &SourceSpan,
+) {
+    let hint = match member {
+        "collect" => "collect() takes no arguments",
+        "reduce" | "fold" => {
+            "reduce/fold expect (initial_value, accumulator_fn) where the accumulator is a lambda or named function of arity 2"
+        }
+        _ => "map/filter expect a lambda or named function of arity 1",
+    };
+    if arg_types.len() != expected_arity {
+        diag.error(
+            ErrorCode::TypeIncomparableOperands,
+            format!(
+                "'{}' on a List expects {} argument(s): {}",
+                member, expected_arity, hint
+            ),
+            Some(span.clone()),
+        );
+        return;
+    }
+    if expected_arity > 0 {
+        let callable_idx = expected_arity - 1;
+        let definitely_not_callable = matches!(
+            arg_types.get(callable_idx),
+            Some(DataraType::Int)
+                | Some(DataraType::Float)
+                | Some(DataraType::Bool)
+                | Some(DataraType::String)
+                | Some(DataraType::Char)
+        );
+        if definitely_not_callable {
+            diag.error(
+                ErrorCode::TypeIncomparableOperands,
+                format!(
+                    "'{}' expects a lambda or named function as its last argument, got '{}': {}",
+                    member, arg_types[callable_idx], hint
+                ),
+                Some(span.clone()),
+            );
+        }
     }
 }
 

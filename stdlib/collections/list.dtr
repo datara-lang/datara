@@ -1,3 +1,22 @@
+// stdlib.collections.list
+//
+// The builtin List<T> methods are implemented by the compiler and the C
+// runtime (datara_rt_list_*); this module only carries the wrapper class
+// and the canonical method documentation:
+//
+//   push(v)  -- CANONICAL method to append a value and grow the receiver.
+//   append(v) -- explicit "alias of push": identical lowering, identical
+//                runtime symbol (datara_rt_list_append).
+//   add(v)   -- accepted third spelling of push; documented alias.
+//   pop()    -- checked accessor returning Outcome<T> ("empty list" on an
+//                empty receiver), never a bare element.
+//   first() / last() -- checked element accessors returning Outcome<T>.
+//   sort() / reverse() / clear() / insert_at(i, v) -- in-place mutators
+//                returning the receiver handle.
+//   remove_at(i) / remove_value(v) -> Int (1 removed, 0 nothing changed).
+//   contains(v) / is_empty() -> Bool; index_of(v) -> Int (-1 when absent).
+//   slice(a, b) -> fresh List<T> with clamped bounds.
+
 class ListWrapper<T> {
     length: Int
     head: T
@@ -12,4 +31,3 @@ behavior ListWrapper {
         return this.length
     }
 }
-

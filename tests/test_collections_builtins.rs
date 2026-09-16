@@ -26,13 +26,18 @@ fn run_datara(source: &str, name: &str) -> String {
 
 #[test]
 fn test_list_push_pop_len() {
+    // v1.4.1: pop() returns the checked Outcome<T> object, so the element
+    // flows through unwrap(); the stdlib Outcome import is required for the
+    // generic unwrap method, exactly like the checked-I/O builtins. The
+    // expected output is unchanged.
     let out = run_datara(
         r#"
+use stdlib.result.result.Outcome
 fn main() {
     mut xs = [10, 20, 30]
     xs.push(40)
     out xs.len()
-    let last = xs.pop()
+    let last = xs.pop().unwrap()
     out last
     out xs.len()
 }

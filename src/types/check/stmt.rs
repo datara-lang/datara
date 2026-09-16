@@ -824,6 +824,9 @@ impl<'a> TypeChecker<'a> {
             } => {
                 Self::stmt_guarantees_return(try_block) && Self::stmt_guarantees_return(catch_block)
             }
+            Stmt::With { body, .. } | Stmt::Unsafe { body, .. } => {
+                Self::stmt_guarantees_return(body)
+            }
             _ => false,
         }
     }

@@ -871,8 +871,13 @@ impl<'a> TypeChecker<'a> {
                 };
                 match expected_payload {
                     None => {
+                        // v1.4.1: dedicated E-TYPE-010 for a `?` whose error
+                        // has nowhere to propagate. The message text is kept
+                        // byte-identical to the previous generic TypeMismatch
+                        // emission so existing diagnostics-based tests keep
+                        // matching.
                         diag.error(
-                            ErrorCode::TypeMismatch,
+                            ErrorCode::QuestionPropagation,
                             format!(
                                 "'?' propagates a {} but the enclosing function returns '{}'; the function must return the same Result/Option type to propagate",
                                 match kind {
@@ -888,7 +893,13 @@ impl<'a> TypeChecker<'a> {
                         );
                     }
                     Some(expected) => {
-                        if !payload.is_compatible_with_args(&expected, Some(self.resolver)) {
+                        // For Maybe (Option<T>), the inner payload type must match.
+                        // For Outcome (Result<T, Str>), error propagation returns the failed object
+                        // (is_success = 0, error_msg) unchanged without touching the payload slot,
+                        // so an Outcome<Str> can propagate out of a function returning Outcome<Int>.
+                        if kind == PropagationKind::Maybe
+                            && !payload.is_compatible_with_args(&expected, Some(self.resolver))
+                        {
                             diag.error(
                                 ErrorCode::TypeMismatch,
                                 format!(

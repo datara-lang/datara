@@ -236,7 +236,7 @@ fn test_cargo_toml_version_invariant() {
         .expect("quoted version in Cargo.toml");
     let mut parts = version.split('.');
     let major: u64 = parts.next().unwrap_or("").parse().unwrap_or(0);
-    let minor: u64 = parts.next().unwrap_or("").parse().unwrap_or(0);
+    let _minor: u64 = parts.next().unwrap_or("").parse().unwrap_or(0);
     let _patch: u64 = parts.next().unwrap_or("").parse().unwrap_or(0);
     assert!(
         major >= 1,

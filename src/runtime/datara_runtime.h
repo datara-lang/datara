@@ -241,6 +241,11 @@ int64_t     datara_rt_now_ns(void);
 int64_t     now_ns(void);
 int64_t     now_ms(void);
 const char* datara_rt_env_get(const char* key);
+int64_t     datara_rt_env_set(const char* key, const char* value);
+int64_t     datara_rt_str_cmp(const char* a, const char* b);
+const char* datara_rt_str_from_byte(int64_t b);
+const char* datara_rt_str_from_bytes(const int64_t* bytes);
+int64_t*    datara_rt_str_bytes(const char* s);
 const char* datara_rt_path_join(const char* a, const char* b);
 void        datara_rt_set_args(int32_t argc, char** argv);
 int64_t     datara_rt_args_count(void);
@@ -261,6 +266,24 @@ int64_t     datara_rt_list_len(int64_t* list);
 int64_t*    datara_rt_list_set(int64_t* list, int64_t idx, int64_t v);
 int64_t*    datara_rt_list_set_unchecked(int64_t* list, int64_t idx, int64_t v);
 int64_t     datara_rt_list_pop(int64_t* list);
+int64_t     datara_rt_list_pop_legacy(int64_t* list);
+/* v1.4.1 full List<T> protocol. elem_kind encoding: 0 = Int, 1 = Float
+   (i64 IEEE bit patterns), 2 = Str (char* compared with strcmp). */
+int64_t     datara_rt_list_sort(int64_t* list, int64_t mode, int64_t elem_kind);
+int64_t     datara_rt_list_remove_at(int64_t* list, int64_t idx);
+int64_t     datara_rt_list_remove_value(int64_t* list, int64_t v, int64_t elem_kind);
+int64_t     datara_rt_list_insert_at(int64_t* list, int64_t idx, int64_t v);
+int64_t     datara_rt_list_contains(int64_t* list, int64_t v, int64_t elem_kind);
+int64_t     datara_rt_list_index_of(int64_t* list, int64_t v, int64_t elem_kind);
+int64_t     datara_rt_list_reverse(int64_t* list);
+int64_t     datara_rt_list_clear(int64_t* list);
+int64_t     datara_rt_list_is_empty(int64_t* list);
+int64_t*    datara_rt_list_slice(int64_t* list, int64_t start, int64_t end);
+/* Checked accessors returning stdlib Outcome<T> objects ("empty list" on
+   an empty receiver). */
+void*       datara_rt_list_first(int64_t* list);
+void*       datara_rt_list_last(int64_t* list);
+void*       datara_rt_list_pop_outcome(int64_t* list);
 int64_t*    datara_rt_slice(int64_t* list, int64_t start, int64_t end);
 int64_t*    datara_rt_list_create_repeat(int64_t elem, int64_t count);
 void*       datara_rt_map_create(void);
@@ -306,6 +329,7 @@ int64_t     datara_rt_dialog_confirm(const char* title, const char* msg);
 // Process & System
 int64_t     datara_rt_system(const char* cmd);
 const char* datara_rt_exec(const char* cmd);
+void*       datara_rt_exec_utf8(const char* cmd);
 
 // High-Performance Fast Math
 double      datara_rt_math_sqrt(double x);

@@ -164,25 +164,53 @@ impl<'a> Parser<'a> {
         let start_span = self.peek().span.clone();
 
         if self.match_token(&TokenType::Let) {
-            let name = self.consume_ident("Expected variable name after 'let'")?;
+            let is_mut = self.match_token(&TokenType::Mut);
+            let is_val = if is_mut {
+                self.match_token(&TokenType::Val)
+            } else {
+                false
+            };
+            let name = self.consume_ident(if is_mut {
+                "Expected variable name after 'let mut'"
+            } else {
+                "Expected variable name after 'let'"
+            })?;
             let mut type_node = None;
             if self.match_token(&TokenType::Colon) {
                 type_node = self.parse_type();
             }
             self.consume(&TokenType::Equal, "Expected '=' in let binding")?;
             let init = self.parse_expression()?;
-            return Some(Stmt::Let {
-                name,
-                type_node,
-                init,
-                span: SourceSpan::new(
-                    start_span.start_line,
-                    start_span.start_col,
-                    self.previous().span.end_line,
-                    self.previous().span.end_col,
-                    self.file.clone(),
-                ),
-            });
+            let span = SourceSpan::new(
+                start_span.start_line,
+                start_span.start_col,
+                self.previous().span.end_line,
+                self.previous().span.end_col,
+                self.file.clone(),
+            );
+            if is_val {
+                return Some(Stmt::Val {
+                    name,
+                    type_node,
+                    init,
+                    is_mut: true,
+                    span,
+                });
+            } else if is_mut {
+                return Some(Stmt::Mut {
+                    name,
+                    type_node,
+                    init,
+                    span,
+                });
+            } else {
+                return Some(Stmt::Let {
+                    name,
+                    type_node,
+                    init,
+                    span,
+                });
+            }
         }
 
         if self.match_token(&TokenType::Mut) {

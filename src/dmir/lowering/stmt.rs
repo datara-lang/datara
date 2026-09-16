@@ -258,7 +258,7 @@ impl<'a> Lowering<'a> {
                     && let Expr::MemberAccess { object, member, .. } = &**callee
                     && matches!(
                         member.as_str(),
-                        "push" | "append" | "add" | "set" | "insert"
+                        "push" | "append" | "add" | "set" | "insert" | "insert_at"
                     )
                     && let Expr::Identifier(var_name, _) = &**object
                 {

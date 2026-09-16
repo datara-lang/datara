@@ -142,9 +142,16 @@ pub(crate) fn required_capability_for_op(callee: &str) -> Option<&'static str> {
         }
         "net_connect" | "socket_connect" => Some("Capability<NetworkConnect>"),
         "net_listen" | "socket_listen" | "socket_bind" => Some("Capability<NetworkListen>"),
-        "proc_spawn" | "process_run" | "system" | "exec" | "process_output" => {
-            Some("Capability<ProcessExec>")
-        }
+        // exec_utf8 gates exactly like exec: compile-time E0940 without
+        // unsafe(justification:) or a granted Capability<ProcessExec>, plus
+        // the runtime DATARA_CAP_SYS_EXEC trap.
+        "proc_spawn"
+        | "process_run"
+        | "system"
+        | "exec"
+        | "process_output"
+        | "exec_utf8"
+        | "datara_rt_exec_utf8" => Some("Capability<ProcessExec>"),
         _ => None,
     }
 }

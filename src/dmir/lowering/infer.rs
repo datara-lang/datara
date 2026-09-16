@@ -358,6 +358,9 @@ impl<'a> Lowering<'a> {
     }
 
     pub(crate) fn is_expr_str(&self, expr: &Expr) -> bool {
+        if let Some(crate::types::DataraType::String) = self.infer_expr_datara_type(expr) {
+            return true;
+        }
         match expr {
             Expr::Literal(LiteralValue::String(_), _) | Expr::InterpolatedString { .. } => true,
             Expr::MemberAccess { member, .. } => {
@@ -520,8 +523,16 @@ impl<'a> Lowering<'a> {
             }
         }
         if let Expr::Call { callee, args, .. } = expr {
+            // v1.4.1: the list-returning protocol methods keep the value a
+            // list (in-place mutators return the receiver handle, slice and
+            // collect produce a fresh one), so downstream printing/chaining
+            // must keep treating them as list expressions.
             if let Expr::MemberAccess { object, member, .. } = &**callee
-                && (member == "map" || member == "filter")
+                && ((member == "map" || member == "filter")
+                    || matches!(
+                        member.as_str(),
+                        "sort" | "reverse" | "clear" | "insert_at" | "slice" | "collect"
+                    ))
                 && self.is_expr_list(object)
             {
                 return true;
@@ -531,7 +542,7 @@ impl<'a> Lowering<'a> {
                 {
                     return true;
                 }
-                if (fn_name == "map" || fn_name == "filter")
+                if (fn_name == "map" || fn_name == "filter" || fn_name == "collect")
                     && !args.is_empty()
                     && self.is_expr_list(&args[0])
                 {

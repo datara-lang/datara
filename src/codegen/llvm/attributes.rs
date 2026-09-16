@@ -266,6 +266,8 @@ pub fn derive_fn_attributes(
     is_hot: bool,
 ) -> Vec<&'static str> {
     let mut attrs = Vec::new();
+    attrs.push("nounwind");
+    attrs.push("mustprogress");
     if is_pure {
         let has_ptr = func.params.iter().any(|(_, ty, _)| is_pointer_type(ty));
         if has_ptr {

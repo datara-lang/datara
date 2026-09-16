@@ -6,6 +6,7 @@ pub mod declare_module;
 pub mod hot_reload;
 pub mod inst_binop;
 pub mod inst_call;
+pub mod inst_method_call;
 pub mod link;
 pub mod opts;
 pub mod simd;
@@ -179,7 +180,22 @@ impl RealCraneliftBackend {
             rt_list_append_id: core_ids.rt_list_append_id,
             rt_map_get_id: core_ids.rt_map_get_id,
             rt_map_insert_id: core_ids.rt_map_insert_id,
-            rt_pop_id: core_ids.rt_pop_id,
+            rt_list_pop_outcome_id: core_ids.rt_list_pop_outcome_id,
+            rt_list_sort_id: core_ids.rt_list_sort_id,
+            rt_list_remove_at_id: core_ids.rt_list_remove_at_id,
+            rt_list_remove_value_id: core_ids.rt_list_remove_value_id,
+            rt_list_insert_at_id: core_ids.rt_list_insert_at_id,
+            rt_list_contains_id: core_ids.rt_list_contains_id,
+            rt_list_index_of_id: core_ids.rt_list_index_of_id,
+            rt_list_reverse_id: core_ids.rt_list_reverse_id,
+            rt_list_clear_id: core_ids.rt_list_clear_id,
+            rt_list_slice_id: core_ids.rt_list_slice_id,
+            rt_list_first_id: core_ids.rt_list_first_id,
+            rt_list_last_id: core_ids.rt_list_last_id,
+            rt_list_is_empty_id: core_ids.rt_list_is_empty_id,
+            rt_exec_utf8_id: core_ids.rt_exec_utf8_id,
+            rt_str_cmp_id: core_ids.rt_str_cmp_id,
+            rt_env_set_id: core_ids.rt_env_set_id,
             rt_str_char_at_id,
             rt_str_eq_id,
             str_byte_at_id: core_ids.str_byte_at_id,

@@ -64,6 +64,46 @@ export async function loadDataraModule(wasmPath, customImports = {{}}) {{
     const listStorage = new Map();
     let nextListHandle = 10000n;
 
+    // v1.4.1: shared checked-accessor helper (first/last/pop_outcome).
+    // Builds a 3-slot Outcome<T> object in linear memory:
+    // [0]=is_success, [1]=value, [2]=error_msg (string in the runtime's
+    // [u32 length][utf8 bytes] layout, or 0 when ok).
+    const listCheckedElem = (listPtr, takeIdx, remove) => {{
+        const l = listStorage.get(listPtr);
+        const writeErr = (msg) => {{
+            const bytes = new TextEncoder().encode(msg);
+            const p = Number(allocateMemory(4 + bytes.length + 1));
+            const dv = new DataView(memoryInstance.buffer);
+            dv.setUint32(p, bytes.length, true);
+            new Uint8Array(memoryInstance.buffer).set(bytes, p + 4);
+            return BigInt(p);
+        }};
+        const obj = allocateMemory(24);
+        const view = new DataView(memoryInstance.buffer);
+        if (!l || l.length === 0) {{
+            view.setBigInt64(Number(obj) + 0, 0n, true);
+            view.setBigInt64(Number(obj) + 8, 0n, true);
+            view.setBigInt64(Number(obj) + 16, writeErr('empty list'), true);
+            return obj;
+        }}
+        const idx = takeIdx < 0 ? l.length - 1 : takeIdx;
+        const val = l[idx];
+        if (remove) l.splice(idx, 1);
+        view.setBigInt64(Number(obj) + 0, 1n, true);
+        view.setBigInt64(Number(obj) + 8, val, true);
+        view.setBigInt64(Number(obj) + 16, 0n, true);
+        return obj;
+    }};
+
+    // v1.4.1: Float list slots hold i64 IEEE bit patterns; decode before
+    // numeric comparison.
+    const bitsToF64 = (v) => {{
+        const buf = new ArrayBuffer(8);
+        const dv = new DataView(buf);
+        dv.setBigInt64(0, v, true);
+        return dv.getFloat64(0, true);
+    }};
+
     const mapStorage = new Map();
     let nextMapHandle = 20000n;
 
@@ -163,6 +203,87 @@ export async function loadDataraModule(wasmPath, customImports = {{}}) {{
                 const l = listStorage.get(listPtr);
                 return BigInt(l ? l.length : 0);
             }},
+            list_sort: (listPtr, mode, elemKind) => {{
+                // Stable sort (ES2019 Array.sort is spec-stable).
+                const l = listStorage.get(listPtr);
+                if (l && l.length > 1) {{
+                    if (Number(elemKind) === 2) {{
+                        // String handles: compare decoded text.
+                        l.sort((a, b) => {{
+                            const sa = readString(a), sb = readString(b);
+                            return sa < sb ? -1 : sa > sb ? 1 : 0;
+                        }});
+                    }} else if (Number(elemKind) === 1) {{
+                        l.sort((a, b) => bitsToF64(a) - bitsToF64(b));
+                    }} else {{
+                        l.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+                    }}
+                }}
+                return listPtr;
+            }},
+            list_remove_at: (listPtr, idx) => {{
+                const l = listStorage.get(listPtr);
+                if (!l || Number(idx) < 0 || Number(idx) >= l.length) return 0n;
+                l.splice(Number(idx), 1);
+                return 1n;
+            }},
+            list_remove_value: (listPtr, val, elemKind) => {{
+                const l = listStorage.get(listPtr);
+                if (!l) return 0n;
+                const i = Number(elemKind) === 2
+                    ? l.findIndex((e) => readString(e) === readString(val))
+                    : l.findIndex((e) => e === val);
+                if (i < 0) return 0n;
+                l.splice(i, 1);
+                return 1n;
+            }},
+            list_insert_at: (listPtr, idx, val) => {{
+                const l = listStorage.get(listPtr);
+                if (!l) return 0n;
+                const i = Number(idx);
+                if (i < 0 || i > l.length) return 0n;
+                l.splice(i, 0, val);
+                return listPtr;
+            }},
+            list_contains: (listPtr, val, elemKind) => {{
+                const l = listStorage.get(listPtr);
+                if (!l) return 0n;
+                const found = Number(elemKind) === 2
+                    ? l.some((e) => readString(e) === readString(val))
+                    : l.some((e) => e === val);
+                return found ? 1n : 0n;
+            }},
+            list_index_of: (listPtr, val, elemKind) => {{
+                const l = listStorage.get(listPtr);
+                if (!l) return -1n;
+                const i = Number(elemKind) === 2
+                    ? l.findIndex((e) => readString(e) === readString(val))
+                    : l.findIndex((e) => e === val);
+                return BigInt(i);
+            }},
+            list_reverse: (listPtr) => {{
+                const l = listStorage.get(listPtr);
+                if (l) l.reverse();
+                return listPtr;
+            }},
+            list_clear: (listPtr) => {{
+                const l = listStorage.get(listPtr);
+                if (l) l.length = 0;
+                return listPtr;
+            }},
+            list_is_empty: (listPtr) => {{
+                const l = listStorage.get(listPtr);
+                return (!l || l.length === 0) ? 1n : 0n;
+            }},
+            list_slice: (listPtr, start, end) => {{
+                const l = listStorage.get(listPtr);
+                const handle = nextListHandle++;
+                listStorage.set(handle, l ? l.slice(Number(start), Number(end)) : []);
+                return handle;
+            }},
+            list_first: (listPtr) => listCheckedElem(listPtr, 0, false),
+            list_last: (listPtr) => listCheckedElem(listPtr, -1, false),
+            list_pop_outcome: (listPtr) => listCheckedElem(listPtr, -1, true),
             map_create: () => {{
                 const handle = nextMapHandle++;
                 mapStorage.set(handle, new Map());

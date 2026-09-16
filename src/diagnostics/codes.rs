@@ -32,6 +32,9 @@ pub enum ErrorCode {
     TypeGenericMismatch,
     TypeIncomparableOperands,
     TypeUnknownMethod,
+    // v1.4.1: `?` used inside a function whose return type cannot receive
+    // the propagated error (not Outcome/Result/Maybe-shaped).
+    QuestionPropagation,
 
     // Borrow & Ownership Errors (E-BORROW-*)
     BorrowUseAfterMove,
@@ -137,6 +140,7 @@ impl ErrorCode {
             ErrorCode::TypeGenericMismatch => "E-TYPE-007",
             ErrorCode::TypeIncomparableOperands => "E-TYPE-008",
             ErrorCode::TypeUnknownMethod => "E-TYPE-009",
+            ErrorCode::QuestionPropagation => "E-TYPE-010",
 
             ErrorCode::BorrowUseAfterMove => "E-BORROW-001",
             ErrorCode::BorrowCannotMutateImmutable => "E-BORROW-002",
@@ -228,6 +232,9 @@ impl ErrorCode {
                 }
                 ErrorCode::TypeUnknownMethod => {
                     "Метод с таким именем не существует для типа получателя"
+                }
+                ErrorCode::QuestionPropagation => {
+                    "Оператор '?' требует, чтобы объемлющая функция возвращала Result/Option-подобный тип"
                 }
 
                 ErrorCode::BorrowUseAfterMove => {
@@ -386,6 +393,9 @@ impl ErrorCode {
                 }
                 ErrorCode::TypeUnknownMethod => {
                     "No method with this name exists for the receiver type"
+                }
+                ErrorCode::QuestionPropagation => {
+                    "'?' requires the enclosing function to return a Result/Option-like type"
                 }
 
                 ErrorCode::BorrowUseAfterMove => "Use of moved value (use-after-move)",

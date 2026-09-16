@@ -98,7 +98,7 @@ fn main() {
 
     if cfg!(target_env = "msvc") {
         build
-            .flag_if_supported("/O2")
+            .flag_if_supported("/Os")
             .flag_if_supported("/Gy")
             .flag_if_supported("/Gw")
             .flag_if_supported("/W3");

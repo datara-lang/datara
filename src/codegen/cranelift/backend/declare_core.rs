@@ -722,10 +722,201 @@ pub fn declare_runtime_core<M: ClifModule>(
     let mut rt_pop_sig = Signature::new(call_conv);
     rt_pop_sig.params.push(AbiParam::new(clif_types::I64));
     rt_pop_sig.returns.push(AbiParam::new(clif_types::I64));
-    let rt_pop_id = module
-        .declare_function("datara_rt_list_pop", Linkage::Import, &rt_pop_sig)
+    let rt_list_pop_outcome_id = module
+        .declare_function("datara_rt_list_pop_outcome", Linkage::Import, &rt_pop_sig)
         .map_err(|e| e.to_string())?;
-    func_ids.insert("datara_rt_list_pop".into(), (rt_pop_id, rt_pop_sig));
+    func_ids.insert(
+        "datara_rt_list_pop_outcome".into(),
+        (rt_list_pop_outcome_id, rt_pop_sig),
+    );
+
+    // v1.4.1: full List<T> protocol. All ABI shapes are I64* -> I64; sort /
+    // remove_value / contains / index_of carry an extra elem_kind (and sort
+    // a mode) argument, the checked accessors return Outcome<T> object
+    // pointers, insert_at/sort/reverse/clear return the list handle.
+    let mut i64_3_i64_sig = Signature::new(call_conv);
+    i64_3_i64_sig.params.push(AbiParam::new(clif_types::I64));
+    i64_3_i64_sig.params.push(AbiParam::new(clif_types::I64));
+    i64_3_i64_sig.params.push(AbiParam::new(clif_types::I64));
+    i64_3_i64_sig.returns.push(AbiParam::new(clif_types::I64));
+
+    let mut i64_2_i64_sig = Signature::new(call_conv);
+    i64_2_i64_sig.params.push(AbiParam::new(clif_types::I64));
+    i64_2_i64_sig.params.push(AbiParam::new(clif_types::I64));
+    i64_2_i64_sig.returns.push(AbiParam::new(clif_types::I64));
+
+    let mut list_i64_1_sig = Signature::new(call_conv);
+    list_i64_1_sig.params.push(AbiParam::new(clif_types::I64));
+    list_i64_1_sig.returns.push(AbiParam::new(clif_types::I64));
+
+    let rt_list_sort_id = module
+        .declare_function("datara_rt_list_sort", Linkage::Import, &i64_3_i64_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_list_sort".into(),
+        (rt_list_sort_id, i64_3_i64_sig.clone()),
+    );
+
+    let rt_list_remove_at_id = module
+        .declare_function("datara_rt_list_remove_at", Linkage::Import, &i64_2_i64_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_list_remove_at".into(),
+        (rt_list_remove_at_id, i64_2_i64_sig.clone()),
+    );
+
+    let rt_list_remove_value_id = module
+        .declare_function(
+            "datara_rt_list_remove_value",
+            Linkage::Import,
+            &i64_3_i64_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_list_remove_value".into(),
+        (rt_list_remove_value_id, i64_3_i64_sig.clone()),
+    );
+
+    let rt_list_insert_at_id = module
+        .declare_function("datara_rt_list_insert_at", Linkage::Import, &i64_3_i64_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_list_insert_at".into(),
+        (rt_list_insert_at_id, i64_3_i64_sig.clone()),
+    );
+
+    let rt_list_contains_id = module
+        .declare_function("datara_rt_list_contains", Linkage::Import, &i64_3_i64_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_list_contains".into(),
+        (rt_list_contains_id, i64_3_i64_sig.clone()),
+    );
+
+    let rt_list_index_of_id = module
+        .declare_function("datara_rt_list_index_of", Linkage::Import, &i64_3_i64_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_list_index_of".into(),
+        (rt_list_index_of_id, i64_3_i64_sig.clone()),
+    );
+
+    let rt_list_reverse_id = module
+        .declare_function("datara_rt_list_reverse", Linkage::Import, &list_i64_1_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_list_reverse".into(),
+        (rt_list_reverse_id, list_i64_1_sig.clone()),
+    );
+
+    let rt_list_clear_id = module
+        .declare_function("datara_rt_list_clear", Linkage::Import, &list_i64_1_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_list_clear".into(),
+        (rt_list_clear_id, list_i64_1_sig.clone()),
+    );
+
+    let rt_list_is_empty_id = module
+        .declare_function("datara_rt_list_is_empty", Linkage::Import, &list_i64_1_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_list_is_empty".into(),
+        (rt_list_is_empty_id, list_i64_1_sig.clone()),
+    );
+
+    let rt_list_slice_id = module
+        .declare_function("datara_rt_list_slice", Linkage::Import, &i64_3_i64_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_list_slice".into(),
+        (rt_list_slice_id, i64_3_i64_sig.clone()),
+    );
+
+    let rt_list_first_id = module
+        .declare_function("datara_rt_list_first", Linkage::Import, &list_i64_1_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_list_first".into(),
+        (rt_list_first_id, list_i64_1_sig.clone()),
+    );
+
+    let rt_list_last_id = module
+        .declare_function("datara_rt_list_last", Linkage::Import, &list_i64_1_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_list_last".into(),
+        (rt_list_last_id, list_i64_1_sig.clone()),
+    );
+
+    // v1.4.1: UTF-8 checked process execution (Outcome<Str> object return).
+    let rt_exec_utf8_id = module
+        .declare_function("datara_rt_exec_utf8", Linkage::Import, &list_i64_1_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_exec_utf8".into(),
+        (rt_exec_utf8_id, list_i64_1_sig.clone()),
+    );
+    func_ids.insert(
+        "exec_utf8".into(),
+        (rt_exec_utf8_id, list_i64_1_sig.clone()),
+    );
+
+    // Lexicographic string comparison & environment setter
+    let rt_str_cmp_id = module
+        .declare_function("datara_rt_str_cmp", Linkage::Import, &i64_2_i64_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_str_cmp".into(),
+        (rt_str_cmp_id, i64_2_i64_sig.clone()),
+    );
+    func_ids.insert("str_cmp".into(), (rt_str_cmp_id, i64_2_i64_sig.clone()));
+
+    let rt_env_set_id = module
+        .declare_function("datara_rt_env_set", Linkage::Import, &i64_2_i64_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_env_set".into(),
+        (rt_env_set_id, i64_2_i64_sig.clone()),
+    );
+    func_ids.insert("env_set".into(), (rt_env_set_id, i64_2_i64_sig.clone()));
+
+    // Byte-level string helpers
+    let rt_str_from_byte_id = module
+        .declare_function("datara_rt_str_from_byte", Linkage::Import, &list_i64_1_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_str_from_byte".into(),
+        (rt_str_from_byte_id, list_i64_1_sig.clone()),
+    );
+    func_ids.insert(
+        "str_from_byte".into(),
+        (rt_str_from_byte_id, list_i64_1_sig.clone()),
+    );
+
+    let rt_str_from_bytes_id = module
+        .declare_function("datara_rt_str_from_bytes", Linkage::Import, &list_i64_1_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_str_from_bytes".into(),
+        (rt_str_from_bytes_id, list_i64_1_sig.clone()),
+    );
+    func_ids.insert(
+        "str_from_bytes".into(),
+        (rt_str_from_bytes_id, list_i64_1_sig.clone()),
+    );
+
+    let rt_str_bytes_id = module
+        .declare_function("datara_rt_str_bytes", Linkage::Import, &list_i64_1_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_str_bytes".into(),
+        (rt_str_bytes_id, list_i64_1_sig.clone()),
+    );
+    func_ids.insert(
+        "str_bytes".into(),
+        (rt_str_bytes_id, list_i64_1_sig.clone()),
+    );
 
     let mut rt_slice_sig = Signature::new(call_conv);
     rt_slice_sig.params.push(AbiParam::new(clif_types::I64));
@@ -1265,7 +1456,22 @@ pub fn declare_runtime_core<M: ClifModule>(
         rt_list_append_id,
         rt_map_get_id,
         rt_map_insert_id,
-        rt_pop_id,
+        rt_list_pop_outcome_id,
+        rt_list_sort_id,
+        rt_list_remove_at_id,
+        rt_list_remove_value_id,
+        rt_list_insert_at_id,
+        rt_list_contains_id,
+        rt_list_index_of_id,
+        rt_list_reverse_id,
+        rt_list_clear_id,
+        rt_list_slice_id,
+        rt_list_first_id,
+        rt_list_last_id,
+        rt_list_is_empty_id,
+        rt_exec_utf8_id,
+        rt_str_cmp_id,
+        rt_env_set_id,
         str_byte_at_id,
         str_chars_id,
         str_len_id,

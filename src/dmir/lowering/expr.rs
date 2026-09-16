@@ -299,7 +299,12 @@ impl<'a> Lowering<'a> {
                 let is_float = self.is_expr_float(left) || self.is_expr_float(right);
                 let is_str_concat =
                     (op == "+") && (self.is_expr_str(left) || self.is_expr_str(right));
-                let is_str_cmp = (op == "==" || op == "!=")
+                let is_str_cmp = (op == "=="
+                    || op == "!="
+                    || op == "<"
+                    || op == "<="
+                    || op == ">"
+                    || op == ">=")
                     && (self.is_expr_str(left) || self.is_expr_str(right));
                 let effective_op = if !is_float && !is_str_concat && !is_str_cmp {
                     if self.in_wrapping_mode {

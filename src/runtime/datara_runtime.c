@@ -1532,6 +1532,46 @@ int64_t datara_rt_str_eq(const char* a, const char* b) {
     return strcmp(a, b) == 0 ? 1 : 0;
 }
 
+int64_t datara_rt_str_cmp(const char* a, const char* b) {
+    if (a == b) return 0;
+    if (!a) return -1;
+    if (!b) return 1;
+    int res = strcmp(a, b);
+    if (res < 0) return -1;
+    if (res > 0) return 1;
+    return 0;
+}
+
+const char* datara_rt_str_from_byte(int64_t b) {
+    char* buf = (char*)malloc(2);
+    if (!buf) return "";
+    buf[0] = (char)(b & 0xFF);
+    buf[1] = '\0';
+    return buf;
+}
+
+const char* datara_rt_str_from_bytes(const int64_t* bytes) {
+    if (!bytes || bytes[0] <= 0) return "";
+    int64_t len = bytes[0];
+    char* buf = (char*)malloc((size_t)len + 1);
+    if (!buf) return "";
+    for (int64_t i = 0; i < len; i++) {
+        buf[i] = (char)(bytes[i + 1] & 0xFF);
+    }
+    buf[len] = '\0';
+    return buf;
+}
+
+int64_t* datara_rt_str_bytes(const char* s) {
+    if (!s) return datara_rt_list_create(0);
+    size_t len = strlen(s);
+    int64_t* list = datara_rt_list_create((int64_t)len);
+    for (size_t i = 0; i < len; i++) {
+        list = datara_rt_list_append(list, (int64_t)(unsigned char)s[i]);
+    }
+    return list;
+}
+
 int64_t datara_rt_str_len(const char* s) {
     return s ? (int64_t)strlen(s) : 0;
 }
@@ -1707,12 +1747,20 @@ int64_t* datara_rt_list_append(int64_t* list, int64_t v) {
     return new_list;
 }
 
-int64_t datara_rt_list_pop(int64_t* list) {
+// v1.4.1: the checked pop lives in datara_rt_list_pop_outcome, which returns
+// an Outcome<T> object instead of a bare element. The legacy bare-element
+// pop is kept under a new name so stale callers fail at link time instead of
+// silently reading an Outcome object as an element.
+int64_t datara_rt_list_pop_legacy(int64_t* list) {
     if (!list || list[0] <= 0) return 0;
     int64_t count = list[0];
     int64_t val = list[count];
     list[0] = count - 1;
     return val;
+}
+
+int64_t datara_rt_list_pop(int64_t* list) {
+    return datara_rt_list_pop_legacy(list);
 }
 
 int64_t* datara_rt_slice(int64_t* list, int64_t start, int64_t end) {
@@ -1738,14 +1786,222 @@ int64_t* datara_rt_slice(int64_t* list, int64_t start, int64_t end) {
     return res;
 }
 
+// ---------------------------------------------------------------------------
+// v1.4.1: Full List<T> protocol runtime.
+//
+// Representation recap: element i lives at list[i + 1], the live count at
+// list[0]. Float elements are stored as their IEEE-754 bit pattern in the
+// i64 slot, string elements as char* pointers, class elements (List, Map,
+// Outcome, ...) as object pointers with reference semantics.
+//
+// Never-free invariant (see datara_rt_str_free): runtime strings are never
+// freed, so every operation below that copies or moves string elements
+// copies the POINTER only -- no refcount traffic, no ownership transfer,
+// nothing to release. Class elements are likewise copied as bare pointers.
+// ---------------------------------------------------------------------------
+
+// Stable in-place merge sort, O(n log n) time and O(n) scratch. mode 0 is
+// the natural order. elem_kind selects the comparison: 0 = Int (direct i64
+// compare), 1 = Float (i64 slots are IEEE bit patterns, compared as
+// doubles), 2 = Str (lexicographic strcmp on the char* elements). Lists are
+// statically homogeneous -- the type checker never admits a mixed List -- so
+// elem_kind is validated to fail loudly rather than guess a layout.
+static int datara_list_lt(int64_t a, int64_t b, int64_t elem_kind) {
+    switch (elem_kind) {
+        case 0:
+            return a < b;
+        case 1: {
+            double fa, fb;
+            memcpy(&fa, &a, sizeof(fa));
+            memcpy(&fb, &b, sizeof(fb));
+            return fa < fb;
+        }
+        case 2:
+            return strcmp((const char*)(uintptr_t)a, (const char*)(uintptr_t)b) < 0;
+        default:
+            datara_rt_panic("list sort: unsupported element representation");
+            return 0;
+    }
+}
+
+static void datara_list_sort_range(int64_t* list, int64_t* tmp, int64_t lo, int64_t hi,
+                                   int64_t elem_kind) {
+    if (hi - lo <= 1) return;
+    int64_t mid = lo + (hi - lo) / 2;
+    datara_list_sort_range(list, tmp, lo, mid, elem_kind);
+    datara_list_sort_range(list, tmp, mid, hi, elem_kind);
+    // Merge with a strict `less`: equal elements take the left run first,
+    // which is exactly the stability guarantee.
+    int64_t i = lo, j = mid, k = lo;
+    while (i < mid && j < hi) {
+        if (datara_list_lt(list[j + 1], list[i + 1], elem_kind)) {
+            tmp[k++] = list[++j];
+        } else {
+            tmp[k++] = list[++i];
+        }
+    }
+    while (i < mid) tmp[k++] = list[++i];
+    while (j < hi) tmp[k++] = list[++j];
+    memcpy(&list[lo + 1], &tmp[lo], (size_t)(hi - lo) * sizeof(int64_t));
+}
+
+int64_t datara_rt_list_sort(int64_t* list, int64_t mode, int64_t elem_kind) {
+    if (!list) return 0;
+    if (mode != 0) {
+        datara_rt_panic("list sort: unsupported sort mode");
+        return 0;
+    }
+    if (elem_kind != 0 && elem_kind != 1 && elem_kind != 2) {
+        datara_rt_panic("list sort: unsupported element representation");
+        return 0;
+    }
+    int64_t count = list[0];
+    if (count > 1) {
+        int64_t* tmp = (int64_t*)malloc((size_t)count * sizeof(int64_t));
+        if (!tmp) {
+            datara_rt_panic("list sort: out of memory");
+            return 0;
+        }
+        datara_list_sort_range(list, tmp, 0, count, elem_kind);
+        free(tmp);
+    }
+    // In-place: the block never moves, so returning the same handle keeps
+    // every caller alias valid (matches the set/push reassign contract).
+    return (int64_t)(uintptr_t)list;
+}
+
+// Pointer-equality-aware membership helpers. elem_kind uses the same
+// encoding as sort (0 = Int, 1 = Float, 2 = Str). Strings are compared by
+// strcmp, never by pointer: distinct char* blocks can hold equal text.
+static int datara_list_eq(int64_t a, int64_t b, int64_t elem_kind) {
+    switch (elem_kind) {
+        case 0:
+        case 1:
+            // Int slots and Float bit patterns compare directly; bits
+            // equality is the correct Float equality in this representation.
+            return a == b;
+        case 2:
+            return strcmp((const char*)(uintptr_t)a, (const char*)(uintptr_t)b) == 0;
+        default:
+            datara_rt_panic("list compare: unsupported element representation");
+            return 0;
+    }
+}
+
+int64_t datara_rt_list_index_of(int64_t* list, int64_t v, int64_t elem_kind) {
+    if (!list) return -1;
+    int64_t count = list[0];
+    for (int64_t i = 0; i < count; i++) {
+        if (datara_list_eq(list[i + 1], v, elem_kind)) return i;
+    }
+    return -1;
+}
+
+int64_t datara_rt_list_contains(int64_t* list, int64_t v, int64_t elem_kind) {
+    return datara_rt_list_index_of(list, v, elem_kind) >= 0 ? 1 : 0;
+}
+
+// Removes the element at idx by moving the tail down. Returns 1 on success,
+// 0 when idx is out of bounds -- an honest "nothing was removed", not a
+// trap and not a silent success.
+int64_t datara_rt_list_remove_at(int64_t* list, int64_t idx) {
+    if (!list) return 0;
+    int64_t count = list[0];
+    if (idx < 0 || idx >= count) return 0;
+    if (idx + 1 < count) {
+        memmove(&list[idx + 1], &list[idx + 2], (size_t)(count - idx - 1) * sizeof(int64_t));
+    }
+    list[0] = count - 1;
+    return 1;
+}
+
+// Removes the first occurrence of v (elem_kind-aware compare). Returns 1 if
+// an element was removed, 0 when the value is absent.
+int64_t datara_rt_list_remove_value(int64_t* list, int64_t v, int64_t elem_kind) {
+    int64_t idx = datara_rt_list_index_of(list, v, elem_kind);
+    if (idx < 0) return 0;
+    return datara_rt_list_remove_at(list, idx);
+}
+
+// Inserts v at idx, shifting the tail up. idx == count appends. Returns the
+// (possibly reallocated) list handle: the inserted case returns the new
+// block, and an out-of-bounds idx returns the UNCHANGED receiver handle so
+// the caller's reassign keeps a valid list (an honest no-op, never a
+// poisoned NULL). Returning the handle is what makes growth safe: like
+// datara_rt_list_set/append, callers reassign the receiver from the result
+// instead of holding a stale block pointer.
+int64_t datara_rt_list_insert_at(int64_t* list, int64_t idx, int64_t v) {
+    if (!list) return 0;
+    int64_t count = list[0];
+    if (idx < 0 || idx > count) return (int64_t)(uintptr_t)list;
+    DataraListHeader* hdr = ((DataraListHeader*)list) - 1;
+    if (count < hdr->capacity) {
+        if (idx < count) {
+            memmove(&list[idx + 2], &list[idx + 1], (size_t)(count - idx) * sizeof(int64_t));
+        }
+        list[idx + 1] = v;
+        list[0] = count + 1;
+        return (int64_t)(uintptr_t)list;
+    }
+    // Full: migrate to a fresh block (append's growth contract). The old
+    // block is abandoned for STACK sources (a caller frame owns it) and
+    // returned to the pool for POOL sources.
+    int64_t flag = hdr->magic & 0xFULL;
+    int64_t new_cap = (count + 1) * 2;
+    if (new_cap < 8) new_cap = 8;
+    DataraListHeader* new_hdr =
+        (DataraListHeader*)malloc(sizeof(DataraListHeader) + (size_t)(new_cap + 1) * sizeof(int64_t));
+    if (!new_hdr) return 0;
+    new_hdr->capacity = new_cap;
+    new_hdr->magic = DATARA_LIST_MAGIC | DATARA_LIST_FLAG_HEAP;
+    int64_t* dst = (int64_t*)(new_hdr + 1);
+    dst[0] = count + 1;
+    for (int64_t i = 0; i < idx; i++) dst[i + 1] = list[i + 1];
+    dst[idx + 1] = v;
+    for (int64_t i = idx; i < count; i++) dst[i + 2] = list[i + 1];
+    if (flag & DATARA_LIST_FLAG_POOL) {
+        datara_rt_pool_free(hdr, sizeof(DataraListHeader) + (size_t)(hdr->capacity + 1) * sizeof(int64_t));
+    }
+    // STACK/HEAP sources: STACK frames own their block, HEAP blocks follow
+    // the documented leak-by-design policy for runtime lists in flight.
+    return (int64_t)(uintptr_t)dst;
+}
+
+// Reverses in place. Float bit patterns and string pointers are moved
+// bit-exactly (pointer copies only -- never-free invariant).
+int64_t datara_rt_list_reverse(int64_t* list) {
+    if (!list) return 0;
+    int64_t count = list[0];
+    for (int64_t i = 0, j = count - 1; i < j; i++, j--) {
+        int64_t t = list[i + 1];
+        list[i + 1] = list[j + 1];
+        list[j + 1] = t;
+    }
+    return (int64_t)(uintptr_t)list;
+}
+
+// Drops every element. String elements are NOT freed -- the runtime never
+// frees strings (never-free invariant), so clearing is just a count reset.
+int64_t datara_rt_list_clear(int64_t* list) {
+    if (!list) return 0;
+    list[0] = 0;
+    return (int64_t)(uintptr_t)list;
+}
+
+int64_t datara_rt_list_is_empty(int64_t* list) {
+    return (!list || list[0] <= 0) ? 1 : 0;
+}
+
+// New slice sharing datara_rt_slice's clamping; string elements are copied
+// as pointers (never-free invariant: the source strings outlive the copy).
+int64_t* datara_rt_list_slice(int64_t* list, int64_t start, int64_t end) {
+    return datara_rt_slice(list, start, end);
+}
+
 int64_t* datara_rt_list_create_repeat(int64_t elem, int64_t count) {
     if (count < 0) count = 0;
-    if (count > (int64_t)((SIZE_MAX - sizeof(DataraListHeader)) / sizeof(int64_t) - 1)) return NULL;
-    DataraListHeader* hdr = (DataraListHeader*)malloc(sizeof(DataraListHeader) + (size_t)(count + 1) * sizeof(int64_t));
-    if (!hdr) return NULL;
-    hdr->capacity = count;
-    hdr->magic = DATARA_LIST_MAGIC;
-    int64_t* arr = (int64_t*)(hdr + 1);
+    int64_t* arr = datara_rt_list_create_capacity(count);
+    if (!arr) return NULL;
     arr[0] = count;
     for (int64_t i = 0; i < count; i++) {
         arr[i + 1] = elem;
@@ -1755,17 +2011,11 @@ int64_t* datara_rt_list_create_repeat(int64_t elem, int64_t count) {
 
 static int64_t* datara_rt_list_create_from(const int64_t* vals, int64_t count) {
     int64_t cap = count < 8 ? 8 : count;
-    DataraListHeader* hdr = (DataraListHeader*)malloc(sizeof(DataraListHeader) + (size_t)(cap + 1) * sizeof(int64_t));
-    if (!hdr) return NULL;
-    hdr->capacity = cap;
-    hdr->magic = DATARA_LIST_MAGIC;
-    int64_t* arr = (int64_t*)(hdr + 1);
+    int64_t* arr = datara_rt_list_create_capacity(cap);
+    if (!arr) return NULL;
     arr[0] = count;
     for (int64_t i = 0; i < count; i++) {
         arr[i + 1] = vals[i];
-    }
-    for (int64_t i = count; i < cap; i++) {
-        arr[i + 1] = 0;
     }
     return arr;
 }
@@ -2099,10 +2349,35 @@ int64_t datara_rt_now_ns(void) {
 }
 #endif
 
+static FILE* datara_rt_fopen(const char* path, const char* mode) {
+    if (!path || !mode) return NULL;
+#ifdef _WIN32
+    int wpath_len = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+    int wmode_len = MultiByteToWideChar(CP_UTF8, 0, mode, -1, NULL, 0);
+    if (wpath_len > 0 && wmode_len > 0) {
+        wchar_t* wpath = (wchar_t*)malloc((size_t)wpath_len * sizeof(wchar_t));
+        wchar_t* wmode = (wchar_t*)malloc((size_t)wmode_len * sizeof(wchar_t));
+        if (wpath && wmode) {
+            MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, wpath_len);
+            MultiByteToWideChar(CP_UTF8, 0, mode, -1, wmode, wmode_len);
+            FILE* f = _wfopen(wpath, wmode);
+            free(wpath);
+            free(wmode);
+            return f;
+        }
+        if (wpath) free(wpath);
+        if (wmode) free(wmode);
+    }
+    return fopen(path, mode);
+#else
+    return fopen(path, mode);
+#endif
+}
+
 int64_t datara_rt_file_write(const char* path, const char* content) {
     datara_rt_cap_require(DATARA_CAP_FS_WRITE, "fs::write");
     if (!path || !content) return 0;
-    FILE* f = fopen(path, "wb");
+    FILE* f = datara_rt_fopen(path, "wb");
     if (!f) return 0;
     size_t len = strlen(content);
     size_t written = fwrite(content, 1, len, f);
@@ -2113,7 +2388,7 @@ int64_t datara_rt_file_write(const char* path, const char* content) {
 int64_t datara_rt_file_append(const char* path, const char* content) {
     datara_rt_cap_require(DATARA_CAP_FS_WRITE, "fs::append");
     if (!path || !content) return 0;
-    FILE* f = fopen(path, "ab");
+    FILE* f = datara_rt_fopen(path, "ab");
     if (!f) return 0;
     size_t len = strlen(content);
     size_t written = fwrite(content, 1, len, f);
@@ -2124,7 +2399,7 @@ int64_t datara_rt_file_append(const char* path, const char* content) {
 const char* datara_rt_file_read(const char* path) {
     datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::read");
     if (!path) return "";
-    FILE* f = fopen(path, "rb");
+    FILE* f = datara_rt_fopen(path, "rb");
     if (!f) return "";
     fseek(f, 0, SEEK_END);
     long sz = ftell(f);
@@ -2148,7 +2423,7 @@ const char* datara_rt_file_read(const char* path) {
 int64_t* datara_rt_file_read_bytes(const char* path) {
     datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::read_bytes");
     if (!path) return datara_rt_list_create(0);
-    FILE* f = fopen(path, "rb");
+    FILE* f = datara_rt_fopen(path, "rb");
     if (!f) return datara_rt_list_create(0);
     fseek(f, 0, SEEK_END);
     long sz = ftell(f);
@@ -2170,7 +2445,7 @@ int64_t* datara_rt_file_read_bytes(const char* path) {
 int64_t datara_rt_file_write_bytes(const char* path, const int64_t* bytes) {
     datara_rt_cap_require(DATARA_CAP_FS_WRITE, "fs::write_bytes");
     if (!path) return 0;
-    FILE* f = fopen(path, "wb");
+    FILE* f = datara_rt_fopen(path, "wb");
     if (!f) return 0;
     int64_t count = bytes ? datara_rt_list_len((int64_t*)bytes) : 0;
     size_t written = 0;
@@ -2185,7 +2460,7 @@ int64_t datara_rt_file_write_bytes(const char* path, const int64_t* bytes) {
 int64_t datara_rt_file_exists(const char* path) {
     datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::exists");
     if (!path) return 0;
-    FILE* f = fopen(path, "rb");
+    FILE* f = datara_rt_fopen(path, "rb");
     if (f) {
         fclose(f);
         return 1;
@@ -2212,12 +2487,66 @@ static void* datara_rt_outcome_build(int64_t is_success, const char* value, cons
     return (void*)obj;
 }
 
+// Bit-exact value variant of datara_rt_outcome_build. The string-oriented
+// builder substitutes "" for a NULL value, which would corrupt an integer 0
+// payload or an all-zero float bit pattern into a bogus pointer. List
+// element payloads are raw i64 slots (Int values, Float bit patterns, Str
+// pointers), so they must be stored verbatim.
+static void* datara_rt_outcome_build_raw(int64_t is_success, int64_t value_raw, const char* msg) {
+    int64_t* obj = (int64_t*)malloc(3 * sizeof(int64_t));
+    if (!obj) return NULL;
+    obj[0] = is_success;
+    obj[1] = value_raw;
+    obj[2] = (int64_t)(uintptr_t)(msg ? msg : "");
+    return (void*)obj;
+}
+
+// Checked list accessors shared by first/last/pop: an empty list yields a
+// failed Outcome with the fixed "empty list" error, a non-empty one a
+// successful Outcome whose value slot carries the element bit-exactly.
+// String/class elements are copied as pointers (never-free invariant: no
+// refcounting, nothing is ever released).
+static void* datara_rt_list_checked_elem(int64_t* list, int64_t idx) {
+    if (!list || list[0] <= 0) {
+        return datara_rt_outcome_build_raw(0, 0, "empty list");
+    }
+    if (idx < 0) {
+        idx = list[0] - 1;
+    } else if (idx >= list[0]) {
+        idx = 0;
+    }
+    return datara_rt_outcome_build_raw(1, list[idx + 1], "");
+}
+
+// first: Outcome<T>, failed ("empty list") when the list is empty.
+void* datara_rt_list_first(int64_t* list) {
+    return datara_rt_list_checked_elem(list, 0);
+}
+
+// last: Outcome<T>, failed ("empty list") when the list is empty.
+void* datara_rt_list_last(int64_t* list) {
+    return datara_rt_list_checked_elem(list, -1);
+}
+
+// v1.4.1 checked pop: removes and returns the last element as Outcome<T>.
+// Empty list -> is_success = 0, error_msg = "empty list"; the legacy
+// bare-element pop survives as datara_rt_list_pop_legacy.
+void* datara_rt_list_pop_outcome(int64_t* list) {
+    if (!list || list[0] <= 0) {
+        return datara_rt_outcome_build_raw(0, 0, "empty list");
+    }
+    int64_t count = list[0];
+    int64_t val = list[count];
+    list[0] = count - 1;
+    return datara_rt_outcome_build_raw(1, val, "");
+}
+
 void* datara_rt_file_read_checked(const char* path) {
     datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::read_checked");
     if (!path) {
         return datara_rt_outcome_build(0, "", "file read failed: path is null");
     }
-    FILE* f = fopen(path, "rb");
+    FILE* f = datara_rt_fopen(path, "rb");
     if (!f) {
         char stack_msg[512];
         snprintf(stack_msg, sizeof(stack_msg), "file read failed: cannot open '%s'", path);
@@ -2298,6 +2627,19 @@ const char* datara_rt_env_get(const char* key) {
     return val ? val : "";
 }
 
+int64_t datara_rt_env_set(const char* key, const char* value) {
+    datara_rt_cap_require(DATARA_CAP_SYS_ENV, "sys::env_set");
+    if (!key) return 0;
+#ifdef _WIN32
+    return SetEnvironmentVariableA(key, value) ? 1 : 0;
+#else
+    if (!value) {
+        return unsetenv(key) == 0 ? 1 : 0;
+    }
+    return setenv(key, value, 1) == 0 ? 1 : 0;
+#endif
+}
+
 void* datara_rt_env_get_checked(const char* name) {
     datara_rt_cap_require(DATARA_CAP_SYS_ENV, "sys::env_checked");
     if (!name) {
@@ -2352,15 +2694,18 @@ int64_t* datara_rt_dir_list(const char* path) {
     if (!names) return datara_rt_list_create(0);
 
 #ifdef _WIN32
-    WIN32_FIND_DATAA fd;
-    HANDLE h = FindFirstFileA(pattern, &fd);
+    int wpat_len = MultiByteToWideChar(CP_UTF8, 0, pattern, -1, NULL, 0);
+    wchar_t* wpattern = (wpat_len > 0) ? (wchar_t*)malloc((size_t)wpat_len * sizeof(wchar_t)) : NULL;
+    if (wpattern) MultiByteToWideChar(CP_UTF8, 0, pattern, -1, wpattern, wpat_len);
+    WIN32_FIND_DATAW fd;
+    HANDLE h = wpattern ? FindFirstFileW(wpattern, &fd) : INVALID_HANDLE_VALUE;
+    if (wpattern) free(wpattern);
     if (h == INVALID_HANDLE_VALUE) {
         free(names);
         return datara_rt_list_create(0);
     }
     do {
-        const char* name = fd.cFileName;
-        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+        if (wcscmp(fd.cFileName, L".") == 0 || wcscmp(fd.cFileName, L"..") == 0) continue;
         if (count == cap) {
             size_t ncap = cap * 2;
             char** nn = (char**)realloc(names, ncap * sizeof(char*));
@@ -2368,12 +2713,13 @@ int64_t* datara_rt_dir_list(const char* path) {
             names = nn;
             cap = ncap;
         }
-        size_t nlen = strlen(name);
-        char* copy = (char*)malloc(nlen + 1);
+        int u8_len = WideCharToMultiByte(CP_UTF8, 0, fd.cFileName, -1, NULL, 0, NULL, NULL);
+        if (u8_len <= 0) continue;
+        char* copy = (char*)malloc((size_t)u8_len);
         if (!copy) break;
-        memcpy(copy, name, nlen + 1);
+        WideCharToMultiByte(CP_UTF8, 0, fd.cFileName, -1, copy, u8_len, NULL, NULL);
         names[count++] = copy;
-    } while (FindNextFileA(h, &fd));
+    } while (FindNextFileW(h, &fd));
     FindClose(h);
 #else
     DIR* d = opendir(path);
@@ -2422,7 +2768,13 @@ int64_t datara_rt_path_exists(const char* path) {
     datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::path_exists");
     if (!path) return 0;
 #ifdef _WIN32
-    DWORD attrs = GetFileAttributesA(path);
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+    if (wlen <= 0) return 0;
+    wchar_t* wpath = (wchar_t*)malloc((size_t)wlen * sizeof(wchar_t));
+    if (!wpath) return 0;
+    MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, wlen);
+    DWORD attrs = GetFileAttributesW(wpath);
+    free(wpath);
     return attrs != INVALID_FILE_ATTRIBUTES ? 1 : 0;
 #else
     struct stat st;
@@ -3884,6 +4236,10 @@ int64_t datara_rt_system(const char* cmd) {
     return (int64_t)system(cmd);
 }
 
+// byte-transparent: the child's output is captured as raw bytes and
+// returned as-is in whatever encoding the console produced -- no
+// transcoding happens on this path. Use datara_rt_exec_utf8 when the
+// output must be normalized to UTF-8.
 const char* datara_rt_exec(const char* cmd) {
     if (!cmd) return "";
 #ifdef _WIN32
@@ -3923,6 +4279,197 @@ const char* datara_rt_exec(const char* cmd) {
 #endif
     return buf;
 }
+
+// ---------------------------------------------------------------------------
+// UTF-8 checked process execution: Outcome<Str>.
+//
+// Unlike datara_rt_exec (byte-transparent passthrough), this entry point
+// guarantees the returned text is UTF-8:
+//   * Windows: the command line is converted to UTF-16 with
+//     MultiByteToWideChar(CP_UTF8, ...) -- never ANSI -- and run through
+//     CreateProcessW with an anonymous pipe. stdout and stderr are merged
+//     into that single pipe (2>&1 semantics), so interleaving is preserved
+//     but the streams are not separately addressable. The captured bytes
+//     are decoded with the console output code page (OEM code page when no
+//     console is attached) into UTF-16 and re-encoded as CP_UTF8.
+//   * POSIX: popen("r") capture with passthrough -- the child's stdout is
+//     already UTF-8 on POSIX, stderr goes to the parent's stderr.
+// Every failure path (null command, spawn failure, empty capture buffer,
+// conversion failure) returns a failed Outcome with a diagnostic message
+// in error_msg. The object layout is the stdlib Outcome<T> one, built by
+// datara_rt_outcome_build_raw.
+// ---------------------------------------------------------------------------
+#ifdef _WIN32
+void* datara_rt_exec_utf8(const char* cmd) {
+    datara_rt_cap_require(DATARA_CAP_SYS_EXEC, "sys::exec_utf8");
+    if (!cmd) {
+        return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: command is null");
+    }
+
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, cmd, -1, NULL, 0);
+    if (wlen <= 0) {
+        return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: command is not valid UTF-8");
+    }
+    wchar_t* wcmd = (wchar_t*)malloc((size_t)wlen * sizeof(wchar_t));
+    if (!wcmd) {
+        return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: out of memory");
+    }
+    MultiByteToWideChar(CP_UTF8, 0, cmd, -1, wcmd, wlen);
+
+    SECURITY_ATTRIBUTES sa;
+    sa.nLength = sizeof(sa);
+    sa.lpSecurityDescriptor = NULL;
+    sa.bInheritHandle = TRUE;
+
+    HANDLE read_end = NULL;
+    HANDLE write_end = NULL;
+    if (!CreatePipe(&read_end, &write_end, &sa, 0)) {
+        free(wcmd);
+        return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: cannot create pipe");
+    }
+    // The read end stays with the parent only; an inherited read end would
+    // keep the pipe open after the child exits and hang the read loop.
+    SetHandleInformation(read_end, HANDLE_FLAG_INHERIT, 0);
+
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    ZeroMemory(&pi, sizeof(pi));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = NULL;
+    // Merged capture: both output streams share the single pipe.
+    si.hStdOutput = write_end;
+    si.hStdError = write_end;
+
+    BOOL ok = CreateProcessW(NULL, wcmd, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+    free(wcmd);
+    CloseHandle(write_end);
+    if (!ok) {
+        CloseHandle(read_end);
+        return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: cannot start process");
+    }
+
+    size_t cap = 4096;
+    size_t len = 0;
+    char* buf = (char*)malloc(cap);
+    if (!buf) {
+        CloseHandle(read_end);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+        return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: out of memory");
+    }
+    for (;;) {
+        if (len + 1024 + 1 > cap) {
+            size_t new_cap = cap * 2;
+            char* new_buf = (char*)realloc(buf, new_cap);
+            if (!new_buf) {
+                free(buf);
+                CloseHandle(read_end);
+                CloseHandle(pi.hThread);
+                CloseHandle(pi.hProcess);
+                return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: out of memory");
+            }
+            buf = new_buf;
+            cap = new_cap;
+        }
+        DWORD got = 0;
+        if (!ReadFile(read_end, buf + len, 1024, &got, NULL) || got == 0) break;
+        len += (size_t)got;
+    }
+    buf[len] = '\0';
+    CloseHandle(read_end);
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+
+    // Console code page -> UTF-16 -> UTF-8. GetConsoleOutputCP returns 0
+    // when the process has no console (services, redirected hosts), in
+    // which case the OEM code page is the one cmd.exe wrote with.
+    UINT cp = GetConsoleOutputCP();
+    if (cp == 0) cp = GetOEMCP();
+    int wide_len = MultiByteToWideChar(cp, 0, buf, (int)len, NULL, 0);
+    if (wide_len <= 0) {
+        // Fall back to a strict UTF-8 read before declaring failure: output
+        // that already is UTF-8 decodes under CP_UTF8 regardless of the
+        // console code page.
+        cp = CP_UTF8;
+        wide_len = MultiByteToWideChar(cp, 0, buf, (int)len, NULL, 0);
+        if (wide_len <= 0) {
+            free(buf);
+            return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: cannot decode process output");
+        }
+    }
+    wchar_t* wide = (wchar_t*)malloc(((size_t)wide_len + 1) * sizeof(wchar_t));
+    if (!wide) {
+        free(buf);
+        return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: out of memory");
+    }
+    MultiByteToWideChar(cp, 0, buf, (int)len, wide, wide_len);
+    wide[wide_len] = L'\0';
+    free(buf);
+
+    int utf8_len = WideCharToMultiByte(CP_UTF8, 0, wide, wide_len, NULL, 0, NULL, NULL);
+    if (utf8_len < 0) {
+        free(wide);
+        return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: cannot encode process output as UTF-8");
+    }
+    char* utf8 = (char*)malloc((size_t)utf8_len + 1);
+    if (!utf8) {
+        free(wide);
+        return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: out of memory");
+    }
+    if (utf8_len > 0) {
+        WideCharToMultiByte(CP_UTF8, 0, wide, wide_len, utf8, utf8_len, NULL, NULL);
+    }
+    utf8[utf8_len] = '\0';
+    free(wide);
+    // The returned string is intentionally never freed (runtime strings
+    // leak by design, see datara_rt_str_free).
+    return datara_rt_outcome_build_raw(1, (int64_t)(uintptr_t)utf8, "");
+}
+#else
+void* datara_rt_exec_utf8(const char* cmd) {
+    datara_rt_cap_require(DATARA_CAP_SYS_EXEC, "sys::exec_utf8");
+    if (!cmd) {
+        return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: command is null");
+    }
+    // POSIX: child output is already UTF-8 bytes; capture and pass through.
+    FILE* pipe = popen(cmd, "r");
+    if (!pipe) {
+        return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: cannot start process");
+    }
+    size_t cap = 4096;
+    size_t len = 0;
+    char* buf = (char*)malloc(cap);
+    if (!buf) {
+        pclose(pipe);
+        return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: out of memory");
+    }
+    char temp[1024];
+    for (;;) {
+        size_t got = fread(temp, 1, sizeof(temp), pipe);
+        if (got == 0) break;
+        if (len + got + 1 > cap) {
+            size_t new_cap = cap;
+            while (len + got + 1 > new_cap) new_cap *= 2;
+            char* new_buf = (char*)realloc(buf, new_cap);
+            if (!new_buf) {
+                free(buf);
+                pclose(pipe);
+                return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: out of memory");
+            }
+            buf = new_buf;
+            cap = new_cap;
+        }
+        memcpy(buf + len, temp, got);
+        len += got;
+    }
+    buf[len] = '\0';
+    pclose(pipe);
+    return datara_rt_outcome_build_raw(1, (int64_t)(uintptr_t)buf, "");
+}
+#endif
 
 // ---------------------------------------------------------------------------
 // Memory Management & RAII

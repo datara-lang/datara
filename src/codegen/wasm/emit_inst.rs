@@ -651,7 +651,7 @@ impl WasmEmitter {
                     object,
                     method,
                     args,
-                    ..
+                    ty,
                 } => {
                     // Numeric conversion intrinsics (Gate 7 explicit casts):
                     // a single WASM conversion opcode, no runtime call. The
@@ -703,6 +703,73 @@ impl WasmEmitter {
                         }
                         return Ok(());
                     }
+                    // v1.4.1: list protocol calls carrying backend-injected
+                    // constants. sort takes (mode, elem_kind);
+                    // remove_value/contains/index_of take elem_kind -- keyed
+                    // off the element repr like the native backends.
+                    if matches!(
+                        method.as_str(),
+                        "sort" | "remove_value" | "contains" | "index_of"
+                    ) {
+                        let elem_kind: i64 = if ty.contains("Float") {
+                            1
+                        } else if ty.contains("Str") {
+                            2
+                        } else {
+                            0
+                        };
+                        let (rt_fn, extra_consts): (&str, Vec<i64>) = match method.as_str() {
+                            "sort" => ("datara_rt_list_sort", vec![0, elem_kind]),
+                            "remove_value" => ("datara_rt_list_remove_value", vec![elem_kind]),
+                            "contains" => ("datara_rt_list_contains", vec![elem_kind]),
+                            _ => ("datara_rt_list_index_of", vec![elem_kind]),
+                        };
+                        let imp_idx = import_fn_indices.get(rt_fn).copied().or_else(|| {
+                            import_fn_indices
+                                .get(&format!("datara:rt/{}", &rt_fn["datara_rt_".len()..]))
+                                .copied()
+                        });
+                        let imp_idx = match imp_idx {
+                            Some(i) => i,
+                            None => {
+                                return Err(format!(
+                                    "WASM code generation failed: unresolved list builtin import '{}'",
+                                    rt_fn
+                                ));
+                            }
+                        };
+                        let dest_loc = local_map.get(dest).copied().unwrap_or(0);
+                        // Receiver, then user args, then the injected consts.
+                        body.push(0x20); // local.get object
+                        encode_u32_leb128(local_map.get(object).copied().unwrap_or(0), body);
+                        for a in args {
+                            body.push(0x20); // local.get arg
+                            encode_u32_leb128(local_map.get(a).copied().unwrap_or(0), body);
+                        }
+                        for &c in &extra_consts {
+                            body.push(0x42); // i64.const
+                            encode_i64_leb128(c, body);
+                        }
+                        body.push(0x10); // call
+                        encode_u32_leb128(imp_idx, body);
+                        body.push(0x21); // local.set dest
+                        encode_u32_leb128(dest_loc, body);
+                        let inline_args = args
+                            .iter()
+                            .map(|a| format!("(local.get $v{})", a.0))
+                            .collect::<Vec<_>>()
+                            .join(" ");
+                        let const_wat = extra_consts
+                            .iter()
+                            .map(|c| format!("(i64.const {})", c))
+                            .collect::<Vec<_>>()
+                            .join(" ");
+                        wat.push_str(&format!(
+                            "    (local.set $v{} (call ${} (local.get $v{}) {} {}))\n",
+                            dest.0, rt_fn, object.0, inline_args, const_wat
+                        ));
+                        return Ok(());
+                    }
                     let mut full_args = vec![*object];
                     full_args.extend(args.iter().copied());
                     let runtime_fn = match method.as_str() {
@@ -715,6 +782,16 @@ impl WasmEmitter {
                         "byte_at" => "datara_rt_str_byte_at",
                         "char_at" => "datara_rt_str_char_at",
                         "insert" => "datara_rt_map_insert",
+                        // v1.4.1: full List<T> protocol.
+                        "pop" => "datara_rt_list_pop_outcome",
+                        "first" => "datara_rt_list_first",
+                        "last" => "datara_rt_list_last",
+                        "remove_at" => "datara_rt_list_remove_at",
+                        "insert_at" => "datara_rt_list_insert_at",
+                        "reverse" => "datara_rt_list_reverse",
+                        "clear" => "datara_rt_list_clear",
+                        "slice" => "datara_rt_list_slice",
+                        "is_empty" => "datara_rt_list_is_empty",
                         _ => {
                             // Unknown method: neither a runtime builtin, a
                             // defined function nor a mapped import. Letting

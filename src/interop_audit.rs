@@ -117,10 +117,10 @@ fn main() {
         let joined = datara_rt_str_concat("inter", "op")
         report("roundtrip", datara_rt_str_eq(joined, "interop") == 1)
 
-        let i = datara_rt_int_to_str(42)
+        let s_val = datara_rt_int_to_str(42)
         let f = datara_rt_float_to_str(2.5)
         let b = datara_rt_bool_to_str(1)
-        let prim = datara_rt_str_eq(i, "42") == 1 && datara_rt_str_eq(b, "true") == 1
+        let prim = datara_rt_str_eq(s_val, "42") == 1 && datara_rt_str_eq(b, "true") == 1
         let prim2 = datara_rt_str_eq(f, "2.5") == 1 && datara_rt_str_len(joined) == 7
         report("primitives", prim && prim2)
 
@@ -130,14 +130,14 @@ fn main() {
         report("error_transfer", datara_rt_str_to_int("not_a_number") == 0)
 
         let base = datara_rt_heap_live()
-        for i in 0..1000 {
-            let pair = datara_rt_list_create_2(i, i)
+        for k in 0..1000 {
+            let pair = datara_rt_list_create_2(k, k)
             datara_rt_list_free(pair)
         }
         report("leak_smoke", datara_rt_heap_live() == base)
 
         let t0 = datara_rt_now_ns()
-        for i in 0..10000 {
+        for m in 0..10000 {
             let s = datara_rt_str_concat("a", "b")
             datara_rt_str_len(s)
         }

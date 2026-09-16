@@ -5,6 +5,55 @@ use crate::types::DataraType;
 use super::Lowering;
 
 impl<'a> Lowering<'a> {
+    /// Runtime element representation of a list-valued expression. Runtime
+    /// calls whose semantics depend on the element layout (sort's elem_kind,
+    /// the Outcome contract of pop/first/last) key off this repr: string
+    /// elements are char* pointers, floats travel as IEEE bit patterns,
+    /// everything else compares as i64. Mirrors the for-in loop's element
+    /// derivation (stmt.rs): the variable's checked element type wins,
+    /// map/filter chains inherit their source list's element, anything
+    /// opaque falls back to "Int".
+    fn list_elem_repr(&self, expr: &Expr) -> String {
+        match expr {
+            Expr::Identifier(name, _) => match self.lookup_var_type(name) {
+                Some(DataraType::List(inner)) => Self::repr_of_datara_type(&inner),
+                _ => "Int".into(),
+            },
+            Expr::Call { callee, args, .. } => match &**callee {
+                // Chained member form: `xs.map(f)` / `xs.filter(p)`.
+                Expr::MemberAccess { object, member, .. }
+                    if (member == "map" || member == "filter") && self.is_expr_list(expr) =>
+                {
+                    self.list_elem_repr(object)
+                }
+                // Free function form: `map(xs, f)` / `filter(xs, p)`.
+                Expr::Identifier(fn_name, _)
+                    if (fn_name == "map" || fn_name == "filter")
+                        && !args.is_empty()
+                        && self.is_expr_list(expr) =>
+                {
+                    self.list_elem_repr(&args[0])
+                }
+                _ => "Int".into(),
+            },
+            _ => "Int".into(),
+        }
+    }
+
+    /// Checked element type -> backend repr string (same mapping as the
+    /// for-in loop's elem_repr in stmt.rs).
+    fn repr_of_datara_type(t: &DataraType) -> String {
+        match t {
+            DataraType::String | DataraType::Char => "String".into(),
+            DataraType::Bool => "Bool".into(),
+            DataraType::Float => "Float".into(),
+            DataraType::List(_) => "List".into(),
+            DataraType::Map(..) => "Map".into(),
+            DataraType::Class(c) => c.clone(),
+            _ => "Int".into(),
+        }
+    }
+
     pub(crate) fn lower_expr_call(
         &mut self,
         _expr: &Expr,
@@ -272,6 +321,20 @@ impl<'a> Lowering<'a> {
             {
                 let list_val = self.lower_expr(&args[0], cur_block)?;
                 return self.lower_list_higher_order(list_val, fn_name, &args[1..], cur_block);
+            }
+            // v1.4.1: fold(xs, init, acc_fn) -- same shape as reduce.
+            if fn_name == "fold"
+                && args.len() == 3
+                && self.is_expr_list(&args[0])
+                && self.is_callable_expr(&args[2])
+            {
+                let list_val = self.lower_expr(&args[0], cur_block)?;
+                return self.lower_list_higher_order(list_val, fn_name, &args[1..], cur_block);
+            }
+            // collect(xs) materializes the pipeline sink; map/filter already
+            // build eager result lists, so the list itself is the value.
+            if fn_name == "collect" && args.len() == 1 && self.is_expr_list(&args[0]) {
+                return self.lower_expr(&args[0], cur_block);
             }
             if fn_name == "wrapping_add" && args.len() == 2 {
                 let l = self.lower_expr(&args[0], cur_block)?;
@@ -735,15 +798,71 @@ impl<'a> Lowering<'a> {
                 if member == "reduce" && args.len() == 2 && self.is_callable_expr(&args[1]) {
                     return self.lower_list_higher_order(obj_val, member, args, cur_block);
                 }
+                if member == "fold" && args.len() == 2 && self.is_callable_expr(&args[1]) {
+                    return self.lower_list_higher_order(obj_val, member, args, cur_block);
+                }
+                // collect() materializes the pipeline: map/filter already
+                // build eager result lists, so the sink list is the value.
+                if member == "collect" && args.is_empty() {
+                    return Some(obj_val);
+                }
+                // v1.4.1 checked accessors: pop/first/last return an
+                // Outcome<T> object in the stdlib Outcome<T> layout, so `?`,
+                // unwrap/unwrap_or/is_ok/is_err/err all work on them exactly
+                // like on file_read_checked(). The element repr keys the
+                // Outcome payload tagging downstream (Float bit patterns,
+                // Str pointers).
                 if member == "pop" && args.is_empty() {
+                    let elem_repr = self.list_elem_repr(object);
                     let dest = self.next_val();
                     self.get_block_mut(*cur_block)
                         .instructions
                         .push(Inst::Call {
                             dest,
-                            func: "datara_rt_list_pop".into(),
+                            func: "datara_rt_list_pop_outcome".into(),
                             args: vec![obj_val],
-                            ty: "Int".into(),
+                            ty: format!("Outcome<{}>", elem_repr),
+                        });
+                    return Some(dest);
+                }
+                if member == "first" && args.is_empty() {
+                    let elem_repr = self.list_elem_repr(object);
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest,
+                            func: "datara_rt_list_first".into(),
+                            args: vec![obj_val],
+                            ty: format!("Outcome<{}>", elem_repr),
+                        });
+                    return Some(dest);
+                }
+                if member == "last" && args.is_empty() {
+                    let elem_repr = self.list_elem_repr(object);
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest,
+                            func: "datara_rt_list_last".into(),
+                            args: vec![obj_val],
+                            ty: format!("Outcome<{}>", elem_repr),
+                        });
+                    return Some(dest);
+                }
+                if member == "slice" && args.len() == 2 {
+                    let start = self.lower_expr(&args[0], cur_block)?;
+                    let end = self.lower_expr(&args[1], cur_block)?;
+                    let elem_repr = self.list_elem_repr(object);
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest,
+                            func: "datara_rt_list_slice".into(),
+                            args: vec![obj_val, start, end],
+                            ty: format!("List<{}>", elem_repr),
                         });
                     return Some(dest);
                 }
@@ -881,6 +1000,27 @@ impl<'a> Lowering<'a> {
                     && (c == "Future" || c == "Task")
                 {
                     method_ty = "String".into();
+                }
+            }
+            // v1.4.1: remaining List protocol methods reach the backends'
+            // list dispatch tables as MethodCall. Their result repr must not
+            // fall through to the name-heuristic default: contains/is_empty
+            // are Bool, remove_at/remove_value/index_of are Int, and the
+            // in-place mutators plus slice return the list itself (keyed
+            // for list tagging and the backends' elem_kind injection).
+            if self.is_expr_list(object) {
+                let elem_repr = self.list_elem_repr(object);
+                match member.as_str() {
+                    "sort" | "reverse" | "clear" | "insert_at" | "slice" => {
+                        method_ty = format!("List<{}>", elem_repr);
+                    }
+                    "contains" | "is_empty" => {
+                        method_ty = "Bool".into();
+                    }
+                    "remove_at" | "remove_value" | "index_of" => {
+                        method_ty = "Int".into();
+                    }
+                    _ => {}
                 }
             }
             let dest = self.next_val();

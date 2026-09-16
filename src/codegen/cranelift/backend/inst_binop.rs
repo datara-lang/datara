@@ -503,36 +503,112 @@ pub fn compile_binop<M: ClifModule>(
                 }
             }
             "<" => {
-                let c = ctx.builder.ins().icmp(
-                    cranelift_codegen::ir::condcodes::IntCC::SignedLessThan,
-                    lv,
-                    rv,
-                );
-                ctx.builder.ins().uextend(clif_types::I64, c)
+                if ctx.string_vids.contains(left)
+                    || ctx.string_vids.contains(right)
+                    || ty == "String"
+                    || ty.contains("Str")
+                {
+                    let cmp_ref = ctx
+                        .module
+                        .declare_func_in_func(ctx.runtime.rt_str_cmp_id, ctx.builder.func);
+                    let call_inst = ctx.builder.ins().call(cmp_ref, &[lv, rv]);
+                    let cmp_res = ctx.builder.inst_results(call_inst)[0];
+                    let zero = ctx.builder.ins().iconst(clif_types::I64, 0);
+                    let c = ctx.builder.ins().icmp(
+                        cranelift_codegen::ir::condcodes::IntCC::SignedLessThan,
+                        cmp_res,
+                        zero,
+                    );
+                    ctx.builder.ins().uextend(clif_types::I64, c)
+                } else {
+                    let c = ctx.builder.ins().icmp(
+                        cranelift_codegen::ir::condcodes::IntCC::SignedLessThan,
+                        lv,
+                        rv,
+                    );
+                    ctx.builder.ins().uextend(clif_types::I64, c)
+                }
             }
             "<=" => {
-                let c = ctx.builder.ins().icmp(
-                    cranelift_codegen::ir::condcodes::IntCC::SignedLessThanOrEqual,
-                    lv,
-                    rv,
-                );
-                ctx.builder.ins().uextend(clif_types::I64, c)
+                if ctx.string_vids.contains(left)
+                    || ctx.string_vids.contains(right)
+                    || ty == "String"
+                    || ty.contains("Str")
+                {
+                    let cmp_ref = ctx
+                        .module
+                        .declare_func_in_func(ctx.runtime.rt_str_cmp_id, ctx.builder.func);
+                    let call_inst = ctx.builder.ins().call(cmp_ref, &[lv, rv]);
+                    let cmp_res = ctx.builder.inst_results(call_inst)[0];
+                    let zero = ctx.builder.ins().iconst(clif_types::I64, 0);
+                    let c = ctx.builder.ins().icmp(
+                        cranelift_codegen::ir::condcodes::IntCC::SignedLessThanOrEqual,
+                        cmp_res,
+                        zero,
+                    );
+                    ctx.builder.ins().uextend(clif_types::I64, c)
+                } else {
+                    let c = ctx.builder.ins().icmp(
+                        cranelift_codegen::ir::condcodes::IntCC::SignedLessThanOrEqual,
+                        lv,
+                        rv,
+                    );
+                    ctx.builder.ins().uextend(clif_types::I64, c)
+                }
             }
             ">" => {
-                let c = ctx.builder.ins().icmp(
-                    cranelift_codegen::ir::condcodes::IntCC::SignedGreaterThan,
-                    lv,
-                    rv,
-                );
-                ctx.builder.ins().uextend(clif_types::I64, c)
+                if ctx.string_vids.contains(left)
+                    || ctx.string_vids.contains(right)
+                    || ty == "String"
+                    || ty.contains("Str")
+                {
+                    let cmp_ref = ctx
+                        .module
+                        .declare_func_in_func(ctx.runtime.rt_str_cmp_id, ctx.builder.func);
+                    let call_inst = ctx.builder.ins().call(cmp_ref, &[lv, rv]);
+                    let cmp_res = ctx.builder.inst_results(call_inst)[0];
+                    let zero = ctx.builder.ins().iconst(clif_types::I64, 0);
+                    let c = ctx.builder.ins().icmp(
+                        cranelift_codegen::ir::condcodes::IntCC::SignedGreaterThan,
+                        cmp_res,
+                        zero,
+                    );
+                    ctx.builder.ins().uextend(clif_types::I64, c)
+                } else {
+                    let c = ctx.builder.ins().icmp(
+                        cranelift_codegen::ir::condcodes::IntCC::SignedGreaterThan,
+                        lv,
+                        rv,
+                    );
+                    ctx.builder.ins().uextend(clif_types::I64, c)
+                }
             }
             ">=" => {
-                let c = ctx.builder.ins().icmp(
-                    cranelift_codegen::ir::condcodes::IntCC::SignedGreaterThanOrEqual,
-                    lv,
-                    rv,
-                );
-                ctx.builder.ins().uextend(clif_types::I64, c)
+                if ctx.string_vids.contains(left)
+                    || ctx.string_vids.contains(right)
+                    || ty == "String"
+                    || ty.contains("Str")
+                {
+                    let cmp_ref = ctx
+                        .module
+                        .declare_func_in_func(ctx.runtime.rt_str_cmp_id, ctx.builder.func);
+                    let call_inst = ctx.builder.ins().call(cmp_ref, &[lv, rv]);
+                    let cmp_res = ctx.builder.inst_results(call_inst)[0];
+                    let zero = ctx.builder.ins().iconst(clif_types::I64, 0);
+                    let c = ctx.builder.ins().icmp(
+                        cranelift_codegen::ir::condcodes::IntCC::SignedGreaterThanOrEqual,
+                        cmp_res,
+                        zero,
+                    );
+                    ctx.builder.ins().uextend(clif_types::I64, c)
+                } else {
+                    let c = ctx.builder.ins().icmp(
+                        cranelift_codegen::ir::condcodes::IntCC::SignedGreaterThanOrEqual,
+                        lv,
+                        rv,
+                    );
+                    ctx.builder.ins().uextend(clif_types::I64, c)
+                }
             }
             "==" => {
                 if ctx.string_vids.contains(left)

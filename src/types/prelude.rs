@@ -2,6 +2,23 @@ use super::{DataraType, TypeChecker};
 use crate::resolver::Resolver;
 use std::collections::HashMap;
 
+// List<T> builtin-method documentation (v1.4.1). List methods are matched
+// structurally in src/types/check/call.rs, not registered here, so the
+// canonical method contract lives in this comment:
+//
+//   push(v)   -- CANONICAL method to append a value and grow the receiver.
+//   append(v) -- explicit "alias of push": identical lowering, identical
+//                runtime symbol (datara_rt_list_append), kept for
+//                discoverability.
+//   add(v)    -- accepted third spelling of push at the dispatch sites
+//                (lowering + codegen); documented as an alias too.
+//   pop()     -- checked: returns Outcome<T> ("empty list" on an empty
+//                receiver), never a bare element.
+//   first()/last() -- checked element accessors returning Outcome<T>.
+//   sort()/reverse()/clear()/insert_at() -- in-place mutators returning the
+//                receiver handle; remove_at/remove_value return Int (1 ok,
+//                0 nothing changed); contains/is_empty -> Bool;
+//                index_of -> Int (-1 when absent); slice -> fresh List<T>.
 impl<'a> TypeChecker<'a> {
     pub fn new(resolver: &'a Resolver) -> Self {
         let mut class_fields = HashMap::new();
@@ -377,6 +394,78 @@ impl<'a> TypeChecker<'a> {
         function_signatures.insert(
             "env_get".to_string(),
             (vec![DataraType::String], DataraType::String, Vec::new()),
+        );
+        function_signatures.insert(
+            "env_set".to_string(),
+            (
+                vec![DataraType::String, DataraType::String],
+                DataraType::Int,
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "datara_rt_env_set".to_string(),
+            (
+                vec![DataraType::String, DataraType::String],
+                DataraType::Int,
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "str_cmp".to_string(),
+            (
+                vec![DataraType::String, DataraType::String],
+                DataraType::Int,
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "datara_rt_str_cmp".to_string(),
+            (
+                vec![DataraType::String, DataraType::String],
+                DataraType::Int,
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "str_from_byte".to_string(),
+            (vec![DataraType::Int], DataraType::String, Vec::new()),
+        );
+        function_signatures.insert(
+            "datara_rt_str_from_byte".to_string(),
+            (vec![DataraType::Int], DataraType::String, Vec::new()),
+        );
+        function_signatures.insert(
+            "str_from_bytes".to_string(),
+            (
+                vec![DataraType::List(Box::new(DataraType::Int))],
+                DataraType::String,
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "datara_rt_str_from_bytes".to_string(),
+            (
+                vec![DataraType::List(Box::new(DataraType::Int))],
+                DataraType::String,
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "str_bytes".to_string(),
+            (
+                vec![DataraType::String],
+                DataraType::List(Box::new(DataraType::Int)),
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "datara_rt_str_bytes".to_string(),
+            (
+                vec![DataraType::String],
+                DataraType::List(Box::new(DataraType::Int)),
+                Vec::new(),
+            ),
         );
         function_signatures.insert(
             "args_count".to_string(),
@@ -1182,6 +1271,25 @@ impl<'a> TypeChecker<'a> {
         function_signatures.insert(
             "exec".to_string(),
             (vec![DataraType::String], DataraType::String, Vec::new()),
+        );
+        // v1.4.1: UTF-8 checked exec. Checker-level representation is
+        // Result(T, Str), matching `?` propagation and the checked-I/O
+        // builtins.
+        function_signatures.insert(
+            "exec_utf8".to_string(),
+            (
+                vec![DataraType::String],
+                DataraType::Result(Box::new(DataraType::String), Box::new(DataraType::String)),
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "datara_rt_exec_utf8".to_string(),
+            (
+                vec![DataraType::String],
+                DataraType::Result(Box::new(DataraType::String), Box::new(DataraType::String)),
+                Vec::new(),
+            ),
         );
 
         for (name, sym) in &resolver.functions {

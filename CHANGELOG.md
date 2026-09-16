@@ -4,6 +4,22 @@ All notable changes to the Datara compiler and toolchain (`forgen`) are document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-09-17
+
+### Added
+- **Complete List API & Combinators**: Expanded List API with `pop` returning `Outcome<T>`, `push`, `clear`, `clone`, `join`, `reverse`, `slice`, `concat`, `find`, and higher-order combinators across Cranelift, LLVM, and WASM backends.
+- **Safe Process Execution (`sys::exec_utf8`)**: Standardized process runner with guaranteed UTF-8 console output decoding on Windows and Unix platforms.
+- **C-Grade Ultra-Compact Binaries (`--tiny`)**: Introduced dynamic Universal CRT (UCRT) linking mode with dead code stripping and 512-byte section alignment, reducing standalone executable footprints by over 30% to true C-language levels (250-370 KB).
+- **Domain Specialization (`forgen domain --llvm`)**: Advanced whole-program specialization engine with 10-pass optimization and dead module elimination, matching and exceeding pure Rust -O3 compute loop performance.
+- **Enhanced Loop Parity Attributes**: Added `mustprogress` and `nounwind` function attributes to LLVM IR definitions, enabling LLVM's cost model to auto-unroll and optimize recurrence loops without arbitrary vectorization constraints.
+- **Diagnostic E-TYPE-010**: Precise compile-time diagnostics for list operation and combinator type violations.
+
+### Fixed
+- **LLVM Backend Pointer Comparison Mismatch**: Resolved `llc.exe` type error (`icmp eq i64` on pointer operands) by emitting typed `icmp ptr` operations and explicit `ptrtoint` conversions for mixed comparisons.
+- **Runtime Memory Pool Coherence**: Normalized `datara_rt_list_create_from` and `datara_rt_list_create_repeat` to delegate through `datara_rt_list_create_capacity`, ensuring thread-local allocation counters remain synchronized and preventing heap corruption on Windows MSVC.
+- **Linker Backward Compatibility**: Preserved `datara_rt_list_pop` and `datara_rt_list_pop_legacy` symbol exports alongside `datara_rt_list_pop_outcome` to eliminate unresolved external symbol linker failures.
+- **File Size Invariants**: Re-architected large codegen modules (`runtime_decls.rs`, `emit_call.rs`, `inst_method_call.rs`) to guarantee all source files remain under the 60 KB threshold.
+
 ## [1.4.0] - 2026-09-16
 
 ### Added

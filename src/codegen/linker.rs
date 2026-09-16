@@ -472,11 +472,19 @@ pub fn link_args(
 
     match spec.flavor {
         LinkerFlavor::Msvc => {
+            let is_tiny = extra_libs.iter().any(|l| l == "--tiny" || l == "tiny")
+                || std::env::var("FORGEN_TINY").is_ok()
+                || std::env::var("DATARA_TINY").is_ok();
+
             args.push("/NOLOGO".into());
             args.push("/INCREMENTAL:NO".into());
             args.push("/DEBUG:NONE".into());
             args.push("/OPT:REF".into());
             args.push("/OPT:ICF".into());
+            if is_tiny {
+                args.push("/NODEFAULTLIB:libcmt.lib".into());
+                args.push("/FILEALIGN:512".into());
+            }
             if is_shared {
                 args.push("/DLL".into());
                 for exp in exports {
@@ -496,9 +504,26 @@ pub fn link_args(
                 args.push(format!("/LIBPATH:{}", p.display()));
             }
             for lib in &spec.system_libs {
+                if is_tiny {
+                    if lib == "libcmt.lib" {
+                        args.push("msvcrt.lib".into());
+                        continue;
+                    }
+                    if lib == "libucrt.lib" {
+                        args.push("ucrt.lib".into());
+                        continue;
+                    }
+                    if lib == "libvcruntime.lib" {
+                        args.push("vcruntime.lib".into());
+                        continue;
+                    }
+                }
                 args.push(lib.clone());
             }
             for lib in extra_libs {
+                if lib.starts_with("--") || lib.starts_with('/') {
+                    continue;
+                }
                 let p = Path::new(lib);
                 if let Some(parent) = p.parent() {
                     if !parent.as_os_str().is_empty() {
@@ -823,7 +848,11 @@ pub fn compile_with_llc(
             .map_err(|e| e.to_string())?
             .join(output_exe)
     };
-    let args = link_args(&spec, &obj_path, &runtime_lib, &abs_out, &[], &[]);
+    let mut extra = Vec::new();
+    if opt_level == "tiny" || opt_level == "z" || opt_level == "size" {
+        extra.push("--tiny".to_string());
+    }
+    let args = link_args(&spec, &obj_path, &runtime_lib, &abs_out, &[], &extra);
     let _guard = linker_lock().lock().unwrap_or_else(|e| e.into_inner());
     let mut link_cmd = Command::new(&spec.program);
     link_cmd.args(&args);

@@ -401,6 +401,15 @@ impl<'a> Parser<'a> {
                 TokenType::Await => return Some("await".to_string()),
                 TokenType::Extern => return Some("extern".to_string()),
                 TokenType::Loop => return Some("loop".to_string()),
+                TokenType::Shared => return Some("shared".to_string()),
+                TokenType::Where => return Some("where".to_string()),
+                TokenType::Class => return Some("class".to_string()),
+                TokenType::Own => return Some("own".to_string()),
+                TokenType::Type => return Some("type".to_string()),
+                TokenType::Require => return Some("require".to_string()),
+                TokenType::Ensure => return Some("ensure".to_string()),
+                TokenType::Bits => return Some("bits".to_string()),
+                TokenType::Bit => return Some("bit".to_string()),
                 _ => {}
             }
         }

@@ -501,6 +501,162 @@ impl<'a> Lowering<'a> {
                     });
                 Some(final_acc)
             }
+            // v1.4.1: fold(init, acc_fn) is reduce under its canonical
+            // functional name -- identical loop shape, fresh block/variable
+            // names so the two can coexist in one function.
+            "fold" => {
+                if args.len() < 2 {
+                    return None;
+                }
+                let initial_val = self.lower_expr(&args[0], cur_block)?;
+                let idx_var = format!("__fold_idx_{}", self.next_val().0);
+                let acc_var = format!("__fold_acc_{}", self.next_val().0);
+
+                let len_val = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::Call {
+                        dest: len_val,
+                        func: "datara_rt_list_len".into(),
+                        args: vec![list_val],
+                        ty: "Int".into(),
+                    });
+
+                let zero = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::ConstInt {
+                        dest: zero,
+                        value: 0,
+                    });
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::AssignVar {
+                        name: idx_var.clone(),
+                        value: zero,
+                    });
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::AssignVar {
+                        name: acc_var.clone(),
+                        value: initial_val,
+                    });
+
+                let header_id = self.create_block("fold_header");
+                let body_id = self.create_block("fold_body");
+                let exit_id = self.create_block("fold_exit");
+
+                self.get_block_mut(*cur_block).terminator = Terminator::Branch {
+                    target: header_id,
+                    args: Vec::new(),
+                };
+
+                let cur_idx = self.next_val();
+                self.get_block_mut(header_id)
+                    .instructions
+                    .push(Inst::LoadVar {
+                        dest: cur_idx,
+                        name: idx_var.clone(),
+                    });
+                let cond = self.next_val();
+                self.get_block_mut(header_id)
+                    .instructions
+                    .push(Inst::BinOp {
+                        dest: cond,
+                        op: "<".into(),
+                        left: cur_idx,
+                        right: len_val,
+                        ty: "Int".into(),
+                    });
+                self.get_block_mut(header_id).terminator = Terminator::CondBranch {
+                    cond,
+                    then_block: body_id,
+                    then_args: Vec::new(),
+                    else_block: exit_id,
+                    else_args: Vec::new(),
+                };
+
+                let fetch_idx = self.next_val();
+                self.get_block_mut(body_id)
+                    .instructions
+                    .push(Inst::LoadVar {
+                        dest: fetch_idx,
+                        name: idx_var.clone(),
+                    });
+                let elem_val = self.next_val();
+                self.get_block_mut(body_id).instructions.push(Inst::Call {
+                    dest: elem_val,
+                    func: "datara_rt_list_get".into(),
+                    args: vec![list_val, fetch_idx],
+                    ty: "Int".into(),
+                });
+                let cur_acc = self.next_val();
+                self.get_block_mut(body_id)
+                    .instructions
+                    .push(Inst::LoadVar {
+                        dest: cur_acc,
+                        name: acc_var.clone(),
+                    });
+
+                let mut body_block = body_id;
+                let next_acc = self.lower_inline_closure_call(
+                    &args[1],
+                    &[cur_acc, elem_val],
+                    &mut body_block,
+                )?;
+                self.get_block_mut(body_block)
+                    .instructions
+                    .push(Inst::AssignVar {
+                        name: acc_var.clone(),
+                        value: next_acc,
+                    });
+
+                let one = self.next_val();
+                self.get_block_mut(body_block)
+                    .instructions
+                    .push(Inst::ConstInt {
+                        dest: one,
+                        value: 1,
+                    });
+                let b_idx = self.next_val();
+                self.get_block_mut(body_block)
+                    .instructions
+                    .push(Inst::LoadVar {
+                        dest: b_idx,
+                        name: idx_var.clone(),
+                    });
+                let next_idx = self.next_val();
+                self.get_block_mut(body_block)
+                    .instructions
+                    .push(Inst::BinOp {
+                        dest: next_idx,
+                        op: "+".into(),
+                        left: b_idx,
+                        right: one,
+                        ty: "Int".into(),
+                    });
+                self.get_block_mut(body_block)
+                    .instructions
+                    .push(Inst::AssignVar {
+                        name: idx_var,
+                        value: next_idx,
+                    });
+                self.set_back_edge(body_block, header_id);
+
+                *cur_block = exit_id;
+                let final_acc = self.next_val();
+                self.get_block_mut(exit_id)
+                    .instructions
+                    .push(Inst::LoadVar {
+                        dest: final_acc,
+                        name: acc_var,
+                    });
+                Some(final_acc)
+            }
+            // collect() materializes the pipeline: map/filter synthesize
+            // eager result lists, so the sink list IS the value. Returning
+            // list_val keeps the pipeline's list tagging intact.
+            "collect" => Some(list_val),
             "find" => {
                 if args.is_empty() {
                     return None;
