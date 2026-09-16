@@ -400,5 +400,56 @@ pub fn try_emit_simd_call(
         return true;
     }
 
+    // Vector Lane Extraction (float4_x, float4_y, float4_z, float4_w, f32x4_extract_lane_*)
+    if (func == "float4_x"
+        || func == "float4_y"
+        || func == "float4_z"
+        || func == "float4_w"
+        || func.starts_with("f32x4_extract_lane_"))
+        && args.len() == 1
+    {
+        let lane: u32 = match func {
+            "float4_y" | "f32x4_extract_lane_1" => 1,
+            "float4_z" | "f32x4_extract_lane_2" => 2,
+            "float4_w" | "f32x4_extract_lane_3" => 3,
+            _ => 0,
+        };
+        let extracted = format!("%ext_f32_{}", dest.0);
+        out.push_str(&format!(
+            "  {} = extractelement <4 x float> %v{}, i32 {}\n",
+            extracted, args[0].0, lane
+        ));
+        out.push_str(&format!(
+            "  %v{} = fpext float {} to double\n",
+            dest.0, extracted
+        ));
+        value_types.insert(*dest, "double");
+        return true;
+    }
+
+    // Integer Vector Lane Extraction (int4_x, int4_y, int4_z, int4_w, i32x4_extract_lane_*)
+    if (func == "int4_x"
+        || func == "int4_y"
+        || func == "int4_z"
+        || func == "int4_w"
+        || func.starts_with("i32x4_extract_lane_"))
+        && args.len() == 1
+    {
+        let lane: u32 = match func {
+            "int4_y" | "i32x4_extract_lane_1" => 1,
+            "int4_z" | "i32x4_extract_lane_2" => 2,
+            "int4_w" | "i32x4_extract_lane_3" => 3,
+            _ => 0,
+        };
+        let extracted = format!("%ext_i32_{}", dest.0);
+        out.push_str(&format!(
+            "  {} = extractelement <4 x i32> %v{}, i32 {}\n",
+            extracted, args[0].0, lane
+        ));
+        out.push_str(&format!("  %v{} = sext i32 {} to i64\n", dest.0, extracted));
+        value_types.insert(*dest, "i64");
+        return true;
+    }
+
     false
 }
