@@ -214,6 +214,15 @@ int64_t     datara_rt_file_write(const char* path, const char* content);
 int64_t     datara_rt_file_append(const char* path, const char* content);
 int64_t     datara_rt_file_exists(const char* path);
 
+// Checked File I/O (Outcome<Str> objects) and Directory Listing
+// The returned pointer is a heap object with the stdlib `Outcome<T>` class
+// layout: [0] = is_success (i64 0/1), [1] = value (char* payload or 0),
+// [2] = error_msg (char*, "" when ok).
+void*       datara_rt_file_read_checked(const char* path);
+void*       datara_rt_env_get_checked(const char* name);
+int64_t*    datara_rt_dir_list(const char* path);
+int64_t     datara_rt_path_exists(const char* path);
+
 // Zero-Trust Capability-Based OS I/O & Resources
 void*       datara_rt_sys_caps_create(void);
 void*       datara_rt_files_grant_readonly(void* prov, const char* path);

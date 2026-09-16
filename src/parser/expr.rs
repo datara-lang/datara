@@ -534,6 +534,49 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Lambda body after `=>`: either a statement-block body
+    /// (`x => { mut t = x; t = t + 1; return t }`) or a plain expression
+    /// (`x => x * 2`).
+    ///
+    /// Closure form implemented for "closures with block bodies" (deferred
+    /// since 1.3.3): the arrow-lambda form with a block body. This is the
+    /// lowest-risk path -- it reuses the existing inline-lowering lambda
+    /// machinery untouched (same by-value capture semantics as arrow
+    /// lambdas: free Int/Float/Bool/Str identifiers resolve to the enclosing
+    /// scope's current values, and mutation inside the body never writes
+    /// back to the outer variable), so only the parser changes. The
+    /// alternative `let f = fn(x: Int) -> Int { ... }` anonymous-fn closure
+    /// expression was NOT implemented; it would add a new expression-path
+    /// parser/resolver/checker form without adding semantics this form
+    /// cannot already express.
+    ///
+    /// Disambiguation from map literals: after `=>` a `{` opens a block only
+    /// when it scans as a statement block (the same lookahead used for
+    /// match/decide/select arm bodies, `arm_body_is_block`); a map-literal
+    /// body like `x => { "a": 1 }` keeps parsing as a map literal.
+    ///
+    /// A trailing `return expr` is normalized into the block's value (the
+    /// closure's result). An early `return` inside the body is NOT a
+    /// closure-level return: block lambdas are lowered by inlining, so an
+    /// early return would terminate the enclosing function. Only the
+    /// trailing return acts as the closure's result -- a documented
+    /// limitation of the inline form.
+    pub(crate) fn parse_lambda_body(&mut self) -> Option<Expr> {
+        if self.arm_body_is_block() {
+            let block = self.parse_arm_block()?;
+            if let Expr::Block(mut stmts, value, span) = block {
+                if value.is_none()
+                    && let Some(Stmt::Return(ret_expr, _)) = stmts.pop()
+                {
+                    return Some(Expr::Block(stmts, ret_expr.map(Box::new), span));
+                }
+                return Some(Expr::Block(stmts, value, span));
+            }
+            return Some(block);
+        }
+        self.parse_expression()
+    }
+
     #[inline(never)]
     pub(crate) fn parse_ident_or_object_init(
         &mut self,
@@ -543,7 +586,7 @@ impl<'a> Parser<'a> {
         // Check if Lambda `x => expr`
         if self.match_token(&TokenType::FatArrow) {
             let p_span = span.clone();
-            let body = Box::new(self.parse_expression()?);
+            let body = Box::new(self.parse_lambda_body()?);
             let span = SourceSpan::new(
                 p_span.start_line,
                 p_span.start_col,
@@ -883,7 +926,7 @@ impl<'a> Parser<'a> {
     pub(crate) fn parse_paren_expr(&mut self, start_span: SourceSpan) -> Option<Expr> {
         if self.match_token(&TokenType::RParen) {
             if self.match_token(&TokenType::FatArrow) {
-                let body = Box::new(self.parse_expression()?);
+                let body = Box::new(self.parse_lambda_body()?);
                 let span = SourceSpan::new(
                     start_span.start_line,
                     start_span.start_col,
@@ -926,7 +969,7 @@ impl<'a> Parser<'a> {
                         }
                     }
                 }
-                let body = Box::new(self.parse_expression()?);
+                let body = Box::new(self.parse_lambda_body()?);
                 let span = SourceSpan::new(
                     start_span.start_line,
                     start_span.start_col,
@@ -963,7 +1006,7 @@ impl<'a> Parser<'a> {
                     self.error("Lambda parameters must be plain identifiers");
                 }
             }
-            let body = Box::new(self.parse_expression()?);
+            let body = Box::new(self.parse_lambda_body()?);
             let span = SourceSpan::new(
                 start_span.start_line,
                 start_span.start_col,

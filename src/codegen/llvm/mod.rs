@@ -436,6 +436,10 @@ impl<'a> LlvmEmitter<'a> {
         ir.push_str("declare i64 @datara_rt_file_write_bytes(ptr, ptr)\n");
         ir.push_str("declare i64 @datara_rt_file_append(ptr, ptr)\n");
         ir.push_str("declare i64 @datara_rt_file_exists(ptr)\n");
+        ir.push_str("declare ptr @datara_rt_file_read_checked(ptr)\n");
+        ir.push_str("declare ptr @datara_rt_env_get_checked(ptr)\n");
+        ir.push_str("declare ptr @datara_rt_dir_list(ptr)\n");
+        ir.push_str("declare i64 @datara_rt_path_exists(ptr)\n");
         ir.push_str("declare void @datara_rt_exit(i32)\n");
         ir.push_str("declare ptr @datara_rt_list_create(i64)\n");
         ir.push_str("declare ptr @datara_rt_list_create_1(i64)\n");

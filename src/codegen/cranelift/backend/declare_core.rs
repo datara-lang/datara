@@ -899,6 +899,90 @@ pub fn declare_runtime_core<M: ClifModule>(
         (rt_file_exists_id, rt_file_exists_sig),
     );
 
+    // Checked I/O + directory listing. The checked reads return an
+    // Outcome<Str> object pointer (stdlib Outcome<T> layout: is_success,
+    // value, error_msg); dir_list returns a List of NUL-terminated names.
+    let mut rt_file_read_checked_sig = Signature::new(call_conv);
+    rt_file_read_checked_sig
+        .params
+        .push(AbiParam::new(clif_types::I64));
+    rt_file_read_checked_sig
+        .returns
+        .push(AbiParam::new(clif_types::I64));
+    let rt_file_read_checked_id = module
+        .declare_function(
+            "datara_rt_file_read_checked",
+            Linkage::Import,
+            &rt_file_read_checked_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_file_read_checked".into(),
+        (rt_file_read_checked_id, rt_file_read_checked_sig.clone()),
+    );
+    func_ids.insert(
+        "file_read_checked".into(),
+        (rt_file_read_checked_id, rt_file_read_checked_sig),
+    );
+
+    let mut rt_env_get_checked_sig = Signature::new(call_conv);
+    rt_env_get_checked_sig
+        .params
+        .push(AbiParam::new(clif_types::I64));
+    rt_env_get_checked_sig
+        .returns
+        .push(AbiParam::new(clif_types::I64));
+    let rt_env_get_checked_id = module
+        .declare_function(
+            "datara_rt_env_get_checked",
+            Linkage::Import,
+            &rt_env_get_checked_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_env_get_checked".into(),
+        (rt_env_get_checked_id, rt_env_get_checked_sig.clone()),
+    );
+    func_ids.insert(
+        "env_get_checked".into(),
+        (rt_env_get_checked_id, rt_env_get_checked_sig),
+    );
+
+    let mut rt_dir_list_sig = Signature::new(call_conv);
+    rt_dir_list_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_dir_list_sig.returns.push(AbiParam::new(clif_types::I64));
+    let rt_dir_list_id = module
+        .declare_function("datara_rt_dir_list", Linkage::Import, &rt_dir_list_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_dir_list".into(),
+        (rt_dir_list_id, rt_dir_list_sig.clone()),
+    );
+    func_ids.insert("dir_list".into(), (rt_dir_list_id, rt_dir_list_sig));
+
+    let mut rt_path_exists_sig = Signature::new(call_conv);
+    rt_path_exists_sig
+        .params
+        .push(AbiParam::new(clif_types::I64));
+    rt_path_exists_sig
+        .returns
+        .push(AbiParam::new(clif_types::I64));
+    let rt_path_exists_id = module
+        .declare_function(
+            "datara_rt_path_exists",
+            Linkage::Import,
+            &rt_path_exists_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_path_exists".into(),
+        (rt_path_exists_id, rt_path_exists_sig.clone()),
+    );
+    func_ids.insert(
+        "path_exists".into(),
+        (rt_path_exists_id, rt_path_exists_sig),
+    );
+
     // Timing: sleep
     let mut rt_sleep_sig = Signature::new(call_conv);
     rt_sleep_sig.params.push(AbiParam::new(clif_types::I64));

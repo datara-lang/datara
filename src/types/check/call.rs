@@ -313,17 +313,26 @@ impl<'a> TypeChecker<'a> {
                 }
 
                 if !type_bindings.is_empty() {
-                    let mut spec_args = Vec::new();
-                    for gp in &gen_params {
-                        if let Some(concrete) = type_bindings.get(gp) {
-                            spec_args.push(concrete.clone());
+                    // A generic parameter bound to a Function type means a
+                    // lambda argument (lambda-argument static dispatch): the
+                    // call site is inline-lowered by the compiler, so no
+                    // monomorphized instance is recorded for it.
+                    let binds_function = type_bindings
+                        .values()
+                        .any(|t| matches!(t, DataraType::Function { .. }));
+                    if !binds_function {
+                        let mut spec_args = Vec::new();
+                        for gp in &gen_params {
+                            if let Some(concrete) = type_bindings.get(gp) {
+                                spec_args.push(concrete.clone());
+                            }
                         }
-                    }
-                    if !spec_args.is_empty() {
-                        self.generic_specializations
-                            .entry(fn_name.clone())
-                            .or_default()
-                            .insert(spec_args);
+                        if !spec_args.is_empty() {
+                            self.generic_specializations
+                                .entry(fn_name.clone())
+                                .or_default()
+                                .insert(spec_args);
+                        }
                     }
                 }
 
@@ -332,6 +341,59 @@ impl<'a> TypeChecker<'a> {
         }
 
         if let Expr::MemberAccess { object, member, .. } = &**callee {
+            // Outcome.ok(v) / Outcome.err(msg) static constructors: the
+            // receiver is the generic class name itself, never a value, so
+            // this is a constructor call rather than a method dispatch.
+            // Checked before the receiver is resolved as an expression so
+            // the bare class name never produces an unknown-symbol
+            // diagnostic. The result is the language Outcome type (the
+            // checker-level Result(T, Str) / GenericInstance representation,
+            // matching `?` propagation and the checked-I/O builtins).
+            if let Expr::Identifier(cls_name, _) = &**object
+                && cls_name == "Outcome"
+                && (member == "ok" || member == "err")
+            {
+                if args.len() != 1 {
+                    diag.error(
+                        ErrorCode::TypeMismatch,
+                        format!(
+                            "Outcome.{}() takes exactly 1 argument, got {}",
+                            member,
+                            args.len()
+                        ),
+                        Some(span.clone()),
+                    );
+                    return DataraType::Unit;
+                }
+                if member == "err" {
+                    // The error channel is always Str; anything else would
+                    // put a non-pointer into the error_msg slot.
+                    let arg_ok = matches!(
+                        arg_types.first(),
+                        Some(DataraType::String) | Some(DataraType::TypeParam(_))
+                    );
+                    if !arg_ok {
+                        diag.error(
+                            ErrorCode::TypeMismatch,
+                            format!(
+                                "Outcome.err() expects a 'Str' message, got '{}'",
+                                arg_types.first().map(|t| t.to_string()).unwrap_or_default()
+                            ),
+                            Some(span.clone()),
+                        );
+                        return DataraType::Unit;
+                    }
+                    return DataraType::GenericInstance {
+                        name: "Outcome".to_string(),
+                        args: vec![DataraType::String],
+                    };
+                }
+                let payload_ty = arg_types.first().cloned().unwrap_or(DataraType::Int);
+                return DataraType::GenericInstance {
+                    name: "Outcome".to_string(),
+                    args: vec![payload_ty],
+                };
+            }
             let obj_type = self.check_expr(object, diag);
             if let DataraType::GenericInstance { name, args } = &obj_type
                 && name == "Capability"
@@ -657,6 +719,19 @@ impl<'a> TypeChecker<'a> {
         let callee_ty = self.check_expr(callee, diag);
         if let DataraType::Function { return_type, .. } = callee_ty {
             return *return_type;
+        }
+        if matches!(callee_ty, DataraType::TypeParam(_)) {
+            // Lambda-argument static dispatch: calling a generic parameter
+            // (`g(v)` inside `fn apply<T>(g: T, v: Int) -> Int`) types as the
+            // enclosing function's declared return type. Such call sites are
+            // inlined by the lowering (inlineable_fns) with the lambda bound
+            // to the parameter, so the declared return type is the concrete
+            // result type.
+            if let Some(fn_name) = &self.current_fn_name
+                && let Some((_, ret_type, _)) = self.function_signatures.get(fn_name)
+            {
+                return ret_type.clone();
+            }
         }
         DataraType::Unit
     }

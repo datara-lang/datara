@@ -484,7 +484,20 @@ impl<'a> Lowering<'a> {
                     });
                 Some(dest)
             }
-            Expr::Lambda { body, .. } => self.lower_expr(body, cur_block),
+            // A lambda in a plain value position (e.g. the initializer of a
+            // `let`, or an argument to a non-inlinable call) is not a
+            // first-class value: named lambdas are invoked through
+            // `local_lambdas` and inline-lowered, literal lambdas through
+            // the call path. Inlining the body HERE would execute its side
+            // effects once at binding time (visible with block-bodied
+            // lambdas), so lower to a placeholder constant instead.
+            Expr::Lambda { .. } => {
+                let dest = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::ConstInt { dest, value: 0 });
+                Some(dest)
+            }
             Expr::ListLiteral(items, _) => {
                 let mut vals = Vec::new();
                 for item in items {

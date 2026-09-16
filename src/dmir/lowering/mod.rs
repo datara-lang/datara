@@ -15,6 +15,11 @@ pub mod infer;
 pub mod match_arm;
 pub mod stmt;
 
+/// An inlineable function body for lambda-argument static dispatch: the
+/// declared parameters, the statements before the single trailing return,
+/// and the returned expression (None for a Unit body).
+pub type InlineableFnBody = (Vec<Param>, Vec<Stmt>, Option<Expr>);
+
 pub struct Lowering<'a> {
     pub resolver: &'a Resolver,
     pub types: &'a TypeChecker<'a>,
@@ -35,6 +40,19 @@ pub struct Lowering<'a> {
     pub in_wrapping_mode: bool,
     pub in_saturating_mode: bool,
     pub local_lambdas: HashMap<String, (Vec<Param>, Expr)>,
+    /// Lambda-argument static dispatch: functions whose bodies are a
+    /// (possibly empty) statement sequence ending in a single
+    /// `return <expr>`, or an `=> expr` shorthand, indexed as
+    /// `(params, inline_stmts, tail_expr)` so a call site that passes a
+    /// lambda argument can inline the body and bind the lambda to the
+    /// parameter name (see lower_expr_call).
+    pub inlineable_fns: HashMap<String, InlineableFnBody>,
+    /// By-value capture snapshots for named lambdas: at `let f = <lambda>`
+    /// the current SSA value of every free variable is recorded, and at each
+    /// inline call the body sees (and mutates) that snapshot, never the
+    /// caller's variable. Mirrors the capture model of arrow lambdas for
+    /// Int/Float/Bool/Str.
+    pub lambda_captures: HashMap<String, Vec<(String, ValueId)>>,
     /// Stack of open loops: `(continue_target, break_target)`. `continue`
     /// branches to the first element, `break` to the second. For counted
     /// loops the continue target is the increment block so the induction
@@ -78,6 +96,18 @@ impl<'a> Lowering<'a> {
         function_return_types.insert("datara_rt_file_append".into(), "Int".into());
         function_return_types.insert("file_exists".into(), "Bool".into());
         function_return_types.insert("datara_rt_file_exists".into(), "Bool".into());
+        // Checked I/O builtins return Outcome<Str> objects (stdlib Outcome<T>
+        // layout). The codegen call classifier special-cases the
+        // "Outcome<...>" prefix so the object pointer is tagged as a class
+        // value, never as a raw string/list/map.
+        function_return_types.insert("file_read_checked".into(), "Outcome<Str>".into());
+        function_return_types.insert("datara_rt_file_read_checked".into(), "Outcome<Str>".into());
+        function_return_types.insert("env_get_checked".into(), "Outcome<Str>".into());
+        function_return_types.insert("datara_rt_env_get_checked".into(), "Outcome<Str>".into());
+        function_return_types.insert("dir_list".into(), "List<Str>".into());
+        function_return_types.insert("datara_rt_dir_list".into(), "List<Str>".into());
+        function_return_types.insert("path_exists".into(), "Bool".into());
+        function_return_types.insert("datara_rt_path_exists".into(), "Bool".into());
         function_return_types.insert("args_count".into(), "Int".into());
         function_return_types.insert("datara_rt_args_count".into(), "Int".into());
         function_return_types.insert("args_get".into(), "String".into());
@@ -381,6 +411,8 @@ impl<'a> Lowering<'a> {
             in_wrapping_mode: false,
             in_saturating_mode: false,
             local_lambdas: HashMap::new(),
+            inlineable_fns: HashMap::new(),
+            lambda_captures: HashMap::new(),
             loop_stack: Vec::new(),
         }
     }
@@ -608,6 +640,35 @@ impl<'a> Lowering<'a> {
                     .map(Self::repr_type_string)
                     .unwrap_or_else(|| "Unit".into());
                 self.function_return_types.insert(f.name.clone(), ret);
+                // Lambda-argument static dispatch: index function bodies that
+                // are a simple statement sequence ending in one `return
+                // <expr>` (or the `=> expr` shorthand) so a call site that
+                // passes a lambda argument can inline the body and bind the
+                // lambda to the parameter name. Only these trivially
+                // inlinable bodies are eligible; anything with early
+                // control flow stays a real call.
+                let body_parts: Option<(Vec<Stmt>, Option<Expr>)> = match &*f.body {
+                    Stmt::Return(Some(e), _) => Some((Vec::new(), Some(e.clone()))),
+                    Stmt::Expr(e, _) if f.is_expression_body => Some((Vec::new(), Some(e.clone()))),
+                    Stmt::Block(stmts, _) => match stmts.split_last() {
+                        Some((Stmt::Return(Some(e), _), head)) => {
+                            let has_early_exit = head.iter().any(|s| {
+                                matches!(s, Stmt::Return(_, _) | Stmt::Break(_) | Stmt::Continue(_))
+                            });
+                            if has_early_exit {
+                                None
+                            } else {
+                                Some((head.to_vec(), Some(e.clone())))
+                            }
+                        }
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                if let Some((inline_stmts, tail_expr)) = body_parts {
+                    self.inlineable_fns
+                        .insert(f.name.clone(), (f.params.clone(), inline_stmts, tail_expr));
+                }
             } else if let Decl::ExternFn(ef) = decl {
                 let ret = ef
                     .return_type
@@ -786,11 +847,29 @@ impl<'a> Lowering<'a> {
             match decl {
                 Decl::Function(f) | Decl::Flow(f) | Decl::Task(f) => {
                     let lowered_fn = self.lower_function(f);
-                    module.functions.insert(f.name.clone(), lowered_fn);
-                    module.function_spans.insert(f.name.clone(), f.span.clone());
-                    module
-                        .function_line_spans
-                        .insert(f.name.clone(), self.current_line_spans.clone());
+                    // Lambda-argument static dispatch: a function whose body
+                    // invokes one of its own parameters (`return g(v)` where
+                    // `g: T`) can only ever run inline at a call site that
+                    // binds a lambda (see lower_expr_call). Its standalone
+                    // body would hold an unresolved
+                    // `Inst::Call { func: <param> }`, so it is never emitted
+                    // as a real function. A normal (non-lambda) call to it
+                    // then fails codegen with an unresolved-function error
+                    // instead of crashing the backend.
+                    let is_lambda_dispatch_only = self.inlineable_fns.contains_key(&f.name)
+                        && lowered_fn.blocks.iter().any(|b| {
+                            b.instructions.iter().any(|inst| {
+                                matches!(inst, Inst::Call { func, .. } if
+                                    f.params.iter().any(|p| p.name == *func))
+                            })
+                        });
+                    if !is_lambda_dispatch_only {
+                        module.functions.insert(f.name.clone(), lowered_fn);
+                        module.function_spans.insert(f.name.clone(), f.span.clone());
+                        module
+                            .function_line_spans
+                            .insert(f.name.clone(), self.current_line_spans.clone());
+                    }
                 }
                 Decl::Class(c) => {
                     self.lower_class(c, program, &mut module);
@@ -812,6 +891,17 @@ impl<'a> Lowering<'a> {
             {
                 if let Some(specs) = self.types.generic_specializations.get(&f.name) {
                     for spec_args in specs {
+                        // Lambda arguments bind the generic parameter to a
+                        // Function type; such call sites are inline-lowered
+                        // (lambda-argument static dispatch) and must not be
+                        // instantiated, because the instantiated body would
+                        // still call the parameter by name.
+                        if spec_args
+                            .iter()
+                            .any(|t| matches!(t, DataraType::Function { .. }))
+                        {
+                            continue;
+                        }
                         let mut type_substs: HashMap<String, String> = HashMap::new();
                         let mut mangled_suffixes = Vec::new();
                         for (gp, concrete_ty) in f.generic_params.iter().zip(spec_args.iter()) {

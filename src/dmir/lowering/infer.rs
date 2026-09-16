@@ -128,10 +128,11 @@ impl<'a> Lowering<'a> {
                         && let Some(inner) = rest.strip_suffix('>')
                     {
                         // Explicit element type (e.g. a declared
-                        // List<Str> return): record it so the let
-                        // below and any inline `parts[i]` indexing
-                        // know the element kind. Unknown elements stay
-                        // unresolved rather than being guessed.
+                        // List<Str> return such as dir_list): record it
+                        // so the let below and any inline `parts[i]`
+                        // indexing know the element kind. Unknown
+                        // elements stay unresolved rather than being
+                        // guessed.
                         let elem_ty = match inner {
                             "Float" | "Float64" | "Float32" => DataraType::Float,
                             "Bool" => DataraType::Bool,
@@ -140,6 +141,26 @@ impl<'a> Lowering<'a> {
                             _ => return None,
                         };
                         return Some(DataraType::List(Box::new(elem_ty)));
+                    }
+                    if let Some(rest) = ret.strip_prefix("Outcome<")
+                        && let Some(inner) = rest.strip_suffix('>')
+                    {
+                        // Checked-I/O builtins (file_read_checked,
+                        // env_get_checked) return Outcome<Str> objects.
+                        // Infer the GenericInstance so receiver method
+                        // calls (unwrap/is_ok/is_err/err) resolve the
+                        // payload type instead of falling back to Int.
+                        let arg_ty = match inner {
+                            "Float" => DataraType::Float,
+                            "Bool" => DataraType::Bool,
+                            "String" | "Str" => DataraType::String,
+                            "Int" | "Int64" | "Int32" => DataraType::Int,
+                            other => DataraType::Class(other.to_string()),
+                        };
+                        return Some(DataraType::GenericInstance {
+                            name: "Outcome".to_string(),
+                            args: vec![arg_ty],
+                        });
                     }
                     match ret.as_str() {
                         "Float" => Some(DataraType::Float),
@@ -613,6 +634,24 @@ impl<'a> Lowering<'a> {
         };
 
         let mut shadowed_symbols: Vec<(String, Option<ValueId>)> = Vec::new();
+        // By-value captures of a named lambda: bind the registration-time
+        // snapshot before the params so the body reads the snapshotted
+        // values (shadow-restored with the params below).
+        if let Expr::Identifier(fn_name, _) = callable
+            && let Some(caps) = self.lambda_captures.get(fn_name).cloned()
+        {
+            for (cname, cval) in caps {
+                let old_val = self.symbol_values.get(&cname).copied();
+                shadowed_symbols.push((cname.clone(), old_val));
+                self.symbol_values.insert(cname.clone(), cval);
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::AssignVar {
+                        name: cname,
+                        value: cval,
+                    });
+            }
+        }
         for (param, &aval) in params.iter().zip(arg_vals) {
             let old_val = self.symbol_values.get(&param.name).copied();
             shadowed_symbols.push((param.name.clone(), old_val));
@@ -627,7 +666,9 @@ impl<'a> Lowering<'a> {
 
         let res = self.lower_expr(&body, cur_block);
 
-        for (name, old_val) in shadowed_symbols {
+        // Restore in reverse push order so a name shadowed twice (a lambda
+        // parameter named like a captured variable) unwinds correctly.
+        for (name, old_val) in shadowed_symbols.into_iter().rev() {
             if let Some(ov) = old_val {
                 self.symbol_values.insert(name.clone(), ov);
                 self.get_block_mut(*cur_block)

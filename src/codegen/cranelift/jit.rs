@@ -195,6 +195,10 @@ unsafe extern "C" {
     pub fn datara_rt_file_write(path: *const c_char, content: *const c_char) -> i64;
     pub fn datara_rt_file_append(path: *const c_char, content: *const c_char) -> i64;
     pub fn datara_rt_file_exists(path: *const c_char) -> i64;
+    pub fn datara_rt_file_read_checked(path: *const c_char) -> *mut i64;
+    pub fn datara_rt_env_get_checked(name: *const c_char) -> *mut i64;
+    pub fn datara_rt_dir_list(path: *const c_char) -> *mut i64;
+    pub fn datara_rt_path_exists(path: *const c_char) -> i64;
 
     pub fn datara_rt_sleep(ms: i64);
     pub fn datara_rt_now_ms() -> i64;
@@ -607,6 +611,14 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_file_exists", datara_rt_file_exists);
     reg!("file_exists", datara_rt_file_exists);
     reg!("exists", datara_rt_file_exists);
+    reg!("datara_rt_file_read_checked", datara_rt_file_read_checked);
+    reg!("file_read_checked", datara_rt_file_read_checked);
+    reg!("datara_rt_env_get_checked", datara_rt_env_get_checked);
+    reg!("env_get_checked", datara_rt_env_get_checked);
+    reg!("datara_rt_dir_list", datara_rt_dir_list);
+    reg!("dir_list", datara_rt_dir_list);
+    reg!("datara_rt_path_exists", datara_rt_path_exists);
+    reg!("path_exists", datara_rt_path_exists);
 
     reg!("datara_rt_sleep", datara_rt_sleep);
     reg!("sleep", datara_rt_sleep);

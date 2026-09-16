@@ -14,6 +14,13 @@ behavior Outcome {
     }
 
     unwrap() -> T {
+        // Trapping unwrap: on the err state there is no valid payload (the
+        // value slot is 0 by the two-state convention), so handing it back
+        // would silently move pointer garbage downstream. Abort through the
+        // runtime panic path with the stored message instead.
+        if !this.is_success {
+            panic(this.error_msg)
+        }
         return this.value
     }
 
@@ -22,5 +29,14 @@ behavior Outcome {
             return this.value
         }
         return default_val
+    }
+
+    // Error channel accessor: "" when ok (the two-state convention keeps
+    // error_msg empty on the ok state), the stored message when err.
+    err() -> Str {
+        if this.is_success {
+            return ""
+        }
+        return this.error_msg
     }
 }

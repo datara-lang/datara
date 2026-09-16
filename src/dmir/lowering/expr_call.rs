@@ -38,6 +38,26 @@ impl<'a> Lowering<'a> {
                         arg_vals.push(av);
                     }
                 }
+                // By-value captures: bind the registration-time snapshot of
+                // every free variable, shadow-saving the caller's slots so
+                // writes inside the body are rolled back afterwards.
+                let captures = self
+                    .lambda_captures
+                    .get(fn_name)
+                    .cloned()
+                    .unwrap_or_default();
+                let mut shadowed_captures: Vec<(String, Option<ValueId>)> = Vec::new();
+                for (cname, cval) in &captures {
+                    let old_val = self.symbol_values.get(cname).copied();
+                    shadowed_captures.push((cname.clone(), old_val));
+                    self.symbol_values.insert(cname.clone(), *cval);
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::AssignVar {
+                            name: cname.clone(),
+                            value: *cval,
+                        });
+                }
                 for (p, aval) in params.iter().zip(arg_vals) {
                     self.symbol_values.insert(p.name.clone(), aval);
                     self.get_block_mut(*cur_block)
@@ -47,7 +67,21 @@ impl<'a> Lowering<'a> {
                             value: aval,
                         });
                 }
-                return self.lower_expr(&body, cur_block);
+                let res = self.lower_expr(&body, cur_block);
+                for (cname, old_val) in shadowed_captures {
+                    if let Some(ov) = old_val {
+                        self.symbol_values.insert(cname.clone(), ov);
+                        self.get_block_mut(*cur_block)
+                            .instructions
+                            .push(Inst::AssignVar {
+                                name: cname,
+                                value: ov,
+                            });
+                    } else {
+                        self.symbol_values.remove(&cname);
+                    }
+                }
+                return res;
             }
             if (fn_name == "view" || fn_name == "borrow" || fn_name == "clone" || fn_name == "move")
                 && args.len() == 1
@@ -499,6 +533,79 @@ impl<'a> Lowering<'a> {
                     return Some(dest);
                 }
             }
+            // Outcome.ok(v) / Outcome.err(msg) constructors: the receiver is
+            // the generic class name itself, never a value, so this must be
+            // intercepted before the static-method and enum-variant paths
+            // below can claim it.
+            //
+            // Representation: a StructInit of the stdlib `Outcome<T>` class
+            // (fields is_success: Bool, value: T, error_msg: Str) — the exact
+            // same 3-slot generic-class layout used by `Outcome<T> { ... }`
+            // literals, `?` propagation, and the checked-I/O runtime builtins
+            // (file_read_checked / env_get_checked). No new ABI shape.
+            //
+            // Two-state convention: ok carries (true, v, "") and err carries
+            // (false, 0, msg); `err()` on an ok object therefore yields ""
+            // (empty when ok is legal).
+            if let Expr::Identifier(cls_name, _) = &**object
+                && cls_name == "Outcome"
+                && (member == "ok" || member == "err")
+            {
+                if args.len() != 1 {
+                    return None;
+                }
+                let arg_val = self.lower_expr(&args[0], cur_block)?;
+                let dest = self.next_val();
+                let (flag_val, value_val, msg_val): (ValueId, ValueId, ValueId) = if member == "ok"
+                {
+                    let t = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::ConstBool {
+                            dest: t,
+                            value: true,
+                        });
+                    let empty = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::ConstStr {
+                            dest: empty,
+                            value: String::new(),
+                        });
+                    (t, arg_val, empty)
+                } else {
+                    let f = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::ConstBool {
+                            dest: f,
+                            value: false,
+                        });
+                    let zero = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::ConstInt {
+                            dest: zero,
+                            value: 0,
+                        });
+                    (f, zero, arg_val)
+                };
+                // Field order matches the stdlib class declaration order
+                // (is_success, value, error_msg); StructInit stores by the
+                // declared field offsets, so this order is ABI-visible.
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::StructInit {
+                        dest,
+                        class_name: "Outcome".into(),
+                        fields: vec![
+                            ("is_success".into(), flag_val),
+                            ("value".into(), value_val),
+                            ("error_msg".into(), msg_val),
+                        ],
+                    });
+                return Some(dest);
+            }
             if let Expr::Identifier(class_name, _) = &**object {
                 let enum_key = format!("{}.{}", class_name, member);
                 if let Some(&tag) = self.enum_variant_tags.get(&enum_key) {
@@ -547,7 +654,16 @@ impl<'a> Lowering<'a> {
                 }
 
                 let static_func_name = format!("{}_{}", class_name, member);
-                if self.function_return_types.contains_key(&static_func_name) {
+                // Arity guard: the static-call ABI passes a dummy `this`
+                // first, so the target must have exactly 1 + args.len()
+                // parameters. Without this check, `Class.zero_arg_method(x)`
+                // compiled into a 2-arg call against a 1-param function and
+                // tripped a Cranelift ABI assertion instead of a diagnostic.
+                let static_arity_ok = match self.types.function_signatures.get(&static_func_name) {
+                    Some((param_types, _, _)) => param_types.len() == args.len() + 1,
+                    None => true,
+                };
+                if static_arity_ok && self.function_return_types.contains_key(&static_func_name) {
                     let dummy_this = self.next_val();
                     self.get_block_mut(*cur_block)
                         .instructions
@@ -729,6 +845,22 @@ impl<'a> Lowering<'a> {
                 }
             } else if member == "is_ok" || member == "is_err" {
                 method_ty = "Bool".into();
+            } else if member == "err" {
+                // Outcome<T>.err() returns the error channel (Str, "" when
+                // ok); only special-cased on Outcome/Result receivers so a
+                // user class's own `err` method keeps its declared type.
+                let obj_ty = match &**object {
+                    Expr::Identifier(name, _) => self.lookup_var_type(name),
+                    _ => None,
+                };
+                let is_outcome_receiver = match &obj_ty {
+                    Some(DataraType::GenericInstance { name, .. }) => name == "Outcome",
+                    Some(DataraType::Result(..)) => true,
+                    _ => false,
+                };
+                if is_outcome_receiver {
+                    method_ty = "String".into();
+                }
             } else if member == "await" {
                 let obj_ty = match &**object {
                     Expr::Identifier(name, _) => self.lookup_var_type(name),
@@ -775,6 +907,108 @@ impl<'a> Lowering<'a> {
         } else {
             "func".into()
         };
+
+        // Lambda-argument static dispatch. When a call passes a lambda (a
+        // literal, or a local lambda variable) to a function whose body is a
+        // single expression (`return <expr>` / `=> expr`), the body is
+        // inlined at the call site with the lambda bound to the parameter
+        // name -- the same inline machinery `list.map(f)` uses. This is the
+        // documented static-dispatch path for closures as arguments; bodies
+        // with control flow are not eligible (they were never indexed in
+        // `inlineable_fns`) and fall through to a real call.
+        let mut has_lambda_arg = false;
+        for a in args {
+            match a {
+                Expr::Lambda { .. } => {
+                    has_lambda_arg = true;
+                    break;
+                }
+                Expr::Identifier(name, _) if self.local_lambdas.contains_key(name) => {
+                    has_lambda_arg = true;
+                    break;
+                }
+                _ => {}
+            }
+        }
+        if has_lambda_arg
+            && let Some((params, inline_stmts, tail_expr)) =
+                self.inlineable_fns.get(&func_name).cloned()
+        {
+            let mut arg_vals = Vec::new();
+            for a in args {
+                if let Some(av) = self.lower_expr(a, cur_block) {
+                    arg_vals.push(av);
+                }
+            }
+            // Shadow-save every binding the inline touches (parameters, and
+            // the lambda name in local_lambdas) so the caller's scope is
+            // restored afterwards -- same discipline as
+            // lower_inline_closure_call.
+            let mut shadowed_symbols: Vec<(String, Option<ValueId>)> = Vec::new();
+            let mut shadowed_lambdas: Vec<String> = Vec::new();
+            for (i, p) in params.iter().enumerate() {
+                let Some(&aval) = arg_vals.get(i) else {
+                    break;
+                };
+                let old_val = self.symbol_values.get(&p.name).copied();
+                shadowed_symbols.push((p.name.clone(), old_val));
+                self.symbol_values.insert(p.name.clone(), aval);
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::AssignVar {
+                        name: p.name.clone(),
+                        value: aval,
+                    });
+                // A lambda argument binds its value to the parameter name in
+                // local_lambdas so `<param>(x)` inside the body inlines it.
+                // Positional lookup goes through `args`, not `arg_vals`,
+                // because a failed lowering can shorten arg_vals.
+                let lambda = match args.get(i) {
+                    Some(Expr::Lambda { params, body, .. }) => {
+                        Some((params.clone(), (**body).clone()))
+                    }
+                    Some(Expr::Identifier(name, _)) => self.local_lambdas.get(name).cloned(),
+                    _ => None,
+                };
+                if let Some((lp, lb)) = lambda {
+                    shadowed_lambdas.push(p.name.clone());
+                    self.local_lambdas.insert(p.name.clone(), (lp, lb));
+                }
+            }
+            let res = {
+                for s in &inline_stmts {
+                    let (next_b, _val) = self.lower_stmt_cfg(s, *cur_block);
+                    *cur_block = next_b;
+                }
+                match &tail_expr {
+                    Some(e) => self.lower_expr(e, cur_block),
+                    None => {
+                        let zero = self.next_val();
+                        self.get_block_mut(*cur_block)
+                            .instructions
+                            .push(Inst::ConstInt {
+                                dest: zero,
+                                value: 0,
+                            });
+                        Some(zero)
+                    }
+                }
+            };
+            for name in shadowed_lambdas {
+                self.local_lambdas.remove(&name);
+            }
+            for (name, old_val) in shadowed_symbols {
+                if let Some(ov) = old_val {
+                    self.symbol_values.insert(name.clone(), ov);
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::AssignVar { name, value: ov });
+                } else {
+                    self.symbol_values.remove(&name);
+                }
+            }
+            return res;
+        }
 
         if let Some(specs) = self.types.generic_specializations.get(&func_name) {
             let mut candidate_mangled = None;

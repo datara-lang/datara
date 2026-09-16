@@ -677,7 +677,56 @@ pub fn compile_call<M: ClifModule>(
         .unwrap_or("");
     if let Some(&r) = results.first() {
         let mut r_val = r;
-        if (ty == "Float" || ret_ty == "Float")
+        // Checked-I/O builtins return Outcome<Str> objects (stdlib Outcome<T>
+        // layout). The generic `contains("Str")` heuristics below would
+        // mis-tag the object pointer as a string value, so the Outcome
+        // prefix suppresses the string/list/map tagging; the class tagging
+        // at the end of this block still records the receiver class (with
+        // the generic suffix, which method dispatch strips).
+        let is_outcome_obj = ty.starts_with("Outcome<") || ret_ty.starts_with("Outcome<");
+        // Generic behavior methods (e.g. Outcome<T>.unwrap, which IPO
+        // devirtualization rewrites from a MethodCall into this plain
+        // Inst::Call) declare return type "T" in the DMIR function table,
+        // so neither `ty` nor `ret_ty` names the payload. A devirtualized
+        // call passes the receiver as the first argument and the receiver's
+        // tracked class ("Outcome<Float>") names the payload: specialize
+        // exactly like compile_method_call does. Static-dispatch calls pass
+        // a dummy 0 `this` with no tracked class and stay generic.
+        let receiver_class = if ret_ty == "T" {
+            args.first().and_then(|a| ctx.val_to_class.get(a)).cloned()
+        } else {
+            None
+        };
+        let generic_payload: Option<String> = receiver_class.as_ref().and_then(|c| {
+            let start = c.find('<')?;
+            let end = c.rfind('>')?;
+            if start < end {
+                Some(c[start + 1..end].trim().to_string())
+            } else {
+                None
+            }
+        });
+        let generic_is_float = generic_payload
+            .as_ref()
+            .map(|p| p == "Float" || p == "Float64" || p == "f64")
+            .unwrap_or(false);
+        let generic_is_str = generic_payload
+            .as_ref()
+            .map(|p| p == "Str" || p == "String")
+            .unwrap_or(false);
+        let generic_is_bool = generic_payload
+            .as_ref()
+            .map(|p| p == "Bool")
+            .unwrap_or(false);
+        let generic_is_list = generic_payload
+            .as_ref()
+            .map(|p| p.starts_with("List") || p.starts_with('['))
+            .unwrap_or(false);
+        let generic_is_map = generic_payload
+            .as_ref()
+            .map(|p| p.starts_with("Map"))
+            .unwrap_or(false);
+        if (ty == "Float" || ret_ty == "Float" || generic_is_float)
             && ctx.builder.func.dfg.value_type(r) == clif_types::I64
         {
             r_val = ctx.builder.ins().bitcast(
@@ -692,40 +741,60 @@ pub fn compile_call<M: ClifModule>(
             .and_then(|a| ctx.val_to_class.get(a))
             .map(|c| c.ends_with("String") || c.ends_with("Str"))
             .unwrap_or(false);
-        if ty == "String"
-            || ty.contains("Str")
-            || ret_ty == "String"
-            || ret_ty == "Str"
-            || (ret_ty == "T" && first_arg_is_str_class)
-            || func == "datara_rt_range_str"
-            || func == "datara_rt_int_to_str"
-            || func == "datara_rt_str_concat"
-            || func == "datara_rt_str_char_at"
-            || func == "str_char_at"
-            || func == "char_at"
-            || ctx.string_return_funcs.contains(func)
-            || ctx.string_return_funcs.contains(&callee_name)
+        if !is_outcome_obj
+            && (ty == "String"
+                || ty.contains("Str")
+                || ret_ty == "String"
+                || ret_ty == "Str"
+                || (ret_ty == "T" && first_arg_is_str_class)
+                || generic_is_str
+                || func == "datara_rt_range_str"
+                || func == "datara_rt_int_to_str"
+                || func == "datara_rt_str_concat"
+                || func == "datara_rt_str_char_at"
+                || func == "str_char_at"
+                || func == "char_at"
+                || ctx.string_return_funcs.contains(func)
+                || ctx.string_return_funcs.contains(&callee_name))
         {
             ctx.string_vids.insert(*dest);
         }
-        if ty == "Bool" || ret_ty == "Bool" {
+        if ty == "Bool" || ret_ty == "Bool" || generic_is_bool {
             ctx.bool_vids.insert(*dest);
         }
-        if ty.contains("List")
-            || ret_ty.contains("List")
-            || ty.starts_with('[')
-            || ret_ty.starts_with('[')
-            || func.starts_with("datara_rt_list_create")
-            || func == "datara_rt_list_append"
+        if !is_outcome_obj
+            && (ty.contains("List")
+                || ret_ty.contains("List")
+                || ty.starts_with('[')
+                || ret_ty.starts_with('[')
+                || generic_is_list
+                || func.starts_with("datara_rt_list_create")
+                || func == "datara_rt_list_append")
         {
             ctx.list_vids.insert(*dest);
         }
-        if ty.contains("Map") || ret_ty.contains("Map") || func.starts_with("datara_rt_map_create")
+        if !is_outcome_obj
+            && (ty.contains("Map")
+                || ret_ty.contains("Map")
+                || generic_is_map
+                || func.starts_with("datara_rt_map_create"))
         {
             ctx.map_vids.insert(*dest);
         }
-        let class_to_record = if !ret_ty.is_empty() { ret_ty } else { ty };
-        let stripped = class_to_record.split('<').next().unwrap_or(class_to_record);
+        let class_to_record = if ret_ty == "T" {
+            match &generic_payload {
+                Some(p) => p.clone(),
+                None => ret_ty.to_string(),
+            }
+        } else if !ret_ty.is_empty() {
+            ret_ty.to_string()
+        } else {
+            ty.to_string()
+        };
+        let stripped = class_to_record
+            .split('<')
+            .next()
+            .unwrap_or(&class_to_record);
         if !stripped.is_empty()
             && stripped != "Int"
             && stripped != "Float"

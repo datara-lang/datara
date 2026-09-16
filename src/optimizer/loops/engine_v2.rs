@@ -571,16 +571,29 @@ impl LoopEngineV2 {
                 None => continue,
             };
 
-            // Inspect condition right operand
+            // Inspect condition: operator and both operands. The chained
+            // unroll below additionally requires the induction variable on
+            // the left of a `<` / `<=` against a constant bound.
             let cond_vid = match &header_blk.terminator {
                 Terminator::CondBranch { cond, .. } => *cond,
                 _ => continue,
             };
 
+            let mut cmp_op = None;
+            let mut cmp_left = None;
             let mut cmp_right = None;
             for inst in &header_blk.instructions {
-                if let Inst::BinOp { dest, right, .. } = inst {
+                if let Inst::BinOp {
+                    dest,
+                    op,
+                    left,
+                    right,
+                    ..
+                } = inst
+                {
                     if *dest == cond_vid {
+                        cmp_op = Some(op.clone());
+                        cmp_left = Some(*left);
                         cmp_right = Some(*right);
                         break;
                     }
@@ -593,32 +606,19 @@ impl LoopEngineV2 {
                 }
             }
 
-            // Only unroll if trip count is a known even constant, or if specialized in matmul
-            let mut const_bound = None;
-            if let Some(right_vid) = cmp_right {
-                for b in &f.blocks {
-                    for inst in &b.instructions {
-                        if let Inst::ConstInt { dest, value, .. } = inst {
-                            if *dest == right_vid {
-                                const_bound = Some(*value);
-                                break;
-                            }
-                        }
-                    }
-                    if const_bound.is_some() {
-                        break;
-                    }
-                }
-            }
-
-            let is_safe_even_const = const_bound.map(|v| v > 0 && v % 2 == 0).unwrap_or(false);
-            if !is_safe_even_const && !f.name.contains("matmul") {
-                continue;
-            }
-
             let body_blk_ref = match f.get_block(body_id) {
                 Some(b) => b,
                 None => continue,
+            };
+
+            let header_params: Vec<ValueId> = header_blk.params.iter().map(|p| p.val).collect();
+            let back_edge_args: Option<&Vec<ValueId>> = match &body_blk_ref.terminator {
+                Terminator::Branch { target, args }
+                    if *target == header_id && args.len() == header_params.len() =>
+                {
+                    Some(args)
+                }
+                _ => None,
             };
 
             // Skip if body has method calls or non-intrinsic function calls
@@ -643,11 +643,107 @@ impl LoopEngineV2 {
                 continue;
             }
 
+            // A duplicate body that cannot observe its own re-execution is
+            // semantics-preserving for any trip count: with no memory writes
+            // and no output effects, the clone is a pure recomputation that
+            // later CSE folds.
+            let is_pure_body = !body_blk_ref.instructions.iter().any(|inst| {
+                matches!(
+                    inst,
+                    Inst::AssignVar { .. }
+                        | Inst::SetField { .. }
+                        | Inst::Out { .. }
+                        | Inst::Err { .. }
+                )
+            });
+
+            // Only unroll if trip count is a known even constant, or if specialized in matmul
+            let mut const_bound = None;
+            if let Some(right_vid) = cmp_right {
+                for b in &f.blocks {
+                    for inst in &b.instructions {
+                        if let Inst::ConstInt { dest, value, .. } = inst {
+                            if *dest == right_vid {
+                                const_bound = Some(*value);
+                                break;
+                            }
+                        }
+                    }
+                    if const_bound.is_some() {
+                        break;
+                    }
+                }
+            }
+
+            // Chained-unroll soundness: the duplicate consumes the first
+            // copy's updated values, so the induction variable advances by
+            // 2*step per unrolled iteration. That is only equivalent to the
+            // original loop when the remaining trip count is even, computed
+            // from the start value, the step, and the comparison operator.
+            // A bare `bound % 2` heuristic is unsound: for a shift register
+            // like `for i in 2..=n` (5 odd trips at n=6) the chained unroll
+            // overshot the bound by one iteration and returned fib(n+1).
+            let chained_even_trips = Self::proven_even_trip_count(
+                f,
+                lp,
+                header_id,
+                &header_params,
+                back_edge_args,
+                body_blk_ref,
+                cmp_op.as_deref(),
+                cmp_left,
+                const_bound,
+            );
+
+            let use_chained_seeds = chained_even_trips;
+            let pure_duplicate_ok =
+                is_pure_body && (f.name.contains("matmul") || const_bound.is_some());
+            if !use_chained_seeds && !pure_duplicate_ok {
+                continue;
+            }
+
+            // Collect the loop-carried SSA seeds before the mutable borrow:
+            // after mem2reg, a variable carried across iterations is a block
+            // param of the header whose per-iteration update arrives as the
+            // body's back-edge argument. The duplicate body must consume the
+            // FIRST copy's updated values, not re-read the incoming params.
+            let carried_seeds: Vec<(ValueId, ValueId)> = if use_chained_seeds {
+                match back_edge_args {
+                    Some(args) => header_params
+                        .iter()
+                        .zip(args.iter())
+                        .filter(|(p, a)| p != a)
+                        .map(|(p, a)| (*p, *a))
+                        .collect(),
+                    None => Vec::new(),
+                }
+            } else {
+                Vec::new()
+            };
+
             let unroll_factor = 2;
             let mut fresh = Self::max_vid(f) + 1;
 
             if let Some(body_blk) = f.get_block_mut(body_id) {
                 let mut v_map: HashMap<ValueId, ValueId> = HashMap::new();
+
+                // Seed the value map so every operand of the duplicated body
+                // that reads a loop-carried header param is rewritten to the
+                // first copy's back-edge update. Without this seeding the
+                // cloned induction increment re-reads the incoming param, so
+                // the induction variable advances once per unrolled iteration
+                // while the body does twice the work — silently doubling
+                // every side effect (e.g. loop-carried `s = s + "x"` appended
+                // 2n chars for even trip count n). Uses of the update value
+                // itself still remap to the clone's own dest below, so the
+                // back edge carries the second copy's final values. The pure
+                // duplicate path seeds nothing: with no writes and no
+                // outputs, re-reading the incoming params is exactly a
+                // redundant recomputation of the same values.
+                for (p, a) in &carried_seeds {
+                    v_map.insert(*p, *a);
+                }
+
                 let mut cloned_insts = Vec::new();
 
                 for inst in &body_blk.instructions {
@@ -700,6 +796,147 @@ impl LoopEngineV2 {
         }
 
         unrolled
+    }
+
+    /// Resolves a ValueId to a compile-time integer constant, if it was
+    /// defined as a `ConstInt` anywhere in the function.
+    fn const_int_value(f: &Function, vid: ValueId) -> Option<i64> {
+        for b in &f.blocks {
+            for inst in &b.instructions {
+                if let Inst::ConstInt { dest, value, .. } = inst {
+                    if *dest == vid {
+                        return Some(*value);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Proves that a loop's remaining trip count is an even constant, which
+    /// is the soundness precondition for the chained factor-2 unroll.
+    ///
+    /// Requires the shape `i < bound` / `i <= bound` where `i` is a header
+    /// block parameter, the bound and the initial value of `i` are
+    /// compile-time constants (every preheader edge must agree), and the
+    /// back edge updates `i` by a single constant step. Returns `false` for
+    /// every shape it cannot fully prove — the caller then either leaves the
+    /// loop alone or falls back to the pure-duplicate unroll.
+    #[allow(clippy::too_many_arguments)]
+    fn proven_even_trip_count(
+        f: &Function,
+        lp: &crate::dmir::cfg::NaturalLoop,
+        header_id: BasicBlockId,
+        header_params: &[ValueId],
+        back_edge_args: Option<&Vec<ValueId>>,
+        body: &BasicBlock,
+        cmp_op: Option<&str>,
+        cmp_left: Option<ValueId>,
+        const_bound: Option<i64>,
+    ) -> bool {
+        let (Some(op), Some(induction), Some(bound)) = (cmp_op, cmp_left, const_bound) else {
+            return false;
+        };
+        if !matches!(op, "<" | "<=") {
+            return false;
+        }
+        let Some(param_pos) = header_params.iter().position(|p| *p == induction) else {
+            return false;
+        };
+        let Some(args) = back_edge_args else {
+            return false;
+        };
+
+        // Step: the back-edge update of the induction slot must be a single
+        // constant-step add onto the parameter itself. A chained update like
+        // `(i + 1) + 1` means more than one write per iteration; refuse.
+        let inc_vid = args[param_pos];
+        let mut step = None;
+        for inst in &body.instructions {
+            if let Inst::BinOp {
+                dest,
+                op: iop,
+                left,
+                right,
+                ..
+            } = inst
+            {
+                if *dest == inc_vid {
+                    if matches!(iop.as_str(), "+" | "wrapping_+") {
+                        if *left == induction {
+                            step = Self::const_int_value(f, *right);
+                        } else if *right == induction {
+                            step = Self::const_int_value(f, *left);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        let Some(step) = step else {
+            return false;
+        };
+        if step <= 0 {
+            return false;
+        }
+
+        // Start: every edge entering the header from outside the loop must
+        // pass the same compile-time constant for the induction slot.
+        let mut start: Option<i64> = None;
+        for b in &f.blocks {
+            if lp.blocks.contains(&b.id) {
+                continue;
+            }
+            let edge_args: &[ValueId] = match &b.terminator {
+                Terminator::Branch { target, args } if *target == header_id => args,
+                Terminator::CondBranch {
+                    then_block,
+                    else_block,
+                    then_args,
+                    else_args,
+                    ..
+                } => {
+                    if *then_block == header_id {
+                        then_args
+                    } else if *else_block == header_id {
+                        else_args
+                    } else {
+                        continue;
+                    }
+                }
+                _ => continue,
+            };
+            let Some(&arg) = edge_args.get(param_pos) else {
+                return false;
+            };
+            let Some(v) = Self::const_int_value(f, arg) else {
+                return false;
+            };
+            match start {
+                None => start = Some(v),
+                Some(s) if s == v => {}
+                _ => return false,
+            }
+        }
+        let Some(start) = start else {
+            return false;
+        };
+
+        // Trips: `i < bound` runs span/step times; `i <= bound` one more.
+        let Some(span) = bound.checked_sub(start) else {
+            return false;
+        };
+        if span < 0 || span % step != 0 {
+            return false;
+        }
+        let mut trips = span / step;
+        if op == "<=" {
+            trips = match trips.checked_add(1) {
+                Some(t) => t,
+                None => return false,
+            };
+        }
+        trips > 0 && trips % 2 == 0
     }
 
     /// Remaps all destination and source ValueIds in an instruction.

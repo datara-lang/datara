@@ -135,6 +135,26 @@ impl<'a> Lowering<'a> {
                 if let Expr::Lambda { params, body, .. } = init {
                     self.local_lambdas
                         .insert(name.clone(), (params.clone(), *body.clone()));
+                    // By-value capture snapshot: record the free variables of
+                    // the body with their CURRENT SSA values. Every inline
+                    // call re-binds these names to the snapshot (with
+                    // shadow-restore), so reads see the registration-time
+                    // values and writes inside the body never leak back into
+                    // the enclosing scope.
+                    let enclosing: std::collections::HashSet<String> =
+                        self.symbol_values.keys().cloned().collect();
+                    let captured = crate::ast::infer_captures(params, body, &enclosing, true);
+                    let snapshots: Vec<(String, ValueId)> = captured
+                        .iter()
+                        .filter_map(|c| {
+                            self.symbol_values
+                                .get(&c.name)
+                                .map(|v| (c.name.clone(), *v))
+                        })
+                        .collect();
+                    if !snapshots.is_empty() {
+                        self.lambda_captures.insert(name.clone(), snapshots);
+                    }
                 }
                 if !self.local_var_types.contains_key(name) {
                     if let Some(inferred) = self.infer_expr_datara_type(init) {

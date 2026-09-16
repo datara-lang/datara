@@ -36,10 +36,13 @@
 //!    loop-defs scan would misread as loop-varying.
 //! 3. The loop has exactly one back edge, and that latch block's terminator
 //!    forwards `i_next` into the header parameter slot of `i`.
-//! 4. Inside that latch, `i_next` is defined by a `BinOp` with op `+` or
-//!    `-`, one operand is exactly `i`, and the other operand is a
-//!    compile-time constant step `S`.
-//! 5. The step points in the direction the condition travels:
+//! 4. Inside that latch, `i_next` is a chain of `+`/`-` `BinOp` links (at
+//!    most 8) rooted at `i`: each link adds or subtracts a compile-time
+//!    constant step onto `i` itself or onto the previous link. A single link
+//!    is the classic `i_next = i OP S`; a factor-2 unrolled latch forwards
+//!    `i_next2 = i_next1 + S` with `i_next1 = i + S`, and every link of that
+//!    chain is proved and marked.
+//! 5. Each link's step points in the direction the condition travels:
 //!    `<` / `<=` need `delta > 0`, `>` / `>=` need `delta < 0`, and
 //!    `delta == 0` is accepted (adding zero never overflows). A condition
 //!    and a step that disagree (`while i < n { i -= 1 }`) describe a loop
@@ -134,9 +137,11 @@ fn prove_induction_increments(f: &mut Function) -> (usize, Vec<String>, Vec<Stri
         }
         match prove_loop(f, lp) {
             Ok(None) => {}
-            Ok(Some((next_vid, proof))) => {
-                plans.push((next_vid, proof));
-                marked += 1;
+            Ok(Some((marked_vids, proof))) => {
+                marked += marked_vids.len();
+                for vid in marked_vids {
+                    plans.push((vid, proof.clone()));
+                }
             }
             Err(reason) => rejections.push(reason),
         }
@@ -168,7 +173,7 @@ struct BoundCheck {
 fn prove_loop(
     f: &Function,
     lp: &crate::dmir::cfg::NaturalLoop,
-) -> Result<Option<(ValueId, String)>, String> {
+) -> Result<Option<(Vec<ValueId>, String)>, String> {
     let header = match f.get_block(lp.header) {
         Some(b) => b,
         None => return Ok(None),
@@ -283,100 +288,143 @@ fn prove_loop(
         None => return Ok(None),
     };
 
-    // (4) The forwarded value must be exactly the induction increment.
-    for inst in &latch.instructions {
-        let (dest, op, left, right) = match inst {
-            Inst::BinOp {
+    // (4) The forwarded value must be a constant-step increment chain rooted
+    // at the induction parameter. A factor-2 unrolled latch forwards
+    // `i_next2 = i_next1 + S` where `i_next1 = i + S`; every link is a
+    // straight-line `+`/`-` in this latch block, so each link runs exactly
+    // when its predecessors ran and its overflow extreme is provable from
+    // the condition bound plus the steps accumulated before it.
+    let mut links: Vec<(ValueId, i64)> = Vec::new(); // (dest, delta), latch order
+    let mut cursor = next_vid;
+    while cursor != i_vid {
+        if links.len() >= 8 {
+            return Err(format!(
+                "loop bb{} induction increment chain exceeds 8 constant-step links",
+                lp.header.0
+            ));
+        }
+        let mut def = None;
+        for inst in &latch.instructions {
+            if let Inst::BinOp {
                 dest,
                 op,
                 left,
                 right,
                 ..
-            } => (*dest, op, *left, *right),
-            _ => continue,
-        };
-        if dest != next_vid || (op != "+" && op != "-") {
-            continue;
+            } = inst
+                && *dest == cursor
+                && (*op == "+" || *op == "-")
+            {
+                def = Some((op.as_str(), *left, *right));
+                break;
+            }
         }
-        // Either operand order: `i + S` / `S + i` / `i - S`.
-        let (step_vid, subtract) = if left == i_vid {
-            (right, op == "-")
-        } else if right == i_vid && op == "+" {
-            (left, false)
-        } else {
-            continue;
+        let Some((op, left, right)) = def else {
+            return Err(format!(
+                "loop bb{} forwarded induction value v{} is not a '+/-' constant-step chain rooted at the induction parameter",
+                lp.header.0, cursor.0
+            ));
         };
-        let step = match LoopOptimizer::const_expr_int_value(f, step_vid) {
-            Some(s) => s,
-            None => {
-                return Err(format!(
-                    "loop bb{} induction step v{} is not a compile-time constant",
-                    lp.header.0, step_vid.0
-                ));
+        // One operand is the compile-time constant step, the other is the
+        // chain predecessor: the parameter itself or the previous link.
+        let (prev, delta) = match op {
+            "+" => {
+                if let Some(s) = LoopOptimizer::const_expr_int_value(f, right) {
+                    (left, s)
+                } else if let Some(s) = LoopOptimizer::const_expr_int_value(f, left) {
+                    (right, s)
+                } else {
+                    return Err(format!(
+                        "loop bb{} induction chain link v{} is not an 'i + const' update",
+                        lp.header.0, cursor.0
+                    ));
+                }
+            }
+            _ => {
+                let step = match LoopOptimizer::const_expr_int_value(f, right) {
+                    Some(s) => s,
+                    None => {
+                        return Err(format!(
+                            "loop bb{} induction chain link v{} is not an 'i - const' update",
+                            lp.header.0, cursor.0
+                        ));
+                    }
+                };
+                match step.checked_neg() {
+                    Some(d) => (left, d),
+                    None => return Ok(None),
+                }
             }
         };
-        let delta = if subtract {
-            match step.checked_neg() {
-                Some(d) => d,
-                None => return Ok(None),
-            }
-        } else {
-            step
-        };
-        // Found the increment: run the soundness conditions.
+        links.push((cursor, delta));
+        cursor = prev;
+    }
+    if links.is_empty() {
+        // The parameter is forwarded unchanged: there is no increment to prove.
+        return Ok(None);
+    }
+    links.reverse(); // walk order becomes parameter-outward
 
-        // (5) Direction must agree with the condition.
-        let increasing = matches!(check.op.as_str(), "<" | "<=");
+    // (5) Every link's step must travel in the condition's direction.
+    let increasing = matches!(check.op.as_str(), "<" | "<=");
+    for &(dest, delta) in &links {
         if delta > 0 && !increasing {
             return Err(format!(
-                "loop bb{} condition '{}' disagrees with step {}; trip range is not statically bounded",
-                lp.header.0, check.op, delta
+                "loop bb{} condition '{}' disagrees with step {} on chain link v{}; trip range is not statically bounded",
+                lp.header.0, check.op, delta, dest.0
             ));
         }
         if delta < 0 && increasing {
             return Err(format!(
-                "loop bb{} condition '{}' disagrees with step {}; trip range is not statically bounded",
-                lp.header.0, check.op, delta
+                "loop bb{} condition '{}' disagrees with step {} on chain link v{}; trip range is not statically bounded",
+                lp.header.0, check.op, delta, dest.0
             ));
         }
-
-        // (6) Constant bound arithmetic must prove the increment safe.
-        let required = match (check.op.as_str(), increasing) {
-            ("<", true) => check
-                .bound
-                .checked_sub(1)
-                .and_then(|b| b.checked_add(delta)),
-            ("<=", true) => check.bound.checked_add(delta),
-            (">", false) => check
-                .bound
-                .checked_add(1)
-                .and_then(|b| b.checked_add(delta)),
-            (">=", false) => check.bound.checked_add(delta),
-            _ => None,
-        };
-        if required.is_none() {
-            return Err(format!(
-                "loop bb{} bound {} with step {} overflows i64 at the loop edge; overflow trap kept",
-                lp.header.0, check.bound, delta
-            ));
-        }
-
-        let proof = if check.mirrored {
-            format!(
-                "bb{}: bound {} (written on the left) with step {}; constant range check passed",
-                lp.header.0, check.bound, delta
-            )
-        } else {
-            format!(
-                "bb{}: condition 'i {} {}' with step {}; constant range check passed",
-                lp.header.0, check.op, check.bound, delta
-            )
-        };
-        return Ok(Some((next_vid, proof)));
     }
 
-    Err(format!(
-        "loop bb{} induction increment v{} is not a direct 'i +/- const' update",
-        lp.header.0, next_vid.0
-    ))
+    // (6) Constant bound arithmetic must prove every link safe: the k-th
+    // increment computes at most (loop edge bound) + (its own and all
+    // preceding steps), and a link only runs when its predecessors ran.
+    let running = match check.op.as_str() {
+        "<" => check.bound.checked_sub(1),
+        "<=" => Some(check.bound),
+        ">" => check.bound.checked_add(1),
+        ">=" => Some(check.bound),
+        _ => None,
+    };
+    let Some(mut running) = running else {
+        return Err(format!(
+            "loop bb{} bound {} has no in-range loop edge; overflow trap kept",
+            lp.header.0, check.bound
+        ));
+    };
+    let mut marked: Vec<ValueId> = Vec::new();
+    for &(dest, delta) in &links {
+        let Some(extreme) = running.checked_add(delta) else {
+            return Err(format!(
+                "loop bb{} bound {} with accumulated step {} overflows i64 at the loop edge; overflow trap kept",
+                lp.header.0, check.bound, running
+            ));
+        };
+        running = extreme;
+        marked.push(dest);
+    }
+
+    let proof = if check.mirrored {
+        format!(
+            "bb{}: bound {} (written on the left) with a {} link constant-step increment chain; constant range check passed",
+            lp.header.0,
+            check.bound,
+            links.len()
+        )
+    } else {
+        format!(
+            "bb{}: condition 'i {} {}' with a {} link constant-step increment chain; constant range check passed",
+            lp.header.0,
+            check.op,
+            check.bound,
+            links.len()
+        )
+    };
+    Ok(Some((marked, proof)))
 }

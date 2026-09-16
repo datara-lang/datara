@@ -129,9 +129,14 @@ pub(crate) fn stmt_always_returns(stmt: &Stmt) -> bool {
 
 pub(crate) fn required_capability_for_op(callee: &str) -> Option<&'static str> {
     match callee {
-        "fs_open" | "fs_read" | "read_file" | "file_read" | "file_read_bytes" => {
-            Some("Capability<FileRead>")
-        }
+        // file_read_checked/dir_list/path_exists gate exactly like
+        // file_read: compile-time E0940 without unsafe(justification:) or a
+        // granted Capability<FileRead>, plus the runtime DATARA_CAP_FS_READ
+        // trap. env_get/env_get_checked stay runtime-gated only (see the
+        // env_get handling in src/security/verify_expr.rs and
+        // datara_rt_cap_require in the C runtime).
+        "fs_open" | "fs_read" | "read_file" | "file_read" | "file_read_bytes"
+        | "file_read_checked" | "dir_list" | "path_exists" => Some("Capability<FileRead>"),
         "fs_write" | "file_write" | "write_file" | "file_append" | "file_write_bytes" => {
             Some("Capability<FileWrite>")
         }

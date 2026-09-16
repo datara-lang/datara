@@ -36,7 +36,13 @@ pub fn classify_capability_call(func: &str) -> Option<(&'static str, &'static st
         | "read_file"
         | "datara_rt_file_read"
         | "file_read_bytes"
-        | "datara_rt_file_read_bytes" => Some(("datara:fs@1.0", "read")),
+        | "datara_rt_file_read_bytes"
+        | "file_read_checked"
+        | "datara_rt_file_read_checked"
+        | "dir_list"
+        | "datara_rt_dir_list"
+        | "path_exists"
+        | "datara_rt_path_exists" => Some(("datara:fs@1.0", "read")),
         "fs_write"
         | "file_write"
         | "write_file"
@@ -57,7 +63,9 @@ pub fn classify_capability_call(func: &str) -> Option<(&'static str, &'static st
         "proc_spawn" | "process_run" | "system" | "exec" | "process_output" => {
             Some(("datara:sys@1.0", "exec"))
         }
-        "env_get" | "datara_rt_env_get" => Some(("datara:sys@1.0", "env_get")),
+        "env_get" | "datara_rt_env_get" | "env_get_checked" | "datara_rt_env_get_checked" => {
+            Some(("datara:sys@1.0", "env_get"))
+        }
         "clock_now" | "now" | "datara_rt_clock_now" => Some(("datara:sys@1.0", "clock_now")),
 
         // Standard runtime built-ins

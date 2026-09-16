@@ -1,0 +1,72 @@
+// Demo: Outcome<T> typed errors + directory listing + block-bodied closures.
+//
+// Run: forgen run examples/15_outcome_fs_closures.dtr
+//
+// - Outcome<T> uses the stdlib generic-class ABI (is_success/value/error_msg);
+//   Outcome.ok(v) / Outcome.err(msg) build it, `?`-style accessors read it.
+// - file_read_checked / env_get_checked return Outcome<Str> and, like
+//   file_read/dir_list/path_exists, require unsafe(justification:) at the
+//   call site (capability: fs read / sys env).
+// - Block-bodied closures: `x => { stmt; return expr }` with by-value
+//   captures, passed as arguments with static dispatch.
+
+use stdlib.result.result.Outcome
+
+fn main() {
+    // -- Outcome constructors and accessors (no I/O required) --
+    let ok = Outcome.ok("everything is fine")
+    println(fmt"ok.is_ok() = {ok.is_ok()}, err = '{ok.err()}'")
+    let bad = Outcome.err("synthetic failure")
+    println(fmt"bad.is_err() = {bad.is_err()}, err = '{bad.err()}'")
+
+    // -- Checked filesystem read through a typed error channel --
+    unsafe(justification: "demo writes and reads its own config file") {
+        file_write("demo_config.txt", "setting=enabled")
+        let cfg = file_read_checked("demo_config.txt")
+        if cfg.is_ok() {
+            println(fmt"config: {cfg.unwrap()}")
+        } else {
+            println(fmt"config read failed: {cfg.err()}")
+        }
+
+        let ghost = file_read_checked("no_such_config_anywhere.txt")
+        if ghost.is_err() {
+            println(fmt"expected failure: {ghost.err()}")
+        }
+    }
+
+    // -- Checked environment lookup --
+    unsafe(justification: "demo reads the environment") {
+        let home = env_get_checked("PATH")
+        println(fmt"PATH present: {home.is_ok()}")
+        let missing = env_get_checked("DATARA_DEMO_DEFINITELY_UNSET")
+        println(fmt"missing var is_err: {missing.is_err()}")
+    }
+
+    // -- Directory listing (sorted) --
+    unsafe(justification: "demo lists the current directory") {
+        let entries = dir_list(".")
+        mut count = 0
+        mut found = ""
+        mut i = 0
+        while i < entries.len() {
+            count = count + 1
+            if str_starts_with(entries[i], "Cargo") {
+                found = entries[i]
+            }
+            i = i + 1
+        }
+        println(fmt"directory entries: {count}, cargo manifest found: {found}")
+    }
+
+    // -- Block-bodied closure, stored, reused, and passed as an argument --
+    let summarize = n => {
+        mut line = n
+        line = line * 2
+        return fmt"entry #{line}"
+    }
+    println(summarize(3))
+    println(summarize(4))
+
+    println("demo complete")
+}

@@ -294,6 +294,38 @@ impl<'a> TypeChecker<'a> {
             "file_exists".to_string(),
             (vec![DataraType::String], DataraType::Bool, Vec::new()),
         );
+        // Checked I/O builtins return the language Outcome type: the
+        // checker-level representation is Result(T, Str), matching how
+        // `Outcome<T>` (single generic arg) resolves (src/types/resolve.rs)
+        // and how `?` propagation reads the flag/payload fields.
+        function_signatures.insert(
+            "file_read_checked".to_string(),
+            (
+                vec![DataraType::String],
+                DataraType::Result(Box::new(DataraType::String), Box::new(DataraType::String)),
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "env_get_checked".to_string(),
+            (
+                vec![DataraType::String],
+                DataraType::Result(Box::new(DataraType::String), Box::new(DataraType::String)),
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "dir_list".to_string(),
+            (
+                vec![DataraType::String],
+                DataraType::List(Box::new(DataraType::String)),
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "path_exists".to_string(),
+            (vec![DataraType::String], DataraType::Bool, Vec::new()),
+        );
         function_signatures.insert(
             "cap_set_mask".to_string(),
             (vec![DataraType::Int], DataraType::Unit, Vec::new()),

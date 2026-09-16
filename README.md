@@ -30,13 +30,23 @@ Datara completely eliminates garbage collection pauses and reference-counting cy
 
 ### Why a New Language? (5 Core Pillars)
 1. **Determinism by Design**: 100% bit-exact reproducible compilation, IEEE-754 identity determinism across runs, and zero undefined behavior verified by fail-closed SSA invariants.
-2. **Affine Ownership Without Annotations**: Automatic compile-time memory management with zero GC pauses and zero manual lifetime sigils (`'a`) or borrow annotations.
+2. **Affine Ownership Without Annotations**: Automatic compile-time memory management with zero GC pauses and zero manual lifetime sigils (`'a`) or borrow annotations. Opt-in allocator tiers (`@arena`, `@pool(n)`) give hot paths explicit region reclamation on top of the automatic default.
 3. **Frictionless C-ABI Interoperability**: Direct zero-cost call-in and call-out for existing C/C++ libraries, plus automatic C header emission via `--embed` ([C Embedding Guide](docs/EMBEDDING.md)).
 4. **Cryptographic Sparks Package Ecosystem**: Secure package distribution signed with Ed25519 signatures and capability-guarded sidecars (`.capabilities.json`) to prevent supply chain attacks.
 5. **Bare-Metal Mechanical Sympathy**: Instant 30–50ms JIT/developer compilation via Cranelift, and production peak throughput via LLVM AOT with auto-vectorization and SIMD primitives matching or outperforming C and Rust ([Performance Matrix](docs/PERFORMANCE_GOALS.md)).
 
 > [!NOTE]
 > **Русскоязычная документация**: [Полная документация по языку Datara на русском языке](README_RU.md) — исчерпывающий перевод со всеми главами, синтаксисом, архитектурными схемами, стандартной библиотекой и тестами производительности.
+
+### v1.4.0 Highlights
+- **Optimizer tiers** (`--opt speed` / `--opt default`): overflow-check elision for provably-bounded loop counters, aggressive LICM, forced inlining of `inline(always)` single-block functions; `default` keeps the pre-1.3.4 pipeline bit-for-bit.
+- **Allocator tiers**: `@arena` (per-call bump arena, bulk reclaim on return) and `@pool(n)` (fixed slab, compile-time overflow rejection); default tier stays fully automatic (stack + RAII + escape analysis).
+- **Structured inline assembly**: `asm { mov eax, x / add eax, 1 / mov x, eax }` inside `unsafe(justification:)` — named `Int` locals, GP scratch registers simulated as temporaries; x86-64 JIT + AOT; `E1402`-`E1405` diagnostics.
+- **`Outcome<T>` typed errors**: `Outcome.ok(v)` / `Outcome.err("msg")` with `is_ok`/`is_err`/`unwrap`/`err`/`unwrap_or`; `file_read_checked`/`env_get_checked` return `Outcome<Str>` instead of silent empty strings.
+- **`StrBuf` builder**: amortized O(1) appends (45x faster than naive loop concatenation at 30k appends); lint `L1401` suggests it on loop concatenation.
+- **`forgen doctor --bridges`**: compiled interop audit per bridge (C, Python, JS, Rust): roundtrip, primitives, aggregates, error transfer, leak smoke, ns/call overhead (C 0 ns, JS 169 ns, Python 5.5 µs).
+- **Capability builtins**: `dir_list(path) -> List<Str>`, `path_exists(path) -> Bool`.
+- **Block-bodied closures**: `x => { stmt; return expr }` with by-value captures and static dispatch.
 
 ---
 
@@ -369,6 +379,7 @@ Datara includes **44+ verified examples and full-scale showcase projects** locat
 | [`10_database_query_cli.dtr`](examples/10_database_query_cli.dtr) | In-memory relational database with SQL-style queries | Filtering, mapping, aggregations |
 | [`11_crypto_pow_cli.dtr`](examples/11_crypto_pow_cli.dtr) | SHA-256 Proof-of-Work blockchain miner & Knuth hash | Cryptography, bitwise intrinsics |
 | [`12_dynamic_variables_val.dtr`](examples/12_dynamic_variables_val.dtr) | Variable Triad (`let`, `mut`, `val`) and gradual dynamic typing (`mut val`) | `let`, `mut`, `val`, `mut val` |
+| [`15_outcome_fs_closures.dtr`](examples/15_outcome_fs_closures.dtr) | Typed errors, checked filesystem/environment access, block-bodied closures | `Outcome<T>`, `file_read_checked`, `dir_list`, `x => { ... }` |
 | [`dynamic_guarded_demo.dtr`](examples/dynamic_guarded_demo.dtr) | Graduated runtime ownership acquire/release guards | Affine ownership fixpoint |
 | [`zero_js_dashboard.dtr`](examples/zero_js_dashboard.dtr) | Zero-JS reactive web and native GUI dashboard | `stdlib.ui`, HTML5 generation |
 
@@ -663,6 +674,25 @@ println(fmt"Next level target: {score + 10.0}")
 - `\"` : Literal double quote
 - `\0` : Null terminator
 
+#### `StrBuf` String Builder (v1.4.0)
+For hot string-assembly paths (logs, CSV/JSON emission), `StrBuf` provides amortized O(1) appends backed by the runtime's doubling buffer — measured **45x faster** than naive loop concatenation at 30k appends. `forgen lint` emits warning **L1401** suggesting `StrBuf` when it detects concatenation inside a loop:
+
+```datara
+fn build_report(n: Int) -> Str {
+    let sb = StrBuf { }
+    mut i = 0
+    while i < n {
+        sb.push("item-")
+        sb.push_int(i)
+        sb.push("; ")
+        i = i + 1
+    }
+    return sb.join()
+}
+```
+
+API: `StrBuf { }` constructs the builder, `push(s: Str)` / `push_int(i: Int)` append, `join() -> Str` materializes, `len() -> Int` reports byte length.
+
 ---
 
 ### Ultra-Fast Zero-Allocation Terminal I/O (`print`, `println`, `input`)
@@ -791,6 +821,23 @@ let result = 10
 
 out result  // Computes: ((10 + 1)^2) * 2 = 242
 ```
+
+#### Block-Bodied Closures (v1.4.0)
+Arrow lambdas accept full statement blocks. A trailing `return expr` is the closure's result. Captures are **by value** for `Int` / `Float` / `Bool` / `Str` — free variables are snapshotted at the binding site and writes inside the body never leak back to the enclosing variable. A lambda passed to another function uses **static dispatch** (the call site is inlined with the lambda bound to the parameter):
+
+```datara
+fn main() {
+    let summarize = n => {
+        mut line = n
+        line = line * 2
+        return fmt"entry #{line}"
+    }
+    println(summarize(3))   // entry #6
+    println(summarize(4))   // entry #8
+}
+```
+
+Supported forms: `x => { ... }`, `(a, b) => { ... }`, and `() => { ... }`. A body that scans as a map literal (`x => { "key": expr }`) still parses as a map; only the trailing `return` acts as the result (no mid-block early return).
 
 ---
 
@@ -941,6 +988,33 @@ Datara combines static affine verification with an abstract interpretation dataf
   - **Compile-Time Definite Rejection**: Definite use-after-move across all paths is rejected at compile time (`BorrowUseAfterMove`).
   - **Transparent Ledger Accounting**: `forgen inspect optimize` records audit metrics per function: `Ownership: X% proven, Y% guarded, Z% rejected`.
 
+### Allocator Tiers (v1.4.0)
+Default allocation is fully automatic (stack + RAII + escape analysis). Two **opt-in function attributes** add explicit region reclamation for hot paths: **`@arena`** gives the function a per-call bump arena whose checkpoint is bulk-rewound on every return (recursion-safe); **`@pool(n)`** carves a fixed `n`-slot slab at entry, rejecting a compile-time-provable overflow with `E1406` and trapping on a dynamic one:
+
+```datara
+@arena
+fn churn(n: Int) -> Int {
+    mut acc = 0
+    for i in 0..n {
+        let s = "item_" + int_to_str(i)
+        acc = acc + s.len()
+    }
+    return acc   // every allocation above is reclaimed in O(1) here
+}
+
+struct P { a: Int }
+
+@pool(8)
+fn slot_work() -> Int {
+    let a = P { a: 1 }
+    let b = P { a: 2 }
+    let c = P { a: 3 }
+    return a.a + b.a + c.a   // fixed slab of 8 slots
+}
+```
+
+Tier bookkeeping is emitted entirely in the backend (never as optimizer-visible IR), so no SSA pass can reorder or eliminate the region reclamation.
+
 ---
 
 ### Pattern Matching & Decision Control
@@ -1015,6 +1089,29 @@ Provide inline fallback values if an operation fails:
 let active_port = parse_port("invalid") or 8080
 out fmt"Listening on port: {active_port}"  // Outputs 8080
 ```
+
+#### Typed `Outcome<T>` Constructors & Checked Builtins (v1.4.0)
+`Outcome<T>` ships ergonomic constructors and accessors — no struct literals required:
+
+```datara
+use stdlib.result.result.Outcome
+
+fn main() {
+    let ok = Outcome.ok("ready")
+    let bad = Outcome.err("disk offline")
+    println(fmt"ok.is_ok() = {ok.is_ok()}, value = {ok.unwrap()}")
+    println(fmt"bad.is_err() = {bad.is_err()}, err = {bad.err()}")
+
+    unsafe(justification: "checked filesystem and environment access") {
+        let cfg = file_read_checked("app.cfg")
+        println(cfg.unwrap_or("defaults active"))
+        let home = env_get_checked("PATH")
+        println(fmt"PATH found: {home.is_ok()}")
+    }
+}
+```
+
+The API surface is `Outcome.ok(v)` / `Outcome.err("msg")` plus `is_ok()`, `is_err()`, `unwrap()`, `err()`, and `unwrap_or(default)`. The checked builtins **`file_read_checked(path)`** and **`env_get_checked(name)`** return `Outcome<Str>` instead of a silent empty string on failure; like `file_read` / `dir_list` / `path_exists`, they are capability-gated and require `unsafe(justification: "...")`.
 
 ---
 
@@ -1103,6 +1200,28 @@ let highest = max4(v1, v2)
 Both Cranelift (JIT/AOT) and LLVM AOT lower `float4`, `int4`, `dot`, `min4`, and `max4` to 128-bit SIMD vector operations with zero heap allocation, fully verified by `tests/test_regression_fixes.rs`.
 
 > **Status:** hardware SIMD is a design preview / not yet enforced on all backends — scalar fallbacks may be emitted depending on target CPU features and backend support.
+
+---
+
+### Structured Inline Assembly (v1.4.0)
+
+A **structured `asm { ... }` safe subset** for x86-64 (Cranelift JIT and AOT). Named Datara `Int` variables are addressable by symbolic name, and the four GP scratch registers are simulated as compiler temporaries — the backend performs the real register allocation, so the block cannot clobber callee-saved state:
+
+```datara
+fn main() {
+    mut x = 42
+    unsafe(justification: "structured asm safe subset over an Int local") {
+        asm {
+            mov eax, x
+            add eax, 1
+            mov x, eax
+        }
+    }
+    println(int_to_str(x))   // 43
+}
+```
+
+The instruction subset is `mov` / `add` / `sub` over the four GP scratch registers, named `Int` variables, and integer immediates; each line expands to plain SSA ops, so the same program runs identically under the JIT and AOT paths. Anything outside the subset is a hard compile error: `E1402` (unsupported instruction, or register read before write), `E1403` (non-`Int` operand), `E1404` (missing `unsafe(justification: "...")` wrapper), `E1405` (non-Cranelift backend — asm is Cranelift-only).
 
 ---
 
@@ -1227,6 +1346,10 @@ System services, console I/O, and file system primitives:
 - `file_write(path, data)` : Writes string to file.
 - `file_append(path, data)` : Appends data to file.
 - `file_exists(path)` : Checks if path exists on disk.
+- `dir_list(path) -> List<Str>` : Lists the entries of a directory (v1.4.0).
+- `path_exists(path) -> Bool` : Checks whether any path exists (v1.4.0).
+- `file_read_checked(path) -> Outcome<Str>` : Reads a file through the typed error channel instead of returning a silent empty string (v1.4.0).
+- `env_get_checked(name) -> Outcome<Str>` : Reads an environment variable through the typed error channel (v1.4.0).
 - `sleep(ms)` : Suspends thread execution for specified milliseconds.
 - `exit(code)` : Terminates process with status code.
 - `now_ms()` : Returns current Unix epoch timestamp in milliseconds.
@@ -1763,6 +1886,11 @@ forgen build                      # Fast Cranelift AOT binary (< 70ms)
 forgen build --llvm               # Peak machine-speed LLVM -O3 + LTO (1.2–2.0s)
 forgen build -o custom_name.exe   # Specify custom output binary path
 
+# 3b. Optimizer tiers (v1.4.0) — target first, flag after
+forgen run app.dtr --opt speed    # overflow-check elision for bounded loops + LICM + forced inline(always)
+forgen run app.dtr --opt default  # pre-1.3.4 pipeline, bit-for-bit (compiler default)
+forgen build app.dtr --opt speed  # same tiers on the AOT build path
+
 # 4. Instant static type, ownership & effect verification (0 binaries emitted)
 forgen check
 
@@ -1918,6 +2046,17 @@ forgen clean --all     # Complete deep cleanup of all caches and artifacts
 
 ---
 
+### `forgen doctor` (Toolchain & Interop Audit, v1.4.0)
+
+```bash
+forgen doctor               # Toolchain diagnostics (version, host, arch, runtime, linker)
+forgen doctor --bridges     # Compiled interop audit matrix (C, Python, JS, Rust)
+```
+
+`--bridges` compiles a probe program per bridge, executes it, and reports the scenario matrix (roundtrip, primitives, aggregates, error transfer, leak smoke) plus per-call overhead over a hot loop. Reference-machine measurements: **C 0 ns/call**, **JS 169 ns/call**, **Python 5.5 µs/call**; the Rust bridge is probed via its toolchain (deep crate-build probe with `FORGEN_DOCTOR_DEEP=1`). Each bridge also receives an overall health verdict (`PASS` / `POOR` / `UNAVAILABLE`); bridges whose native toolchain is absent from `PATH` are reported `FAIL` / `SKIP` with the exact reason instead of silently passing.
+
+---
+
 ### `forgen lint` & `forgen audit`
 
 Audit code quality, naming conventions, and security effect leaks:
@@ -1928,6 +2067,14 @@ forgen lint --fix      # Automatically repairs style and mut warnings
 
 # Security capability lattice audit
 forgen audit
+```
+
+**L1401 loop-concatenation warning (v1.4.0):** `forgen lint` detects the quadratic string-building anti-pattern (`s = s + ...` self-concatenation inside a loop) and suggests the `StrBuf` builder:
+
+```text
+warning[L1401]: string concatenation `s = s + ...` inside a loop copies the whole string every iteration
+  = help: build the string with StrBuf instead: `StrBuf { }`, `sb.push(...)`, `sb.join()`
+  = note: repeated `s = s + ...` is O(n^2); StrBuf.push is amortized O(1)
 ```
 Output:
 ```text

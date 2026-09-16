@@ -47,6 +47,7 @@
 #include <time.h>
 #include <pthread.h>
 #include <sched.h>
+#include <dirent.h>
 #if defined(__has_include)
 #if __has_include(<execinfo.h>)
 #include <execinfo.h>
@@ -2192,6 +2193,56 @@ int64_t datara_rt_file_exists(const char* path) {
     return 0;
 }
 
+// ---------------------------------------------------------------------------
+// Checked I/O returning Outcome<Str> objects.
+//
+// The layout mirrors the stdlib `Outcome<T>` class field-for-field, so an
+// object built here is indistinguishable from an `Outcome<T> { ... }` struct
+// literal lowered by the compiler (three 8-byte slots, field i at offset
+// i*8): [0] = is_success (Bool as i64), [1] = value (char* payload, 0 when
+// err), [2] = error_msg (char*, "" when ok). Like every other runtime
+// string/object return, the allocation is intentionally never freed.
+// ---------------------------------------------------------------------------
+static void* datara_rt_outcome_build(int64_t is_success, const char* value, const char* msg) {
+    int64_t* obj = (int64_t*)malloc(3 * sizeof(int64_t));
+    if (!obj) return NULL;
+    obj[0] = is_success;
+    obj[1] = (int64_t)(uintptr_t)(value ? value : "");
+    obj[2] = (int64_t)(uintptr_t)(msg ? msg : "");
+    return (void*)obj;
+}
+
+void* datara_rt_file_read_checked(const char* path) {
+    datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::read_checked");
+    if (!path) {
+        return datara_rt_outcome_build(0, "", "file read failed: path is null");
+    }
+    FILE* f = fopen(path, "rb");
+    if (!f) {
+        char stack_msg[512];
+        snprintf(stack_msg, sizeof(stack_msg), "file read failed: cannot open '%s'", path);
+        char* msg = datara_scratch_alloc(strlen(stack_msg) + 1);
+        if (msg) memcpy(msg, stack_msg, strlen(stack_msg) + 1);
+        return datara_rt_outcome_build(0, "", msg ? msg : "file read failed: cannot open file");
+    }
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    if (sz < 0 || sz > 1024L * 1024 * 1024) {
+        fclose(f);
+        return datara_rt_outcome_build(0, "", "file read failed: file too large or unreadable");
+    }
+    fseek(f, 0, SEEK_SET);
+    char* buf = (char*)malloc((size_t)sz + 1);
+    if (!buf) {
+        fclose(f);
+        return datara_rt_outcome_build(0, "", "file read failed: out of memory");
+    }
+    size_t read_bytes = fread(buf, 1, (size_t)sz, f);
+    buf[read_bytes] = '\0';
+    fclose(f);
+    return datara_rt_outcome_build(1, buf, "");
+}
+
 void* datara_rt_sys_caps_create(void) {
     return (void*)0xCAFE;
 }
@@ -2245,6 +2296,138 @@ const char* datara_rt_env_get(const char* key) {
     if (!key) return "";
     const char* val = getenv(key);
     return val ? val : "";
+}
+
+void* datara_rt_env_get_checked(const char* name) {
+    datara_rt_cap_require(DATARA_CAP_SYS_ENV, "sys::env_checked");
+    if (!name) {
+        return datara_rt_outcome_build(0, "", "env get failed: name is null");
+    }
+    const char* val = getenv(name);
+    if (!val) {
+        char stack_msg[512];
+        snprintf(stack_msg, sizeof(stack_msg), "env get failed: '%s' is not set", name);
+        char* msg = datara_scratch_alloc(strlen(stack_msg) + 1);
+        if (msg) memcpy(msg, stack_msg, strlen(stack_msg) + 1);
+        return datara_rt_outcome_build(0, "", msg ? msg : "env get failed: variable is not set");
+    }
+    return datara_rt_outcome_build(1, val, "");
+}
+
+// Directory listing. Returns a Datara List (list[0] = length, elements at
+// list[1..]) whose elements are NUL-terminated entry names sorted with
+// strcmp byte order. "." and ".." are skipped. Entry name buffers are
+// malloc'd and intentionally never freed, matching every other runtime
+// string return.
+static int datara_rt_dir_name_cmp(const void* a, const void* b) {
+    const char* sa = *(const char* const*)a;
+    const char* sb = *(const char* const*)b;
+    return strcmp(sa, sb);
+}
+
+int64_t* datara_rt_dir_list(const char* path) {
+    datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::dir_list");
+    if (!path) return datara_rt_list_create(0);
+
+    size_t plen = strlen(path);
+    char pattern[1024];
+#ifdef _WIN32
+    int has_sep = plen > 0 && (path[plen - 1] == '/' || path[plen - 1] == '\\');
+    if (has_sep) {
+        snprintf(pattern, sizeof(pattern), "%s*", path);
+    } else {
+        snprintf(pattern, sizeof(pattern), "%s\\*", path);
+    }
+#else
+    (void)plen;
+    pattern[0] = '\0';
+#endif
+
+    // Collect entry names into a growable malloc'd array first so the
+    // final list can be created with the exact capacity and the names
+    // sorted before insertion.
+    size_t count = 0;
+    size_t cap = 16;
+    char** names = (char**)malloc(cap * sizeof(char*));
+    if (!names) return datara_rt_list_create(0);
+
+#ifdef _WIN32
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA(pattern, &fd);
+    if (h == INVALID_HANDLE_VALUE) {
+        free(names);
+        return datara_rt_list_create(0);
+    }
+    do {
+        const char* name = fd.cFileName;
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+        if (count == cap) {
+            size_t ncap = cap * 2;
+            char** nn = (char**)realloc(names, ncap * sizeof(char*));
+            if (!nn) break;
+            names = nn;
+            cap = ncap;
+        }
+        size_t nlen = strlen(name);
+        char* copy = (char*)malloc(nlen + 1);
+        if (!copy) break;
+        memcpy(copy, name, nlen + 1);
+        names[count++] = copy;
+    } while (FindNextFileA(h, &fd));
+    FindClose(h);
+#else
+    DIR* d = opendir(path);
+    if (!d) {
+        free(names);
+        return datara_rt_list_create(0);
+    }
+    struct dirent* ent;
+    while ((ent = readdir(d)) != NULL) {
+        const char* name = ent->d_name;
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+        if (count == cap) {
+            size_t ncap = cap * 2;
+            char** nn = (char**)realloc(names, ncap * sizeof(char*));
+            if (!nn) break;
+            names = nn;
+            cap = ncap;
+        }
+        size_t nlen = strlen(name);
+        char* copy = (char*)malloc(nlen + 1);
+        if (!copy) break;
+        memcpy(copy, name, nlen + 1);
+        names[count++] = copy;
+    }
+    closedir(d);
+#endif
+
+    qsort(names, count, sizeof(char*), datara_rt_dir_name_cmp);
+
+    int64_t* list = datara_rt_list_create_capacity((int64_t)count);
+    if (!list) {
+        free(names);
+        return datara_rt_list_create(0);
+    }
+    for (size_t i = 0; i < count; i++) {
+        list = datara_rt_list_append(list, (int64_t)(uintptr_t)names[i]);
+    }
+    free(names);
+    return list;
+}
+
+// Existence probe that accepts both files and directories (unlike
+// datara_rt_file_exists, whose fopen probe cannot open directories on
+// Windows).
+int64_t datara_rt_path_exists(const char* path) {
+    datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::path_exists");
+    if (!path) return 0;
+#ifdef _WIN32
+    DWORD attrs = GetFileAttributesA(path);
+    return attrs != INVALID_FILE_ATTRIBUTES ? 1 : 0;
+#else
+    struct stat st;
+    return stat(path, &st) == 0 ? 1 : 0;
+#endif
 }
 
 const char* datara_rt_path_join(const char* a, const char* b) {

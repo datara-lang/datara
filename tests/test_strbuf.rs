@@ -74,9 +74,11 @@ fn run(path: &std::path::Path, source: &str) -> String {
 /// the released 1.3.4 binary): loop unrolling duplicates loop-carried
 /// string concatenation for even trip counts (naive(2000).len() reports
 /// 8000 instead of 4000; odd trip counts take the scalar path and are
-/// correct). The pre-existing bug is out of scope for v1.4.0 and is NOT
-/// asserted here; `str_repeat` is the independent reference instead, plus
-/// a direct multi-append sequence at n=5 (odd, unbugged path).
+/// correct). Since fixed in `LoopEngineV2::unroll_peel_loops` (the
+/// duplicated body now consumes the first copy's loop-carried updates);
+/// exact parity for that shape is asserted by tests/test_concat_parity.rs.
+/// This suite keeps `str_repeat` as the independent reference, plus a
+/// direct multi-append sequence at n=5 (odd, unbugged path).
 #[test]
 fn strbuf_matches_independent_reference() {
     let source = r#"
