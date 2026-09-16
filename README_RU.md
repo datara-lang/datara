@@ -7,9 +7,9 @@
 <p align="center">
   <a href="https://github.com/datara-lang/datara"><img src="https://img.shields.io/badge/language-Datara-%23E3B341.svg" alt="Язык" /></a>
   <a href="LICENSE-APACHE"><img src="https://img.shields.io/badge/License-Apache_2.0_OR_MIT-blue.svg" alt="Лицензия" /></a>
-  <img src="https://img.shields.io/badge/версия-1.3.1-blue.svg" alt="Версия" />
+  <img src="https://img.shields.io/badge/версия-1.4.1-blue.svg" alt="Версия" />
   <a href="https://github.com/datara-lang/datara/actions/workflows/ci.yml"><img src="https://github.com/datara-lang/datara/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <img src="https://img.shields.io/badge/тесты-148%20наборов%20%7C%20668%20пройдено-brightgreen.svg" alt="Тесты" />
+  <img src="https://img.shields.io/badge/тесты-243%20набора%20%7C%201092%2B%20пройдено-brightgreen.svg" alt="Тесты" />
   <a href="docs/CONFORMANCE_MATRIX.md"><img src="https://img.shields.io/badge/Соответствие_Спецификации_V1-84%2F84_Врат_ПРОЙДЕНО-brightgreen.svg" alt="Соответствие" /></a>
   <img src="https://img.shields.io/badge/целевая_архитектура-x86__64_native-orange.svg" alt="Архитектура" />
   <img src="https://img.shields.io/badge/кодогенерация-Cranelift_%2B_LLVM_%2B_Wasm-purple.svg" alt="Кодогенерация" />
@@ -37,6 +37,14 @@ Datara полностью исключает паузы сборки мусор�
 
 > [!NOTE]
 > **English Documentation**: [Official Datara Technical Documentation (English)](README.md) — complete reference guide covering all language mechanics, compiler passes, architecture diagrams, and release matrices.
+
+### Главные нововведения v1.4.1
+- **Сверхкомпактные бинарники уровня C (`--tiny`)**: Динамическая линковка Universal CRT (`ucrt.lib`, `vcruntime.lib`) под MSVC позволяет создавать автономные исполняемые файлы размером от 264 КБ (снижение с 372 КБ), сокращая размер бинарников на 32% без оверхеда рантайма.
+- **Прямой паритет производительности циклов с Rust и C**: Генерация циклов в LLVM дополнена атрибутами функций `mustprogress` и `nounwind`, а также метаданными `llvm.loop.mustprogress`. В тяжелых циклах на 1 000 000 000 итераций (ГПСЧ XorShift) Datara работает на равных с Rust 1.85+ (1280 мс Datara против 1291 мс Rust).
+- **Нативные комбинаторы списков и динамические коллекции**: Встроенные высокопроизводительные функциональные комбинаторы прямо в ядре языка: `.filter(fn)`, `.map(fn)`, `.fold(init, fn)`, `.reverse()`, а также стек-операции `.push(val)` и `.pop()` с проверкой границ на этапе компиляции.
+- **Исполнение подпроцессов с UTF-8 (`sys::exec_utf8`)**: `sys::exec_utf8(command) -> Outcome<Str>` обеспечивает запуск системных процессов с перехватом потоков stdout/stderr и типизированной обработкой результата.
+- **Строгая верификация инвариантов и диагностика**: Новая диагностика `E-TYPE-010` отклоняет некорректные операции с несовместимыми типами на этапе семантического анализа; в бэкенде LLVM типизированные сравнения указателей устраняют несоответствия `ptr` и `i64`; пул аллокатора рантайма C гарантирует стабильность повторяющихся аллокаций.
+- **Межпроцедурная оптимизация всей программы (`forgen domain --llvm`)**: Бесшовная предметная специализация (Domain Specialization), объединяющая 10-проходный анализ всей программы со сквозной LTO-оптимизацией Clang/LLVM (`-flto`).
 
 ---
 
@@ -193,10 +201,10 @@ Datara поставляется через проверенные официал
 Официальные нативные пакеты, собираемые в CI для Debian/Ubuntu и Fedora/RHEL:
 ```bash
 # Debian / Ubuntu / Pop!_OS / Linux Mint (загрузить из GitHub Releases):
-sudo dpkg -i datara_1.2.7_amd64.deb
+sudo dpkg -i datara_1.4.1_amd64.deb
 
 # Fedora / RHEL / CentOS / openSUSE:
-sudo rpm -ivh datara-1.2.7-1.x86_64.rpm
+sudo rpm -ivh datara-1.4.1-1.x86_64.rpm
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/windows.svg" height="20" valign="middle" alt="Windows" /> Windows: Графический установщик (Setup.exe) и Scoop
@@ -226,18 +234,18 @@ docker run -it --rm -v $(pwd):/workspace ghcr.io/datara-lang/datara:latest run m
 ```bash
 cargo install --git https://github.com/datara-lang/datara.git forgen
 ```
-*(Архив крейта `forgen-1.2.7.crate` также доступен для прямой загрузки из GitHub Releases).*
+*(Архив крейта `forgen-1.4.1.crate` также доступен для прямой загрузки из GitHub Releases).*
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/vscode.svg" height="20" valign="middle" alt="VS Code" /> Расширение для VS Code и Cursor (.vsix)
 Установка расширения с подсветкой синтаксиса, типизацией и темами напрямую из ассетов релиза:
 ```bash
-code --install-extension datara-language-1.2.7.vsix
+code --install-extension datara-language-1.4.1.vsix
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/python.svg" height="20" valign="middle" alt="Python" /> Python Wheel (`pip install`)
 Установка CLI и FFI-биндингов для Python напрямую из официального wheel-архива:
 ```bash
-pip install https://github.com/datara-lang/datara/releases/download/v1.2.7/datara-1.2.7-py3-none-any.whl
+pip install https://github.com/datara-lang/datara/releases/download/v1.4.1/datara-1.4.1-py3-none-any.whl
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/npm.svg" height="20" valign="middle" alt="NPM" /> NPM и GitHub Packages
