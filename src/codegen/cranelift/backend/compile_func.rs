@@ -13,6 +13,36 @@ use super::inst_binop::{compile_binop, compile_unop};
 use super::inst_call::{compile_call, compile_method_call};
 use super::types::{FunctionCompileCtx, ModuleDecls, RuntimeIds, clif_type};
 
+/// Resolves the byte offset of `field` on a receiver of class `cls`,
+/// falling back to the generic template name only (never to another
+/// class's layout). Missing field is E0944, not a guessed offset: the
+/// removed bare-name fallback table let two structs sharing a field
+/// name silently read the wrong slot.
+fn resolve_field_offset(
+    class_field_offsets: &HashMap<String, HashMap<String, i32>>,
+    cls: &str,
+    field: &str,
+    fn_name: &str,
+) -> Result<i32, String> {
+    let base_c = cls
+        .split('<')
+        .next()
+        .unwrap_or(cls)
+        .split('_')
+        .next()
+        .unwrap_or(cls);
+    class_field_offsets
+        .get(cls)
+        .or_else(|| class_field_offsets.get(base_c))
+        .and_then(|m| m.get(field).copied())
+        .ok_or_else(|| {
+            format!(
+                "Code generation failed: [E0944] field '{}' does not exist in the layout of class '{}' in function '{}': refusing cross-class offset fallback",
+                field, cls, fn_name
+            )
+        })
+}
+
 pub fn compile_all_functions<M: ClifModule>(
     module: &mut M,
     dmir_module: &Module,
@@ -24,7 +54,6 @@ pub fn compile_all_functions<M: ClifModule>(
     let sorted_func_names = &decls.sorted_func_names;
     let string_literal_map = &decls.string_literal_map;
     let class_field_offsets = &decls.class_field_offsets;
-    let field_default_offsets = &decls.field_default_offsets;
     let string_fields = &decls.string_fields;
     let string_return_funcs = &decls.string_return_funcs;
 
@@ -326,7 +355,6 @@ pub fn compile_all_functions<M: ClifModule>(
                             list_vars: &mut list_vars,
                             map_vars: &mut map_vars,
                             class_field_offsets,
-                            field_default_offsets,
                             string_fields,
                             string_literal_map,
                             string_return_funcs,
@@ -362,7 +390,6 @@ pub fn compile_all_functions<M: ClifModule>(
                             list_vars: &mut list_vars,
                             map_vars: &mut map_vars,
                             class_field_offsets,
-                            field_default_offsets,
                             string_fields,
                             string_literal_map,
                             string_return_funcs,
@@ -397,7 +424,6 @@ pub fn compile_all_functions<M: ClifModule>(
                             list_vars: &mut list_vars,
                             map_vars: &mut map_vars,
                             class_field_offsets,
-                            field_default_offsets,
                             string_fields,
                             string_literal_map,
                             string_return_funcs,
@@ -433,7 +459,6 @@ pub fn compile_all_functions<M: ClifModule>(
                             list_vars: &mut list_vars,
                             map_vars: &mut map_vars,
                             class_field_offsets,
-                            field_default_offsets,
                             string_fields,
                             string_literal_map,
                             string_return_funcs,
@@ -555,24 +580,23 @@ pub fn compile_all_functions<M: ClifModule>(
                                     object, f.name
                                 )
                             })?;
-                        let current_class_name = val_to_class
-                            .get(object)
-                            .map(|s| s.as_str())
-                            .or_else(|| f.params.first().map(|p| p.1.as_str()))
-                            .unwrap_or("");
-                        let base_c = current_class_name
-                            .split('<')
-                            .next()
-                            .unwrap_or(current_class_name)
-                            .split('_')
-                            .next()
-                            .unwrap_or(current_class_name);
-                        let offset = class_field_offsets
-                            .get(current_class_name)
-                            .or_else(|| class_field_offsets.get(base_c))
-                            .and_then(|m| m.get(field).copied())
-                            .or_else(|| field_default_offsets.get(field).copied())
-                            .unwrap_or(0);
+                        // Receiver class comes from val_to_class (params,
+                        // StructInit, call results, LoadVar); generics resolve
+                        // through their template name. No cross-class
+                        // fallback exists: unresolvable is E0944, not a guess.
+                        let current_class_name = val_to_class.get(object).map(|s| s.as_str());
+                        let offset = match current_class_name {
+                            Some(cls) => {
+                                resolve_field_offset(class_field_offsets, cls, field, &f.name)?
+                            }
+                            None => {
+                                return Err(format!(
+                                    "Code generation failed: [E0944] cannot resolve the receiver class for field access '.{}' in function '{}': refusing to guess the field offset",
+                                    field, f.name
+                                ));
+                            }
+                        };
+                        let current_class_name = current_class_name.unwrap_or("");
                         if std::env::var("DATARA_CODEGEN_TRACE").is_ok() {
                             eprintln!(
                                 "[getfield] fn={} class={:?} field={} offset={} declared_ty={:?} inst_ty={}",
@@ -678,24 +702,19 @@ pub fn compile_all_functions<M: ClifModule>(
                                     value, f.name
                                 )
                             })?;
-                        let current_class_name = val_to_class
-                            .get(object)
-                            .map(|s| s.as_str())
-                            .or_else(|| f.params.first().map(|p| p.1.as_str()))
-                            .unwrap_or("");
-                        let base_c = current_class_name
-                            .split('<')
-                            .next()
-                            .unwrap_or(current_class_name)
-                            .split('_')
-                            .next()
-                            .unwrap_or(current_class_name);
-                        let offset = class_field_offsets
-                            .get(current_class_name)
-                            .or_else(|| class_field_offsets.get(base_c))
-                            .and_then(|m| m.get(field).copied())
-                            .or_else(|| field_default_offsets.get(field).copied())
-                            .unwrap_or(0);
+                        // Same fail-loud rule as GetField (E0944).
+                        let current_class_name = val_to_class.get(object).map(|s| s.as_str());
+                        let offset = match current_class_name {
+                            Some(cls) => {
+                                resolve_field_offset(class_field_offsets, cls, field, &f.name)?
+                            }
+                            None => {
+                                return Err(format!(
+                                    "Code generation failed: [E0944] cannot resolve the receiver class for field assignment '.{}' in function '{}': refusing to guess the field offset",
+                                    field, f.name
+                                ));
+                            }
+                        };
                         let flags = cranelift_codegen::ir::MachMemFlags::new();
                         let val_ty = builder.func.dfg.value_type(val);
                         let val_to_store = if val_ty == clif_types::I8 || val_ty == clif_types::I32

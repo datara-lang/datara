@@ -124,11 +124,42 @@ impl<'a> Lowering<'a> {
             Expr::Call { callee, .. } => match &**callee {
                 Expr::Identifier(fn_name, _) => {
                     let ret = self.infer_fn_ret_ty(fn_name);
+                    if let Some(rest) = ret.strip_prefix("List<")
+                        && let Some(inner) = rest.strip_suffix('>')
+                    {
+                        // Explicit element type (e.g. a declared
+                        // List<Str> return): record it so the let
+                        // below and any inline `parts[i]` indexing
+                        // know the element kind. Unknown elements stay
+                        // unresolved rather than being guessed.
+                        let elem_ty = match inner {
+                            "Float" | "Float64" | "Float32" => DataraType::Float,
+                            "Bool" => DataraType::Bool,
+                            "Int" | "Int64" | "Int32" => DataraType::Int,
+                            "String" | "Str" => DataraType::String,
+                            _ => return None,
+                        };
+                        return Some(DataraType::List(Box::new(elem_ty)));
+                    }
                     match ret.as_str() {
                         "Float" => Some(DataraType::Float),
                         "String" => Some(DataraType::String),
                         "Bool" => Some(DataraType::Bool),
                         "Int" => Some(DataraType::Int),
+                        // String splits are the canonical List<Str>
+                        // source: infer_fn_ret_ty reports the bare
+                        // "List" for them, but without an element type
+                        // the let never records one and inline
+                        // `parts[i]` indexes read as raw pointers
+                        // instead of string values.
+                        "List"
+                            if matches!(
+                                fn_name.as_str(),
+                                "str_split" | "split" | "datara_rt_str_split"
+                            ) =>
+                        {
+                            Some(DataraType::List(Box::new(DataraType::String)))
+                        }
                         _ => None,
                     }
                 }

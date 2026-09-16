@@ -190,6 +190,8 @@ unsafe extern "C" {
     pub fn datara_polyglot_parallel_exec(engine_type: *const c_char, code: *const c_char) -> i64;
 
     pub fn datara_rt_file_read(path: *const c_char) -> *const c_char;
+    pub fn datara_rt_file_read_bytes(path: *const c_char) -> *mut i64;
+    pub fn datara_rt_file_write_bytes(path: *const c_char, bytes: *const i64) -> i64;
     pub fn datara_rt_file_write(path: *const c_char, content: *const c_char) -> i64;
     pub fn datara_rt_file_append(path: *const c_char, content: *const c_char) -> i64;
     pub fn datara_rt_file_exists(path: *const c_char) -> i64;
@@ -592,6 +594,10 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_file_read", datara_rt_file_read);
     reg!("file_read", datara_rt_file_read);
     reg!("read", datara_rt_file_read);
+    reg!("datara_rt_file_read_bytes", datara_rt_file_read_bytes);
+    reg!("file_read_bytes", datara_rt_file_read_bytes);
+    reg!("datara_rt_file_write_bytes", datara_rt_file_write_bytes);
+    reg!("file_write_bytes", datara_rt_file_write_bytes);
     reg!("datara_rt_file_write", datara_rt_file_write);
     reg!("file_write", datara_rt_file_write);
     reg!("write", datara_rt_file_write);

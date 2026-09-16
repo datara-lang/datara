@@ -248,6 +248,25 @@ impl<'a> TypeChecker<'a> {
             (vec![DataraType::String], DataraType::String, Vec::new()),
         );
         function_signatures.insert(
+            "file_read_bytes".to_string(),
+            (
+                vec![DataraType::String],
+                DataraType::List(Box::new(DataraType::Int)),
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "file_write_bytes".to_string(),
+            (
+                vec![
+                    DataraType::String,
+                    DataraType::List(Box::new(DataraType::Int)),
+                ],
+                DataraType::Int,
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
             "file_write".to_string(),
             (
                 vec![DataraType::String, DataraType::String],

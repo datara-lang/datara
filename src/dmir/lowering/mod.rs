@@ -70,6 +70,10 @@ impl<'a> Lowering<'a> {
         function_return_types.insert("file_write".into(), "Int".into());
         function_return_types.insert("write_file".into(), "Int".into());
         function_return_types.insert("datara_rt_file_write".into(), "Int".into());
+        function_return_types.insert("file_read_bytes".into(), "List<Int>".into());
+        function_return_types.insert("datara_rt_file_read_bytes".into(), "List<Int>".into());
+        function_return_types.insert("file_write_bytes".into(), "Int".into());
+        function_return_types.insert("datara_rt_file_write_bytes".into(), "Int".into());
         function_return_types.insert("file_append".into(), "Int".into());
         function_return_types.insert("datara_rt_file_append".into(), "Int".into());
         function_return_types.insert("file_exists".into(), "Bool".into());

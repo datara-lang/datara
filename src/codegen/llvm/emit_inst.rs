@@ -14,6 +14,7 @@ impl<'a> LlvmEmitter<'a> {
         strings: &HashMap<String, usize>,
         value_types: &mut HashMap<ValueId, &'static str>,
         var_types: &mut HashMap<String, &'static str>,
+        var_classes: &mut HashMap<String, String>,
         value_classes: &mut HashMap<ValueId, String>,
         bool_vids: &mut HashSet<ValueId>,
         bool_vars: &mut HashSet<String>,
@@ -24,7 +25,7 @@ impl<'a> LlvmEmitter<'a> {
         next_meta_id: &mut usize,
         address_taken: &HashSet<String>,
         stack_structs: &HashSet<ValueId>,
-    ) {
+    ) -> Result<(), String> {
         match inst {
             Inst::ConstInt { dest, value } => {
                 value_types.insert(*dest, "i64");
@@ -57,6 +58,9 @@ impl<'a> LlvmEmitter<'a> {
                 if bool_vars.contains(name) {
                     bool_vids.insert(*dest);
                 }
+                if let Some(c) = var_classes.get(name) {
+                    value_classes.insert(*dest, c.clone());
+                }
                 let align = if vty == "<4 x float>" { 16 } else { 8 };
                 if let Some((min, max)) = get_range_for_var(fn_name, name, None, types) {
                     let high = max.saturating_add(1);
@@ -79,6 +83,11 @@ impl<'a> LlvmEmitter<'a> {
             Inst::AssignVar { name, value } => {
                 let vty = value_types.get(value).copied().unwrap_or("i64");
                 var_types.insert(name.clone(), vty);
+                if let Some(c) = value_classes.get(value) {
+                    var_classes.insert(name.clone(), c.clone());
+                } else {
+                    var_classes.remove(name);
+                }
                 if bool_vids.contains(value) {
                     bool_vars.insert(name.clone());
                 } else {
@@ -422,6 +431,15 @@ impl<'a> LlvmEmitter<'a> {
                 {
                     bool_vids.insert(*dest);
                 }
+                // Track struct-returning call results so later GetField /
+                // SetField instructions resolve against the right layout
+                // instead of guessing (E0944).
+                if let Some(rc) = class_type_name(ty)
+                    .or_else(|| module.functions.get(func).map(|f| f.return_type.clone()))
+                    .or_else(|| module.extern_functions.get(func).map(|(_, r)| r.clone()))
+                {
+                    value_classes.insert(*dest, rc);
+                }
 
                 if (func == "math_ctz" || func == "ctz") && args.len() == 1 {
                     value_types.insert(*dest, "i64");
@@ -429,7 +447,7 @@ impl<'a> LlvmEmitter<'a> {
                         "  %v{} = call i64 @llvm.cttz.i64(i64 %v{}, i1 false)\n",
                         dest.0, args[0].0
                     ));
-                    return;
+                    return Ok(());
                 }
                 if (func == "math_shr" || func == "shr") && args.len() == 2 {
                     value_types.insert(*dest, "i64");
@@ -437,7 +455,7 @@ impl<'a> LlvmEmitter<'a> {
                         "  %v{} = lshr i64 %v{}, %v{}\n",
                         dest.0, args[0].0, args[1].0
                     ));
-                    return;
+                    return Ok(());
                 }
                 if (func == "math_shl" || func == "shl") && args.len() == 2 {
                     value_types.insert(*dest, "i64");
@@ -445,7 +463,7 @@ impl<'a> LlvmEmitter<'a> {
                         "  %v{} = shl i64 %v{}, %v{}\n",
                         dest.0, args[0].0, args[1].0
                     ));
-                    return;
+                    return Ok(());
                 }
                 if (func == "math_xor" || func == "xor") && args.len() == 2 {
                     value_types.insert(*dest, "i64");
@@ -453,7 +471,7 @@ impl<'a> LlvmEmitter<'a> {
                         "  %v{} = xor i64 %v{}, %v{}\n",
                         dest.0, args[0].0, args[1].0
                     ));
-                    return;
+                    return Ok(());
                 }
                 if (func == "math_and" || func == "and") && args.len() == 2 {
                     value_types.insert(*dest, "i64");
@@ -461,7 +479,7 @@ impl<'a> LlvmEmitter<'a> {
                         "  %v{} = and i64 %v{}, %v{}\n",
                         dest.0, args[0].0, args[1].0
                     ));
-                    return;
+                    return Ok(());
                 }
                 if (func == "math_or" || func == "or") && args.len() == 2 {
                     value_types.insert(*dest, "i64");
@@ -469,7 +487,7 @@ impl<'a> LlvmEmitter<'a> {
                         "  %v{} = or i64 %v{}, %v{}\n",
                         dest.0, args[0].0, args[1].0
                     ));
-                    return;
+                    return Ok(());
                 }
 
                 if crate::codegen::llvm::simd::try_emit_simd_call(
@@ -479,7 +497,7 @@ impl<'a> LlvmEmitter<'a> {
                     value_types,
                     out,
                 ) {
-                    return;
+                    return Ok(());
                 }
 
                 // Map standard runtime names to datara_rt equivalents if needed
@@ -510,8 +528,11 @@ impl<'a> LlvmEmitter<'a> {
                     "path_join" => "datara_rt_path_join",
                     "file_write" => "datara_rt_file_write",
                     "file_read" => "datara_rt_file_read",
+                    "file_read_bytes" => "datara_rt_file_read_bytes",
+                    "file_write_bytes" => "datara_rt_file_write_bytes",
                     "file_append" => "datara_rt_file_append",
                     "file_exists" => "datara_rt_file_exists",
+                    "exit" => "datara_rt_exit",
                     "str_len" | "byte_len" => "datara_rt_str_len",
                     "str_chars" | "char_len" => "datara_rt_str_chars",
                     "validate_utf8" => "datara_rt_validate_utf8",
@@ -556,6 +577,13 @@ impl<'a> LlvmEmitter<'a> {
 
                 for (idx, a) in args.iter().enumerate() {
                     let aty = value_types.get(a).copied().unwrap_or("i64");
+                    // datara_rt_exit takes i32: truncate the i64 code.
+                    if actual_func == "datara_rt_exit" && idx == 0 {
+                        let tmp = format!("%exit_code_{}_{}", dest.0, a.0);
+                        out.push_str(&format!("  {} = trunc i64 %v{} to i32\n", tmp, a.0));
+                        converted_args.push(format!("i32 {}", tmp));
+                        continue;
+                    }
                     let is_list_slot_f64 = aty == "double"
                         && !is_set_f64_unchecked
                         && ((actual_func == "datara_rt_list_append" && idx == 1)
@@ -666,7 +694,7 @@ impl<'a> LlvmEmitter<'a> {
                             out.push_str(&format!("  %v{} = add i64 0, %v{}\n", dest.0, object.0));
                         }
                     }
-                    return;
+                    return Ok(());
                 }
                 let mut ret_ty = self.dmir_type_to_llvm(ty);
 
@@ -721,6 +749,15 @@ impl<'a> LlvmEmitter<'a> {
                 };
 
                 value_types.insert(*dest, ret_ty);
+
+                // Track struct-returning method results so later GetField /
+                // SetField instructions resolve against the right layout
+                // instead of guessing (E0944).
+                if let Some(rf) = module.functions.get(&actual_func)
+                    && let Some(rc) = class_type_name(&rf.return_type)
+                {
+                    value_classes.insert(*dest, rc);
+                }
 
                 let obj_ty = value_types.get(object).copied().unwrap_or("ptr");
                 let obj_arg = if obj_ty == "i64" {
@@ -832,7 +869,8 @@ impl<'a> LlvmEmitter<'a> {
                     module,
                     value_classes.get(object).map(|c| c.as_str()),
                     field,
-                );
+                    fn_name,
+                )?;
                 let obj_is_ptr = value_types.get(object).copied() == Some("ptr");
                 let obj_ptr = if obj_is_ptr {
                     format!("%v{}", object.0)
@@ -845,6 +883,15 @@ impl<'a> LlvmEmitter<'a> {
                     ));
                     ptr_reg
                 };
+                // Track the class of struct-typed fields so chained access
+                // (a.b.c) resolves each hop against the right layout.
+                if let Some(rc) = self.field_declared_class(
+                    module,
+                    value_classes.get(object).map(|c| c.as_str()),
+                    field,
+                ) {
+                    value_classes.insert(*dest, rc);
+                }
                 let gep_reg = format!("%fgep_{}", dest.0);
                 out.push_str(&format!(
                     "  {} = getelementptr inbounds i8, ptr {}, i64 {}\n",
@@ -866,7 +913,8 @@ impl<'a> LlvmEmitter<'a> {
                     module,
                     value_classes.get(object).map(|c| c.as_str()),
                     field,
-                );
+                    fn_name,
+                )?;
                 let obj_is_ptr = value_types.get(object).copied() == Some("ptr");
                 let obj_ptr = if obj_is_ptr {
                     format!("%v{}", object.0)
@@ -1200,5 +1248,6 @@ impl<'a> LlvmEmitter<'a> {
             }
             _ => {}
         }
+        Ok(())
     }
 }

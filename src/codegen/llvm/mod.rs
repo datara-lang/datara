@@ -1,8 +1,11 @@
 pub mod alias_analysis;
 pub(crate) mod attributes;
+pub(crate) mod class_track;
 pub(crate) mod emit_inst;
 pub mod prefetch;
 pub(crate) mod simd;
+
+pub(crate) use class_track::class_type_name;
 
 use crate::ast::Program;
 use crate::codegen::CodegenBackend;
@@ -126,7 +129,12 @@ impl<'a> LlvmEmitter<'a> {
     }
 
     /// Emit complete LLVM IR module from DMIR Module.
-    pub fn emit_module(&self, module: &Module, _program: &Program, types: &TypeChecker) -> String {
+    pub fn emit_module(
+        &self,
+        module: &Module,
+        _program: &Program,
+        types: &TypeChecker,
+    ) -> Result<String, String> {
         let mut ir = String::new();
 
         ir.push_str(
@@ -424,8 +432,11 @@ impl<'a> LlvmEmitter<'a> {
         ir.push_str("declare i64 @destroy(i64)\n");
         ir.push_str("declare i64 @datara_rt_file_write(ptr, ptr)\n");
         ir.push_str("declare ptr @datara_rt_file_read(ptr)\n");
+        ir.push_str("declare ptr @datara_rt_file_read_bytes(ptr)\n");
+        ir.push_str("declare i64 @datara_rt_file_write_bytes(ptr, ptr)\n");
         ir.push_str("declare i64 @datara_rt_file_append(ptr, ptr)\n");
         ir.push_str("declare i64 @datara_rt_file_exists(ptr)\n");
+        ir.push_str("declare void @datara_rt_exit(i32)\n");
         ir.push_str("declare ptr @datara_rt_list_create(i64)\n");
         ir.push_str("declare ptr @datara_rt_list_create_1(i64)\n");
         ir.push_str("declare ptr @datara_rt_list_create_2(i64, i64)\n");
@@ -639,7 +650,7 @@ impl<'a> LlvmEmitter<'a> {
                 &mut next_meta_id,
                 &address_taken,
                 Some(&fn_ctx),
-            ));
+            )?);
             ir.push('\n');
         }
 
@@ -719,7 +730,7 @@ impl<'a> LlvmEmitter<'a> {
         // 7. Emit Type-Based Alias Analysis (TBAA) Metadata Nodes
         ir.push_str(&attributes::emit_tbaa_metadata());
 
-        ir
+        Ok(ir)
     }
 
     /// Emit a single function to LLVM IR.
@@ -731,7 +742,7 @@ impl<'a> LlvmEmitter<'a> {
         types: &TypeChecker,
         range_metadata: &mut HashMap<(i64, i64), usize>,
         next_meta_id: &mut usize,
-    ) -> String {
+    ) -> Result<String, String> {
         let address_taken = collect_address_taken(module);
         self.emit_function_with_address_taken(
             f,
@@ -754,7 +765,7 @@ impl<'a> LlvmEmitter<'a> {
         range_metadata: &mut HashMap<(i64, i64), usize>,
         next_meta_id: &mut usize,
         address_taken: &HashSet<String>,
-    ) -> String {
+    ) -> Result<String, String> {
         let mut branch_weights = HashMap::new();
         let mut entry_counts = HashMap::new();
         let mut loop_meta = HashMap::new();
@@ -787,7 +798,7 @@ impl<'a> LlvmEmitter<'a> {
         next_meta_id: &mut usize,
         address_taken: &HashSet<String>,
         fn_ctx: Option<&attributes::FunctionAttrContext>,
-    ) -> String {
+    ) -> Result<String, String> {
         let mut out = String::new();
         let is_main = f.name == "main";
         let has_main = module.functions.contains_key("main");
@@ -933,6 +944,13 @@ impl<'a> LlvmEmitter<'a> {
         // offsets resolve against the right class (exact match) instead of
         // whichever class happens to declare the field name.
         let mut value_classes: HashMap<ValueId, String> = HashMap::new();
+        let mut var_classes: HashMap<String, String> = HashMap::new();
+        for (p_name, p_ty, p_val) in &f.params {
+            if let Some(c) = class_type_name(p_ty) {
+                value_classes.insert(*p_val, c.clone());
+                var_classes.insert(p_name.clone(), c);
+            }
+        }
         for b in &f.blocks {
             for inst in &b.instructions {
                 if let Inst::StructInit {
@@ -1076,6 +1094,7 @@ impl<'a> LlvmEmitter<'a> {
                     strings,
                     &mut value_types,
                     &mut var_types,
+                    &mut var_classes,
                     &mut value_classes,
                     &mut bool_vids,
                     &mut bool_vars,
@@ -1086,7 +1105,7 @@ impl<'a> LlvmEmitter<'a> {
                     next_meta_id,
                     &address_taken,
                     &stack_structs,
-                );
+                )?;
             }
 
             // Emit terminator
@@ -1172,7 +1191,7 @@ impl<'a> LlvmEmitter<'a> {
         }
 
         out.push_str("}\n");
-        out
+        Ok(out)
     }
 
     pub(crate) fn find_field_offset(
@@ -1180,10 +1199,12 @@ impl<'a> LlvmEmitter<'a> {
         module: &Module,
         class: Option<&str>,
         field: &str,
-    ) -> usize {
-        // Exact class match first: when the object's class is known, only
+        fn_name: &str,
+    ) -> Result<usize, String> {
+        // Exact class match only: when the object's class is known, only
         // that class's layout may be consulted — an unrelated class that
-        // happens to declare the same field name must not win.
+        // happens to declare the same field name must not win. Generic
+        // monomorphizations resolve through their template name.
         if let Some(cls) = class {
             let base_c = cls
                 .split('<')
@@ -1196,23 +1217,25 @@ impl<'a> LlvmEmitter<'a> {
                 .class_fields
                 .get(cls)
                 .or_else(|| module.class_fields.get(base_c))
-                && let Some(pos) = fields.iter().position(|f| f == field)
             {
-                return pos.saturating_mul(8);
+                return fields.iter().position(|f| f == field)
+                    .map(|pos| pos.saturating_mul(8))
+                    .ok_or_else(|| {
+                        format!(
+                            "LLVM codegen failed: [E0944] field '{}' does not exist in the layout of class '{}' in function '{}': refusing cross-class offset fallback",
+                            field, cls, fn_name
+                        )
+                    });
             }
         }
-        // Class unknown: keep the historical fallback scan so programs whose
-        // objects come from call results still resolve offsets.
-        // Sort class names to ensure deterministic offset resolution.
-        let mut sorted_classes: Vec<&String> = module.class_fields.keys().collect();
-        sorted_classes.sort();
-        for cls in sorted_classes {
-            let fields = &module.class_fields[cls];
-            if let Some(pos) = fields.iter().position(|f| f == field) {
-                return pos.saturating_mul(8);
-            }
-        }
-        0
+        // Class unknown: the historical fallback scan picked whichever class
+        // sorted first and declared the same field name, silently reading the
+        // wrong slot when two classes share a field name. That is now a
+        // compile error (E0944), never a guessed offset.
+        Err(format!(
+            "LLVM codegen failed: [E0944] cannot resolve the receiver class for field access '.{}' in function '{}': refusing to guess the field offset",
+            field, fn_name
+        ))
     }
 }
 
@@ -1248,7 +1271,9 @@ impl CodegenBackend for LlvmBackend {
         let emitter = LlvmEmitter::new(&self.target)
             .with_debug(self.debug_info)
             .with_profile(self.profile.as_ref());
-        emitter.emit_module(module, program, types)
+        emitter
+            .emit_module(module, program, types)
+            .unwrap_or_else(|e| format!("; LLVM EMISSION ERROR [E0944]: {}\n", e))
     }
 
     fn compile_to_executable(&self, source: &str, target_path: &Path) -> Result<PathBuf, String> {

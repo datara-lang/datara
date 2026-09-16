@@ -318,6 +318,11 @@ pub fn compile_call<M: ClifModule>(
             ctx.builder.ins().load(clif_types::I64, flags, addr, 0)
         };
         ctx.val_map.insert(*dest, elem);
+        // Record the element's class so GetField on the result resolves
+        // against the element's own layout (E0944 contract).
+        if let Some(c) = super::types::class_type_name(ty) {
+            ctx.val_to_class.insert(*dest, c);
+        }
         if ty == "String" || ty == "Str" {
             ctx.string_vids.insert(*dest);
         } else if ty == "Bool" {
@@ -432,6 +437,11 @@ pub fn compile_call<M: ClifModule>(
         ctx.builder.seal_block(merge_block);
         let res = ctx.builder.block_params(merge_block)[0];
         ctx.val_map.insert(*dest, res);
+        // Record the element's class so GetField on the result resolves
+        // against the element's own layout (E0944 contract).
+        if let Some(c) = super::types::class_type_name(ty) {
+            ctx.val_to_class.insert(*dest, c);
+        }
         if ty == "String" || ty == "Str" {
             ctx.string_vids.insert(*dest);
         } else if ty == "Bool" {

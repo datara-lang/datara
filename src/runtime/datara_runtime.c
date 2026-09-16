@@ -2137,6 +2137,50 @@ const char* datara_rt_file_read(const char* path) {
     return buf;
 }
 
+// Binary-safe file I/O. Datara strings are NUL-terminated C strings at the
+// runtime ABI boundary, so a length channel does not exist for text reads:
+// `datara_rt_file_read` keeps the whole file in memory (fread, NUL bytes
+// included) but every strlen-based consumer stops at the first NUL. The
+// bytes builtins carry the real length through the list ABI instead:
+// each element is one byte value (0..=255), which round-trips binary
+// content exactly.
+int64_t* datara_rt_file_read_bytes(const char* path) {
+    datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::read_bytes");
+    if (!path) return datara_rt_list_create(0);
+    FILE* f = fopen(path, "rb");
+    if (!f) return datara_rt_list_create(0);
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    if (sz < 0 || sz > 1024L * 1024 * 1024) { fclose(f); return datara_rt_list_create(0); }
+    fseek(f, 0, SEEK_SET);
+    char* buf = (char*)malloc((size_t)sz > 0 ? (size_t)sz : 1);
+    if (!buf) { fclose(f); return datara_rt_list_create(0); }
+    size_t read_bytes = fread(buf, 1, (size_t)sz, f);
+    fclose(f);
+    int64_t* list = datara_rt_list_create_capacity((int64_t)read_bytes);
+    if (!list) { free(buf); return datara_rt_list_create(0); }
+    for (size_t i = 0; i < read_bytes; i++) {
+        list = datara_rt_list_append(list, (int64_t)(unsigned char)buf[i]);
+    }
+    free(buf);
+    return list;
+}
+
+int64_t datara_rt_file_write_bytes(const char* path, const int64_t* bytes) {
+    datara_rt_cap_require(DATARA_CAP_FS_WRITE, "fs::write_bytes");
+    if (!path) return 0;
+    FILE* f = fopen(path, "wb");
+    if (!f) return 0;
+    int64_t count = bytes ? datara_rt_list_len((int64_t*)bytes) : 0;
+    size_t written = 0;
+    for (int64_t i = 0; i < count; i++) {
+        unsigned char b = (unsigned char)(bytes[i + 1] & 0xFF);
+        written += fwrite(&b, 1, 1, f);
+    }
+    fclose(f);
+    return written == (size_t)count ? 1 : 0;
+}
+
 int64_t datara_rt_file_exists(const char* path) {
     datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::exists");
     if (!path) return 0;
@@ -2822,14 +2866,20 @@ int64_t datara_rt_socket_bind(int64_t sock, const char* host, int64_t port) {
     } else {
         addr.sin_addr.s_addr = inet_addr(host);
     }
+    // No SO_REUSEADDR on Windows: there it lets a second socket bind the
+    // same addr:port while the first is still listening (double-bind
+    // hijack). On Unix it only affects lingering TIME_WAIT sockets, which
+    // is the standard server-restart use case, so it stays on there. A
+    // future socket_bind_reuse() builtin can re-enable it explicitly.
+#ifndef _WIN32
     int opt = 1;
+    setsockopt((int)sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+#endif
 #ifdef _WIN32
-    setsockopt((SOCKET)sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
     if (bind((SOCKET)sock, (struct sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
         return -1;
     }
 #else
-    setsockopt((int)sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     if (bind((int)sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         return -1;
     }

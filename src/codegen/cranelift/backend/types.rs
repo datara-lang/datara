@@ -27,6 +27,56 @@ pub fn clif_type(ty_str: &str) -> ClifType {
     }
 }
 
+/// Returns the class name when `ty` denotes a struct type (never a
+/// primitive, collection or Unit). Used to record the receiver class of
+/// list element reads so GetField on `bodies[k]` resolves against the
+/// element's own layout; an unresolvable receiver is E0944, never a
+/// cross-class offset guess.
+pub fn class_type_name(ty: &str) -> Option<String> {
+    let stripped = ty.split('<').next().unwrap_or(ty);
+    if stripped.is_empty()
+        || matches!(
+            stripped,
+            "Int"
+                | "Int8"
+                | "Int16"
+                | "Int32"
+                | "Int64"
+                | "UInt"
+                | "UInt8"
+                | "UInt16"
+                | "UInt32"
+                | "UInt64"
+                | "USize"
+                | "isize"
+                | "usize"
+                | "Float"
+                | "Float32"
+                | "Float64"
+                | "f16"
+                | "f32"
+                | "f64"
+                | "Bool"
+                | "Str"
+                | "String"
+                | "Char"
+                | "Byte"
+                | "Unit"
+                | "Void"
+                | "Never"
+                | "List"
+                | "Map"
+                | "Any"
+                | "dec64"
+                | "dec128"
+        )
+        || stripped.starts_with('[')
+    {
+        return None;
+    }
+    Some(stripped.to_string())
+}
+
 #[derive(Clone, Copy)]
 pub struct RuntimeIds {
     pub rt_out_int_id: FuncId,
@@ -103,7 +153,6 @@ pub struct CoreRuntimeIds {
 
 pub struct ModuleDecls {
     pub class_field_offsets: HashMap<String, HashMap<String, i32>>,
-    pub field_default_offsets: HashMap<String, i32>,
     pub string_fields: HashSet<String>,
     pub string_literal_map: HashMap<String, DataId>,
     pub main_entry_info: Option<(FuncId, Signature)>,
@@ -131,7 +180,6 @@ pub struct FunctionCompileCtx<'a, 'b, M: ClifModule> {
     pub list_vars: &'a mut HashSet<String>,
     pub map_vars: &'a mut HashSet<String>,
     pub class_field_offsets: &'a HashMap<String, HashMap<String, i32>>,
-    pub field_default_offsets: &'a HashMap<String, i32>,
     pub string_fields: &'a HashSet<String>,
     pub string_literal_map: &'a HashMap<String, DataId>,
     pub string_return_funcs: &'a HashSet<String>,

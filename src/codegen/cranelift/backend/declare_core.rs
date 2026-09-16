@@ -824,6 +824,57 @@ pub fn declare_runtime_core<M: ClifModule>(
     );
     func_ids.insert("read".into(), (rt_file_read_id, rt_file_read_sig));
 
+    // File I/O: binary-safe byte read (list of byte values 0..=255)
+    let mut rt_file_read_bytes_sig = Signature::new(call_conv);
+    rt_file_read_bytes_sig
+        .params
+        .push(AbiParam::new(clif_types::I64));
+    rt_file_read_bytes_sig
+        .returns
+        .push(AbiParam::new(clif_types::I64));
+    let rt_file_read_bytes_id = module
+        .declare_function(
+            "datara_rt_file_read_bytes",
+            Linkage::Import,
+            &rt_file_read_bytes_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_file_read_bytes".into(),
+        (rt_file_read_bytes_id, rt_file_read_bytes_sig.clone()),
+    );
+    func_ids.insert(
+        "file_read_bytes".into(),
+        (rt_file_read_bytes_id, rt_file_read_bytes_sig),
+    );
+
+    // File I/O: binary-safe byte write (list of byte values 0..=255)
+    let mut rt_file_write_bytes_sig = Signature::new(call_conv);
+    rt_file_write_bytes_sig
+        .params
+        .push(AbiParam::new(clif_types::I64));
+    rt_file_write_bytes_sig
+        .params
+        .push(AbiParam::new(clif_types::I64));
+    rt_file_write_bytes_sig
+        .returns
+        .push(AbiParam::new(clif_types::I64));
+    let rt_file_write_bytes_id = module
+        .declare_function(
+            "datara_rt_file_write_bytes",
+            Linkage::Import,
+            &rt_file_write_bytes_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_file_write_bytes".into(),
+        (rt_file_write_bytes_id, rt_file_write_bytes_sig.clone()),
+    );
+    func_ids.insert(
+        "file_write_bytes".into(),
+        (rt_file_write_bytes_id, rt_file_write_bytes_sig),
+    );
+
     // File I/O: exists
     let mut rt_file_exists_sig = Signature::new(call_conv);
     rt_file_exists_sig

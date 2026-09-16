@@ -419,7 +419,6 @@ pub fn declare_module_symbols<M: ClifModule>(
     };
 
     let mut class_field_offsets: HashMap<String, HashMap<String, i32>> = HashMap::new();
-    let mut field_default_offsets: HashMap<String, i32> = HashMap::new();
     let mut string_fields: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     let mut sorted_cls_names: Vec<&String> = dmir_module.class_fields.keys().collect();
@@ -429,13 +428,6 @@ pub fn declare_module_symbols<M: ClifModule>(
         let m = class_field_offsets.entry(cls_name.clone()).or_default();
         for (idx, fname) in fields.iter().enumerate() {
             m.insert(fname.clone(), (idx * 8) as i32);
-            // First-wins: two classes may lay out a same-named field at
-            // different offsets; the last one would silently overwrite
-            // this table in HashMap iteration order, making codegen
-            // nondeterministic between compiler runs.
-            field_default_offsets
-                .entry(fname.clone())
-                .or_insert((idx * 8) as i32);
         }
     }
 
@@ -461,9 +453,6 @@ pub fn declare_module_symbols<M: ClifModule>(
                         let m = class_field_offsets.entry(class_name.clone()).or_default();
                         for (idx, (fname, _)) in fields.iter().enumerate() {
                             m.entry(fname.clone()).or_insert((idx * 8) as i32);
-                            field_default_offsets
-                                .entry(fname.clone())
-                                .or_insert((idx * 8) as i32);
                         }
                     }
                 }
@@ -539,7 +528,6 @@ pub fn declare_module_symbols<M: ClifModule>(
 
     Ok(ModuleDecls {
         class_field_offsets,
-        field_default_offsets,
         string_fields,
         string_literal_map,
         main_entry_info,

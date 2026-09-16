@@ -208,6 +208,8 @@ const char* datara_js_get_global(const char* name);
 
 // File I/O
 const char* datara_rt_file_read(const char* path);
+int64_t*    datara_rt_file_read_bytes(const char* path);
+int64_t     datara_rt_file_write_bytes(const char* path, const int64_t* bytes);
 int64_t     datara_rt_file_write(const char* path, const char* content);
 int64_t     datara_rt_file_append(const char* path, const char* content);
 int64_t     datara_rt_file_exists(const char* path);

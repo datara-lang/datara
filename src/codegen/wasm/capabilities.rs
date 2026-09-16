@@ -31,14 +31,19 @@ pub struct GrantedCapabilityGroup {
 pub fn classify_capability_call(func: &str) -> Option<(&'static str, &'static str)> {
     match func {
         // Filesystem capability
-        "fs_read" | "file_read" | "read_file" | "datara_rt_file_read" => {
-            Some(("datara:fs@1.0", "read"))
-        }
+        "fs_read"
+        | "file_read"
+        | "read_file"
+        | "datara_rt_file_read"
+        | "file_read_bytes"
+        | "datara_rt_file_read_bytes" => Some(("datara:fs@1.0", "read")),
         "fs_write"
         | "file_write"
         | "write_file"
         | "file_append"
+        | "file_write_bytes"
         | "datara_rt_file_write"
+        | "datara_rt_file_write_bytes"
         | "datara_rt_file_append" => Some(("datara:fs@1.0", "write")),
 
         // Network capability

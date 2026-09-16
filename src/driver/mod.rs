@@ -361,6 +361,7 @@ impl ForgenCompiler {
                 // LLVM IR is only emitted when the LLVM pipeline is actually used;
                 // the former code generated the full IR on every build and threw it
                 // away for Cranelift-only builds.
+                let mut llvm_emission_error: Option<String> = None;
                 let llvm_code = if self.use_llvm {
                     let target_info =
                         if self.native || self.target_triple.as_deref() == Some("native") {
@@ -378,14 +379,26 @@ impl ForgenCompiler {
                     let llvm_emitter = crate::codegen::llvm::LlvmEmitter::new(&target_info)
                         .with_debug(self.debug_info)
                         .with_profile(loaded_profile.as_ref());
-                    let code = llvm_emitter.emit_module(&dmir_module, &program, &type_checker);
-                    let _ = std::fs::write(&ll_path, &code);
-                    Some(code)
+                    match llvm_emitter.emit_module(&dmir_module, &program, &type_checker) {
+                        Ok(code) => {
+                            let _ = std::fs::write(&ll_path, &code);
+                            Some(code)
+                        }
+                        Err(e) => {
+                            // An emission failure (e.g. E0944 field-offset
+                            // resolution) must fail the build loudly instead
+                            // of silently emitting broken IR.
+                            llvm_emission_error = Some(e);
+                            None
+                        }
+                    }
                 } else {
                     None
                 };
 
-                let compile_res = if self.use_llvm {
+                let compile_res = if let Some(e) = llvm_emission_error {
+                    Err(e)
+                } else if self.use_llvm {
                     let rt_source = PathBuf::from(concat!(
                         env!("CARGO_MANIFEST_DIR"),
                         "/src/runtime/datara_runtime.c"

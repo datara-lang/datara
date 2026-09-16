@@ -44,7 +44,16 @@ impl<'a> Lowering<'a> {
                             }
                             Some("String" | "Str") => DataraType::String,
                             Some("Bool") => DataraType::Bool,
-                            _ => DataraType::Int,
+                            Some("Int" | "Int64" | "Int32" | "Int16" | "Int8" | "Byte") => {
+                                DataraType::Int
+                            }
+                            // Struct elements keep their class name: an
+                            // annotated List<Body> coerced to List<Int>
+                            // made `bodies[k].x` lose the receiver class
+                            // and field-offset resolution fall to guessing
+                            // (E0944).
+                            Some(other) => DataraType::Class(other.to_string()),
+                            None => DataraType::Int,
                         };
                         self.local_var_types
                             .insert(name.clone(), DataraType::List(Box::new(elem_ty.clone())));
@@ -89,14 +98,25 @@ impl<'a> Lowering<'a> {
                     );
                 } else if let Expr::ListLiteral(elements, _) = init {
                     if !self.local_var_types.contains_key(name) {
+                        // Element type must consider strings first: a list
+                        // literal of strings lowered as List<Int> made any
+                        // inline `parts[i]` read route to out_int as a raw
+                        // pointer instead of the string value (E0944-class
+                        // silent wrong data).
+                        let mut is_str = false;
                         let mut is_flt = false;
                         for e in elements {
-                            if self.is_expr_float(e) {
-                                is_flt = true;
+                            if self.is_expr_str(e) {
+                                is_str = true;
                                 break;
                             }
+                            if self.is_expr_float(e) {
+                                is_flt = true;
+                            }
                         }
-                        let val_ty = if is_flt {
+                        let val_ty = if is_str {
+                            DataraType::String
+                        } else if is_flt {
                             DataraType::Float
                         } else {
                             DataraType::Int

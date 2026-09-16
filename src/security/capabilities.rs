@@ -129,8 +129,12 @@ pub(crate) fn stmt_always_returns(stmt: &Stmt) -> bool {
 
 pub(crate) fn required_capability_for_op(callee: &str) -> Option<&'static str> {
     match callee {
-        "fs_open" | "fs_read" | "read_file" | "file_read" => Some("Capability<FileRead>"),
-        "fs_write" | "file_write" | "write_file" | "file_append" => Some("Capability<FileWrite>"),
+        "fs_open" | "fs_read" | "read_file" | "file_read" | "file_read_bytes" => {
+            Some("Capability<FileRead>")
+        }
+        "fs_write" | "file_write" | "write_file" | "file_append" | "file_write_bytes" => {
+            Some("Capability<FileWrite>")
+        }
         "net_connect" | "socket_connect" => Some("Capability<NetworkConnect>"),
         "net_listen" | "socket_listen" | "socket_bind" => Some("Capability<NetworkListen>"),
         "proc_spawn" | "process_run" | "system" | "exec" | "process_output" => {

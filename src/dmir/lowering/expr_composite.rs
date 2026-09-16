@@ -6,6 +6,20 @@ use std::collections::HashMap;
 
 use super::Lowering;
 
+/// Return type name for an index expression's element. Struct elements
+/// keep their class name so GetField on `bodies[k].x` resolves against
+/// the element's own layout instead of a guessed cross-class offset
+/// (E0944); primitives map as before.
+fn index_elem_ret_ty(ty: &DataraType) -> String {
+    match ty {
+        DataraType::Float => "Float".into(),
+        DataraType::String => "String".into(),
+        DataraType::Bool => "Bool".into(),
+        DataraType::Class(c) => c.clone(),
+        _ => "Int".into(),
+    }
+}
+
 impl<'a> Lowering<'a> {
     pub(crate) fn lower_composite_expr(
         &mut self,
@@ -627,37 +641,17 @@ impl<'a> Lowering<'a> {
                 };
                 let ret_ty: String = if let Some(obj_ty) = self.infer_expr_datara_type(object) {
                     match obj_ty {
-                        DataraType::Map(_, val) => match *val {
-                            DataraType::Float => "Float".into(),
-                            DataraType::String => "String".into(),
-                            DataraType::Bool => "Bool".into(),
-                            _ => "Int".into(),
-                        },
-                        DataraType::List(elem) => match *elem {
-                            DataraType::Float => "Float".into(),
-                            DataraType::String => "String".into(),
-                            DataraType::Bool => "Bool".into(),
-                            _ => "Int".into(),
-                        },
+                        DataraType::Map(_, val) => index_elem_ret_ty(&val),
+                        DataraType::List(elem) => index_elem_ret_ty(&elem),
                         DataraType::GenericInstance { name, args }
                             if (name == "Array" || name == "List") && !args.is_empty() =>
                         {
-                            match &args[0] {
-                                DataraType::Float => "Float".into(),
-                                DataraType::String => "String".into(),
-                                DataraType::Bool => "Bool".into(),
-                                _ => "Int".into(),
-                            }
+                            index_elem_ret_ty(&args[0])
                         }
                         DataraType::GenericInstance { name, args }
                             if name == "Map" && args.len() >= 2 =>
                         {
-                            match &args[1] {
-                                DataraType::Float => "Float".into(),
-                                DataraType::String => "String".into(),
-                                DataraType::Bool => "Bool".into(),
-                                _ => "Int".into(),
-                            }
+                            index_elem_ret_ty(&args[1])
                         }
                         _ => "Int".into(),
                     }
@@ -666,38 +660,18 @@ impl<'a> Lowering<'a> {
                         Expr::Identifier(name, _) => {
                             if let Some(obj_ty) = self.lookup_var_type(name) {
                                 match obj_ty {
-                                    DataraType::Map(_, val) => match *val {
-                                        DataraType::Float => "Float".into(),
-                                        DataraType::String => "String".into(),
-                                        DataraType::Bool => "Bool".into(),
-                                        _ => "Int".into(),
-                                    },
-                                    DataraType::List(elem) => match *elem {
-                                        DataraType::Float => "Float".into(),
-                                        DataraType::String => "String".into(),
-                                        DataraType::Bool => "Bool".into(),
-                                        _ => "Int".into(),
-                                    },
+                                    DataraType::Map(_, val) => index_elem_ret_ty(&val),
+                                    DataraType::List(elem) => index_elem_ret_ty(&elem),
                                     DataraType::GenericInstance { name, args }
                                         if (name == "Array" || name == "List")
                                             && !args.is_empty() =>
                                     {
-                                        match &args[0] {
-                                            DataraType::Float => "Float".into(),
-                                            DataraType::String => "String".into(),
-                                            DataraType::Bool => "Bool".into(),
-                                            _ => "Int".into(),
-                                        }
+                                        index_elem_ret_ty(&args[0])
                                     }
                                     DataraType::GenericInstance { name, args }
                                         if name == "Map" && args.len() >= 2 =>
                                     {
-                                        match &args[1] {
-                                            DataraType::Float => "Float".into(),
-                                            DataraType::String => "String".into(),
-                                            DataraType::Bool => "Bool".into(),
-                                            _ => "Int".into(),
-                                        }
+                                        index_elem_ret_ty(&args[1])
                                     }
                                     _ => "Int".into(),
                                 }
