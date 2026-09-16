@@ -1,6 +1,6 @@
 # Maintainer: Datara Language Project <https://github.com/datara-lang/datara>
 pkgname=datara-bin
-pkgver=1.4.0
+pkgver=1.4.1
 pkgrel=1
 pkgdesc="High-performance Post-OOP systems and application programming language"
 arch=('x86_64' 'aarch64')
@@ -11,7 +11,7 @@ provides=('datara' 'forgen')
 conflicts=('datara' 'forgen')
 source_x86_64=("https://github.com/datara-lang/datara/releases/download/v${pkgver}/forgen-linux-x64.tar.gz")
 source_aarch64=("https://github.com/datara-lang/datara/releases/download/v${pkgver}/forgen-linux-aarch64.tar.gz")
-sha256sums_x86_64=('9ed70d548e28c284198caf2a37fb80d4a608bd76e3bb0c3cd415e67fbd968be9')
+sha256sums_x86_64=('7a3940385388ad7868161f61a5cb6a1b412b66df07c24536b1da2886a807ace5')
 sha256sums_aarch64=('SKIP')
 
 package() {
@@ -21,5 +21,10 @@ package() {
     install -dm755 "${pkgdir}/usr/share/datara/stdlib"
     if [ -d "${srcdir}/stdlib" ]; then
         cp -r "${srcdir}/stdlib/"* "${pkgdir}/usr/share/datara/stdlib/"
+    fi
+
+    install -dm755 "${pkgdir}/usr/lib/datara"
+    if [ -d "${srcdir}/runtime" ]; then
+        cp -r "${srcdir}/runtime/"* "${pkgdir}/usr/lib/datara/"
     fi
 }

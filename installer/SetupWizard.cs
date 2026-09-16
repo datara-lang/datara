@@ -58,7 +58,7 @@ namespace DataraInstaller
         [DllImport("Shell32.dll")]
         public static extern void SHChangeNotify(int eventId, int flags, IntPtr item1, IntPtr item2);
 
-        public const string AppVersion = "1.4.0";
+        public const string AppVersion = "1.4.1";
 
         public InstallerForm()
         {
@@ -436,6 +436,7 @@ namespace DataraInstaller
                             Environment.SetEnvironmentVariable("PATH", newPath, EnvironmentVariableTarget.User);
                         }
                         Environment.SetEnvironmentVariable("DATARA_HOME", installDir, EnvironmentVariableTarget.User);
+                        Environment.SetEnvironmentVariable("DATARA_STDLIB", Path.Combine(installDir, "stdlib"), EnvironmentVariableTarget.User);
                     }
 
                     // Step 3: Create Shortcuts

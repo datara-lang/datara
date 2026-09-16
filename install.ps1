@@ -22,18 +22,20 @@ Write-Host "====================================================================
 $InstallDir = Join-Path $env:USERPROFILE ".datara"
 $BinDir     = Join-Path $InstallDir "bin"
 $StdlibDir  = Join-Path $InstallDir "stdlib"
+$RuntimeDir = Join-Path $InstallDir "runtime"
 $AssetsDir  = Join-Path $InstallDir "assets"
 
 Write-Host "`n[1/5] Preparing installation directories..." -ForegroundColor Yellow
 New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
 New-Item -ItemType Directory -Force -Path $StdlibDir | Out-Null
+New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
 New-Item -ItemType Directory -Force -Path $AssetsDir | Out-Null
 
 # 2. Determine Version Dynamically from GitHub API
 Write-Host "[2/5] Resolving latest Datara version..." -ForegroundColor Yellow
 $Repo = "datara-lang/datara"
 $ApiUrl = "https://api.github.com/repos/$Repo/releases/latest"
-$LatestTag = "v1.4.0"
+$LatestTag = "v1.4.1"
 $DownloadUrl = ""
 
 try {
@@ -140,6 +142,20 @@ if (-not $InstalledSuccessfully -and $DownloadUrl) {
             Set-Content -Path (Join-Path $BinDir "sparks.cmd") -Value "@echo off`r`n`"%~dp0sparks.exe`" %*"
             Set-Content -Path (Join-Path $BinDir "dpm.cmd") -Value "@echo off`r`n`"%~dp0dpm.exe`" %*"
 
+            # Extract standard library if present in downloaded package
+            $extractedStdlib = Get-ChildItem -Path $env:TEMP\datara_extracted -Recurse -Directory -Filter "stdlib" | Select-Object -First 1
+            if ($extractedStdlib) {
+                Copy-Item -Path "$($extractedStdlib.FullName)\*" -Destination $StdlibDir -Recurse -Force
+                Write-Host "  -> Installed standard library modules from release archive." -ForegroundColor Green
+            }
+
+            # Extract runtime library if present in downloaded package
+            $extractedRuntime = Get-ChildItem -Path $env:TEMP\datara_extracted -Recurse -Directory -Filter "runtime" | Select-Object -First 1
+            if ($extractedRuntime) {
+                Copy-Item -Path "$($extractedRuntime.FullName)\*" -Destination $RuntimeDir -Recurse -Force
+                Write-Host "  -> Installed runtime library and headers from release archive." -ForegroundColor Green
+            }
+
             $InstalledSuccessfully = $true
             Write-Host "  -> Downloaded and installed $LatestTag binaries (forgen, datara, dpm, sparks) successfully." -ForegroundColor Green
         }
@@ -192,14 +208,8 @@ if (-not $InstalledSuccessfully) {
     exit 1
 }
 
-# Sync to Local Programs if present to ensure PATH precedence consistency
-$LocalProgramsDir = Join-Path $env:LOCALAPPDATA "Programs\Datara\bin"
-if (Test-Path $LocalProgramsDir) {
-    Copy-Item -Path (Join-Path $BinDir "*") -Destination $LocalProgramsDir -Force
-}
-
-# 4. Install Standard Library & Assets
-Write-Host "[4/5] Installing Standard Library and official icons..." -ForegroundColor Yellow
+# 4. Install Standard Library, Runtime & Assets
+Write-Host "[4/5] Installing Standard Library, Runtime, and official icons..." -ForegroundColor Yellow
 $StdlibCandidates = @(
     (Join-Path $ScriptDir "stdlib"),
     (Join-Path $ScriptDir "..\stdlib"),
@@ -211,6 +221,39 @@ foreach ($cand in $StdlibCandidates) {
         Copy-Item -Path "$cand\*" -Destination $StdlibDir -Recurse -Force
         Write-Host "  -> Installed standard library modules from $cand" -ForegroundColor Green
         break
+    }
+}
+
+$RuntimeCandidates = @(
+    (Join-Path $ScriptDir "runtime"),
+    (Join-Path $ScriptDir "..\runtime"),
+    (Join-Path $ScriptDir "src\runtime"),
+    (Join-Path $ScriptDir "..\src\runtime")
+)
+
+foreach ($cand in $RuntimeCandidates) {
+    if (Test-Path $cand) {
+        Copy-Item -Path "$cand\*" -Destination $RuntimeDir -Recurse -Force
+        Write-Host "  -> Installed runtime library and sources from $cand" -ForegroundColor Green
+        break
+    }
+}
+
+# Sync to Local Programs if present to ensure PATH precedence consistency
+$LocalProgramsHome = Join-Path $env:LOCALAPPDATA "Programs\Datara"
+if (Test-Path $LocalProgramsHome) {
+    $lpBin = Join-Path $LocalProgramsHome "bin"
+    New-Item -ItemType Directory -Force -Path $lpBin | Out-Null
+    Copy-Item -Path (Join-Path $BinDir "*") -Destination $lpBin -Force
+    if (Test-Path $StdlibDir) {
+        $lpStd = Join-Path $LocalProgramsHome "stdlib"
+        New-Item -ItemType Directory -Force -Path $lpStd | Out-Null
+        Copy-Item -Path "$StdlibDir\*" -Destination $lpStd -Recurse -Force
+    }
+    if (Test-Path $RuntimeDir) {
+        $lpRt = Join-Path $LocalProgramsHome "runtime"
+        New-Item -ItemType Directory -Force -Path $lpRt | Out-Null
+        Copy-Item -Path "$RuntimeDir\*" -Destination $lpRt -Recurse -Force
     }
 }
 
@@ -345,6 +388,10 @@ if ($UserPath -notlike "*$BinDir*") {
 [Environment]::SetEnvironmentVariable("DATARA_HOME", $InstallDir, "User")
 $env:DATARA_HOME = $InstallDir
 Write-Host "  -> Configured DATARA_HOME = $InstallDir" -ForegroundColor Green
+
+[Environment]::SetEnvironmentVariable("DATARA_STDLIB", $StdlibDir, "User")
+$env:DATARA_STDLIB = $StdlibDir
+Write-Host "  -> Configured DATARA_STDLIB = $StdlibDir" -ForegroundColor Green
 
 # Verification & Toolchain Check
 Write-Host "`n================================================================================" -ForegroundColor Green

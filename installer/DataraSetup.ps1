@@ -17,7 +17,7 @@ $repoRoot = (Get-Item "$PSScriptRoot\..").FullName
 $iconPath = Join-Path $repoRoot "assets\datara.ico"
 $logoPath = Join-Path $repoRoot "assets\datara-logo.png"
 
-$Version = "1.4.0"
+$Version = "1.4.1"
 $cargoTomlPath = Join-Path $repoRoot "Cargo.toml"
 if (Test-Path $cargoTomlPath) {
     $cargoToml = Get-Content $cargoTomlPath -Raw
@@ -273,12 +273,26 @@ $btnInstall.Add_Click({
         }
     }
 
-    # Step 3: Copy Standard Library
+    # Step 3: Copy Standard Library & Runtime
     if ($doStdlib) {
         & $action 55 "Installing standard library modules..."
         $stdlibSrc = Join-Path $repoRoot "stdlib"
         if (Test-Path $stdlibSrc) {
             Copy-Item -Path $stdlibSrc -Destination $installDir -Recurse -Force
+        }
+    }
+
+    # Step 3b: Copy Runtime Library & Sources
+    $runtimeDst = Join-Path $installDir "runtime"
+    New-Item -ItemType Directory -Force -Path $runtimeDst | Out-Null
+    $rtCandidates = @(
+        (Join-Path $repoRoot "runtime"),
+        (Join-Path $repoRoot "dist\staging\runtime"),
+        (Join-Path $repoRoot "src\runtime")
+    )
+    foreach ($rt in $rtCandidates) {
+        if (Test-Path $rt) {
+            Copy-Item -Path "$rt\*" -Destination $runtimeDst -Recurse -Force
         }
     }
 
@@ -337,8 +351,9 @@ $btnInstall.Add_Click({
         if ($userPath -notlike "*$binDir*") {
             $newPath = "$binDir;$userPath"
             [System.Environment]::SetEnvironmentVariable("PATH", $newPath, "User")
-            [System.Environment]::SetEnvironmentVariable("DATARA_HOME", $installDir, "User")
         }
+        [System.Environment]::SetEnvironmentVariable("DATARA_HOME", $installDir, "User")
+        [System.Environment]::SetEnvironmentVariable("DATARA_STDLIB", (Join-Path $installDir "stdlib"), "User")
     }
 
     # Step 7: Install VS Code Extension

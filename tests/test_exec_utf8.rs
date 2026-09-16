@@ -24,6 +24,14 @@ fn ensure_msvc_env() {
     });
 }
 
+fn echo_cmd(msg: &str) -> String {
+    if cfg!(windows) {
+        format!("cmd /c echo {msg}")
+    } else {
+        format!("echo {msg}")
+    }
+}
+
 fn run_datara(source: &str, name: &str) -> String {
     ensure_msvc_env();
     let compiler = ForgenCompiler::new("release");
@@ -34,7 +42,7 @@ fn run_datara(source: &str, name: &str) -> String {
         name, res.error
     );
 
-    let exe = res.exe_path.clone().expect("must produce a native .exe");
+    let exe = res.exe_path.clone().expect("must produce a native exe");
     let (stdout, _stderr, code, _) = compiler
         .cranelift
         .run_executable(&exe, &[])
@@ -43,6 +51,7 @@ fn run_datara(source: &str, name: &str) -> String {
 
     let _ = std::fs::remove_file(&exe);
     let _ = std::fs::remove_file(exe.with_extension("obj"));
+    let _ = std::fs::remove_file(exe.with_extension("o"));
     stdout.trim().replace("\r\n", "\n")
 }
 
@@ -56,73 +65,85 @@ fn run_jit(source: &str, name: &str) -> String {
 
 #[test]
 fn test_exec_byte_transparent_plain() {
-    let source = r#"
-fn main() {
-    unsafe(justification: "test plain exec") {
-        let out = exec("cmd /c echo HELLO_PLAIN_EXEC")
+    let cmd = echo_cmd("HELLO_PLAIN_EXEC");
+    let source = format!(
+        r#"
+fn main() {{
+    unsafe(justification: "test plain exec") {{
+        let out = exec("{cmd}")
         println(out)
-    }
-}
-"#;
-    let out = run_datara(source, "test_exec_byte_transparent_plain");
+    }}
+}}
+"#
+    );
+    let out = run_datara(&source, "test_exec_byte_transparent_plain");
     assert!(out.contains("HELLO_PLAIN_EXEC"), "got: {}", out);
 }
 
 #[test]
 fn test_exec_utf8_success_jit() {
-    let source = r#"
+    let cmd = echo_cmd("HELLO_UTF8_JIT");
+    let source = format!(
+        r#"
 use stdlib.result.result.Outcome
 
-fn main() {
-    unsafe(justification: "test exec_utf8 in jit") {
-        let res = exec_utf8("cmd /c echo HELLO_UTF8_JIT")
-        if res.is_ok() {
-            println(fmt"ok:{res.unwrap()}")
-        } else {
-            println(fmt"err:{res.err()}")
-        }
-    }
-}
-"#;
-    let out = run_jit(source, "test_exec_utf8_success_jit");
+fn main() {{
+    unsafe(justification: "test exec_utf8 in jit") {{
+        let res = exec_utf8("{cmd}")
+        if res.is_ok() {{
+            println(fmt"ok:{{res.unwrap()}}")
+        }} else {{
+            println(fmt"err:{{res.err()}}")
+        }}
+    }}
+}}
+"#
+    );
+    let out = run_jit(&source, "test_exec_utf8_success_jit");
     assert!(out.contains("ok:HELLO_UTF8_JIT"), "got: {}", out);
 }
 
 #[test]
 fn test_exec_utf8_success_aot() {
-    let source = r#"
+    let cmd = echo_cmd("HELLO_UTF8_AOT");
+    let source = format!(
+        r#"
 use stdlib.result.result.Outcome
 
-fn main() {
-    unsafe(justification: "test exec_utf8 native aot") {
-        let res = exec_utf8("cmd /c echo HELLO_UTF8_AOT")
-        if res.is_ok() {
-            println(fmt"ok:{res.unwrap()}")
-        } else {
-            println(fmt"err:{res.err()}")
-        }
-    }
-}
-"#;
-    let out = run_datara(source, "test_exec_utf8_success_aot");
+fn main() {{
+    unsafe(justification: "test exec_utf8 native aot") {{
+        let res = exec_utf8("{cmd}")
+        if res.is_ok() {{
+            println(fmt"ok:{{res.unwrap()}}")
+        }} else {{
+            println(fmt"err:{{res.err()}}")
+        }}
+    }}
+}}
+"#
+    );
+    let out = run_datara(&source, "test_exec_utf8_success_aot");
     assert!(out.contains("ok:HELLO_UTF8_AOT"), "got: {}", out);
 }
 
 #[test]
 fn test_exec_utf8_cyrillic_non_ascii() {
-    let source = r#"
+    let cmd = echo_cmd("ПРИВЕТ_ДАТАРА");
+    let source = format!(
+        r#"
 use stdlib.result.result.Outcome
 
-fn main() {
-    unsafe(justification: "test exec_utf8 cyrillic") {
-        let res = exec_utf8("cmd /c echo ПРИВЕТ_ДАТАРА")
-        if res.is_ok() {
+fn main() {{
+    unsafe(justification: "test exec_utf8 cyrillic") {{
+        let res = exec_utf8("{cmd}")
+        if res.is_ok() {{
             println(res.unwrap())
-        }
-    }
-}
-"#;
-    let out = run_datara(source, "test_exec_utf8_cyrillic_non_ascii");
+        }}
+    }}
+}}
+"#
+    );
+    let out = run_datara(&source, "test_exec_utf8_cyrillic_non_ascii");
     assert!(out.contains("ПРИВЕТ_ДАТАРА"), "got: {}", out);
 }
 
@@ -133,7 +154,7 @@ use stdlib.result.result.Outcome
 
 fn main() {
     unsafe(justification: "test invalid command") {
-        let res = exec_utf8("this_command_should_never_exist_12345.exe")
+        let res = exec_utf8("this_command_should_never_exist_12345.xyz")
         if res.is_err() {
             println(fmt"err_caught:{res.err()}")
         } else {
@@ -148,24 +169,27 @@ fn main() {
 
 #[test]
 fn test_exec_utf8_with_question_operator() {
-    let source = r#"
+    let ok_cmd = echo_cmd("PROPAGATION_OK");
+    let source = format!(
+        r#"
 use stdlib.result.result.Outcome
 
-fn run_command(cmd: Str) -> Outcome<Str> {
-    unsafe(justification: "run command") {
+fn run_command(cmd: Str) -> Outcome<Str> {{
+    unsafe(justification: "run command") {{
         let text = exec_utf8(cmd)?
         return Outcome.ok(text)
-    }
-}
+    }}
+}}
 
-fn main() {
-    let ok = run_command("cmd /c echo PROPAGATION_OK")
-    println(fmt"ok:{ok.is_ok()}")
-    let bad = run_command("this_command_should_never_exist_98765.exe")
-    println(fmt"bad:{bad.is_err()}")
-}
-"#;
-    let out = run_datara(source, "test_exec_utf8_with_question_operator");
+fn main() {{
+    let ok = run_command("{ok_cmd}")
+    println(fmt"ok:{{ok.is_ok()}}")
+    let bad = run_command("this_command_should_never_exist_98765.xyz")
+    println(fmt"bad:{{bad.is_err()}}")
+}}
+"#
+    );
+    let out = run_datara(&source, "test_exec_utf8_with_question_operator");
     assert!(out.contains("ok:true"), "got: {}", out);
     assert!(out.contains("bad:true"), "got: {}", out);
 }
@@ -176,7 +200,7 @@ fn test_exec_utf8_requires_unsafe_or_cap_gate() {
 use stdlib.result.result.Outcome
 
 fn main() {
-    let res = exec_utf8("cmd /c echo fail")
+    let res = exec_utf8("echo fail")
 }
 "#;
     let compiler = ForgenCompiler::new("debug");

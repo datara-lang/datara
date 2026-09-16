@@ -2,7 +2,7 @@
 ; Compiles a standalone single-file Datara-v1.0.0-Setup.exe
 
 #define MyAppName "Datara"
-#define MyAppVersion "1.4.0"
+#define MyAppVersion "1.4.1"
 #define MyAppPublisher "Datara Language Project"
 #define MyAppURL "https://github.com/waters1ze/datara"
 #define MyAppExeName "forgen.exe"
@@ -47,6 +47,8 @@ Source: "..\target\release\datara-lsp.exe"; DestDir: "{app}\bin"; Flags: ignorev
 Source: "..\assets\datara.ico"; DestDir: "{app}\assets"; Flags: ignoreversion
 Source: "..\assets\datara-logo.png"; DestDir: "{app}\assets"; Flags: ignoreversion
 Source: "..\stdlib\*"; DestDir: "{app}\stdlib"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\runtime\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\src\runtime\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Registry]
 ; File Association
@@ -59,6 +61,7 @@ Root: HKCU; Subkey: "Software\Classes\DataraSourceFile\shell\open\command"; Valu
 ; Environment Variable PATH
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{app}\bin;{olddata}"; Tasks: envPath; Check: NeedsAddPath(ExpandConstant('{app}\bin'))
 Root: HKCU; Subkey: "Environment"; ValueType: string; ValueName: "DATARA_HOME"; ValueData: "{app}"; Flags: uninsdeletevalue; Tasks: envPath
+Root: HKCU; Subkey: "Environment"; ValueType: string; ValueName: "DATARA_STDLIB"; ValueData: "{app}\stdlib"; Flags: uninsdeletevalue; Tasks: envPath
 
 [Icons]
 Name: "{group}\Datara REPL"; Filename: "{app}\bin\forgen.exe"; Parameters: "repl"; IconFilename: "{app}\assets\datara.ico"

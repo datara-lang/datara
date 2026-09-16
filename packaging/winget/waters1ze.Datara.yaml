@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.6.0.schema.json
 PackageIdentifier: waters1ze.Datara
-PackageVersion: 1.4.0
+PackageVersion: 1.4.1
 DefaultLocale: en-US
 ManifestType: version
 ManifestVersion: 1.6.0
 ---
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 PackageIdentifier: waters1ze.Datara
-PackageVersion: 1.4.0
+PackageVersion: 1.4.1
 PackageLocale: en-US
 Publisher: Datara Language Project
 PublisherUrl: https://github.com/datara-lang/datara
@@ -31,7 +31,7 @@ ManifestVersion: 1.6.0
 ---
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
 PackageIdentifier: waters1ze.Datara
-PackageVersion: 1.4.0
+PackageVersion: 1.4.1
 Platform:
   - Windows.Desktop
 MinimumOSVersion: 10.0.17763.0
@@ -41,8 +41,8 @@ InstallModes:
   - silent
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/datara-lang/datara/releases/download/v1.4.0/Datara-v1.4.0-Setup.exe
-    InstallerSha256: 0eade6be273a6d1a5fa336ecd2d001a461b29a915a6b70bb32d23cc5e31a8e93
+    InstallerUrl: https://github.com/datara-lang/datara/releases/download/v1.4.1/Datara-v1.4.1-Setup.exe
+    InstallerSha256: 896913f4045d90711d604ae3e05820e732324524d0c4a91ded14a9b20904ccfb
     InstallerSwitches:
       Silent: /S
       SilentWithProgress: /SP

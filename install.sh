@@ -21,16 +21,17 @@ echo -e "${COLOR_CYAN}==========================================================
 INSTALL_DIR="${HOME}/.datara"
 BIN_DIR="${INSTALL_DIR}/bin"
 STDLIB_DIR="${INSTALL_DIR}/stdlib"
+RUNTIME_DIR="${INSTALL_DIR}/runtime"
 ASSETS_DIR="${INSTALL_DIR}/assets"
 
 echo -e "\n${COLOR_YELLOW}[1/5] Preparing installation directories...${COLOR_NC}"
-mkdir -p "${BIN_DIR}" "${STDLIB_DIR}" "${ASSETS_DIR}"
+mkdir -p "${BIN_DIR}" "${STDLIB_DIR}" "${RUNTIME_DIR}" "${ASSETS_DIR}"
 
 # 2. Dynamic Version Detection
 echo -e "${COLOR_YELLOW}[2/5] Resolving latest Datara version from GitHub...${COLOR_NC}"
 REPO="datara-lang/datara"
 API_URL="https://api.github.com/repos/${REPO}/releases/latest"
-LATEST_TAG="v1.4.0"
+LATEST_TAG="v1.4.1"
 DOWNLOAD_URL=""
 
 OS_TYPE="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -109,6 +110,20 @@ if [ "${INSTALLED}" -eq 0 ] && [ -n "${DOWNLOAD_URL}" ]; then
             chmod +x "${BIN_DIR}/forgen" "${BIN_DIR}/datara" "${BIN_DIR}/dpm"
             echo -e "${COLOR_GREEN}  -> Successfully installed downloaded ${LATEST_TAG} binaries.${COLOR_NC}"
             INSTALLED=1
+
+            # Extract stdlib if present in release archive
+            EXTRACTED_STDLIB="$(find "${TMP_PKG}" -name stdlib -type d | head -n1)"
+            if [ -n "${EXTRACTED_STDLIB}" ]; then
+                cp -r "${EXTRACTED_STDLIB}/"* "${STDLIB_DIR}/" 2>/dev/null || true
+                echo -e "${COLOR_GREEN}  -> Extracted standard library from downloaded release package.${COLOR_NC}"
+            fi
+
+            # Extract runtime if present in release archive
+            EXTRACTED_RUNTIME="$(find "${TMP_PKG}" -name runtime -type d | head -n1)"
+            if [ -n "${EXTRACTED_RUNTIME}" ]; then
+                cp -r "${EXTRACTED_RUNTIME}/"* "${RUNTIME_DIR}/" 2>/dev/null || true
+                echo -e "${COLOR_GREEN}  -> Extracted runtime library from downloaded release package.${COLOR_NC}"
+            fi
         fi
     fi
     rm -rf "${TMP_PKG}"
@@ -136,11 +151,20 @@ if [ "${INSTALLED}" -eq 0 ]; then
     exit 1
 fi
 
-# 4. Install Standard Library & Assets
-echo -e "${COLOR_YELLOW}[4/5] Installing standard library and icons...${COLOR_NC}"
+# 4. Install Standard Library, Runtime & Assets
+echo -e "${COLOR_YELLOW}[4/5] Installing standard library, runtime, and assets...${COLOR_NC}"
 if [ -n "${SCRIPT_DIR}" ] && [ -d "${SCRIPT_DIR}/stdlib" ]; then
     cp -r "${SCRIPT_DIR}/stdlib/"* "${STDLIB_DIR}/"
     echo -e "${COLOR_GREEN}  -> Installed stdlib to ${STDLIB_DIR}${COLOR_NC}"
+fi
+
+if [ -n "${SCRIPT_DIR}" ]; then
+    if [ -d "${SCRIPT_DIR}/runtime" ]; then
+        cp -r "${SCRIPT_DIR}/runtime/"* "${RUNTIME_DIR}/" 2>/dev/null || true
+    fi
+    if [ -d "${SCRIPT_DIR}/src/runtime" ]; then
+        cp -r "${SCRIPT_DIR}/src/runtime/"* "${RUNTIME_DIR}/" 2>/dev/null || true
+    fi
 fi
 
 mkdir -p "${ASSETS_DIR}"
@@ -177,7 +201,7 @@ if [ "$(uname -s)" = "Darwin" ]; then
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.4.0</string>
+    <string>1.4.1</string>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>
@@ -242,6 +266,7 @@ if [ -n "${PROFILE_FILE}" ]; then
         echo "" >> "${PROFILE_FILE}"
         echo '# Datara Environment' >> "${PROFILE_FILE}"
         echo 'export DATARA_HOME="$HOME/.datara"' >> "${PROFILE_FILE}"
+        echo 'export DATARA_STDLIB="$HOME/.datara/stdlib"' >> "${PROFILE_FILE}"
         echo 'export PATH="$HOME/.datara/bin:$PATH"' >> "${PROFILE_FILE}"
         echo -e "${COLOR_GREEN}  -> Added Datara to ${PROFILE_FILE}${COLOR_NC}"
     else

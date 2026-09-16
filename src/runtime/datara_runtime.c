@@ -4380,20 +4380,23 @@ void* datara_rt_exec_utf8(const char* cmd) {
     buf[len] = '\0';
     CloseHandle(read_end);
     WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD exit_code = 0;
+    GetExitCodeProcess(pi.hProcess, &exit_code);
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
 
-    // Console code page -> UTF-16 -> UTF-8. GetConsoleOutputCP returns 0
-    // when the process has no console (services, redirected hosts), in
-    // which case the OEM code page is the one cmd.exe wrote with.
-    UINT cp = GetConsoleOutputCP();
-    if (cp == 0) cp = GetOEMCP();
-    int wide_len = MultiByteToWideChar(cp, 0, buf, (int)len, NULL, 0);
+    if (exit_code != 0) {
+        free(buf);
+        return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: process exited with non-zero status");
+    }
+
+    // First try strict UTF-8 decoding: if the process output is already valid UTF-8,
+    // decode directly with CP_UTF8 without mangling.
+    UINT cp = CP_UTF8;
+    int wide_len = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, buf, (int)len, NULL, 0);
     if (wide_len <= 0) {
-        // Fall back to a strict UTF-8 read before declaring failure: output
-        // that already is UTF-8 decodes under CP_UTF8 regardless of the
-        // console code page.
-        cp = CP_UTF8;
+        cp = GetOEMCP();
+        if (cp == 0 || cp == CP_UTF8) cp = GetACP();
         wide_len = MultiByteToWideChar(cp, 0, buf, (int)len, NULL, 0);
         if (wide_len <= 0) {
             free(buf);
@@ -4466,7 +4469,11 @@ void* datara_rt_exec_utf8(const char* cmd) {
         len += got;
     }
     buf[len] = '\0';
-    pclose(pipe);
+    int status = pclose(pipe);
+    if (status != 0) {
+        free(buf);
+        return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: process exited with non-zero status");
+    }
     return datara_rt_outcome_build_raw(1, (int64_t)(uintptr_t)buf, "");
 }
 #endif

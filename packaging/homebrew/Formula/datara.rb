@@ -1,28 +1,29 @@
 class Datara < Formula
   desc "High-performance Post-OOP systems language & Forgen compiler"
   homepage "https://github.com/datara-lang/datara"
-  version "1.4.0"
+  version "1.4.1"
   license any_of: ["Apache-2.0", "MIT"]
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/datara-lang/datara/releases/download/v1.4.0/forgen-darwin-arm64.tar.gz"
-      sha256 "b492d116e1c1bef761363ce582913f53bef66b5abcb5268e3fcc6bc8f528b317"
+      url "https://github.com/datara-lang/datara/releases/download/v1.4.1/forgen-darwin-arm64.tar.gz"
+      sha256 "96d587f3f796dc6ac7fddb61d0e85bf09103640cecb23505218a425b5fad4e97"
     else
-      url "https://github.com/datara-lang/datara/releases/download/v1.4.0/forgen-darwin-x64.tar.gz"
-      sha256 "e38dab858c083a2faf5783840e170dd888c353383a21975fb4707005ec2eec7a"
+      url "https://github.com/datara-lang/datara/releases/download/v1.4.1/forgen-darwin-x64.tar.gz"
+      sha256 "9f54b96a56a6d98501a7c98c73cf23b6df55d4f0586bce0134d7a4a4f81c5e42"
     end
   end
 
   on_linux do
-    url "https://github.com/datara-lang/datara/releases/download/v1.4.0/forgen-linux-x64.tar.gz"
-    sha256 "9ed70d548e28c284198caf2a37fb80d4a608bd76e3bb0c3cd415e67fbd968be9"
+    url "https://github.com/datara-lang/datara/releases/download/v1.4.1/forgen-linux-x64.tar.gz"
+    sha256 "7a3940385388ad7868161f61a5cb6a1b412b66df07c24536b1da2886a807ace5"
   end
 
   def install
     bin.install "forgen"
     bin.install_symlink "forgen" => "datara"
     pkgshare.install Dir["stdlib/*"]
+    (lib/"datara").install Dir["runtime/*"] if Dir.exist?("runtime")
   end
 
   test do

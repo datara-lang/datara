@@ -123,7 +123,10 @@ jobs:
           mkdir -p dist/staging/runtime
           [ -f "src/runtime/datara_runtime.h" ] && cp src/runtime/datara_runtime.h dist/staging/runtime/ || true
           [ -f "src/runtime/datara_runtime.c" ] && cp src/runtime/datara_runtime.c dist/staging/runtime/ || true
-          cp scripts/install.sh dist/staging/install.sh
+          [ -f "runtime/libdatara_runtime.a" ] && cp runtime/libdatara_runtime.a dist/staging/runtime/ || true
+          rtLib="$(find "target/${{ matrix.target }}/release/build" -name "libdatara_runtime.a" 2>/dev/null | head -n1)"
+          [ -n "${rtLib}" ] && cp "${rtLib}" dist/staging/runtime/ || true
+          cp install.sh dist/staging/install.sh
           cp README.md LICENSE dist/staging/ || true
           cd dist/staging
           tar -czf "../${{ matrix.archive_name }}" *

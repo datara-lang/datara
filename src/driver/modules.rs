@@ -61,20 +61,32 @@ impl ForgenCompiler {
             candidates.push(exe_dir.join("stdlib"));
             if let Some(p1) = exe_dir.parent() {
                 candidates.push(p1.join("stdlib"));
+                candidates.push(p1.join("share").join("datara").join("stdlib"));
                 if let Some(p2) = p1.parent() {
                     candidates.push(p2.join("stdlib"));
+                    candidates.push(p2.join("share").join("datara").join("stdlib"));
                     if let Some(p3) = p2.parent() {
                         candidates.push(p3.join("stdlib"));
+                        candidates.push(p3.join("share").join("datara").join("stdlib"));
                     }
                 }
             }
         }
 
-        // 4. User profile or Unix standard share
+        // 4. User profile, AppData, and standard system paths (Linux, macOS, Unix)
         if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
             candidates.push(PathBuf::from(home).join(".datara").join("stdlib"));
         }
+        if let Ok(local_app) = std::env::var("LOCALAPPDATA") {
+            candidates.push(PathBuf::from(local_app).join("Programs").join("Datara").join("stdlib"));
+        }
+        if let Ok(pf) = std::env::var("ProgramFiles") {
+            candidates.push(PathBuf::from(pf).join("Datara").join("stdlib"));
+        }
+        candidates.push(PathBuf::from("/usr/share/datara/stdlib"));
         candidates.push(PathBuf::from("/usr/local/share/datara/stdlib"));
+        candidates.push(PathBuf::from("/opt/datara/stdlib"));
+        candidates.push(PathBuf::from("/opt/homebrew/share/datara/stdlib"));
 
         candidates.into_iter().find(|d| d.is_dir())
     }

@@ -1,163 +1,293 @@
 #!/usr/bin/env bash
-# =====================================================================
-# Datara & Forgen Official Universal Unix Installer (Linux & macOS)
-# =====================================================================
-set -e
+# Datara & Forgen Automated Universal Linux/macOS Installer
+# Run: curl -fsSL https://raw.githubusercontent.com/datara-lang/datara/main/install.sh | bash
 
-RESET="\033[0m"
-BOLD="\033[1m"
-CYAN="\033[36m"
-GREEN="\033[32m"
-YELLOW="\033[33m"
-RED="\033[31m"
+set -euo pipefail
 
-echo -e "${CYAN}${BOLD}"
-echo "======================================================================="
-echo "   ____        _                     "
-echo "  |  _ \  __ _| |_ __ _ _ __ __ _   "
-echo "  | | | |/ _\` | __/ _\` | '__/ _\` |   DATARA SYSTEMS LANGUAGE"
-echo "  | |_| | (_| | || (_| | | | (_| |   Forgen AOT Native Toolchain v1.0.0"
-echo "  |____/ \__,_|\__\__,_|_|  \__,_|   https://github.com/datara-lang/datara"
-echo "======================================================================="
-echo -e "${RESET}"
+COLOR_CYAN='\033[0;36m'
+COLOR_GREEN='\033[0;32m'
+COLOR_YELLOW='\033[1;33m'
+COLOR_GRAY='\033[0;90m'
+COLOR_NC='\033[0m'
 
-echo -e "-> Initializing Datara & Forgen Unix Installation..."
+echo -e "${COLOR_CYAN}================================================================================${COLOR_NC}"
+echo -e "${COLOR_CYAN}   ____        _                     ${COLOR_NC}"
+echo -e "${COLOR_CYAN}  |  _ \\  __ _| |_ __ _ _ __ __ _    Datara Systems Language${COLOR_NC}"
+echo -e "${COLOR_CYAN}  | | | |/ _\` | __/ _\` | '__/ _\` |   Forgen AOT Native Toolchain${COLOR_NC}"
+echo -e "${COLOR_CYAN}  | |_| | (_| | || (_| | | | (_| |   Universal Unix Installer${COLOR_NC}"
+echo -e "${COLOR_CYAN}  |____/ \\__,_|\\__\\__,_|_|  \\__,_|   https://github.com/datara-lang/datara${COLOR_NC}"
+echo -e "${COLOR_CYAN}================================================================================${COLOR_NC}"
 
 INSTALL_DIR="${HOME}/.datara"
 BIN_DIR="${INSTALL_DIR}/bin"
 STDLIB_DIR="${INSTALL_DIR}/stdlib"
 RUNTIME_DIR="${INSTALL_DIR}/runtime"
+ASSETS_DIR="${INSTALL_DIR}/assets"
 
-mkdir -p "${BIN_DIR}"
-mkdir -p "${STDLIB_DIR}"
-mkdir -p "${RUNTIME_DIR}"
+echo -e "\n${COLOR_YELLOW}[1/5] Preparing installation directories...${COLOR_NC}"
+mkdir -p "${BIN_DIR}" "${STDLIB_DIR}" "${RUNTIME_DIR}" "${ASSETS_DIR}"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." 2>/dev/null && pwd || echo "")"
+# 2. Dynamic Version Detection
+echo -e "${COLOR_YELLOW}[2/5] Resolving latest Datara version from GitHub...${COLOR_NC}"
+REPO="datara-lang/datara"
+API_URL="https://api.github.com/repos/${REPO}/releases/latest"
+LATEST_TAG="v1.4.1"
+DOWNLOAD_URL=""
 
 OS_TYPE="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH_TYPE="$(uname -m)"
+case "${ARCH_TYPE}" in
+    x86_64|amd64) TARGET_ARCH="x64" ;;
+    aarch64|arm64) TARGET_ARCH="aarch64" ;;
+    *) TARGET_ARCH="x64" ;;
+esac
 
-echo -e "  [DETECT] Operating System : ${BOLD}${OS_TYPE}${RESET}"
-echo -e "  [DETECT] Architecture     : ${BOLD}${ARCH_TYPE}${RESET}"
-
-# 1. Locate compiler binary
-SOURCE_BIN=""
-if [ -f "${REPO_ROOT}/target/release/forgen" ]; then
-    SOURCE_BIN="${REPO_ROOT}/target/release/forgen"
-elif [ -f "${SCRIPT_DIR}/forgen" ]; then
-    SOURCE_BIN="${SCRIPT_DIR}/forgen"
-elif [ -f "./forgen" ]; then
-    SOURCE_BIN="./forgen"
-fi
-
-if [ -n "${SOURCE_BIN}" ] && [ -f "${SOURCE_BIN}" ]; then
-    cp -f "${SOURCE_BIN}" "${BIN_DIR}/forgen"
-    chmod +x "${BIN_DIR}/forgen"
-    echo -e "  [OK] Installed compiler binary: ${GREEN}${BIN_DIR}/forgen${RESET}"
-else
-    echo -e "  [INFO] Local forgen binary not found. Compiling via cargo..."
-    if command -v cargo >/dev/null 2>&1; then
-        cargo build --release
-        cp -f "./target/release/forgen" "${BIN_DIR}/forgen"
-        chmod +x "${BIN_DIR}/forgen"
-        echo -e "  [OK] Compiled and installed: ${GREEN}${BIN_DIR}/forgen${RESET}"
-    else
-        echo -e "  ${RED}[ERROR] Neither pre-built forgen binary nor cargo was found.${RESET}"
-        echo -e "  Please download the official release tarball or install Rust: https://rustup.rs"
-        exit 1
+if command -v curl >/dev/null 2>&1; then
+    RELEASE_JSON="$(curl -sSL -H "User-Agent: Datara-Installer" --max-time 5 "${API_URL}" 2>/dev/null || echo "")"
+    if [ -n "${RELEASE_JSON}" ]; then
+        TAG_NAME="$(echo "${RELEASE_JSON}" | grep -o '"tag_name": *"[^"]*"' | head -n1 | cut -d'"' -f4 || echo "")"
+        if [ -n "${TAG_NAME}" ]; then
+            LATEST_TAG="${TAG_NAME}"
+            echo -e "${COLOR_GREEN}  -> Detected latest release: ${LATEST_TAG}${COLOR_NC}"
+            # Match release asset
+            ASSET_URL="$(echo "${RELEASE_JSON}" | grep -o '"browser_download_url": *"[^"]*"' | grep -i "${OS_TYPE}" | grep -i "${TARGET_ARCH}" | head -n1 | cut -d'"' -f4 || echo "")"
+            if [ -n "${ASSET_URL}" ]; then
+                DOWNLOAD_URL="${ASSET_URL}"
+            fi
+        fi
     fi
 fi
 
-# 2. Install Standard Library
-if [ -d "${REPO_ROOT}/stdlib" ]; then
-    cp -rf "${REPO_ROOT}/stdlib/"* "${STDLIB_DIR}/"
-    echo -e "  [OK] Installed Standard Library: ${GREEN}${STDLIB_DIR}${RESET}"
-elif [ -d "${SCRIPT_DIR}/stdlib" ]; then
-    cp -rf "${SCRIPT_DIR}/stdlib/"* "${STDLIB_DIR}/"
-    echo -e "  [OK] Installed Standard Library: ${GREEN}${STDLIB_DIR}${RESET}"
+if [ -z "${DOWNLOAD_URL}" ]; then
+    echo -e "${COLOR_GRAY}  -> Using release profile: ${LATEST_TAG}${COLOR_NC}"
 fi
 
-# 2b. Install the Native Runtime Library (required for linking)
-RUNTIME_LIB_NAME="libdatara_runtime.a"
-RUNTIME_SOURCE=""
-for candidate in     "${REPO_ROOT}/runtime/${RUNTIME_LIB_NAME}"     "${SCRIPT_DIR}/${RUNTIME_LIB_NAME}"     "$(find "${REPO_ROOT}/target" -name "${RUNTIME_LIB_NAME}" 2>/dev/null | head -n 1)"; do
-    if [ -n "$candidate" ] && [ -f "$candidate" ]; then
-        RUNTIME_SOURCE="$candidate"
-        break
+# 3. Obtain Binaries
+echo -e "${COLOR_YELLOW}[3/5] Installing compiler binaries and runtime...${COLOR_NC}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")"
+INSTALLED=0
+
+# 3a. Check local repo candidates
+if [ -n "${SCRIPT_DIR}" ]; then
+    CAND_DIR=""
+    if [ -f "${SCRIPT_DIR}/target/release/forgen" ]; then
+        CAND_DIR="${SCRIPT_DIR}/target/release"
+    elif [ -f "${SCRIPT_DIR}/forgen" ]; then
+        CAND_DIR="${SCRIPT_DIR}"
     fi
-done
 
-if [ -n "${RUNTIME_SOURCE}" ]; then
-    cp -f "${RUNTIME_SOURCE}" "${RUNTIME_DIR}/${RUNTIME_LIB_NAME}"
-    echo -e "  [OK] Installed Native Runtime: ${GREEN}${RUNTIME_DIR}/${RUNTIME_LIB_NAME}${RESET}"
-else
-    echo -e "  ${YELLOW}[WARN] ${RUNTIME_LIB_NAME} not found next to the installer.${RESET}"
-    echo -e "         Run 'cargo build --release' first; the runtime is compiled"
-    echo -e "         into target/ and copied here. Without it, linking fails."
-fi
-
-# 3. Configure Shell Environment
-PROFILE_FILES=()
-[ -f "${HOME}/.bashrc" ] && PROFILE_FILES+=("${HOME}/.bashrc")
-[ -f "${HOME}/.zshrc" ] && PROFILE_FILES+=("${HOME}/.zshrc")
-[ -f "${HOME}/.profile" ] && PROFILE_FILES+=("${HOME}/.profile")
-
-EXPORT_LINE="export PATH=\"\$HOME/.datara/bin:\$PATH\""
-HOME_LINE="export DATARA_HOME=\"\$HOME/.datara\""
-
-for p in "${PROFILE_FILES[@]}"; do
-    if ! grep -q ".datara/bin" "$p" 2>/dev/null; then
-        echo "" >> "$p"
-        echo "# Datara Toolchain" >> "$p"
-        echo "$EXPORT_LINE" >> "$p"
-        echo "$HOME_LINE" >> "$p"
-        echo -e "  [OK] Added PATH to ${GREEN}$p${RESET}"
-    else
-        echo -e "  [OK] PATH already configured in $p"
+    if [ -n "${CAND_DIR}" ]; then
+        for b in forgen datara dpm sparks datara-fmt datara-clippy datara-lsp; do
+            if [ -f "${CAND_DIR}/${b}" ]; then
+                cp "${CAND_DIR}/${b}" "${BIN_DIR}/${b}"
+                chmod +x "${BIN_DIR}/${b}"
+            elif [ "${b}" = "datara" ] || [ "${b}" = "dpm" ] || [ "${b}" = "sparks" ]; then
+                cp "${CAND_DIR}/forgen" "${BIN_DIR}/${b}"
+                chmod +x "${BIN_DIR}/${b}"
+            fi
+        done
+        echo -e "${COLOR_GREEN}  -> Copied toolchain binaries (forgen, datara, dpm, sparks, tools) from ${CAND_DIR}${COLOR_NC}"
+        INSTALLED=1
     fi
-done
-
-# 4. Check for system C compiler & Linker
-if command -v gcc >/dev/null 2>&1 || command -v clang >/dev/null 2>&1; then
-    echo -e "  [OK] Native C compiler detected."
-else
-    echo -e "  ${YELLOW}[INFO] C compiler (gcc / clang) not detected.${RESET}"
-    echo -e "         To link native executables, install build essentials:"
-    echo -e "           - Ubuntu/Debian : sudo apt install build-essential"
-    echo -e "           - Fedora/RHEL   : sudo dnf groupinstall \"Development Tools\""
-    echo -e "           - Arch Linux    : sudo pacman -S base-devel"
-    echo -e "           - Alpine Linux  : sudo apk add build-base"
-    echo -e "           - macOS         : xcode-select --install"
 fi
 
-# 5. Verification Test
-echo ""
-echo -e "${CYAN}-> Verifying Datara installation...${RESET}"
-if "${BIN_DIR}/forgen" --help >/dev/null 2>&1; then
-    echo -e "  [OK] Forgen CLI responds."
-else
-    echo -e "  ${RED}[ERROR] Installed forgen binary failed to run.${RESET}"
+# 3b. Download prebuilt release package
+if [ "${INSTALLED}" -eq 0 ] && [ -n "${DOWNLOAD_URL}" ]; then
+    echo -e "${COLOR_CYAN}  -> Downloading prebuilt package from GitHub Releases...${COLOR_NC}"
+    TMP_PKG="$(mktemp -d)"
+    if curl -sSL --max-time 60 "${DOWNLOAD_URL}" -o "${TMP_PKG}/datara.tar.gz" 2>/dev/null; then
+        tar -xzf "${TMP_PKG}/datara.tar.gz" -C "${TMP_PKG}" 2>/dev/null || true
+        EXTRACTED_BIN="$(find "${TMP_PKG}" -name forgen -type f | head -n1)"
+        if [ -n "${EXTRACTED_BIN}" ]; then
+            cp "${EXTRACTED_BIN}" "${BIN_DIR}/forgen"
+            cp "${EXTRACTED_BIN}" "${BIN_DIR}/datara"
+            EXTRACTED_DPM="$(find "${TMP_PKG}" -name dpm -type f | head -n1)"
+            if [ -n "${EXTRACTED_DPM}" ]; then
+                cp "${EXTRACTED_DPM}" "${BIN_DIR}/dpm"
+            else
+                cp "${EXTRACTED_BIN}" "${BIN_DIR}/dpm"
+            fi
+            chmod +x "${BIN_DIR}/forgen" "${BIN_DIR}/datara" "${BIN_DIR}/dpm"
+            echo -e "${COLOR_GREEN}  -> Successfully installed downloaded ${LATEST_TAG} binaries.${COLOR_NC}"
+            INSTALLED=1
+
+            # Extract stdlib if present in release archive
+            EXTRACTED_STDLIB="$(find "${TMP_PKG}" -name stdlib -type d | head -n1)"
+            if [ -n "${EXTRACTED_STDLIB}" ]; then
+                cp -r "${EXTRACTED_STDLIB}/"* "${STDLIB_DIR}/" 2>/dev/null || true
+                echo -e "${COLOR_GREEN}  -> Extracted standard library from downloaded release package.${COLOR_NC}"
+            fi
+
+            # Extract runtime if present in release archive
+            EXTRACTED_RUNTIME="$(find "${TMP_PKG}" -name runtime -type d | head -n1)"
+            if [ -n "${EXTRACTED_RUNTIME}" ]; then
+                cp -r "${EXTRACTED_RUNTIME}/"* "${RUNTIME_DIR}/" 2>/dev/null || true
+                echo -e "${COLOR_GREEN}  -> Extracted runtime library from downloaded release package.${COLOR_NC}"
+            fi
+        fi
+    fi
+    rm -rf "${TMP_PKG}"
+fi
+
+# 3c. Fallback to Cargo if available
+if [ "${INSTALLED}" -eq 0 ]; then
+    CARGO_BIN="$(command -v cargo || echo "${HOME}/.cargo/bin/cargo")"
+    if [ -x "${CARGO_BIN}" ] && [ -n "${SCRIPT_DIR}" ] && [ -f "${SCRIPT_DIR}/Cargo.toml" ]; then
+        echo -e "${COLOR_CYAN}  -> Compiling toolchain via Cargo in release mode...${COLOR_NC}"
+        (cd "${SCRIPT_DIR}" && "${CARGO_BIN}" build --release)
+        cp "${SCRIPT_DIR}/target/release/forgen" "${BIN_DIR}/forgen"
+        cp "${SCRIPT_DIR}/target/release/forgen" "${BIN_DIR}/datara"
+        if [ -f "${SCRIPT_DIR}/target/release/dpm" ]; then
+            cp "${SCRIPT_DIR}/target/release/dpm" "${BIN_DIR}/dpm"
+        fi
+        chmod +x "${BIN_DIR}/forgen" "${BIN_DIR}/datara" "${BIN_DIR}/dpm"
+        echo -e "${COLOR_GREEN}  -> Compilation finished and binaries installed.${COLOR_NC}"
+        INSTALLED=1
+    fi
+fi
+
+if [ "${INSTALLED}" -eq 0 ]; then
+    echo "Failed to find or build forgen binary. Please clone https://github.com/datara-lang/datara and run cargo build --release."
     exit 1
 fi
-if [ -f "${RUNTIME_DIR}/libdatara_runtime.a" ]; then
-    echo -e "  ${GREEN}${BOLD}[SUCCESS] Datara installation verified (CLI + native runtime).${RESET}"
-else
-    echo -e "  ${YELLOW}[WARN] Native runtime library missing: linking will fail until it is installed.${RESET}"
+
+# 4. Install Standard Library, Runtime & Assets
+echo -e "${COLOR_YELLOW}[4/5] Installing standard library, runtime, and assets...${COLOR_NC}"
+if [ -n "${SCRIPT_DIR}" ] && [ -d "${SCRIPT_DIR}/stdlib" ]; then
+    cp -r "${SCRIPT_DIR}/stdlib/"* "${STDLIB_DIR}/"
+    echo -e "${COLOR_GREEN}  -> Installed stdlib to ${STDLIB_DIR}${COLOR_NC}"
 fi
 
-echo -e "${CYAN}"
-echo "======================================================================="
-echo "   DATARA INSTALLATION COMPLETE!"
-echo "======================================================================="
-echo -e "${RESET}"
-echo "To activate Datara in your current shell session, run:"
-echo -e "  ${BOLD}export PATH=\"\$HOME/.datara/bin:\$PATH\"${RESET}"
-echo -e "  ${BOLD}export DATARA_HOME=\"\$HOME/.datara\"${RESET}"
-echo ""
-echo "Or restart your terminal window, then type:"
-echo -e "  ${GREEN}forgen --help${RESET}"
-echo ""
-echo "Create your first project:"
-echo -e "  ${GREEN}forgen new my_app && cd my_app && forgen run${RESET}"
-echo "======================================================================="
+if [ -n "${SCRIPT_DIR}" ]; then
+    if [ -d "${SCRIPT_DIR}/runtime" ]; then
+        cp -r "${SCRIPT_DIR}/runtime/"* "${RUNTIME_DIR}/" 2>/dev/null || true
+    fi
+    if [ -d "${SCRIPT_DIR}/src/runtime" ]; then
+        cp -r "${SCRIPT_DIR}/src/runtime/"* "${RUNTIME_DIR}/" 2>/dev/null || true
+    fi
+fi
+
+mkdir -p "${ASSETS_DIR}"
+if [ -n "${SCRIPT_DIR}" ] && [ -d "${SCRIPT_DIR}/assets" ]; then
+    cp -r "${SCRIPT_DIR}/assets/"* "${ASSETS_DIR}/"
+else
+    # Download essential assets from GitHub if running standalone via curl
+    curl -sSL "https://raw.githubusercontent.com/datara-lang/datara/main/assets/datara.xml" -o "${ASSETS_DIR}/datara.xml" 2>/dev/null || true
+    curl -sSL "https://raw.githubusercontent.com/datara-lang/datara/main/assets/icon.svg" -o "${ASSETS_DIR}/icon.svg" 2>/dev/null || true
+    curl -sSL "https://raw.githubusercontent.com/datara-lang/datara/main/assets/datara-logo.png" -o "${ASSETS_DIR}/datara-logo.png" 2>/dev/null || true
+    curl -sSL "https://raw.githubusercontent.com/datara-lang/datara/main/assets/datara.icns" -o "${ASSETS_DIR}/datara.icns" 2>/dev/null || true
+fi
+
+# Install Desktop Icons and File Associations
+if [ "$(uname -s)" = "Darwin" ]; then
+    APP_DIR="${HOME}/Applications/Datara.app"
+    mkdir -p "${APP_DIR}/Contents/Resources" "${APP_DIR}/Contents/MacOS"
+    if [ -f "${ASSETS_DIR}/datara.icns" ]; then
+        cp "${ASSETS_DIR}/datara.icns" "${APP_DIR}/Contents/Resources/datara.icns"
+    fi
+    cat > "${APP_DIR}/Contents/Info.plist" << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>datara</string>
+    <key>CFBundleIconFile</key>
+    <string>datara.icns</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.datara.launcher</string>
+    <key>CFBundleName</key>
+    <string>Datara</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.4.1</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>dtr</string>
+                <string>datara</string>
+            </array>
+            <key>CFBundleTypeIconFile</key>
+            <string>datara.icns</string>
+            <key>CFBundleTypeName</key>
+            <string>Datara Source File</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+        </dict>
+    </array>
+</dict>
+</plist>
+EOF
+    touch "${APP_DIR}"
+    echo -e "${COLOR_GREEN}  -> Configured Datara file icons for macOS Finder${COLOR_NC}"
+elif [ "$(uname -s)" = "Linux" ]; then
+    if [ "$(id -u)" -eq 0 ]; then
+        MIME_DIR="/usr/share/mime/packages"
+        ICON_BASE="/usr/share/icons/hicolor"
+    else
+        MIME_DIR="${HOME}/.local/share/mime/packages"
+        ICON_BASE="${HOME}/.local/share/icons/hicolor"
+    fi
+    mkdir -p "${MIME_DIR}" "${ICON_BASE}/scalable/mimetypes" "${ICON_BASE}/scalable/apps"
+    if [ -f "${ASSETS_DIR}/datara.xml" ]; then
+        cp "${ASSETS_DIR}/datara.xml" "${MIME_DIR}/datara.xml"
+    fi
+    if [ -f "${ASSETS_DIR}/icon.svg" ]; then
+        cp "${ASSETS_DIR}/icon.svg" "${ICON_BASE}/scalable/mimetypes/text-x-datara.svg"
+        cp "${ASSETS_DIR}/icon.svg" "${ICON_BASE}/scalable/apps/datara.svg"
+    fi
+    if command -v update-mime-database >/dev/null 2>&1; then
+        update-mime-database "$(dirname "${MIME_DIR}")" 2>/dev/null || true
+    fi
+    if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+        gtk-update-icon-cache -f -t "${ICON_BASE}" 2>/dev/null || true
+    fi
+    echo -e "${COLOR_GREEN}  -> Configured Datara MIME type and icons for Linux desktop${COLOR_NC}"
+fi
+
+# 5. Configure Shell Profile PATH
+echo -e "${COLOR_YELLOW}[5/5] Configuring environment PATH...${COLOR_NC}"
+PROFILE_FILE=""
+if [ -n "${ZSH_VERSION:-}" ] || [ -f "${HOME}/.zshrc" ]; then
+    PROFILE_FILE="${HOME}/.zshrc"
+elif [ -f "${HOME}/.bashrc" ]; then
+    PROFILE_FILE="${HOME}/.bashrc"
+elif [ -f "${HOME}/.profile" ]; then
+    PROFILE_FILE="${HOME}/.profile"
+fi
+
+if [ -n "${PROFILE_FILE}" ]; then
+    if ! grep -q "DATARA_HOME" "${PROFILE_FILE}" 2>/dev/null; then
+        echo "" >> "${PROFILE_FILE}"
+        echo '# Datara Environment' >> "${PROFILE_FILE}"
+        echo 'export DATARA_HOME="$HOME/.datara"' >> "${PROFILE_FILE}"
+        echo 'export DATARA_STDLIB="$HOME/.datara/stdlib"' >> "${PROFILE_FILE}"
+        echo 'export PATH="$HOME/.datara/bin:$PATH"' >> "${PROFILE_FILE}"
+        echo -e "${COLOR_GREEN}  -> Added Datara to ${PROFILE_FILE}${COLOR_NC}"
+    else
+        echo -e "${COLOR_GRAY}  -> Datara already configured in ${PROFILE_FILE}${COLOR_NC}"
+    fi
+fi
+
+export PATH="${BIN_DIR}:${PATH}"
+export DATARA_HOME="${INSTALL_DIR}"
+
+echo -e "\n${COLOR_GREEN}================================================================================${COLOR_NC}"
+echo -e "${COLOR_GREEN} Verification & Environment Check:${COLOR_NC}"
+echo -e "${COLOR_GREEN}================================================================================${COLOR_NC}"
+if [ -x "${BIN_DIR}/forgen" ]; then
+    "${BIN_DIR}/forgen" --version || true
+fi
+echo -e "DATARA_HOME: ${INSTALL_DIR}"
+echo -e "\n${COLOR_CYAN}[OK] Datara & Forgen installed successfully!${COLOR_NC}"
+echo -e "To start using it immediately, run:"
+if [ -n "${PROFILE_FILE}" ]; then
+    echo -e "  source ${PROFILE_FILE}"
+fi
+echo -e "  forgen repl"
+echo -e "  forgen run main.dtr\n"

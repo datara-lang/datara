@@ -92,9 +92,33 @@ pub fn runtime_lib_path() -> PathBuf {
         {
             return p;
         }
+        if let Some(parent) = exe_dir.parent() {
+            let in_parent_lib = parent.join("lib").join("datara").join(lib_name);
+            if in_parent_lib.exists() {
+                return in_parent_lib;
+            }
+            let in_parent_lib64 = parent.join("lib64").join("datara").join(lib_name);
+            if in_parent_lib64.exists() {
+                return in_parent_lib64;
+            }
+            let in_parent_share = parent.join("share").join("datara").join("runtime").join(lib_name);
+            if in_parent_share.exists() {
+                return in_parent_share;
+            }
+        }
     }
 
-    // 3. Check DATARA_HOME environment variable
+    // 3. Check environment variables
+    if let Ok(rt_env) = std::env::var("DATARA_RUNTIME") {
+        let p = PathBuf::from(rt_env);
+        if p.is_file() {
+            return p;
+        }
+        let in_dir = p.join(lib_name);
+        if in_dir.exists() {
+            return in_dir;
+        }
+    }
     if let Ok(home) = std::env::var("DATARA_HOME") {
         let in_home_runtime = std::path::Path::new(&home).join("runtime").join(lib_name);
         if in_home_runtime.exists() {
@@ -106,7 +130,46 @@ pub fn runtime_lib_path() -> PathBuf {
         }
     }
 
-    // 4. Fall back to baked path
+    // 4. User profile, AppData, and ProgramFiles paths
+    if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
+        let in_user_datara = PathBuf::from(&home).join(".datara").join("runtime").join(lib_name);
+        if in_user_datara.exists() {
+            return in_user_datara;
+        }
+        let in_user_root = PathBuf::from(home).join(".datara").join(lib_name);
+        if in_user_root.exists() {
+            return in_user_root;
+        }
+    }
+    if let Ok(local_app) = std::env::var("LOCALAPPDATA") {
+        let in_local = PathBuf::from(local_app).join("Programs").join("Datara").join("runtime").join(lib_name);
+        if in_local.exists() {
+            return in_local;
+        }
+    }
+    if let Ok(pf) = std::env::var("ProgramFiles") {
+        let in_pf = PathBuf::from(pf).join("Datara").join("runtime").join(lib_name);
+        if in_pf.exists() {
+            return in_pf;
+        }
+    }
+
+    // 5. System standard paths (Linux, macOS, Unix packages)
+    let sys_candidates = [
+        PathBuf::from("/usr/lib/datara").join(lib_name),
+        PathBuf::from("/usr/lib64/datara").join(lib_name),
+        PathBuf::from("/usr/local/lib/datara").join(lib_name),
+        PathBuf::from("/usr/share/datara/runtime").join(lib_name),
+        PathBuf::from("/opt/homebrew/lib/datara").join(lib_name),
+        PathBuf::from("/opt/datara/runtime").join(lib_name),
+    ];
+    for sc in sys_candidates {
+        if sc.exists() {
+            return sc;
+        }
+    }
+
+    // 6. Fall back to baked path
     baked
 }
 
@@ -146,9 +209,15 @@ pub fn runtime_source_path() -> Option<PathBuf> {
             }
         }
         if let Some(parent) = exe_dir.parent() {
-            let p_cand = parent.join("runtime").join("datara_runtime.c");
-            if p_cand.exists() {
-                return Some(p_cand);
+            let p_cands = [
+                parent.join("runtime").join("datara_runtime.c"),
+                parent.join("src").join("runtime").join("datara_runtime.c"),
+                parent.join("share").join("datara").join("runtime").join("datara_runtime.c"),
+            ];
+            for p in p_cands {
+                if p.exists() {
+                    return Some(p);
+                }
             }
         }
     }
@@ -171,7 +240,36 @@ pub fn runtime_source_path() -> Option<PathBuf> {
         }
     }
 
-    // 4. Current working directory fallback
+    // 4. User profile, AppData, and System paths
+    if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
+        let u_cands = [
+            PathBuf::from(&home).join(".datara").join("runtime").join("datara_runtime.c"),
+            PathBuf::from(&home).join(".datara").join("src").join("runtime").join("datara_runtime.c"),
+        ];
+        for u in u_cands {
+            if u.exists() {
+                return Some(u);
+            }
+        }
+    }
+    if let Ok(local_app) = std::env::var("LOCALAPPDATA") {
+        let l_cand = PathBuf::from(local_app).join("Programs").join("Datara").join("runtime").join("datara_runtime.c");
+        if l_cand.exists() {
+            return Some(l_cand);
+        }
+    }
+    let sys_candidates = [
+        PathBuf::from("/usr/share/datara/runtime/datara_runtime.c"),
+        PathBuf::from("/usr/local/share/datara/runtime/datara_runtime.c"),
+        PathBuf::from("/opt/datara/runtime/datara_runtime.c"),
+    ];
+    for sc in sys_candidates {
+        if sc.exists() {
+            return Some(sc);
+        }
+    }
+
+    // 5. Current working directory fallback
     let cwd_rel = PathBuf::from("src/runtime/datara_runtime.c");
     if cwd_rel.exists() {
         return Some(cwd_rel);
