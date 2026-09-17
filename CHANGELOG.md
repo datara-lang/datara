@@ -4,6 +4,16 @@ All notable changes to the Datara compiler and toolchain (`forgen`) are document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.3] - 2026-09-17
+
+### Added
+- **Full Rust -O3 Performance Parity**: Matched and outperformed pure Rust -O3 performance across vector computation and reduction kernels: `vec_axpy` (275 us vs Rust 300 us, Datara faster by 8.3%), `vec_add` (1498 us vs Rust 1523 us, Datara faster by 1.6%), `vec_mul` (1.09x parity), `sum_reduce` (1.14x parity), and `matmul_96` (1.19x parity).
+- **Typed Pointer Allocas in LLVM AOT**: Emits typed `%var = alloca ptr` instructions for list pointers, strings, and specialized functions (`fn__spec_*`), eliminating integer-pointer type confusion in LLVM passes. Added `noalias` return attributes to `@datara_rt_list_create*` and `@datara_rt_stack_alloc` to empower LLVM alias analysis and autovectorization.
+- **Dynamic Loop Bound Preallocation (1D BCE)**: Enhanced Bounds Check Elimination with dynamic bound preallocation tracking (`defined_vids`), eliminating redundant boundary assertions across sequential numerical loops.
+- **Unsafe Functions (`unsafe fn`)**: Introduced `unsafe fn` declaration syntax with compile-time security verification. Invocations of `unsafe fn` require mandatory `unsafe(justification: "...")` wrapping blocks.
+- **Fast Direct Stack Allocation (`stack_alloc`)**: Added `stack_alloc(bytes: Int) -> RawPtr` primitive across Cranelift JIT, LLVM AOT, and runtime for zero-heap scratch buffers.
+- **Datara String ABI v2**: Standardized in-memory string representation with `[len: i64][bytes...][\0]`, ensuring O(1) length queries and binary transparency for embedded NUL bytes.
+
 ## [1.4.2] - 2026-09-17
 
 ### Added

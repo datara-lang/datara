@@ -64,13 +64,7 @@ impl LintDiagnostic {
                 LintSeverity::Warning => "\x1b[1;33m",
                 LintSeverity::Info => "\x1b[1;36m",
             };
-            (
-                s_col,
-                "\x1b[1;34m",
-                "\x1b[1;36m",
-                "\x1b[0m",
-                "\x1b[1m",
-            )
+            (s_col, "\x1b[1;34m", "\x1b[1;36m", "\x1b[0m", "\x1b[1m")
         } else {
             ("", "", "", "", "")
         };

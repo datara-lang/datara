@@ -1,4 +1,5 @@
 pub(crate) mod bce;
+pub(crate) mod bce_helpers;
 pub(crate) mod engine_v2;
 pub(crate) mod fold;
 pub mod ovf_elide;

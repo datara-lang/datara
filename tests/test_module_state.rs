@@ -52,31 +52,36 @@ fn main() {
         .expect("Failed to run forgen run --jit");
     let stdout_jit = String::from_utf8_lossy(&output_jit.stdout);
     println!("JIT STDOUT:\n{}", stdout_jit);
-    println!("JIT STDERR:\n{}", String::from_utf8_lossy(&output_jit.stderr));
+    println!(
+        "JIT STDERR:\n{}",
+        String::from_utf8_lossy(&output_jit.stderr)
+    );
     assert!(
         stdout_jit.contains("INITIALIZED_EXPENSIVE_BIN"),
         "JIT output missing cached result: {}",
         stdout_jit
     );
 
-    // Run with LLVM backend
-    let output_llvm = Command::new(forgen_exe)
-        .arg("run")
-        .arg("--llvm")
-        .arg(&test_file)
-        .output()
-        .expect("Failed to run forgen run --llvm");
-    let stdout_llvm = String::from_utf8_lossy(&output_llvm.stdout);
-    assert!(
-        stdout_llvm.contains("INITIALIZED_EXPENSIVE_BIN"),
-        "LLVM output missing cached result: {}",
-        stdout_llvm
-    );
-    assert!(
-        stdout_llvm.contains("100"),
-        "LLVM output missing MAX_LIMIT: {}",
-        stdout_llvm
-    );
+    // Run with LLVM backend if clang is present
+    if forgen::codegen::linker::find_clang().is_some() {
+        let output_llvm = Command::new(forgen_exe)
+            .arg("run")
+            .arg("--llvm")
+            .arg(&test_file)
+            .output()
+            .expect("Failed to run forgen run --llvm");
+        let stdout_llvm = String::from_utf8_lossy(&output_llvm.stdout);
+        assert!(
+            stdout_llvm.contains("INITIALIZED_EXPENSIVE_BIN"),
+            "LLVM output missing cached result: {}",
+            stdout_llvm
+        );
+        assert!(
+            stdout_llvm.contains("100"),
+            "LLVM output missing MAX_LIMIT: {}",
+            stdout_llvm
+        );
+    }
 }
 
 #[test]
@@ -96,7 +101,9 @@ fn main() {
 }
 "#;
     let jit_compiler = forgen::driver::ForgenCompiler::new("quick").with_llvm(false);
-    let (stdout, _, _, _) = jit_compiler.run_source(source, "counter.dtr", &[], true).unwrap();
+    let (stdout, _, _, _) = jit_compiler
+        .run_source(source, "counter.dtr", &[], true)
+        .unwrap();
     assert_eq!(stdout.replace("\r", ""), "0\n1\n1\n");
 }
 
@@ -133,5 +140,3 @@ fn main() {
         println!("RELEASE JIT STDERR:\n{}", stderr);
     }
 }
-
-

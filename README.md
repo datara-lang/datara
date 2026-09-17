@@ -210,10 +210,10 @@ Datara is distributed through verified official packages, container images, and 
 Official native system packages built directly in CI for Debian/Ubuntu and Fedora/RHEL:
 ```bash
 # Debian / Ubuntu / Pop!_OS / Linux Mint (download from GitHub Releases):
-sudo dpkg -i datara_1.4.1_amd64.deb
+sudo dpkg -i datara_1.4.3_amd64.deb
 
 # Fedora / RHEL / CentOS / openSUSE:
-sudo rpm -ivh datara-1.4.1-1.x86_64.rpm
+sudo rpm -ivh datara-1.4.3-1.x86_64.rpm
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/windows.svg" height="20" valign="middle" alt="Windows" /> Windows: Standalone GUI Setup, WinGet & Scoop
@@ -239,7 +239,7 @@ cargo install --git https://github.com/datara-lang/datara.git forgen
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/vscode.svg" height="20" valign="middle" alt="VS Code" /> VS Code & Cursor Extension (.vsix)
 Install syntax highlighting, type hover, and icon themes directly from the release bundle:
 ```bash
-code --install-extension datara-language-1.4.1.vsix
+code --install-extension datara-language-1.4.3.vsix
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/python.svg" height="20" valign="middle" alt="Python" /> Python Wheel (`pip install`)
@@ -290,8 +290,8 @@ sudo apt install ./datara_amd64.deb
 #### Fedora / RHEL / openSUSE (.rpm native package)
 
 ```bash
-wget https://github.com/datara-lang/datara/releases/latest/download/datara-1.4.1-1.x86_64.rpm
-sudo dnf install ./datara-1.4.1-1.x86_64.rpm
+wget https://github.com/datara-lang/datara/releases/latest/download/datara-1.4.3-1.x86_64.rpm
+sudo dnf install ./datara-1.4.3-1.x86_64.rpm
 ```
 
 ---
@@ -2066,7 +2066,7 @@ forgen repl
 ```
 ```datara
 ================================================================================
- Datara Interactive REPL (Zero-Latency In-Process JIT Console v1.4.1)
+ Datara Interactive REPL (Zero-Latency In-Process JIT Console v1.4.3)
  Type ':help' for commands, ':exit' or Ctrl+C to quit.
 ================================================================================
 >> let x = 10

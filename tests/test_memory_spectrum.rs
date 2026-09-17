@@ -80,7 +80,10 @@ fn main() {
         .arg(&test_file)
         .status()
         .expect("Failed to run forgen check");
-    assert!(status.success(), "forgen check failed for 4-tier memory spectrum");
+    assert!(
+        status.success(),
+        "forgen check failed for 4-tier memory spectrum"
+    );
 
     // Run with Cranelift JIT
     let output_jit = Command::new(forgen_exe)
@@ -113,32 +116,34 @@ fn main() {
         stdout_jit
     );
 
-    // Run with LLVM backend
-    let output_llvm = Command::new(forgen_exe)
-        .arg("run")
-        .arg("--llvm")
-        .arg(&test_file)
-        .output()
-        .expect("Failed to run forgen run --llvm");
-    let stdout_llvm = String::from_utf8_lossy(&output_llvm.stdout);
-    assert!(
-        stdout_llvm.contains("Tier 1 Affine: 7.5"),
-        "LLVM output missing Tier 1: {}",
-        stdout_llvm
-    );
-    assert!(
-        stdout_llvm.contains("Tier 2 Arena Diff: 64"),
-        "LLVM output missing Tier 2: {}",
-        stdout_llvm
-    );
-    assert!(
-        stdout_llvm.contains("Tier 3 Raw Ptr: 397"),
-        "LLVM output missing Tier 3: {}",
-        stdout_llvm
-    );
-    assert!(
-        stdout_llvm.contains("Tier 4 Hardware: 999"),
-        "LLVM output missing Tier 4: {}",
-        stdout_llvm
-    );
+    // Run with LLVM backend if clang is present
+    if forgen::codegen::linker::find_clang().is_some() {
+        let output_llvm = Command::new(forgen_exe)
+            .arg("run")
+            .arg("--llvm")
+            .arg(&test_file)
+            .output()
+            .expect("Failed to run forgen run --llvm");
+        let stdout_llvm = String::from_utf8_lossy(&output_llvm.stdout);
+        assert!(
+            stdout_llvm.contains("Tier 1 Affine: 7.5"),
+            "LLVM output missing Tier 1: {}",
+            stdout_llvm
+        );
+        assert!(
+            stdout_llvm.contains("Tier 2 Arena Diff: 64"),
+            "LLVM output missing Tier 2: {}",
+            stdout_llvm
+        );
+        assert!(
+            stdout_llvm.contains("Tier 3 Raw Ptr: 397"),
+            "LLVM output missing Tier 3: {}",
+            stdout_llvm
+        );
+        assert!(
+            stdout_llvm.contains("Tier 4 Hardware: 999"),
+            "LLVM output missing Tier 4: {}",
+            stdout_llvm
+        );
+    }
 }

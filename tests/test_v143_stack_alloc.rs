@@ -14,7 +14,11 @@ fn main() {
 }
 "#;
     let res = compiler.compile_source(code, "v143_stack_alloc.dtr", None);
-    assert!(res.success, "Compilation failed: {:?}\n{}", res.error, res.diagnostics);
+    assert!(
+        res.success,
+        "Compilation failed: {:?}\n{}",
+        res.error, res.diagnostics
+    );
     let (stdout, _, code_res, _) = compiler
         .codegen
         .run_executable(&res.exe_path.unwrap(), &[])

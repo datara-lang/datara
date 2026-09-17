@@ -1,4 +1,4 @@
-use cranelift_codegen::ir::{types as clif_types, AbiParam, Signature};
+use cranelift_codegen::ir::{AbiParam, Signature, types as clif_types};
 use cranelift_codegen::isa::CallConv;
 use cranelift_module::{FuncId, Linkage, Module as ClifModule};
 use std::collections::HashMap;
@@ -34,11 +34,23 @@ pub fn declare_runtime_memory<M: ClifModule>(
     {
         let mut sig = Signature::new(call_conv);
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_rt_arena_used", Some("arena_used"), sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_rt_arena_used",
+            Some("arena_used"),
+            sig,
+        )?;
     }
     {
         let sig = Signature::new(call_conv);
-        reg_fn(module, func_ids, "datara_rt_arena_clear", Some("arena_clear"), sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_rt_arena_clear",
+            Some("arena_clear"),
+            sig,
+        )?;
     }
 
     // Tier 3: Raw Heap allocation and Pointer operations
@@ -46,19 +58,37 @@ pub fn declare_runtime_memory<M: ClifModule>(
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_rt_mem_alloc", Some("mem_alloc"), sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_rt_mem_alloc",
+            Some("mem_alloc"),
+            sig,
+        )?;
     }
     {
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_rt_mem_free", Some("mem_free"), sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_rt_mem_free",
+            Some("mem_free"),
+            sig,
+        )?;
     }
     {
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_rt_mem_copy", Some("mem_copy"), sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_rt_mem_copy",
+            Some("mem_copy"),
+            sig,
+        )?;
     }
 
     // ptr_read_i64: (i64, i64) -> i64
@@ -67,7 +97,13 @@ pub fn declare_runtime_memory<M: ClifModule>(
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_rt_ptr_read_i64", Some("ptr_read_i64"), sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_rt_ptr_read_i64",
+            Some("ptr_read_i64"),
+            sig,
+        )?;
     }
     // ptr_write_i64: (i64, i64, i64) -> ()
     {
@@ -75,7 +111,13 @@ pub fn declare_runtime_memory<M: ClifModule>(
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_rt_ptr_write_i64", Some("ptr_write_i64"), sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_rt_ptr_write_i64",
+            Some("ptr_write_i64"),
+            sig,
+        )?;
     }
 
     // ptr_read_u8: (i64, i64) -> i64
@@ -84,7 +126,13 @@ pub fn declare_runtime_memory<M: ClifModule>(
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_rt_ptr_read_u8", Some("ptr_read_u8"), sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_rt_ptr_read_u8",
+            Some("ptr_read_u8"),
+            sig,
+        )?;
     }
     // ptr_write_u8: (i64, i64, i64) -> ()
     {
@@ -92,7 +140,13 @@ pub fn declare_runtime_memory<M: ClifModule>(
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_rt_ptr_write_u8", Some("ptr_write_u8"), sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_rt_ptr_write_u8",
+            Some("ptr_write_u8"),
+            sig,
+        )?;
     }
 
     // ptr_read_f64: (i64, i64) -> f64
@@ -101,7 +155,13 @@ pub fn declare_runtime_memory<M: ClifModule>(
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::F64));
-        reg_fn(module, func_ids, "datara_rt_ptr_read_f64", Some("ptr_read_f64"), sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_rt_ptr_read_f64",
+            Some("ptr_read_f64"),
+            sig,
+        )?;
     }
     // ptr_write_f64: (i64, i64, f64) -> ()
     {
@@ -109,18 +169,36 @@ pub fn declare_runtime_memory<M: ClifModule>(
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::F64));
-        reg_fn(module, func_ids, "datara_rt_ptr_write_f64", Some("ptr_write_f64"), sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_rt_ptr_write_f64",
+            Some("ptr_write_f64"),
+            sig,
+        )?;
     }
 
     // Tier 4: Hardware CPU fences and cache prefetch
     {
         let sig = Signature::new(call_conv);
-        reg_fn(module, func_ids, "datara_rt_cpu_fence", Some("cpu_fence"), sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_rt_cpu_fence",
+            Some("cpu_fence"),
+            sig,
+        )?;
     }
     {
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_rt_cpu_prefetch", Some("cpu_prefetch"), sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_rt_cpu_prefetch",
+            Some("cpu_prefetch"),
+            sig,
+        )?;
     }
 
     // Module-level global state

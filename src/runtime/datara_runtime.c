@@ -128,7 +128,7 @@ const char* datara_rt_float_to_str(double v) {
 }
 
 void datara_rt_out_str(const char* s) {
-    datara_rt_print_str(s != NULL ? s : "None");
+    datara_rt_print_str(s != NULL ? s : NONE_DATARA_STR);
     datara_rt_print_newline();
 }
 

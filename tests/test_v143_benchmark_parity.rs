@@ -4,7 +4,7 @@ use std::process::Command;
 fn test_v143_benchmarks_executable() {
     let benchmarks = ["matmul_96", "vec_add", "sum_reduce", "vec_axpy", "vec_mul"];
     for name in &benchmarks {
-        let exe_path = format!("benchmarks/{}.exe", name);
+        let exe_path = format!("benchmarks/{}{}", name, std::env::consts::EXE_SUFFIX);
         if std::path::Path::new(&exe_path).exists() {
             let output = Command::new(&exe_path)
                 .output()

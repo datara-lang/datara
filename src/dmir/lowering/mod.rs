@@ -160,13 +160,26 @@ impl<'a> Lowering<'a> {
         for f in &["join", "str_join", "datara_rt_str_join"] {
             function_return_types.insert((*f).into(), "String".into());
         }
-        for f in &["substring", "substr", "str_substring", "str_substr", "datara_rt_str_substring"] {
+        for f in &[
+            "substring",
+            "substr",
+            "str_substring",
+            "str_substr",
+            "datara_rt_str_substring",
+        ] {
             function_return_types.insert((*f).into(), "String".into());
         }
         for f in &["repeat", "str_repeat", "datara_rt_str_repeat"] {
             function_return_types.insert((*f).into(), "String".into());
         }
-        for f in &["pad_left", "str_pad_left", "datara_rt_str_pad_left", "pad_right", "str_pad_right", "datara_rt_str_pad_right"] {
+        for f in &[
+            "pad_left",
+            "str_pad_left",
+            "datara_rt_str_pad_left",
+            "pad_right",
+            "str_pad_right",
+            "datara_rt_str_pad_right",
+        ] {
             function_return_types.insert((*f).into(), "String".into());
         }
         for f in &["replace", "str_replace", "datara_rt_str_replace"] {
@@ -650,7 +663,8 @@ impl<'a> Lowering<'a> {
                 } else {
                     "Int".to_string()
                 };
-                self.global_vars.insert(g.name.clone(), (ty_str.clone(), g.is_mut));
+                self.global_vars
+                    .insert(g.name.clone(), (ty_str.clone(), g.is_mut));
                 self.program_globals.push(g.clone());
                 module.globals.insert(g.name.clone(), (ty_str, g.is_mut));
             }

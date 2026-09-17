@@ -455,10 +455,7 @@ pub fn compile_method_call<M: ClifModule>(
     Ok(())
 }
 
-/// Lower a call to an imported C function that returns a by-value struct
-/// through the hidden sret return-slot ABI.
-///
-
+/// Map a type name string to its runtime element kind integer.
 fn list_elem_kind_from_ty(ty: &str) -> i64 {
     if ty.contains("Float") {
         1

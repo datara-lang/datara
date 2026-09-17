@@ -546,8 +546,12 @@ pub fn compile_call<M: ClifModule>(
                         .keys()
                         .filter(|k| {
                             k.split_once('_').map(|(_, m)| m == func).unwrap_or(false)
-                                || k.strip_prefix("datara_rt_").map(|m| m == func).unwrap_or(false)
-                                || k.strip_prefix("datara_").map(|m| m == func).unwrap_or(false)
+                                || k.strip_prefix("datara_rt_")
+                                    .map(|m| m == func)
+                                    .unwrap_or(false)
+                                || k.strip_prefix("datara_")
+                                    .map(|m| m == func)
+                                    .unwrap_or(false)
                                 || k.strip_prefix("rt_").map(|m| m == func).unwrap_or(false)
                         })
                         .collect();

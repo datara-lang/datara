@@ -2,7 +2,7 @@
 ; Compiles a standalone single-file Datara-v1.0.0-Setup.exe
 
 #define MyAppName "Datara"
-#define MyAppVersion "1.4.1"
+#define MyAppVersion "1.4.3"
 #define MyAppPublisher "Datara Language Project"
 #define MyAppURL "https://github.com/waters1ze/datara"
 #define MyAppExeName "forgen.exe"

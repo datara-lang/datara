@@ -21,7 +21,21 @@ impl<'a> TypeChecker<'a> {
                     let first_seg = u.path.first().map(|s| s.as_str());
                     if matches!(
                         first_seg,
-                        Some("python" | "rust" | "c" | "cpp" | "cxx" | "npm" | "js" | "ts" | "zig" | "csharp" | "cs" | "dotnet" | "lua")
+                        Some(
+                            "python"
+                                | "rust"
+                                | "c"
+                                | "cpp"
+                                | "cxx"
+                                | "npm"
+                                | "js"
+                                | "ts"
+                                | "zig"
+                                | "csharp"
+                                | "cs"
+                                | "dotnet"
+                                | "lua"
+                        )
                     ) {
                         let alias = u
                             .alias
@@ -267,7 +281,8 @@ impl<'a> TypeChecker<'a> {
                 let init_ty = self.check_expr(&g.init, diag);
                 if let Some(tn) = &g.type_node {
                     let expected = self.resolve_type_node(tn, diag);
-                    if !init_ty.is_compatible_with_refined_with_args(&expected, Some(self.resolver)) {
+                    if !init_ty.is_compatible_with_refined_with_args(&expected, Some(self.resolver))
+                    {
                         diag.error(
                             ErrorCode::TypeMismatch,
                             format!(

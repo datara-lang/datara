@@ -561,7 +561,21 @@ impl Resolver {
                     let first_seg = u.path.first().map(|s| s.as_str());
                     if matches!(
                         first_seg,
-                        Some("python" | "rust" | "c" | "cpp" | "cxx" | "npm" | "js" | "ts" | "zig" | "csharp" | "cs" | "dotnet" | "lua")
+                        Some(
+                            "python"
+                                | "rust"
+                                | "c"
+                                | "cpp"
+                                | "cxx"
+                                | "npm"
+                                | "js"
+                                | "ts"
+                                | "zig"
+                                | "csharp"
+                                | "cs"
+                                | "dotnet"
+                                | "lua"
+                        )
                     ) {
                         let alias = u
                             .alias

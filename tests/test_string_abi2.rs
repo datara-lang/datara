@@ -1,4 +1,4 @@
-﻿//! Integration tests for Datara String ABI v2 ([len: i64][bytes...][\0]).
+//! Integration tests for Datara String ABI v2 ([len: i64][bytes...][\0]).
 //!
 //! Validates binary transparency (embedded NUL bytes '\0' preserved),
 //! O(1) instantaneous length, lossless binary file I/O, lexicographical
@@ -9,14 +9,12 @@ use forgen::driver::ForgenCompiler;
 static MSVC_ENV: std::sync::Once = std::sync::Once::new();
 
 fn ensure_msvc_env() {
-    MSVC_ENV.call_once(|| {
-        unsafe {
-            if std::env::var_os("ProgramFiles(x86)").is_none() {
-                std::env::set_var("ProgramFiles(x86)", r"C:\Program Files (x86)");
-            }
-            if std::env::var_os("ProgramFiles").is_none() {
-                std::env::set_var("ProgramFiles", r"C:\Program Files");
-            }
+    MSVC_ENV.call_once(|| unsafe {
+        if std::env::var_os("ProgramFiles(x86)").is_none() {
+            std::env::set_var("ProgramFiles(x86)", r"C:\Program Files (x86)");
+        }
+        if std::env::var_os("ProgramFiles").is_none() {
+            std::env::set_var("ProgramFiles", r"C:\Program Files");
         }
     });
 }

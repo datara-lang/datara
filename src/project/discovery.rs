@@ -82,11 +82,12 @@ impl ProjectDiscovery {
                     .parent()
                     .unwrap_or_else(|| Path::new("."))
                     .to_path_buf();
-                let (root, manifest) = if let Some((m_root, m)) = crate::rust_bridge::find_manifest(&parent_dir) {
-                    (m_root, Some(m))
-                } else {
-                    (parent_dir, None)
-                };
+                let (root, manifest) =
+                    if let Some((m_root, m)) = crate::rust_bridge::find_manifest(&parent_dir) {
+                        (m_root, Some(m))
+                    } else {
+                        (parent_dir, None)
+                    };
 
                 if let Some(m) = manifest {
                     let ep = root.join("src").join("main.dtr");

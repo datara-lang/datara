@@ -31,7 +31,7 @@ mkdir -p "${BIN_DIR}" "${STDLIB_DIR}" "${RUNTIME_DIR}" "${ASSETS_DIR}"
 echo -e "${COLOR_YELLOW}[2/5] Resolving latest Datara version from GitHub...${COLOR_NC}"
 REPO="datara-lang/datara"
 API_URL="https://api.github.com/repos/${REPO}/releases/latest"
-LATEST_TAG="v1.4.1"
+LATEST_TAG="v1.4.3"
 DOWNLOAD_URL=""
 
 OS_TYPE="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -201,7 +201,7 @@ if [ "$(uname -s)" = "Darwin" ]; then
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.4.1</string>
+    <string>1.4.3</string>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>

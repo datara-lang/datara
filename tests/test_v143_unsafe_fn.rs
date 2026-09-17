@@ -20,7 +20,11 @@ fn main() {
 }
 "#;
     let res = compiler.compile_source(code, "v143_unsafe_fn_pos.dtr", None);
-    assert!(res.success, "Compilation failed: {:?}\n{}", res.error, res.diagnostics);
+    assert!(
+        res.success,
+        "Compilation failed: {:?}\n{}",
+        res.error, res.diagnostics
+    );
     let (stdout, _, code_res, _) = compiler
         .codegen
         .run_executable(&res.exe_path.unwrap(), &[])
@@ -43,9 +47,13 @@ fn main() {
 }
 "#;
     let res = compiler.compile_source(code, "v143_unsafe_fn_neg.dtr", None);
-    assert!(!res.success, "Expected failure when calling unsafe fn without unsafe block");
     assert!(
-        res.diagnostics.contains("Call to unsafe function 'dangerous_op' requires 'unsafe(justification:"),
+        !res.success,
+        "Expected failure when calling unsafe fn without unsafe block"
+    );
+    assert!(
+        res.diagnostics
+            .contains("Call to unsafe function 'dangerous_op' requires 'unsafe(justification:"),
         "Expected unsafe violation diagnostic, got:\n{}",
         res.diagnostics
     );

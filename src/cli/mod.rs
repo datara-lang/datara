@@ -57,7 +57,12 @@ pub(crate) fn extract_target_arg(args: &[String], skip: usize) -> Option<&Path> 
         if arg == "--" {
             break;
         }
-        if arg == "-o" || arg == "--out" || arg == "--pgo" || arg == "--target" || arg == "--profile" {
+        if arg == "-o"
+            || arg == "--out"
+            || arg == "--pgo"
+            || arg == "--target"
+            || arg == "--profile"
+        {
             i += 2;
             continue;
         }

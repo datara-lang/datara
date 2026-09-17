@@ -1468,10 +1468,7 @@ pub fn declare_runtime_core<M: ClifModule>(
         "datara_rt_arena_reset".into(),
         (rt_arena_reset_id, arena_reset_sig.clone()),
     );
-    func_ids.insert(
-        "arena_reset".into(),
-        (rt_arena_reset_id, arena_reset_sig),
-    );
+    func_ids.insert("arena_reset".into(), (rt_arena_reset_id, arena_reset_sig));
 
     let pin_workers_sig = Signature::new(call_conv);
     let pin_workers_id = module

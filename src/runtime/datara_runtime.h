@@ -19,12 +19,16 @@ static const int64_t g_empty_datara_str[2] = {0, 0};
 
 static const struct { int64_t len; char data[8]; } g_true_datara_str = {4, "true\0\0\0"};
 static const struct { int64_t len; char data[8]; } g_false_datara_str = {5, "false\0\0"};
+static const struct { int64_t len; char data[8]; } g_none_datara_str = {4, "None\0\0\0"};
 #define TRUE_DATARA_STR ((const char*)&g_true_datara_str)
 #define FALSE_DATARA_STR ((const char*)&g_false_datara_str)
+#define NONE_DATARA_STR ((const char*)&g_none_datara_str)
 
 static inline int datara_is_datara_str(const char* s) {
     if (!s) return 0;
-    if (s == EMPTY_DATARA_STR || s == TRUE_DATARA_STR || s == FALSE_DATARA_STR) return 1;
+    if (s == EMPTY_DATARA_STR || s == TRUE_DATARA_STR || s == FALSE_DATARA_STR || s == NONE_DATARA_STR) {
+        return 1;
+    }
     int64_t len = *(const int64_t*)s;
     if (len >= 0 && len < 67108864LL) {
         if (s[sizeof(int64_t) + len] == '\0') {
@@ -564,19 +568,6 @@ void*       datara_rt_arena_alloc(int64_t bytes);
 int64_t     datara_rt_arena_checkpoint(void);
 void        datara_rt_arena_reset(int64_t saved_top);
 int64_t     datara_rt_arena_remaining(void);
-int64_t     datara_rt_arena_used(void);
-void        datara_rt_arena_clear(void);
-void*       datara_rt_mem_alloc(int64_t bytes);
-void        datara_rt_mem_free(void* ptr);
-void        datara_rt_mem_copy(void* dest, const void* src, int64_t bytes);
-int64_t     datara_rt_ptr_read_i64(const void* ptr, int64_t offset_bytes);
-void        datara_rt_ptr_write_i64(void* ptr, int64_t offset_bytes, int64_t val);
-double      datara_rt_ptr_read_f64(const void* ptr, int64_t offset_bytes);
-void        datara_rt_ptr_write_f64(void* ptr, int64_t offset_bytes, double val);
-int64_t     datara_rt_ptr_read_u8(const void* ptr, int64_t offset_bytes);
-void        datara_rt_ptr_write_u8(void* ptr, int64_t offset_bytes, int64_t val);
-void        datara_rt_cpu_fence(void);
-void        datara_rt_cpu_prefetch(const void* ptr);
 void        datara_rt_global_set(const char* name, int64_t val);
 int64_t     datara_rt_global_get(const char* name);
 void        datara_rt_free(void* ptr);

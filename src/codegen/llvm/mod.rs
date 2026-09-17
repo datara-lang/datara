@@ -371,7 +371,15 @@ impl<'a> LlvmEmitter<'a> {
 
         // 4. Emit Loop Vectorization & Unroll Metadata (Honest contract: only enabled when target supports it)
         let vec_enabled = attributes::is_vector_supported(self.target);
-        let width = if self.target.vector_support.contains(&crate::codegen::target::VectorExtension::Avx2) { 8 } else { 4 };
+        let width = if self
+            .target
+            .vector_support
+            .contains(&crate::codegen::target::VectorExtension::Avx2)
+        {
+            8
+        } else {
+            4
+        };
         ir.push_str("!0 = distinct !{!0, !1, !2, !3}\n");
         ir.push_str(&format!(
             "!1 = !{{!\"llvm.loop.vectorize.enable\", i1 {}}}\n",
@@ -719,14 +727,20 @@ impl<'a> LlvmEmitter<'a> {
             var_types.insert(pname.clone(), self.dmir_type_to_llvm(pty));
         }
         for vname in &local_vars {
-            let dt = types.fn_symbol_types.get(&(f.name.clone(), vname.clone()))
+            let dt = types
+                .fn_symbol_types
+                .get(&(f.name.clone(), vname.clone()))
                 .or_else(|| {
                     let base_name = f.name.split("__spec_").next().unwrap_or(&f.name);
-                    types.fn_symbol_types.get(&(base_name.to_string(), vname.clone()))
+                    types
+                        .fn_symbol_types
+                        .get(&(base_name.to_string(), vname.clone()))
                 })
                 .or_else(|| {
                     let base_name = f.name.split("__").next().unwrap_or(&f.name);
-                    types.fn_symbol_types.get(&(base_name.to_string(), vname.clone()))
+                    types
+                        .fn_symbol_types
+                        .get(&(base_name.to_string(), vname.clone()))
                 });
             if let Some(dt) = dt {
                 let vty = match dt {
@@ -751,10 +765,16 @@ impl<'a> LlvmEmitter<'a> {
                                             Inst::ConstFloat { dest, .. } if dest == value => {
                                                 var_types.insert(vname.clone(), "double");
                                             }
-                                            Inst::ConstInt { dest, .. } | Inst::ConstBool { dest, .. } if dest == value => {
+                                            Inst::ConstInt { dest, .. }
+                                            | Inst::ConstBool { dest, .. }
+                                                if dest == value =>
+                                            {
                                                 var_types.insert(vname.clone(), "i64");
                                             }
-                                            Inst::ConstStr { dest, .. } | Inst::StructInit { dest, .. } if dest == value => {
+                                            Inst::ConstStr { dest, .. }
+                                            | Inst::StructInit { dest, .. }
+                                                if dest == value =>
+                                            {
                                                 var_types.insert(vname.clone(), "ptr");
                                             }
                                             Inst::Call { dest, func, ty, .. } if dest == value => {
@@ -767,7 +787,10 @@ impl<'a> LlvmEmitter<'a> {
                                                     var_types.insert(vname.clone(), "ptr");
                                                 } else if ty == "Float" {
                                                     var_types.insert(vname.clone(), "double");
-                                                } else if ty == "Str" || ty == "String" || ty.starts_with("List<") {
+                                                } else if ty == "Str"
+                                                    || ty == "String"
+                                                    || ty.starts_with("List<")
+                                                {
                                                     var_types.insert(vname.clone(), "ptr");
                                                 }
                                             }
@@ -836,10 +859,15 @@ impl<'a> LlvmEmitter<'a> {
                 }
             }
             for vname in &local_vars {
-                if !f.params.iter().any(|(p, _, _)| p == vname) && !module.globals.contains_key(vname) {
+                if !f.params.iter().any(|(p, _, _)| p == vname)
+                    && !module.globals.contains_key(vname)
+                {
                     let vty = var_types.get(vname).copied().unwrap_or("i64");
                     let align = if vty == "<4 x float>" { 16 } else { 8 };
-                    out.push_str(&format!("  %var_{} = alloca {}, align {}\n", vname, vty, align));
+                    out.push_str(&format!(
+                        "  %var_{} = alloca {}, align {}\n",
+                        vname, vty, align
+                    ));
                 }
             }
             for (s_id, s_size) in &struct_inits {
@@ -876,12 +904,7 @@ impl<'a> LlvmEmitter<'a> {
                             args.get(param_idx)
                                 .and_then(|a| value_types.get(a).copied())
                         })
-                        .or_else(|| {
-                            param
-                                .name
-                                .as_ref()
-                                .and_then(|n| var_types.get(n).copied())
-                        })
+                        .or_else(|| param.name.as_ref().and_then(|n| var_types.get(n).copied()))
                         .unwrap_or_else(|| self.dmir_type_to_llvm(&param.ty));
                     value_types.insert(param.val, param_ty);
                     if let Some(ref name) = param.name {

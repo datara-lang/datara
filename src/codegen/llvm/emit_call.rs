@@ -285,9 +285,7 @@ impl<'a> LlvmEmitter<'a> {
                 dest.0, call_prefix, ret_ty, actual_func, args_str
             ));
         }
-        if actual_func.starts_with("datara_rt_list_get")
-            && args.len() >= 2
-        {
+        if actual_func.starts_with("datara_rt_list_get") && args.len() >= 2 {
             out.push_str(&format!(
                 "  %fvrp_bce_min_{} = icmp sge i64 %v{}, 0\n",
                 dest.0, args[1].0

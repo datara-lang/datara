@@ -1,5 +1,5 @@
 use super::*;
-use crate::ast::{Expr, LiteralValue, Refinement};
+use crate::ast::Refinement;
 use crate::dmir::cfg::ControlFlowGraph;
 use crate::dmir::{BasicBlockId, Function, Inst, Terminator, ValueId};
 use crate::optimizer::cost_model::{CostModel, OptimizationDecisionTrace};
@@ -82,7 +82,10 @@ impl LoopOptimizer {
                         }
                     }
                     Inst::MethodCall {
-                        method, object, dest, ..
+                        method,
+                        object,
+                        dest,
+                        ..
                     } if method == "push" || method == "append" => {
                         copy_of.insert(*dest, *object);
                         if let Some(&l) = list_len.get(object) {
@@ -169,12 +172,23 @@ impl LoopOptimizer {
                             list_len.insert(*dest, l);
                         }
                     }
-                    Inst::Select { dest, then_val, else_val, .. } => {
+                    Inst::Select {
+                        dest,
+                        then_val,
+                        else_val,
+                        ..
+                    } => {
                         if then_val == else_val {
                             copy_of.insert(*dest, *then_val);
                         }
                     }
-                    Inst::BinOp { dest, op, left, right, .. } => {
+                    Inst::BinOp {
+                        dest,
+                        op,
+                        left,
+                        right,
+                        ..
+                    } => {
                         if op == "|" || op == "or" || op == "wrapping_|" {
                             if consts.get(right) == Some(&0) {
                                 copy_of.insert(*dest, *left);
@@ -279,7 +293,13 @@ impl LoopOptimizer {
                         }
                     }
                 }
-                Terminator::CondBranch { then_block, then_args, else_block, else_args, .. } => {
+                Terminator::CondBranch {
+                    then_block,
+                    then_args,
+                    else_block,
+                    else_args,
+                    ..
+                } => {
                     if let Some(tb) = f.get_block(*then_block) {
                         for (p, a) in tb.params.iter().zip(then_args) {
                             block_param_incoming.entry(p.val).or_default().push(*a);
@@ -303,7 +323,10 @@ impl LoopOptimizer {
                     return Some(n.clone());
                 }
                 let resolved = resolve_vid(curr, &copy_of);
-                if let Some(n) = val_to_name.get(&resolved).or_else(|| var_of_val.get(&resolved)) {
+                if let Some(n) = val_to_name
+                    .get(&resolved)
+                    .or_else(|| var_of_val.get(&resolved))
+                {
                     return Some(n.clone());
                 }
                 if !visited.insert(resolved) {
@@ -323,18 +346,44 @@ impl LoopOptimizer {
         for blk in &f.blocks {
             for inst in &blk.instructions {
                 match inst {
-                    Inst::BinOp { dest, op, left, right, .. } => {
+                    Inst::BinOp {
+                        dest,
+                        op,
+                        left,
+                        right,
+                        ..
+                    } => {
                         if op == "*" || op == "wrapping_*" {
-                            mul_map.insert(*dest, (resolve_vid(*left, &copy_of), resolve_vid(*right, &copy_of)));
+                            mul_map.insert(
+                                *dest,
+                                (resolve_vid(*left, &copy_of), resolve_vid(*right, &copy_of)),
+                            );
                         } else if op == "+" || op == "wrapping_+" {
-                            add_map.insert(*dest, (resolve_vid(*left, &copy_of), resolve_vid(*right, &copy_of)));
+                            add_map.insert(
+                                *dest,
+                                (resolve_vid(*left, &copy_of), resolve_vid(*right, &copy_of)),
+                            );
                         }
                     }
-                    Inst::Call { func, args, dest, .. } if args.len() == 2 => {
+                    Inst::Call {
+                        func, args, dest, ..
+                    } if args.len() == 2 => {
                         if func == "datara_rt_checked_mul" {
-                            mul_map.insert(*dest, (resolve_vid(args[0], &copy_of), resolve_vid(args[1], &copy_of)));
+                            mul_map.insert(
+                                *dest,
+                                (
+                                    resolve_vid(args[0], &copy_of),
+                                    resolve_vid(args[1], &copy_of),
+                                ),
+                            );
                         } else if func == "datara_rt_checked_add" {
-                            add_map.insert(*dest, (resolve_vid(args[0], &copy_of), resolve_vid(args[1], &copy_of)));
+                            add_map.insert(
+                                *dest,
+                                (
+                                    resolve_vid(args[0], &copy_of),
+                                    resolve_vid(args[1], &copy_of),
+                                ),
+                            );
                         }
                     }
                     _ => {}
@@ -371,7 +420,10 @@ impl LoopOptimizer {
             let mut bound_opt = None;
             if let Terminator::CondBranch { cond, .. } = &header_block.terminator {
                 for inst in &header_block.instructions {
-                    if let Inst::BinOp { dest, op, right, .. } = inst {
+                    if let Inst::BinOp {
+                        dest, op, right, ..
+                    } = inst
+                    {
                         if dest == cond && op == "<" {
                             bound_opt = Some(*right);
                         }
@@ -383,9 +435,12 @@ impl LoopOptimizer {
                     if let Some(blk) = f.get_block(bid) {
                         for inst in &blk.instructions {
                             match inst {
-                                Inst::Call { func, args, dest, .. }
-                                    if (func == "datara_rt_list_append" || func == "push" || func == "append")
-                                        && !args.is_empty() =>
+                                Inst::Call {
+                                    func, args, dest, ..
+                                } if (func == "datara_rt_list_append"
+                                    || func == "push"
+                                    || func == "append")
+                                    && !args.is_empty() =>
                                 {
                                     list_len.insert(args[0], LenVal::Vid(bound_vid));
                                     list_len.insert(*dest, LenVal::Vid(bound_vid));
@@ -393,9 +448,12 @@ impl LoopOptimizer {
                                         var_len.insert(an, LenVal::Vid(bound_vid));
                                     }
                                 }
-                                Inst::MethodCall { method, object, dest, .. }
-                                    if method == "push" || method == "append" =>
-                                {
+                                Inst::MethodCall {
+                                    method,
+                                    object,
+                                    dest,
+                                    ..
+                                } if method == "push" || method == "append" => {
                                     list_len.insert(*object, LenVal::Vid(bound_vid));
                                     list_len.insert(*dest, LenVal::Vid(bound_vid));
                                     if let Some(an) = resolve_name_deep(*object) {
@@ -414,28 +472,47 @@ impl LoopOptimizer {
         let mut defined_vids: HashSet<ValueId> = f.params.iter().map(|(_, _, pv)| *pv).collect();
         for blk in &mut f.blocks {
             for inst in &mut blk.instructions {
-                if let Inst::Call { func, args, dest, .. } = inst {
+                if let Inst::Call {
+                    func, args, dest, ..
+                } = inst
+                {
                     if func == "datara_rt_list_create" && args.len() == 1 {
                         if consts.get(&args[0]) == Some(&0) {
                             if let Some(an) = resolve_name_deep(*dest) {
                                 if let Some(&vl) = var_len.get(&an) {
                                     match vl {
                                         LenVal::Const(c) if c > 0 => {
-                                            if let Some(&c_vid) = consts.iter().find(|(_, v)| **v == c).map(|(k, _)| k) {
+                                            if let Some(&c_vid) = consts
+                                                .iter()
+                                                .find(|(_, v)| **v == c)
+                                                .map(|(k, _)| k)
+                                            {
                                                 args[0] = c_vid;
                                             }
                                         }
                                         LenVal::Vid(b_vid) => {
                                             let target_vid = resolve_vid(b_vid, &copy_of);
-                                            let is_param = f.params.iter().any(|(_, _, pv)| *pv == target_vid || *pv == b_vid);
-                                            let is_const = consts.contains_key(&target_vid) || consts.contains_key(&b_vid);
-                                            let is_def = defined_vids.contains(&target_vid) || defined_vids.contains(&b_vid);
+                                            let is_param = f.params.iter().any(|(_, _, pv)| {
+                                                *pv == target_vid || *pv == b_vid
+                                            });
+                                            let is_const = consts.contains_key(&target_vid)
+                                                || consts.contains_key(&b_vid);
+                                            let is_def = defined_vids.contains(&target_vid)
+                                                || defined_vids.contains(&b_vid);
                                             if is_param || is_const || is_def {
-                                                args[0] = if is_def && defined_vids.contains(&target_vid) {
+                                                args[0] = if is_def
+                                                    && defined_vids.contains(&target_vid)
+                                                {
                                                     target_vid
-                                                } else if is_param && f.params.iter().any(|(_, _, pv)| *pv == target_vid) {
+                                                } else if is_param
+                                                    && f.params
+                                                        .iter()
+                                                        .any(|(_, _, pv)| *pv == target_vid)
+                                                {
                                                     target_vid
-                                                } else if is_const && consts.contains_key(&target_vid) {
+                                                } else if is_const
+                                                    && consts.contains_key(&target_vid)
+                                                {
                                                     target_vid
                                                 } else {
                                                     b_vid
@@ -759,8 +836,23 @@ impl LoopOptimizer {
                     for b in &f.blocks {
                         for inst in &b.instructions {
                             let is_add = match inst {
-                                Inst::BinOp { dest, op, left, right, .. } if *dest == s_vid && (op == "+" || op == "wrapping_+") => Some((*left, *right)),
-                                Inst::Call { func, args, dest, .. } if *dest == s_vid && func == "datara_rt_checked_add" && args.len() == 2 => Some((args[0], args[1])),
+                                Inst::BinOp {
+                                    dest,
+                                    op,
+                                    left,
+                                    right,
+                                    ..
+                                } if *dest == s_vid && (op == "+" || op == "wrapping_+") => {
+                                    Some((*left, *right))
+                                }
+                                Inst::Call {
+                                    func, args, dest, ..
+                                } if *dest == s_vid
+                                    && func == "datara_rt_checked_add"
+                                    && args.len() == 2 =>
+                                {
+                                    Some((args[0], args[1]))
+                                }
                                 _ => None,
                             };
                             if let Some((left, right)) = is_add {
@@ -770,10 +862,14 @@ impl LoopOptimizer {
                                 let right_const = resolve(right, &copy_of, &list_len, &consts);
                                 let iv_res = resolve_vid(induction_var, &copy_of);
                                 let iv_name = resolve_name_deep(induction_var);
-                                let l_matches = left_res == iv_res || (iv_name.is_some() && resolve_name_deep(left) == iv_name);
-                                let r_matches = right_res == iv_res || (iv_name.is_some() && resolve_name_deep(right) == iv_name);
-                                let r_is_one = right_const == LenVal::Const(1) || consts.get(&right) == Some(&1);
-                                let l_is_one = left_const == LenVal::Const(1) || consts.get(&left) == Some(&1);
+                                let l_matches = left_res == iv_res
+                                    || (iv_name.is_some() && resolve_name_deep(left) == iv_name);
+                                let r_matches = right_res == iv_res
+                                    || (iv_name.is_some() && resolve_name_deep(right) == iv_name);
+                                let r_is_one = right_const == LenVal::Const(1)
+                                    || consts.get(&right) == Some(&1);
+                                let l_is_one =
+                                    left_const == LenVal::Const(1) || consts.get(&left) == Some(&1);
                                 if (l_matches && r_is_one) || (r_matches && l_is_one) {
                                     is_step = true;
                                     break;
@@ -860,7 +956,13 @@ impl LoopOptimizer {
                             if *dest == vid && op == "+" {
                                 *op = "wrapping_+".to_string();
                             }
-                        } else if let Inst::Call { func, args, dest, ty } = inst {
+                        } else if let Inst::Call {
+                            func,
+                            args,
+                            dest,
+                            ty,
+                        } = inst
+                        {
                             if *dest == vid && func == "datara_rt_checked_add" && args.len() == 2 {
                                 *inst = Inst::BinOp {
                                     dest: *dest,
@@ -915,10 +1017,14 @@ impl LoopOptimizer {
 
                             if let Some(an) = &arr_name {
                                 if let Some(&vl) = var_len.get(an) {
-                                    if list_len_val == LenVal::Vid(args[0]) || list_len_val == LenVal::Vid(resolved_arr_vid) {
+                                    if list_len_val == LenVal::Vid(args[0])
+                                        || list_len_val == LenVal::Vid(resolved_arr_vid)
+                                    {
                                         list_len_val = match vl {
                                             LenVal::Const(c) => LenVal::Const(c),
-                                            LenVal::Vid(v) => resolve(v, &copy_of, &list_len, &consts),
+                                            LenVal::Vid(v) => {
+                                                resolve(v, &copy_of, &list_len, &consts)
+                                            }
                                         };
                                     }
                                 }
@@ -929,7 +1035,8 @@ impl LoopOptimizer {
                                     let a_res = resolve_vid(a, &copy_of);
                                     let b_res = resolve_vid(b, &copy_of);
                                     a_res == b_res
-                                        || (resolve_name_deep(a).is_some() && resolve_name_deep(a) == resolve_name_deep(b))
+                                        || (resolve_name_deep(a).is_some()
+                                            && resolve_name_deep(a) == resolve_name_deep(b))
                                 }
                                 (LenVal::Const(a), LenVal::Const(b)) => a <= b,
                                 _ => false,
@@ -979,7 +1086,13 @@ impl LoopOptimizer {
         // --- 2D Row-Major Affine Index Bounds Check Elimination ---
         // Proves: 0 <= (I * N + J) < len(arr) when I < N, J < N, and len(arr) >= N * N.
         // Applicable to all matrix operations, 2D convolutions, image processing, and grids.
-        let mut loop_bounds: Vec<(ValueId, Option<String>, ValueId, Option<String>, HashSet<BasicBlockId>)> = Vec::new();
+        let mut loop_bounds: Vec<(
+            ValueId,
+            Option<String>,
+            ValueId,
+            Option<String>,
+            HashSet<BasicBlockId>,
+        )> = Vec::new();
         for lp in &cfg.loops {
             let header_block = match f.get_block(lp.header) {
                 Some(b) => b,
@@ -987,14 +1100,27 @@ impl LoopOptimizer {
             };
             if let Terminator::CondBranch { cond, .. } = &header_block.terminator {
                 for inst in &header_block.instructions {
-                    if let Inst::BinOp { dest, op, left, right, .. } = inst {
+                    if let Inst::BinOp {
+                        dest,
+                        op,
+                        left,
+                        right,
+                        ..
+                    } = inst
+                    {
                         if dest == cond && op == "<" {
                             let left_res = resolve_vid(*left, &copy_of);
                             let right_res = resolve_vid(*right, &copy_of);
                             let left_name = resolve_name(*left, &copy_of, &val_to_name);
                             let right_name = resolve_name(*right, &copy_of, &val_to_name);
                             let loop_blocks: HashSet<_> = lp.blocks.iter().copied().collect();
-                            loop_bounds.push((left_res, left_name, right_res, right_name, loop_blocks));
+                            loop_bounds.push((
+                                left_res,
+                                left_name,
+                                right_res,
+                                right_name,
+                                loop_blocks,
+                            ));
                         }
                     }
                 }
@@ -1006,7 +1132,9 @@ impl LoopOptimizer {
             let blk_id = blk.id;
             for inst in &mut blk.instructions {
                 if let Inst::Call { func, args, .. } = inst {
-                    if (func == "datara_rt_list_get" || func == "datara_rt_list_set") && args.len() >= 2 {
+                    if (func == "datara_rt_list_get" || func == "datara_rt_list_set")
+                        && args.len() >= 2
+                    {
                         let arr_vid = resolve_vid(args[0], &copy_of);
                         let arr_name = resolve_name_deep(args[0]);
                         let idx_vid = resolve_vid(args[1], &copy_of);
@@ -1019,41 +1147,62 @@ impl LoopOptimizer {
                                         let factor_choices = [(m1, m2), (m2, m1)];
                                         for (i_val, n_val) in factor_choices {
                                             let j_val = off_cand;
-                                            let is_bounded = |val: ValueId, bound: ValueId| -> bool {
-                                                let v_name = resolve_name_deep(val);
-                                                let b_name = resolve_name_deep(bound);
-                                                let v_res = resolve_vid(val, &copy_of);
-                                                let b_res = resolve_vid(bound, &copy_of);
-                                                loop_bounds.iter().any(|(lv, ln, rv, rn, blocks)| {
-                                                    if !blocks.contains(&blk_id) {
-                                                        return false;
-                                                    }
-                                                    let var_matches = *lv == val || *lv == v_res || (ln.is_some() && ln == &v_name);
-                                                    let bound_matches = *rv == bound || *rv == b_res || (rn.is_some() && rn == &b_name);
-                                                    var_matches && bound_matches
-                                                })
-                                            };
+                                            let is_bounded =
+                                                |val: ValueId, bound: ValueId| -> bool {
+                                                    let v_name = resolve_name_deep(val);
+                                                    let b_name = resolve_name_deep(bound);
+                                                    let v_res = resolve_vid(val, &copy_of);
+                                                    let b_res = resolve_vid(bound, &copy_of);
+                                                    loop_bounds.iter().any(
+                                                        |(lv, ln, rv, rn, blocks)| {
+                                                            if !blocks.contains(&blk_id) {
+                                                                return false;
+                                                            }
+                                                            let var_matches = *lv == val
+                                                                || *lv == v_res
+                                                                || (ln.is_some() && ln == &v_name);
+                                                            let bound_matches = *rv == bound
+                                                                || *rv == b_res
+                                                                || (rn.is_some() && rn == &b_name);
+                                                            var_matches && bound_matches
+                                                        },
+                                                    )
+                                                };
 
-                                            if is_bounded(i_val, n_val) && is_bounded(j_val, n_val) {
+                                            if is_bounded(i_val, n_val) && is_bounded(j_val, n_val)
+                                            {
                                                 let arr_len_match = {
                                                     let mut ok = false;
                                                     let check_len_vid = |len_v: ValueId| -> bool {
-                                                        if let Some(resolved_len) = find_mul(len_v) {
-                                                            if let Some(&(ml, mr)) = mul_map.get(&resolved_len) {
-                                                                let ml_res = resolve_vid(ml, &copy_of);
-                                                                let mr_res = resolve_vid(mr, &copy_of);
-                                                                let n_res = resolve_vid(n_val, &copy_of);
+                                                        if let Some(resolved_len) = find_mul(len_v)
+                                                        {
+                                                            if let Some(&(ml, mr)) =
+                                                                mul_map.get(&resolved_len)
+                                                            {
+                                                                let ml_res =
+                                                                    resolve_vid(ml, &copy_of);
+                                                                let mr_res =
+                                                                    resolve_vid(mr, &copy_of);
+                                                                let n_res =
+                                                                    resolve_vid(n_val, &copy_of);
                                                                 let ml_name = resolve_name_deep(ml);
                                                                 let mr_name = resolve_name_deep(mr);
-                                                                let n_name = resolve_name_deep(n_val);
-                                                                let l_ok = ml_res == n_res || (ml_name.is_some() && ml_name == n_name);
-                                                                let r_ok = mr_res == n_res || (mr_name.is_some() && mr_name == n_name);
+                                                                let n_name =
+                                                                    resolve_name_deep(n_val);
+                                                                let l_ok = ml_res == n_res
+                                                                    || (ml_name.is_some()
+                                                                        && ml_name == n_name);
+                                                                let r_ok = mr_res == n_res
+                                                                    || (mr_name.is_some()
+                                                                        && mr_name == n_name);
                                                                 if l_ok && r_ok {
                                                                     return true;
                                                                 }
                                                             }
                                                         }
-                                                        if let (Some(nc), Some(lc)) = (const_val(n_val), const_val(len_v)) {
+                                                        if let (Some(nc), Some(lc)) =
+                                                            (const_val(n_val), const_val(len_v))
+                                                        {
                                                             if nc * nc <= lc {
                                                                 return true;
                                                             }
@@ -1102,7 +1251,10 @@ impl LoopOptimizer {
                 "Affine2D:BCE",
                 &format!("{}:matrix_indexing", f.name),
                 "Applied",
-                &format!("+{} BCE proven 2D row-major unchecked access", affine_2d_eliminated),
+                &format!(
+                    "+{} BCE proven 2D row-major unchecked access",
+                    affine_2d_eliminated
+                ),
                 "0",
                 &format!(
                     "BCE proven: 0 <= i * N + j < N * N <= arr.len() for {} accesses",
@@ -1112,200 +1264,5 @@ impl LoopOptimizer {
         }
 
         eliminated
-    }
-
-    /// If `vid` is the dest of `a + 1` (BinOp), return the left operand.
-    fn binop_add_one_source(f: &Function, vid: ValueId) -> Option<ValueId> {
-        for block in &f.blocks {
-            for inst in &block.instructions {
-                if let Inst::BinOp {
-                    dest,
-                    op,
-                    left,
-                    right,
-                    ..
-                } = inst
-                    && *dest == vid
-                    && (op == "+" || op == "wrapping_+")
-                    && Self::const_int_value(f, *right) == Some(1)
-                {
-                    return Some(*left);
-                }
-                if let Inst::Call {
-                    func,
-                    args,
-                    dest,
-                    ..
-                } = inst
-                    && *dest == vid
-                    && func == "datara_rt_checked_add"
-                    && args.len() == 2
-                    && Self::const_int_value(f, args[1]) == Some(1)
-                {
-                    return Some(args[0]);
-                }
-            }
-        }
-        None
-    }
-
-    fn is_zero_expr(expr: &Expr) -> bool {
-        matches!(expr, Expr::Literal(LiteralValue::Int(0), _))
-    }
-
-    fn extract_len_target(expr: &Expr) -> Option<String> {
-        match expr {
-            Expr::Call { callee, args, .. } if args.is_empty() => {
-                if let Expr::MemberAccess { object, member, .. } = callee.as_ref()
-                    && (member == "len" || member == "length")
-                    && let Expr::Identifier(arr_name, _) = object.as_ref()
-                {
-                    return Some(arr_name.clone());
-                }
-                if let Expr::Identifier(fn_name, _) = callee.as_ref()
-                    && (fn_name == "len" || fn_name == "length")
-                    && let Some(Expr::Identifier(arr_name, _)) = args.first()
-                {
-                    return Some(arr_name.clone());
-                }
-                None
-            }
-            Expr::Call { callee, args, .. } if args.len() == 1 => {
-                if let Expr::Identifier(fn_name, _) = callee.as_ref()
-                    && (fn_name == "len" || fn_name == "length")
-                    && let Some(Expr::Identifier(arr_name, _)) = args.first()
-                {
-                    return Some(arr_name.clone());
-                }
-                None
-            }
-            _ => None,
-        }
-    }
-
-    fn extract_predicate_len_target(var_name: &str, predicate: &Expr) -> Option<String> {
-        match predicate {
-            Expr::Binary {
-                op, left, right, ..
-            } if op == "&&" => {
-                let left_ok = Self::is_non_negative_check(var_name, left);
-                let right_target = Self::is_less_than_len_check(var_name, right);
-                if left_ok && right_target.is_some() {
-                    return right_target;
-                }
-                let right_ok = Self::is_non_negative_check(var_name, right);
-                let left_target = Self::is_less_than_len_check(var_name, left);
-                if right_ok && left_target.is_some() {
-                    return left_target;
-                }
-                None
-            }
-            _ => None,
-        }
-    }
-
-    fn is_non_negative_check(var_name: &str, expr: &Expr) -> bool {
-        match expr {
-            Expr::Binary {
-                op, left, right, ..
-            } => {
-                if op == ">=" {
-                    if let Expr::Identifier(name, _) = left.as_ref()
-                        && name == var_name
-                        && Self::is_zero_expr(right)
-                    {
-                        return true;
-                    }
-                } else if op == "<="
-                    && let Expr::Identifier(name, _) = right.as_ref()
-                    && name == var_name
-                    && Self::is_zero_expr(left)
-                {
-                    return true;
-                }
-                false
-            }
-            _ => false,
-        }
-    }
-
-    fn is_less_than_len_check(var_name: &str, expr: &Expr) -> Option<String> {
-        match expr {
-            Expr::Binary {
-                op, left, right, ..
-            } if op == "<" => {
-                if let Expr::Identifier(name, _) = left.as_ref()
-                    && name == var_name
-                {
-                    return Self::extract_len_target(right);
-                }
-                None
-            }
-            _ => None,
-        }
-    }
-
-    fn extract_index_bound_from_contract(expr: &Expr) -> Option<(String, String)> {
-        match expr {
-            Expr::Binary {
-                op, left, right, ..
-            } if op == "&&" => {
-                if let (Some(idx1), Some((idx2, arr))) = (
-                    Self::extract_non_negative_var(left),
-                    Self::extract_less_than_len(right),
-                ) && idx1 == idx2
-                {
-                    return Some((idx1, arr));
-                }
-                if let (Some((idx1, arr)), Some(idx2)) = (
-                    Self::extract_less_than_len(left),
-                    Self::extract_non_negative_var(right),
-                ) && idx1 == idx2
-                {
-                    return Some((idx1, arr));
-                }
-                None
-            }
-            _ => None,
-        }
-    }
-
-    fn extract_non_negative_var(expr: &Expr) -> Option<String> {
-        match expr {
-            Expr::Binary {
-                op, left, right, ..
-            } => {
-                if op == ">=" {
-                    if let Expr::Identifier(name, _) = left.as_ref()
-                        && Self::is_zero_expr(right)
-                    {
-                        return Some(name.clone());
-                    }
-                } else if op == "<="
-                    && let Expr::Identifier(name, _) = right.as_ref()
-                    && Self::is_zero_expr(left)
-                {
-                    return Some(name.clone());
-                }
-                None
-            }
-            _ => None,
-        }
-    }
-
-    fn extract_less_than_len(expr: &Expr) -> Option<(String, String)> {
-        match expr {
-            Expr::Binary {
-                op, left, right, ..
-            } if op == "<" => {
-                if let Expr::Identifier(idx_name, _) = left.as_ref()
-                    && let Some(arr_name) = Self::extract_len_target(right)
-                {
-                    return Some((idx_name.clone(), arr_name));
-                }
-                None
-            }
-            _ => None,
-        }
     }
 }
