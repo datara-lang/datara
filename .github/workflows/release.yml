@@ -268,30 +268,28 @@ jobs:
               notes = match.group(0).strip()
           else:
               notes = '# Datara Production Release v' + tag
-          with open('dist-all/RELEASE_NOTES.md', 'w', encoding='utf-8') as out:
+          with open('/tmp/RELEASE_NOTES.md', 'w', encoding='utf-8') as out:
               out.write(notes)
           "
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          body_path: dist-all/RELEASE_NOTES.md
-          files: |
-            dist-all/Datara*.exe
-            dist-all/forgen-*.zip
-            dist-all/forgen-*.tar.gz
-            dist-all/*.vsix
-            dist-all/*.deb
-            dist-all/*.rpm
-            dist-all/*.whl
-            dist-all/*.crate
-            dist-all/*.tgz
-            dist-all/SHA256SUMS.txt
-          generate_release_notes: false
-          draft: false
-          prerelease: false
+      - name: Create or Update GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          echo "Publishing release for $TAG"
+          rm -f dist-all/RELEASE_NOTES.md dist-all/*.tmp dist-all/*.sha256
+          
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists, updating notes and assets..."
+            gh release edit "$TAG" --notes-file /tmp/RELEASE_NOTES.md
+            gh release upload "$TAG" dist-all/* --clobber
+          else
+            echo "Creating release $TAG..."
+            gh release create "$TAG" dist-all/* \
+              --title "Datara $TAG" \
+              --notes-file /tmp/RELEASE_NOTES.md
+          fi
 
   publish-github-package-docker:
     name: Publish to GitHub Packages (GHCR)

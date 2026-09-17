@@ -97,8 +97,13 @@ impl<'a> LlvmEmitter<'a> {
             "i128" | "u128" => "i128",
             "Float" | "Float64" | "f64" => "double",
             "Float32" | "f32" | "f16" => "float",
-            "<4 x float>" => "<4 x float>",
-            "<4 x i32>" => "<4 x i32>",
+            "Float4" | "float4" | "f32x4" | "<4 x float>" => "<4 x float>",
+            "Float8" | "float8" | "f32x8" | "<8 x float>" => "<8 x float>",
+            "Float16" | "float16" | "f32x16" | "<16 x float>" => "<16 x float>",
+            "Float2" | "float2" | "f64x2" | "<2 x double>" => "<2 x double>",
+            "Float4_64" | "f64x4" | "<4 x double>" => "<4 x double>",
+            "Int4" | "i32x4" | "<4 x i32>" => "<4 x i32>",
+            "i32x8" | "<8 x i32>" => "<8 x i32>",
             "Str" | "String" => "ptr",
             "Unit" | "void" | "Never" => "void",
             s if s.starts_with("Int<") || s.starts_with("UInt<") => "i64",
@@ -742,6 +747,16 @@ impl<'a> LlvmEmitter<'a> {
                 let vty = match dt {
                     DataraType::Float => "double",
                     DataraType::Int | DataraType::Bool | DataraType::Char => "i64",
+                    DataraType::Class(cls) => match cls.as_str() {
+                        "Float4" | "float4" | "f32x4" => "<4 x float>",
+                        "Float8" | "float8" | "f32x8" => "<8 x float>",
+                        "Float16" | "float16" | "f32x16" => "<16 x float>",
+                        "Float2" | "float2" | "f64x2" => "<2 x double>",
+                        "Float4_64" | "f64x4" => "<4 x double>",
+                        "Int4" | "i32x4" => "<4 x i32>",
+                        "i32x8" => "<8 x i32>",
+                        _ => "ptr",
+                    },
                     _ => "ptr",
                 };
                 var_types.insert(vname.clone(), vty);
@@ -783,6 +798,49 @@ impl<'a> LlvmEmitter<'a> {
                                                     var_types.insert(vname.clone(), "ptr");
                                                 } else if ty == "Float" {
                                                     var_types.insert(vname.clone(), "double");
+                                                } else if ty == "Float4"
+                                                    || ty == "float4"
+                                                    || ty == "f32x4"
+                                                    || func == "float4"
+                                                    || func == "datara_rt_float4"
+                                                    || func == "f32x4"
+                                                {
+                                                    var_types.insert(vname.clone(), "<4 x float>");
+                                                } else if ty == "Float8"
+                                                    || ty == "f32x8"
+                                                    || func == "f32x8"
+                                                    || func == "datara_rt_f32x8"
+                                                {
+                                                    var_types.insert(vname.clone(), "<8 x float>");
+                                                } else if ty == "Float16"
+                                                    || ty == "f32x16"
+                                                    || func == "f32x16"
+                                                    || func == "datara_rt_f32x16"
+                                                {
+                                                    var_types.insert(vname.clone(), "<16 x float>");
+                                                } else if ty == "Float2"
+                                                    || ty == "f64x2"
+                                                    || func == "f64x2"
+                                                    || func == "datara_rt_f64x2"
+                                                {
+                                                    var_types.insert(vname.clone(), "<2 x double>");
+                                                } else if ty == "Float4_64"
+                                                    || ty == "f64x4"
+                                                    || func == "f64x4"
+                                                    || func == "datara_rt_f64x4"
+                                                {
+                                                    var_types.insert(vname.clone(), "<4 x double>");
+                                                } else if ty == "Int4"
+                                                    || ty == "i32x4"
+                                                    || func == "i32x4"
+                                                    || func == "datara_rt_i32x4"
+                                                {
+                                                    var_types.insert(vname.clone(), "<4 x i32>");
+                                                } else if ty == "i32x8"
+                                                    || func == "i32x8"
+                                                    || func == "datara_rt_i32x8"
+                                                {
+                                                    var_types.insert(vname.clone(), "<8 x i32>");
                                                 } else if ty == "Str"
                                                     || ty == "String"
                                                     || ty.starts_with("List<")
@@ -859,7 +917,15 @@ impl<'a> LlvmEmitter<'a> {
                     && !module.globals.contains_key(vname)
                 {
                     let vty = var_types.get(vname).copied().unwrap_or("i64");
-                    let align = if vty == "<4 x float>" { 16 } else { 8 };
+                    let align = if vty.starts_with('<') {
+                        match vty {
+                            "<16 x float>" => 64,
+                            "<8 x float>" | "<4 x double>" | "<8 x i32>" => 32,
+                            _ => 16,
+                        }
+                    } else {
+                        8
+                    };
                     out.push_str(&format!(
                         "  %var_{} = alloca {}, align {}\n",
                         vname, vty, align

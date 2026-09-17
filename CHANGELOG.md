@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unsafe Functions (`unsafe fn`)**: Introduced `unsafe fn` declaration syntax with compile-time security verification. Invocations of `unsafe fn` require mandatory `unsafe(justification: "...")` wrapping blocks.
 - **Fast Direct Stack Allocation (`stack_alloc`)**: Added `stack_alloc(bytes: Int) -> RawPtr` primitive across Cranelift JIT, LLVM AOT, and runtime for zero-heap scratch buffers.
 
+### Fixed
+- **LLVM Vector Alloca Stack Alignment**: Fixed vector types (`Float4`, `Float8`, `Float16`, `Float2`, `Float4_64`, `Int4`, `i32x8`) allocating 8-byte pointer slots instead of full vector slots (`alloca <4 x float>, align 16`), eliminating stack frame corruption on Linux and macOS runners.
+- **AOT Dynamic String Execution**: Guaranteed null-terminated dynamic runtime string propagation to `system()`, `exec()`, and `process_output()` in native AOT builds.
+- **GitHub Release Publishing**: Upgraded release workflow to use GitHub's official `gh release` CLI with `--clobber` support for reliable multi-platform asset releases.
+
 ## [1.4.2] - 2026-09-17
 
 ### Added

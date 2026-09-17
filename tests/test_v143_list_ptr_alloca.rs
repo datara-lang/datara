@@ -49,3 +49,27 @@ fn main() {
         "Found invalid %var_a = alloca i64"
     );
 }
+
+#[test]
+fn test_simd_dot_llvm_ir() {
+    let source = r#"
+fn main() {
+    let a = float4(1.0, 2.0, 3.0, 4.0)
+    let b = float4(4.0, 3.0, 2.0, 1.0)
+    out(dot(a, b))
+}
+"#;
+    let compiler = ForgenCompiler::new("release").with_llvm(true);
+    let res = compiler.compile_source(source, "simd_app.dtr", None);
+    let llvm = res.llvm_source.expect("LLVM IR source must be generated");
+    assert!(
+        llvm.contains("%var_a = alloca <4 x float>, align 16"),
+        "Expected %var_a to be alloca <4 x float>, align 16, got:\n{}",
+        llvm
+    );
+    assert!(
+        llvm.contains("%var_b = alloca <4 x float>, align 16"),
+        "Expected %var_b to be alloca <4 x float>, align 16, got:\n{}",
+        llvm
+    );
+}

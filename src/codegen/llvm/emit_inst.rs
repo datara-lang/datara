@@ -61,7 +61,15 @@ impl<'a> LlvmEmitter<'a> {
                 if let Some(c) = var_classes.get(name) {
                     value_classes.insert(*dest, c.clone());
                 }
-                let align = if vty == "<4 x float>" { 16 } else { 8 };
+                let align = if vty.starts_with('<') {
+                    match vty {
+                        "<16 x float>" => 64,
+                        "<8 x float>" | "<4 x double>" | "<8 x i32>" => 32,
+                        _ => 16,
+                    }
+                } else {
+                    8
+                };
                 let ptr_str = if module.globals.contains_key(name) {
                     format!("@datara_global_{}", name)
                 } else {
@@ -106,7 +114,15 @@ impl<'a> LlvmEmitter<'a> {
                 } else {
                     bool_vars.remove(name);
                 }
-                let align = if vty == "<4 x float>" { 16 } else { 8 };
+                let align = if vty.starts_with('<') {
+                    match vty {
+                        "<16 x float>" => 64,
+                        "<8 x float>" | "<4 x double>" | "<8 x i32>" => 32,
+                        _ => 16,
+                    }
+                } else {
+                    8
+                };
                 let ptr_str = if module.globals.contains_key(name) {
                     format!("@datara_global_{}", name)
                 } else {
