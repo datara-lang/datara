@@ -413,6 +413,7 @@ impl<'a> Parser<'a> {
                 TokenType::Ensure => return Some("ensure".to_string()),
                 TokenType::Bits => return Some("bits".to_string()),
                 TokenType::Bit => return Some("bit".to_string()),
+                TokenType::Bridge => return Some("bridge".to_string()),
                 _ => {}
             }
         }

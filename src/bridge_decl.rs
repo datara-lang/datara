@@ -97,14 +97,24 @@ impl BridgeRegistry {
         let lang_lower = decl.lang.to_lowercase();
         let is_valid_lang = matches!(
             lang_lower.as_str(),
-            "py" | "python" | "js" | "javascript" | "node" | "c" | "rs" | "rust"
+            "py" | "python"
+                | "js"
+                | "javascript"
+                | "node"
+                | "c"
+                | "rs"
+                | "rust"
+                | "zig"
+                | "cs"
+                | "csharp"
+                | "dotnet"
         );
 
         if !is_valid_lang {
             diag.error(
                 ErrorCode::BridgeUnknownLanguage,
                 format!(
-                    "Unknown foreign bridge language '{}'. Supported languages: py, js, c, rs",
+                    "Unknown foreign bridge language '{}'. Supported languages: py, js, c, rs, zig, cs",
                     decl.lang
                 ),
                 Some(decl.span.clone()),

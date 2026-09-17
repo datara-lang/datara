@@ -42,7 +42,7 @@ InstallModes:
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/datara-lang/datara/releases/download/v1.4.2/Datara-v1.4.2-Setup.exe
-    InstallerSha256: fcbb0131e576089de6e1199cf5164fba6fa7a08d4ce7cb1177657d1fd4800da0
+    InstallerSha256: f4d4f0cead95918afd2f6a30b8d79e6594cd1c9b2aae119209981284e11e3a84
     InstallerSwitches:
       Silent: /S
       SilentWithProgress: /SP

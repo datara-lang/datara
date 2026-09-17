@@ -529,6 +529,7 @@ impl<'a> Parser<'a> {
             TokenType::Ensure => Some(Expr::Identifier("ensure".into(), token.span)),
             TokenType::Bits => Some(Expr::Identifier("bits".into(), token.span)),
             TokenType::Bit => Some(Expr::Identifier("bit".into(), token.span)),
+            TokenType::Bridge => Some(Expr::Identifier("bridge".into(), token.span)),
 
             TokenType::Decide => self.parse_decide_expr(token.span),
             TokenType::Match => self.parse_match_expr(token.span),
