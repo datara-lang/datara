@@ -1,8 +1,6 @@
 use forgen::driver::ForgenCompiler;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::process::Command;
-
-static NODE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 unsafe extern "C" {
     fn datara_js_eval(code: *const std::ffi::c_char) -> *const std::ffi::c_char;
@@ -16,11 +14,7 @@ fn js_eval_str(code: &str) -> String {
     if ptr.is_null() {
         String::new()
     } else {
-        unsafe {
-            let len = *(ptr as *const i64);
-            let slice = std::slice::from_raw_parts((ptr as *const u8).add(8), len as usize);
-            std::str::from_utf8(slice).unwrap_or("").to_string()
-        }
+        unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() }
     }
 }
 
@@ -36,7 +30,6 @@ fn js_eval_float(code: &str) -> f64 {
 
 #[test]
 fn test_node_runtime_self_test() {
-    let _guard = NODE_TEST_LOCK.lock().unwrap();
     // 1. Buffer alloc, writeDoubleLE, readDoubleLE
     let flt_val =
         js_eval_float("let b = Buffer.alloc(16); b.writeDoubleLE(123.456, 0); b.readDoubleLE(0);");
@@ -71,7 +64,6 @@ fn test_node_runtime_self_test() {
 
 #[test]
 fn test_node_core_modules() {
-    let _guard = NODE_TEST_LOCK.lock().unwrap();
     let source = r#"
 import js
 
@@ -160,7 +152,6 @@ fn main() {
 
 #[test]
 fn test_node_http_roundtrip() {
-    let _guard = NODE_TEST_LOCK.lock().unwrap();
     let source = r#"
 import js
 
@@ -205,7 +196,6 @@ fn main() {
 #[test]
 #[cfg(windows)]
 fn test_node_napi_addon_compilation_and_call() {
-    let _guard = NODE_TEST_LOCK.lock().unwrap();
     // 1. Build test N-API addon DLL
     let linker_spec = forgen::codegen::linker::ensure_linker().expect("Linker must be available");
     let cl_exe = linker_spec.program.with_file_name("cl.exe");
@@ -338,7 +328,6 @@ fn main() {
 
 #[test]
 fn test_node_datara_zerocopy_mutation() {
-    let _guard = NODE_TEST_LOCK.lock().unwrap();
     let source = r#"
 import js
 
@@ -407,7 +396,6 @@ fn main() {
 
 #[test]
 fn test_node_dce_zero_cost() {
-    let _guard = NODE_TEST_LOCK.lock().unwrap();
     let source = r#"
 fn compute(a: Int, b: Int) -> Int => a * 2 + b
 

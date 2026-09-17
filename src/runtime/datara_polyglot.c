@@ -14,7 +14,6 @@
 #endif
 
 #include "datara_polyglot.h"
-#include "datara_runtime.h"
 
 // ============================================================================
 // Zig Zero-Latency Interop
@@ -22,7 +21,7 @@
 
 int64_t datara_zig_eval_int(const char* code) {
     if (!code) return 0;
-    const char* p = datara_str_data(code);
+    const char* p = code;
     while (*p == ' ' || *p == '\t' || *p == '\n') p++;
     int64_t total = strtoll(p, (char**)&p, 10);
     while (*p) {
@@ -46,19 +45,18 @@ int64_t datara_zig_eval_int(const char* code) {
 
 int64_t datara_zig_call(const char* symbol, int64_t arg) {
     if (!symbol) return 0;
-    const char* sym = datara_str_data(symbol);
 #ifdef _WIN32
     HMODULE h = GetModuleHandleA(NULL);
     if (h) {
         typedef int64_t (*zig_fn_t)(int64_t);
-        zig_fn_t fn = (zig_fn_t)GetProcAddress(h, sym);
+        zig_fn_t fn = (zig_fn_t)GetProcAddress(h, symbol);
         if (fn) return fn(arg);
     }
 #else
     void* h = dlopen(NULL, RTLD_LAZY);
     if (h) {
         typedef int64_t (*zig_fn_t)(int64_t);
-        zig_fn_t fn = (zig_fn_t)dlsym(h, sym);
+        zig_fn_t fn = (zig_fn_t)dlsym(h, symbol);
         if (fn) return fn(arg);
     }
 #endif
@@ -71,28 +69,26 @@ int64_t datara_zig_call(const char* symbol, int64_t arg) {
 
 int64_t datara_csharp_invoke_i64(const char* lib_name, const char* method_name, int64_t arg) {
     if (!method_name) return 0;
-    const char* lib = datara_str_data(lib_name);
-    const char* method = datara_str_data(method_name);
 #ifdef _WIN32
     HMODULE h = NULL;
-    if (lib && strlen(lib) > 0) {
-        h = LoadLibraryA(lib);
+    if (lib_name && strlen(lib_name) > 0) {
+        h = LoadLibraryA(lib_name);
     }
     if (!h) h = GetModuleHandleA(NULL);
     if (h) {
         typedef int64_t (*cs_i64_fn)(int64_t);
-        cs_i64_fn fn = (cs_i64_fn)GetProcAddress(h, method);
+        cs_i64_fn fn = (cs_i64_fn)GetProcAddress(h, method_name);
         if (fn) return fn(arg);
     }
 #else
     void* h = NULL;
-    if (lib && strlen(lib) > 0) {
-        h = dlopen(lib, RTLD_LAZY);
+    if (lib_name && strlen(lib_name) > 0) {
+        h = dlopen(lib_name, RTLD_LAZY);
     }
     if (!h) h = dlopen(NULL, RTLD_LAZY);
     if (h) {
         typedef int64_t (*cs_i64_fn)(int64_t);
-        cs_i64_fn fn = (cs_i64_fn)dlsym(h, method);
+        cs_i64_fn fn = (cs_i64_fn)dlsym(h, method_name);
         if (fn) return fn(arg);
     }
 #endif
@@ -102,28 +98,26 @@ int64_t datara_csharp_invoke_i64(const char* lib_name, const char* method_name, 
 
 double datara_csharp_invoke_f64(const char* lib_name, const char* method_name, double arg) {
     if (!method_name) return 0.0;
-    const char* lib = datara_str_data(lib_name);
-    const char* method = datara_str_data(method_name);
 #ifdef _WIN32
     HMODULE h = NULL;
-    if (lib && strlen(lib) > 0) {
-        h = LoadLibraryA(lib);
+    if (lib_name && strlen(lib_name) > 0) {
+        h = LoadLibraryA(lib_name);
     }
     if (!h) h = GetModuleHandleA(NULL);
     if (h) {
         typedef double (*cs_f64_fn)(double);
-        cs_f64_fn fn = (cs_f64_fn)GetProcAddress(h, method);
+        cs_f64_fn fn = (cs_f64_fn)GetProcAddress(h, method_name);
         if (fn) return fn(arg);
     }
 #else
     void* h = NULL;
-    if (lib && strlen(lib) > 0) {
-        h = dlopen(lib, RTLD_LAZY);
+    if (lib_name && strlen(lib_name) > 0) {
+        h = dlopen(lib_name, RTLD_LAZY);
     }
     if (!h) h = dlopen(NULL, RTLD_LAZY);
     if (h) {
         typedef double (*cs_f64_fn)(double);
-        cs_f64_fn fn = (cs_f64_fn)dlsym(h, method);
+        cs_f64_fn fn = (cs_f64_fn)dlsym(h, method_name);
         if (fn) return fn(arg);
     }
 #endif
@@ -136,7 +130,7 @@ double datara_csharp_invoke_f64(const char* lib_name, const char* method_name, d
 
 int64_t datara_lua_eval_int(const char* code) {
     if (!code) return 0;
-    const char* p = datara_str_data(code);
+    const char* p = code;
     while (*p == ' ' || *p == '\t' || *p == '\n') p++;
     int64_t total = strtoll(p, (char**)&p, 10);
     while (*p) {
@@ -160,7 +154,7 @@ int64_t datara_lua_eval_int(const char* code) {
 
 double datara_lua_eval_float(const char* code) {
     if (!code) return 0.0;
-    const char* p = datara_str_data(code);
+    const char* p = code;
     while (*p == ' ' || *p == '\t' || *p == '\n') p++;
     double left = strtod(p, (char**)&p);
     while (*p == ' ' || *p == '\t') p++;
@@ -221,12 +215,10 @@ static DWORD WINAPI polyglot_worker_th(LPVOID arg) {
 
 int64_t datara_polyglot_parallel_exec(const char* engine_type, const char* code) {
     if (!engine_type || !code) return 0;
-    const char* eng = datara_str_data(engine_type);
-    const char* c = datara_str_data(code);
 #ifdef _WIN32
     PolyglotTask task;
-    task.engine = (char*)eng;
-    task.code = (char*)c;
+    task.engine = (char*)engine_type;
+    task.code = (char*)code;
     task.result = 0;
     HANDLE th = CreateThread(NULL, 0, polyglot_worker_th, &task, 0, NULL);
     if (th) {
@@ -235,10 +227,10 @@ int64_t datara_polyglot_parallel_exec(const char* engine_type, const char* code)
         return task.result;
     }
 #endif
-    if (strcmp(eng, "zig") == 0) return datara_zig_eval_int(c);
-    if (strcmp(eng, "lua") == 0) return datara_lua_eval_int(c);
-    if (strcmp(eng, "csharp") == 0 || strcmp(eng, "cs") == 0 || strcmp(eng, "dotnet") == 0) {
-        int64_t val = strtoll(c, NULL, 10);
+    if (strcmp(engine_type, "zig") == 0) return datara_zig_eval_int(code);
+    if (strcmp(engine_type, "lua") == 0) return datara_lua_eval_int(code);
+    if (strcmp(engine_type, "csharp") == 0 || strcmp(engine_type, "cs") == 0 || strcmp(engine_type, "dotnet") == 0) {
+        int64_t val = strtoll(code, NULL, 10);
         return datara_csharp_invoke_i64("", "Kernel", val);
     }
     return 1;

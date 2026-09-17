@@ -12,7 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dynamic Loop Bound Preallocation (1D BCE)**: Enhanced Bounds Check Elimination with dynamic bound preallocation tracking (`defined_vids`), eliminating redundant boundary assertions across sequential numerical loops.
 - **Unsafe Functions (`unsafe fn`)**: Introduced `unsafe fn` declaration syntax with compile-time security verification. Invocations of `unsafe fn` require mandatory `unsafe(justification: "...")` wrapping blocks.
 - **Fast Direct Stack Allocation (`stack_alloc`)**: Added `stack_alloc(bytes: Int) -> RawPtr` primitive across Cranelift JIT, LLVM AOT, and runtime for zero-heap scratch buffers.
-- **Datara String ABI v2**: Standardized in-memory string representation with `[len: i64][bytes...][\0]`, ensuring O(1) length queries and binary transparency for embedded NUL bytes.
 
 ## [1.4.2] - 2026-09-17
 

@@ -107,15 +107,11 @@ impl<'a> LlvmEmitter<'a> {
         }
     }
 
-    /// Escape string content for LLVM IR string literals: `c"[len: i64]...\00"`.
-    /// Returns the escaped string and the total byte length including 8-byte length prefix and null terminator.
+    /// Escape string content for LLVM IR string literals: `c"...\00"`.
+    /// Returns the escaped string and the total byte length including null terminator.
     pub fn escape_llvm_string(s: &str) -> (String, usize) {
         let mut out = String::new();
-        let len_bytes = (s.len() as i64).to_le_bytes();
-        for b in len_bytes {
-            out.push_str(&format!("\\{:02X}", b));
-        }
-        let mut bytes_count = 8;
+        let mut bytes_count = 0;
         for b in s.bytes() {
             bytes_count += 1;
             match b {
@@ -243,7 +239,7 @@ impl<'a> LlvmEmitter<'a> {
         for (content, id) in sorted_strings {
             let (escaped, len) = Self::escape_llvm_string(content);
             ir.push_str(&format!(
-                "@.str.{} = private unnamed_addr constant [{} x i8] c\"{}\", align 8\n",
+                "@.str.{} = private unnamed_addr constant [{} x i8] c\"{}\", align 1\n",
                 id, len, escaped
             ));
         }

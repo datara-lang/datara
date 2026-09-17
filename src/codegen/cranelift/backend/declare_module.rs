@@ -513,14 +513,11 @@ pub fn declare_module_symbols<M: ClifModule>(
         }
     }
 
-    // Pre-define all string literals in the module (String ABI v2: [len: i64][bytes...][\0])
+    // Pre-define all string literals in the module
     let mut string_literal_map: HashMap<String, cranelift_module::DataId> = HashMap::new();
     let add_str_literal = |s: &str, m: &mut M| -> Result<cranelift_module::DataId, String> {
         let mut data_ctx = DataDescription::new();
-        let len = s.len() as i64;
-        let mut bytes = Vec::with_capacity(8 + s.len() + 1);
-        bytes.extend_from_slice(&len.to_le_bytes());
-        bytes.extend_from_slice(s.as_bytes());
+        let mut bytes = s.as_bytes().to_vec();
         bytes.push(0); // null terminator
         data_ctx.define(bytes.into_boxed_slice());
         let data_id = m

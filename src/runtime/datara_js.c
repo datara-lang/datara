@@ -907,7 +907,7 @@ static DJSVal* djs_native_fs_read_file_sync(DJSVal* this_val, int argc, DJSVal**
     const char* content = datara_rt_file_read(path);
     free(path);
     if (!content) return djs_val_str("");
-    return djs_val_str(datara_str_data(content));
+    return djs_val_str(content);
 }
 
 static DJSVal* djs_native_fs_write_file_sync(DJSVal* this_val, int argc, DJSVal** argv) {
@@ -2187,15 +2187,13 @@ static DJSVal* djs_eval_internal(DJSScope* scope, const char* code) {
 
 const char* datara_js_eval(const char* code) {
     djs_init_globals();
-    const char* c_code = datara_str_data(code);
-    DJSVal* res = djs_eval_internal(g_djs_global_scope, c_code);
-    return datara_rt_str_from_c_str(djs_to_string(res));
+    DJSVal* res = djs_eval_internal(g_djs_global_scope, code);
+    return djs_to_string(res);
 }
 
 int64_t datara_js_eval_int(const char* code) {
     djs_init_globals();
-    const char* c_code = datara_str_data(code);
-    DJSVal* res = djs_eval_internal(g_djs_global_scope, c_code);
+    DJSVal* res = djs_eval_internal(g_djs_global_scope, code);
     if (!res) return 0;
     if (res->type == DJS_INT) return res->u.i;
     if (res->type == DJS_FLOAT) return (int64_t)res->u.f;
@@ -2206,8 +2204,7 @@ int64_t datara_js_eval_int(const char* code) {
 
 double datara_js_eval_float(const char* code) {
     djs_init_globals();
-    const char* c_code = datara_str_data(code);
-    DJSVal* res = djs_eval_internal(g_djs_global_scope, c_code);
+    DJSVal* res = djs_eval_internal(g_djs_global_scope, code);
     if (!res) return 0.0;
     if (res->type == DJS_FLOAT) return res->u.f;
     if (res->type == DJS_INT) return (double)res->u.i;
@@ -2219,20 +2216,19 @@ double datara_js_eval_float(const char* code) {
 int64_t datara_js_require(const char* module_name) {
     djs_init_globals();
     if (!module_name) return 0;
-    const char* c_mod = datara_str_data(module_name);
 
-    if (strcmp(c_mod, "path") == 0 ||
-        strcmp(c_mod, "fs") == 0 ||
-        strcmp(c_mod, "os") == 0 ||
-        strcmp(c_mod, "crypto") == 0 ||
-        strcmp(c_mod, "events") == 0 ||
-        strcmp(c_mod, "http") == 0 ||
-        strcmp(c_mod, "util") == 0) {
+    if (strcmp(module_name, "path") == 0 ||
+        strcmp(module_name, "fs") == 0 ||
+        strcmp(module_name, "os") == 0 ||
+        strcmp(module_name, "crypto") == 0 ||
+        strcmp(module_name, "events") == 0 ||
+        strcmp(module_name, "http") == 0 ||
+        strcmp(module_name, "util") == 0) {
         return 1;
     }
 
-    if (strstr(c_mod, ".node") != NULL) {
-        DJSVal* addon = datara_napi_load_addon(c_mod);
+    if (strstr(module_name, ".node") != NULL) {
+        DJSVal* addon = datara_napi_load_addon(module_name);
         if (addon) {
             djs_scope_set(g_djs_global_scope, "addon", addon);
             return 1;
@@ -2240,19 +2236,19 @@ int64_t datara_js_require(const char* module_name) {
         return 0;
     }
 
-    const char* content = datara_rt_file_read(c_mod);
+    const char* content = datara_rt_file_read(module_name);
     if (!content || content[0] == '\0') {
         char nm_path[512];
-        snprintf(nm_path, sizeof(nm_path), "node_modules/%s", c_mod);
+        snprintf(nm_path, sizeof(nm_path), "node_modules/%s", module_name);
         content = datara_rt_file_read(nm_path);
         if (!content || content[0] == '\0') {
-            snprintf(nm_path, sizeof(nm_path), "node_modules/%s/index.js", c_mod);
+            snprintf(nm_path, sizeof(nm_path), "node_modules/%s/index.js", module_name);
             content = datara_rt_file_read(nm_path);
         }
     }
 
     if (content && content[0] != '\0') {
-        djs_eval_internal(g_djs_global_scope, datara_str_data(content));
+        djs_eval_internal(g_djs_global_scope, content);
         return 1;
     }
     return 0;
@@ -2260,18 +2256,16 @@ int64_t datara_js_require(const char* module_name) {
 
 const char* datara_js_call(const char* fn_name, const char* args_json) {
     djs_init_globals();
-    if (!fn_name) return EMPTY_DATARA_STR;
-    const char* c_fn = datara_str_data(fn_name);
-    const char* c_args = args_json ? datara_str_data(args_json) : NULL;
+    if (!fn_name) return "null";
 
-    DJSVal* fn = djs_scope_get(g_djs_global_scope, c_fn);
+    DJSVal* fn = djs_scope_get(g_djs_global_scope, fn_name);
     if (!fn || (fn->type != DJS_FUNC && fn->type != DJS_NATIVE_FUNC && fn->type != DJS_NAPI_FUNC)) {
-        return datara_rt_str_from_c_str("null");
+        return "null";
     }
 
     DJSVal* parsed_args = NULL;
-    if (c_args && c_args[0] != '\0') {
-        parsed_args = djs_eval_internal(NULL, c_args);
+    if (args_json && args_json[0] != '\0') {
+        parsed_args = djs_eval_internal(NULL, args_json);
     }
 
     DJSVal* argv[16];
@@ -2286,7 +2280,7 @@ const char* datara_js_call(const char* fn_name, const char* args_json) {
     }
 
     DJSVal* res = djs_call_val(fn, NULL, argc, argv);
-    return datara_rt_str_from_c_str(djs_to_string(res));
+    return djs_to_string(res);
 }
 
 const char* datara_js_call_0(const char* fn_name) {
@@ -2295,22 +2289,21 @@ const char* datara_js_call_0(const char* fn_name) {
 
 const char* datara_js_call_1(const char* fn_name, const char* a0) {
     if (!a0) return datara_js_call(fn_name, "[null]");
-    const char* ca0 = datara_str_data(a0);
-    size_t len = strlen(ca0) + 4;
+    size_t len = strlen(a0) + 4;
     char* b = (char*)malloc(len);
-    if (!b) return datara_rt_str_from_c_str("null");
-    snprintf(b, len, "[%s]", ca0);
+    if (!b) return "null";
+    snprintf(b, len, "[%s]", a0);
     const char* r = datara_js_call(fn_name, b);
     free(b);
     return r;
 }
 
 const char* datara_js_call_2(const char* fn_name, const char* a0, const char* a1) {
-    const char* s0 = a0 ? datara_str_data(a0) : "null";
-    const char* s1 = a1 ? datara_str_data(a1) : "null";
+    const char* s0 = a0 ? a0 : "null";
+    const char* s1 = a1 ? a1 : "null";
     size_t len = strlen(s0) + strlen(s1) + 5;
     char* b = (char*)malloc(len);
-    if (!b) return datara_rt_str_from_c_str("null");
+    if (!b) return "null";
     snprintf(b, len, "[%s,%s]", s0, s1);
     const char* r = datara_js_call(fn_name, b);
     free(b);
@@ -2320,19 +2313,16 @@ const char* datara_js_call_2(const char* fn_name, const char* a0, const char* a1
 int64_t datara_js_set_global(const char* name, const char* json_val) {
     djs_init_globals();
     if (!name) return 0;
-    const char* c_name = datara_str_data(name);
-    const char* c_val = json_val ? datara_str_data(json_val) : NULL;
-    DJSVal* v = (c_val && c_val[0] != '\0') ? djs_eval_internal(NULL, c_val) : djs_val_undefined();
-    djs_scope_set(g_djs_global_scope, c_name, v);
+    DJSVal* v = (json_val && json_val[0] != '\0') ? djs_eval_internal(NULL, json_val) : djs_val_undefined();
+    djs_scope_set(g_djs_global_scope, name, v);
     return 1;
 }
 
 const char* datara_js_get_global(const char* name) {
     djs_init_globals();
-    if (!name) return datara_rt_str_from_c_str("undefined");
-    const char* c_name = datara_str_data(name);
-    DJSVal* v = djs_scope_get(g_djs_global_scope, c_name);
-    return datara_rt_str_from_c_str(djs_to_string(v));
+    if (!name) return "undefined";
+    DJSVal* v = djs_scope_get(g_djs_global_scope, name);
+    return djs_to_string(v);
 }
 
 // ---------------------------------------------------------------------------
@@ -2342,9 +2332,8 @@ const char* datara_js_get_global(const char* name) {
 int64_t datara_js_export_memview(const char* name, const DataraMemoryView* view) {
     djs_init_globals();
     if (!name || !view || !view->data) return 0;
-    const char* c_name = datara_str_data(name);
     DJSVal* b = djs_val_buffer_wrap((uint8_t*)view->data, view->total_bytes, view);
-    djs_scope_set(g_djs_global_scope, c_name, b);
+    djs_scope_set(g_djs_global_scope, name, b);
     return 1;
 }
 
@@ -2357,8 +2346,7 @@ int64_t datara_js_export_list_f64(const char* name, int64_t* list) {
 int64_t datara_js_assert_same_ptr(const char* name, int64_t* list) {
     if (!name || !list) return 0;
     djs_init_globals();
-    const char* c_name = datara_str_data(name);
-    DJSVal* v = djs_scope_get(g_djs_global_scope, c_name);
+    DJSVal* v = djs_scope_get(g_djs_global_scope, name);
     if (!v || v->type != DJS_BUFFER) return 0;
     DataraMemoryView mv = datara_memview_from_list_f64(list);
     return (v->u.buffer.data == mv.data) ? 1 : 0;
