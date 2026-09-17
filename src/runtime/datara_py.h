@@ -35,10 +35,22 @@ int64_t     datara_py_import(const char* module_name);
 const char* datara_py_call(const char* fn_name, const char* args_json);
 const char* datara_py_call_1_str(const char* fn_name, const char* arg0);
 double      datara_py_call_1_float(const char* fn_name, double arg0);
+double      datara_py_call_2_float(const char* fn_name, double a, double b);
+int64_t     datara_py_call_2_float_bool(const char* fn_name, double a, double b);
+int64_t     datara_py_call_1_int(const char* fn_name, int64_t a);
+int64_t     datara_py_call_2_int(const char* fn_name, int64_t a, int64_t b);
+int64_t*    datara_py_call_list_f64(const char* fn_name, int64_t* in_list);
+const char* datara_py_eval_batch(const char* json_exprs);
 int64_t     py_import(const char* module_name);
 const char* py_call(const char* fn_name, const char* args_json);
 const char* py_call_1_str(const char* fn_name, const char* arg0);
 double      py_call_1_float(const char* fn_name, double arg0);
+double      py_call_2_float(const char* fn_name, double a, double b);
+int64_t     py_call_2_float_bool(const char* fn_name, double a, double b);
+int64_t     py_call_1_int(const char* fn_name, int64_t a);
+int64_t     py_call_2_int(const char* fn_name, int64_t a, int64_t b);
+int64_t*    py_call_list_f64(const char* fn_name, int64_t* in_list);
+const char* py_eval_batch(const char* json_exprs);
 
 // Zero-Copy DataraMemoryView Interop (Requirement 7)
 int32_t     datara_py_export_memview(const char* var_name, const DataraMemoryView* view);

@@ -119,6 +119,31 @@ impl<'a> TypeChecker<'a> {
                     .unwrap_or(DataraType::Unit);
                 self.function_signatures
                     .insert(ef.name.clone(), (p_types, ret, Vec::new()));
+            } else if let Decl::Bridge(b) = decl {
+                for f in &b.functions {
+                    let p_types: Vec<DataraType> = f
+                        .params
+                        .iter()
+                        .map(|p| {
+                            p.type_node
+                                .as_ref()
+                                .map(|t| self.resolve_type_node(t, diag))
+                                .unwrap_or(DataraType::Int)
+                        })
+                        .collect();
+                    let ret = f
+                        .return_type
+                        .as_ref()
+                        .map(|t| self.resolve_type_node(t, diag))
+                        .unwrap_or(DataraType::Unit);
+                    let qualified = format!("{}.{}", b.module, f.name);
+                    self.function_signatures
+                        .insert(qualified.clone(), (p_types.clone(), ret.clone(), Vec::new()));
+                    self.function_signatures
+                        .insert(f.name.clone(), (p_types, ret, Vec::new()));
+                    self.bridge_functions.insert(qualified);
+                    self.bridge_functions.insert(f.name.clone());
+                }
             } else if let Decl::Impl(i) = decl {
                 self.current_target_type = Some(i.target_type.clone());
                 for m in &i.methods {

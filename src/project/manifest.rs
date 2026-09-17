@@ -54,6 +54,166 @@ pub struct DataraManifest {
     pub target: Option<TargetConfig>,
     #[serde(default)]
     pub profiles: HashMap<String, ProfileConfig>,
+    #[serde(default)]
+    pub capabilities: Option<CapabilitiesConfig>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CapabilityKind {
+    FsRead,
+    FsWrite,
+    NetListen,
+    NetConnect,
+    Env,
+    Exec,
+}
+
+impl CapabilityKind {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::FsRead => "fs-read",
+            Self::FsWrite => "fs-write",
+            Self::NetListen => "net-listen",
+            Self::NetConnect => "net-connect",
+            Self::Env => "env",
+            Self::Exec => "exec",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CapabilitiesConfig {
+    #[serde(default, alias = "fs_read", rename = "fs-read")]
+    pub fs_read: Vec<String>,
+    #[serde(default, alias = "fs_write", rename = "fs-write")]
+    pub fs_write: Vec<String>,
+    #[serde(default, alias = "net_listen", rename = "net-listen")]
+    pub net_listen: Vec<String>,
+    #[serde(default, alias = "net_connect", rename = "net-connect")]
+    pub net_connect: Vec<String>,
+    #[serde(default)]
+    pub env: Vec<String>,
+    #[serde(default)]
+    pub exec: Vec<String>,
+}
+
+impl CapabilitiesConfig {
+    pub fn has_category(&self, kind: CapabilityKind) -> bool {
+        !self.patterns(kind).is_empty()
+    }
+
+    pub fn patterns(&self, kind: CapabilityKind) -> &[String] {
+        match kind {
+            CapabilityKind::FsRead => &self.fs_read,
+            CapabilityKind::FsWrite => &self.fs_write,
+            CapabilityKind::NetListen => &self.net_listen,
+            CapabilityKind::NetConnect => &self.net_connect,
+            CapabilityKind::Env => &self.env,
+            CapabilityKind::Exec => &self.exec,
+        }
+    }
+
+    pub fn matches(&self, kind: CapabilityKind, target: &str) -> bool {
+        let patterns = self.patterns(kind);
+        if patterns.is_empty() {
+            return false;
+        }
+        for pat in patterns {
+            if matches_glob(pat, target, kind) {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+pub fn matches_glob(pattern: &str, target: &str, kind: CapabilityKind) -> bool {
+    if pattern == "*" || pattern == "**" {
+        return true;
+    }
+    let is_path = matches!(kind, CapabilityKind::FsRead | CapabilityKind::FsWrite);
+    let p_norm = if is_path {
+        normalize_path(pattern)
+    } else {
+        pattern.to_string()
+    };
+    let t_norm = if is_path {
+        normalize_path(target)
+    } else {
+        target.to_string()
+    };
+
+    if p_norm == t_norm {
+        return true;
+    }
+
+    if kind == CapabilityKind::Exec {
+        let prog = target.split_whitespace().next().unwrap_or(target);
+        if pattern == prog || wildcard_match(pattern, prog) {
+            return true;
+        }
+    }
+
+    if is_path {
+        if let Some(prefix) = p_norm.strip_suffix("/**") {
+            if t_norm.starts_with(prefix) {
+                let rem = &t_norm[prefix.len()..];
+                if rem.is_empty() || rem.starts_with('/') {
+                    return true;
+                }
+            }
+        }
+        if let Some(prefix) = p_norm.strip_suffix("/*") {
+            if t_norm.starts_with(prefix) {
+                let rem = &t_norm[prefix.len()..];
+                if rem.starts_with('/') && !rem[1..].contains('/') {
+                    return true;
+                }
+            }
+        }
+    }
+
+    wildcard_match(&p_norm, &t_norm)
+}
+
+fn normalize_path(p: &str) -> String {
+    let replaced = p.replace('\\', "/");
+    let trimmed = replaced.trim_start_matches("./");
+    trimmed.to_string()
+}
+
+fn wildcard_match(pat: &str, s: &str) -> bool {
+    let pat_chars: Vec<char> = pat.chars().collect();
+    let s_chars: Vec<char> = s.chars().collect();
+    let mut p_idx = 0;
+    let mut s_idx = 0;
+    let mut star_idx = None;
+    let mut match_idx = 0;
+
+    while s_idx < s_chars.len() {
+        if p_idx < pat_chars.len()
+            && (pat_chars[p_idx] == '?' || pat_chars[p_idx] == s_chars[s_idx])
+        {
+            p_idx += 1;
+            s_idx += 1;
+        } else if p_idx < pat_chars.len() && pat_chars[p_idx] == '*' {
+            star_idx = Some(p_idx);
+            p_idx += 1;
+            match_idx = s_idx;
+        } else if let Some(star) = star_idx {
+            p_idx = star + 1;
+            match_idx += 1;
+            s_idx = match_idx;
+        } else {
+            return false;
+        }
+    }
+
+    while p_idx < pat_chars.len() && pat_chars[p_idx] == '*' {
+        p_idx += 1;
+    }
+
+    p_idx == pat_chars.len()
 }
 
 pub fn validate_semver(version: &str) -> Result<(), String> {

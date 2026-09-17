@@ -1494,29 +1494,109 @@ const char* datara_rt_input(const char* prompt) {
         datara_rt_print_str(prompt);
         datara_rt_flush();
     }
-    char* buf = datara_scratch_alloc(1024);
+    size_t cap = 256;
+    size_t len = 0;
+    char* buf = (char*)malloc(cap);
     if (!buf) return "";
-    if (fgets(buf, 1024, stdin) == NULL) {
-        buf[0] = '\0';
-        return buf;
+
+    int c;
+    while ((c = getchar()) != EOF) {
+        if (c == '\n') break;
+        if (c == '\r') {
+            int next_c = getchar();
+            if (next_c != '\n' && next_c != EOF) {
+                ungetc(next_c, stdin);
+            }
+            break;
+        }
+        if (len + 2 >= cap) {
+            cap *= 2;
+            char* new_buf = (char*)realloc(buf, cap);
+            if (!new_buf) {
+                buf[len] = '\0';
+                break;
+            }
+            buf = new_buf;
+        }
+        buf[len++] = (char)c;
     }
-    size_t len = strlen(buf);
-    while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r')) {
-        buf[--len] = '\0';
+    buf[len] = '\0';
+    char* ret = datara_scratch_alloc(len + 1);
+    if (ret) {
+        memcpy(ret, buf, len + 1);
+        free(buf);
+        return ret;
     }
     return buf;
 }
 
+int64_t datara_rt_fast_read_int(void) {
+    int c = getchar();
+    while (c != EOF && c <= ' ') {
+        c = getchar();
+    }
+    if (c == EOF) return 0;
+    int sign = 1;
+    if (c == '-') {
+        sign = -1;
+        c = getchar();
+    } else if (c == '+') {
+        c = getchar();
+    }
+    int64_t val = 0;
+    while (c >= '0' && c <= '9') {
+        val = val * 10 + (int64_t)(c - '0');
+        c = getchar();
+    }
+    return val * sign;
+}
+
+double datara_rt_fast_read_float(void) {
+    int c = getchar();
+    while (c != EOF && c <= ' ') {
+        c = getchar();
+    }
+    if (c == EOF) return 0.0;
+    int sign = 1;
+    if (c == '-') {
+        sign = -1;
+        c = getchar();
+    } else if (c == '+') {
+        c = getchar();
+    }
+    double val = 0.0;
+    while (c >= '0' && c <= '9') {
+        val = val * 10.0 + (double)(c - '0');
+        c = getchar();
+    }
+    if (c == '.') {
+        double factor = 0.1;
+        c = getchar();
+        while (c >= '0' && c <= '9') {
+            val += (double)(c - '0') * factor;
+            factor *= 0.1;
+            c = getchar();
+        }
+    }
+    return val * sign;
+}
+
 int64_t datara_rt_input_int(const char* prompt) {
-    const char* s = datara_rt_input(prompt);
-    if (!s || s[0] == '\0') return 0;
-    return (int64_t)strtoll(s, NULL, 10);
+    if (prompt && prompt[0] != '\0') {
+        const char* s = datara_rt_input(prompt);
+        if (!s || s[0] == '\0') return 0;
+        return (int64_t)strtoll(s, NULL, 10);
+    }
+    return datara_rt_fast_read_int();
 }
 
 double datara_rt_input_float(const char* prompt) {
-    const char* s = datara_rt_input(prompt);
-    if (!s || s[0] == '\0') return 0.0;
-    return strtod(s, NULL);
+    if (prompt && prompt[0] != '\0') {
+        const char* s = datara_rt_input(prompt);
+        if (!s || s[0] == '\0') return 0.0;
+        return strtod(s, NULL);
+    }
+    return datara_rt_fast_read_float();
 }
 
 void datara_rt_out_dec64(int64_t val) {
@@ -3521,6 +3601,86 @@ void datara_rt_socket_close(int64_t sock) {
 #else
     close((int)sock);
 #endif
+}
+
+void* datara_rt_socket_set_timeout(int64_t sock, int64_t ms) {
+    if (sock < 0) return datara_rt_outcome_build_raw(0, 0, "invalid socket handle");
+#ifdef _WIN32
+    DWORD timeout = (DWORD)(ms > 0 ? ms : 0);
+    int rc1 = setsockopt((SOCKET)sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+    int rc2 = setsockopt((SOCKET)sock, SOL_SOCKET, SO_SNDTIMEO, (const char*)&timeout, sizeof(timeout));
+    if (rc1 == SOCKET_ERROR || rc2 == SOCKET_ERROR) {
+        return datara_rt_outcome_build_raw(0, 0, "setsockopt SO_RCVTIMEO failed");
+    }
+#else
+    struct timeval tv;
+    tv.tv_sec = (time_t)(ms / 1000);
+    tv.tv_usec = (suseconds_t)((ms % 1000) * 1000);
+    int rc1 = setsockopt((int)sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    int rc2 = setsockopt((int)sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+    if (rc1 < 0 || rc2 < 0) {
+        return datara_rt_outcome_build_raw(0, 0, "setsockopt SO_RCVTIMEO failed");
+    }
+#endif
+    return datara_rt_outcome_build_raw(1, 0, "");
+}
+
+void* datara_rt_socket_nonblocking(int64_t sock, int64_t on) {
+    if (sock < 0) return datara_rt_outcome_build_raw(0, 0, "invalid socket handle");
+#ifdef _WIN32
+    u_long mode = on ? 1 : 0;
+    if (ioctlsocket((SOCKET)sock, FIONBIO, &mode) != 0) {
+        return datara_rt_outcome_build_raw(0, 0, "ioctlsocket FIONBIO failed");
+    }
+#else
+    int flags = fcntl((int)sock, F_GETFL, 0);
+    if (flags < 0) return datara_rt_outcome_build_raw(0, 0, "fcntl F_GETFL failed");
+    if (on) {
+        flags |= O_NONBLOCK;
+    } else {
+        flags &= ~O_NONBLOCK;
+    }
+    if (fcntl((int)sock, F_SETFL, flags) < 0) {
+        return datara_rt_outcome_build_raw(0, 0, "fcntl F_SETFL failed");
+    }
+#endif
+    return datara_rt_outcome_build_raw(1, 0, "");
+}
+
+void* datara_rt_socket_recv_outcome(int64_t sock, int64_t max_bytes) {
+    if (sock < 0) return datara_rt_outcome_build_raw(0, 0, "invalid socket handle");
+    int cap = max_bytes > 0 ? (int)max_bytes : 4096;
+    char* buf = (char*)malloc((size_t)cap + 1);
+    if (!buf) return datara_rt_outcome_build_raw(0, 0, "out of memory");
+#ifdef _WIN32
+    int n = recv((SOCKET)sock, buf, cap, 0);
+    if (n == SOCKET_ERROR) {
+        int err = WSAGetLastError();
+        free(buf);
+        if (err == WSAEWOULDBLOCK || err == WSAETIMEDOUT) {
+            return datara_rt_outcome_build(0, "", "would-block");
+        }
+        return datara_rt_outcome_build(0, "", "socket recv error");
+    }
+#else
+    ssize_t n = recv((int)sock, buf, (size_t)cap, 0);
+    if (n < 0) {
+        int err = errno;
+        free(buf);
+        if (err == EWOULDBLOCK || err == EAGAIN || err == ETIMEDOUT) {
+            return datara_rt_outcome_build(0, "", "would-block");
+        }
+        return datara_rt_outcome_build(0, "", "socket recv error");
+    }
+#endif
+    if (n == 0) {
+        free(buf);
+        return datara_rt_outcome_build(0, "", "connection closed");
+    }
+    buf[n] = '\0';
+    void* out = datara_rt_outcome_build(1, buf, "");
+    free(buf);
+    return out;
 }
 
 // ---------------------------------------------------------------------------

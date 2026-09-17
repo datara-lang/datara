@@ -244,6 +244,13 @@ impl Resolver {
             "parallel_invoke",
             "num_workers",
             "read_line",
+            "input",
+            "input_int",
+            "input_float",
+            "read_int",
+            "read_float",
+            "py_eval_batch",
+            "datara_py_eval_batch",
             "socket_create",
             "socket_bind",
             "socket_listen",
@@ -251,6 +258,9 @@ impl Resolver {
             "socket_connect",
             "socket_send",
             "socket_recv",
+            "socket_recv_outcome",
+            "socket_set_timeout",
+            "socket_nonblocking",
             "socket_close",
             "sha256",
             "base64_encode",
@@ -1099,6 +1109,7 @@ impl Resolver {
                     self.scopes[0].define(reg.name.clone(), sym);
                 }
                 Decl::CImport(_) => {}
+                Decl::Bridge(_) => {}
             }
         }
 

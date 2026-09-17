@@ -719,6 +719,37 @@ pub fn declare_runtime_core<M: ClifModule>(
     );
     func_ids.insert("input_float".into(), (rt_input_flt_id, f64_1_i64_sig));
 
+    // Zero-alloc fast read functions
+    let mut i64_0_sig = Signature::new(call_conv);
+    i64_0_sig.returns.push(AbiParam::new(clif_types::I64));
+    let rt_fast_read_int_id = module
+        .declare_function("datara_rt_fast_read_int", Linkage::Import, &i64_0_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_fast_read_int".into(),
+        (rt_fast_read_int_id, i64_0_sig.clone()),
+    );
+    func_ids.insert(
+        "fast_read_int".into(),
+        (rt_fast_read_int_id, i64_0_sig.clone()),
+    );
+    func_ids.insert("read_int".into(), (rt_fast_read_int_id, i64_0_sig));
+
+    let mut f64_0_sig = Signature::new(call_conv);
+    f64_0_sig.returns.push(AbiParam::new(clif_types::F64));
+    let rt_fast_read_flt_id = module
+        .declare_function("datara_rt_fast_read_float", Linkage::Import, &f64_0_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_fast_read_float".into(),
+        (rt_fast_read_flt_id, f64_0_sig.clone()),
+    );
+    func_ids.insert(
+        "fast_read_float".into(),
+        (rt_fast_read_flt_id, f64_0_sig.clone()),
+    );
+    func_ids.insert("read_float".into(), (rt_fast_read_flt_id, f64_0_sig));
+
     let mut rt_pop_sig = Signature::new(call_conv);
     rt_pop_sig.params.push(AbiParam::new(clif_types::I64));
     rt_pop_sig.returns.push(AbiParam::new(clif_types::I64));

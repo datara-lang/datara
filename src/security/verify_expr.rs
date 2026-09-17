@@ -110,8 +110,102 @@ impl<'a> SecurityVerifier<'a> {
                         }
                     }
 
-                    // Gate 1: Capability Security OS gate
-                    if let Some(req_cap) = required_capability_for_op(callee_name) {
+                    // Gate 1: Capability Security OS gate (Capabilities 2.0)
+                    if let Some(caps) = &self.capabilities_manifest {
+                        if let Some(kind) = capability_kind_for_op(callee_name) {
+                            if !caps.has_category(kind) {
+                                diag.error(
+                                    ErrorCode::CapMissingPermission,
+                                    format!(
+                                        "Operation '{}' requires declared permission '{}' in datara.toml [capabilities]",
+                                        callee_name,
+                                        kind.name()
+                                    ),
+                                    Some(callee_span.clone()),
+                                );
+                            } else {
+                                let (target_opt, target_span) = if (callee_name == "socket_connect" || callee_name == "socket_bind") && args.len() >= 2 {
+                                    let host_opt = match &args[1] {
+                                        Expr::Literal(LiteralValue::String(s), _) => Some(s.as_str()),
+                                        _ => None,
+                                    };
+                                    let port_opt = if args.len() >= 3 {
+                                        match &args[2] {
+                                            Expr::Literal(LiteralValue::Int(p), _) => Some(*p),
+                                            _ => None,
+                                        }
+                                    } else {
+                                        None
+                                    };
+                                    let formatted = match (host_opt, port_opt) {
+                                        (Some(h), Some(p)) => Some(format!("{}:{}", h, p)),
+                                        (Some(h), None) => Some(h.to_string()),
+                                        _ => None,
+                                    };
+                                    (formatted, args[1].span().clone())
+                                } else if let Some(first_arg) = args.first() {
+                                    let s = match first_arg {
+                                        Expr::Literal(LiteralValue::String(s), _) => Some(s.clone()),
+                                        _ => None,
+                                    };
+                                    (s, first_arg.span().clone())
+                                } else {
+                                    (None, callee_span.clone())
+                                };
+
+                                let is_non_target_socket = callee_name.starts_with("socket_")
+                                    && callee_name != "socket_connect"
+                                    && callee_name != "socket_bind";
+
+                                if !is_non_target_socket {
+                                    if let Some(target) = &target_opt {
+                                        if !caps.matches(kind, target) {
+                                            diag.error(
+                                                ErrorCode::CapGlobViolation,
+                                                format!(
+                                                    "Target '{}' in operation '{}' violates allowed glob pattern for '{}' in datara.toml [capabilities]",
+                                                    target,
+                                                    callee_name,
+                                                    kind.name()
+                                                ),
+                                                Some(target_span),
+                                            );
+                                        }
+                                    } else if !args.is_empty() {
+                                        let has_wildcard = caps.patterns(kind).iter().any(|p| p == "*" || p == "**");
+                                        if !has_wildcard {
+                                            diag.error(
+                                                ErrorCode::CapGlobViolation,
+                                                format!(
+                                                    "Dynamic target for operation '{}' cannot be statically proven to satisfy '{}' globs in datara.toml [capabilities]",
+                                                    callee_name,
+                                                    kind.name()
+                                                ),
+                                                Some(target_span),
+                                            );
+                                        }
+                                    }
+                                }
+
+                                if is_escalated_op(callee_name) {
+                                    let justified = match &ctx.unsafe_justification {
+                                        Some(j) => !j.trim().is_empty(),
+                                        None => false,
+                                    };
+                                    if !justified {
+                                        diag.error(
+                                            ErrorCode::SecurityViolation,
+                                            format!(
+                                                "Security Violation: Escalated operation '{}' requires 'unsafe(justification: \"...\")' block in addition to manifest declaration",
+                                                callee_name
+                                            ),
+                                            Some(callee_span.clone()),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    } else if let Some(req_cap) = required_capability_for_op(callee_name) {
                         let justified = match &ctx.unsafe_justification {
                             Some(j) => !j.trim().is_empty(),
                             None => false,

@@ -18,6 +18,7 @@ pub enum TopLevelKind {
     Trait,
     Impl,
     Struct,
+    Bridge,
     Other,
 }
 
@@ -46,6 +47,7 @@ pub fn classify_top_level(source: &str) -> TopLevelKind {
             TokenType::Trait => TopLevelKind::Trait,
             TokenType::Impl => TopLevelKind::Impl,
             TokenType::Struct => TopLevelKind::Struct,
+            TokenType::Bridge => TopLevelKind::Bridge,
             TokenType::Pub => {
                 if let Some(next) = iter.next() {
                     match &next.token_type {

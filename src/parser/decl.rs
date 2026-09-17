@@ -141,6 +141,9 @@ impl<'a> Parser<'a> {
         if self.match_token(&TokenType::Register) {
             return self.parse_register_decl(attrs).map(Decl::Register);
         }
+        if self.match_token(&TokenType::Bridge) {
+            return self.parse_bridge_decl().map(Decl::Bridge);
+        }
         let is_class_keyword = self.check(&TokenType::Class);
         if self.match_token(&TokenType::Class)
             || self.match_token(&TokenType::Entity)
@@ -446,7 +449,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        while self.match_token(&TokenType::Dot) {
+        while self.match_token(&TokenType::Dot) || self.match_token(&TokenType::ColonColon) {
             if self.match_token(&TokenType::LBrace) {
                 while !self.check(&TokenType::RBrace) && !self.is_at_end() {
                     if let Some(item) = self.consume_import_name("Expected imported item name") {
@@ -1238,6 +1241,64 @@ impl<'a> Parser<'a> {
                 start_col_from(&start_span),
                 self.previous().span.end_line,
                 self.previous().span.end_col,
+                self.file.clone(),
+            ),
+        })
+    }
+
+    pub(crate) fn parse_bridge_decl(&mut self) -> Option<BridgeDecl> {
+        let start_span = self.previous().span.clone();
+        let lang = self.consume_ident_or_keyword("Expected bridge foreign language (e.g. py, c, js, rs)")?;
+        if !self.match_token(&TokenType::ColonColon) && !self.match_token(&TokenType::Dot) {
+            self.error("Expected '::' or '.' after bridge language identifier");
+            return None;
+        }
+        let module = self.consume_ident_or_keyword("Expected bridge module name (e.g. math)")?;
+        self.consume(&TokenType::LBrace, "Expected '{' to begin bridge block")?;
+
+        let mut functions = Vec::new();
+        while !self.check(&TokenType::RBrace) && !self.is_at_end() {
+            if self.match_token(&TokenType::Fn) || self.match_token(&TokenType::Function) {
+                let fn_start_span = self.previous().span.clone();
+                let fn_name = self.consume_ident_or_keyword("Expected function name in bridge block")?;
+                self.consume(&TokenType::LParen, "Expected '(' after bridge function name")?;
+                let params = self.parse_param_list().unwrap_or_default();
+                self.consume(&TokenType::RParen, "Expected ')' after parameters")?;
+                let return_type = if self.match_token(&TokenType::Arrow) {
+                    self.parse_type()
+                } else {
+                    None
+                };
+                let _ = self.match_token(&TokenType::Semicolon);
+                let fn_end_span = self.previous().span.clone();
+                functions.push(BridgeFn {
+                    name: fn_name,
+                    params,
+                    return_type,
+                    span: SourceSpan::new(
+                        fn_start_span.start_line,
+                        fn_start_span.start_col,
+                        fn_end_span.end_line,
+                        fn_end_span.end_col,
+                        self.file.clone(),
+                    ),
+                });
+            } else {
+                self.error("Expected 'fn' declaration in bridge block");
+                self.advance();
+            }
+        }
+        self.consume(&TokenType::RBrace, "Expected '}' after bridge block")?;
+        let end_span = self.previous().span.clone();
+        Some(BridgeDecl {
+            lang,
+            module,
+            functions,
+            span: SourceSpan::new(
+                start_span.start_line,
+                start_span.start_col,
+                end_span.end_line,
+                end_span.end_col,
                 self.file.clone(),
             ),
         })

@@ -1,6 +1,6 @@
 use super::{DataraType, TypeChecker};
 use crate::resolver::Resolver;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 // List<T> builtin-method documentation (v1.4.1). List methods are matched
 // structurally in src/types/check/call.rs, not registered here, so the
@@ -1049,6 +1049,20 @@ impl<'a> TypeChecker<'a> {
             (vec![], DataraType::String, Vec::new()),
         );
         function_signatures.insert(
+            "read_int".to_string(),
+            (vec![], DataraType::Int, Vec::new()),
+        );
+        function_signatures.insert(
+            "read_float".to_string(),
+            (vec![], DataraType::Float, Vec::new()),
+        );
+        for f in &["py_eval_batch", "datara_py_eval_batch"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::String], DataraType::String, Vec::new()),
+            );
+        }
+        function_signatures.insert(
             "socket_create".to_string(),
             (vec![DataraType::Int], DataraType::Int, Vec::new()),
         );
@@ -1093,6 +1107,39 @@ impl<'a> TypeChecker<'a> {
             (
                 vec![DataraType::Int, DataraType::Int],
                 DataraType::String,
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "socket_set_timeout".to_string(),
+            (
+                vec![DataraType::Int, DataraType::Int],
+                DataraType::GenericInstance {
+                    name: "Outcome".into(),
+                    args: vec![DataraType::Unit],
+                },
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "socket_nonblocking".to_string(),
+            (
+                vec![DataraType::Int, DataraType::Bool],
+                DataraType::GenericInstance {
+                    name: "Outcome".into(),
+                    args: vec![DataraType::Unit],
+                },
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "socket_recv_outcome".to_string(),
+            (
+                vec![DataraType::Int, DataraType::Int],
+                DataraType::GenericInstance {
+                    name: "Outcome".into(),
+                    args: vec![DataraType::String],
+                },
                 Vec::new(),
             ),
         );
@@ -1410,6 +1457,7 @@ impl<'a> TypeChecker<'a> {
             trait_bounds: HashMap::new(),
             current_target_type: None,
             program_module_aliases: HashMap::new(),
+            bridge_functions: HashSet::new(),
             expr_depth: 0,
             loop_depth: 0,
         }

@@ -467,9 +467,37 @@ impl<'a> Lowering<'a> {
             if (fn_name == "input"
                 || fn_name == "read_line"
                 || fn_name == "input_int"
-                || fn_name == "input_float")
+                || fn_name == "read_int"
+                || fn_name == "fast_read_int"
+                || fn_name == "input_float"
+                || fn_name == "read_float"
+                || fn_name == "fast_read_float")
                 && args.len() <= 1
             {
+                if (fn_name == "read_int" || fn_name == "fast_read_int") && args.is_empty() {
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest,
+                            func: "datara_rt_fast_read_int".into(),
+                            args: vec![],
+                            ty: "Int".into(),
+                        });
+                    return Some(dest);
+                }
+                if (fn_name == "read_float" || fn_name == "fast_read_float") && args.is_empty() {
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest,
+                            func: "datara_rt_fast_read_float".into(),
+                            args: vec![],
+                            ty: "Float".into(),
+                        });
+                    return Some(dest);
+                }
                 let prompt_val = if !args.is_empty() {
                     self.lower_expr(&args[0], cur_block)?
                 } else {
@@ -482,9 +510,9 @@ impl<'a> Lowering<'a> {
                         });
                     empty
                 };
-                let (target_func, ret_ty) = if fn_name == "input_int" {
+                let (target_func, ret_ty) = if fn_name == "input_int" || fn_name == "read_int" || fn_name == "fast_read_int" {
                     ("datara_rt_input_int", "Int")
-                } else if fn_name == "input_float" {
+                } else if fn_name == "input_float" || fn_name == "read_float" || fn_name == "fast_read_float" {
                     ("datara_rt_input_float", "Float")
                 } else {
                     ("datara_rt_input", "String")
@@ -497,6 +525,61 @@ impl<'a> Lowering<'a> {
                         func: target_func.into(),
                         args: vec![prompt_val],
                         ty: ret_ty.into(),
+                    });
+                return Some(dest);
+            }
+            if fn_name == "socket_set_timeout" && args.len() == 2 {
+                let sock = self.lower_expr(&args[0], cur_block)?;
+                let ms = self.lower_expr(&args[1], cur_block)?;
+                let dest = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::Call {
+                        dest,
+                        func: "datara_rt_socket_set_timeout".into(),
+                        args: vec![sock, ms],
+                        ty: "Outcome".into(),
+                    });
+                return Some(dest);
+            }
+            if fn_name == "socket_nonblocking" && args.len() == 2 {
+                let sock = self.lower_expr(&args[0], cur_block)?;
+                let on = self.lower_expr(&args[1], cur_block)?;
+                let dest = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::Call {
+                        dest,
+                        func: "datara_rt_socket_nonblocking".into(),
+                        args: vec![sock, on],
+                        ty: "Outcome".into(),
+                    });
+                return Some(dest);
+            }
+            if fn_name == "socket_recv_outcome" && args.len() == 2 {
+                let sock = self.lower_expr(&args[0], cur_block)?;
+                let max_bytes = self.lower_expr(&args[1], cur_block)?;
+                let dest = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::Call {
+                        dest,
+                        func: "datara_rt_socket_recv_outcome".into(),
+                        args: vec![sock, max_bytes],
+                        ty: "Outcome".into(),
+                    });
+                return Some(dest);
+            }
+            if (fn_name == "py_eval_batch" || fn_name == "datara_py_eval_batch") && args.len() == 1 {
+                let json_expr = self.lower_expr(&args[0], cur_block)?;
+                let dest = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::Call {
+                        dest,
+                        func: "datara_py_eval_batch".into(),
+                        args: vec![json_expr],
+                        ty: "String".into(),
                     });
                 return Some(dest);
             }
@@ -582,6 +665,9 @@ impl<'a> Lowering<'a> {
                         if let Some(av) = self.lower_expr(a, cur_block) {
                             arg_vals.push(av);
                         }
+                    }
+                    if let Some(dest) = self.lower_bridge_call(ns_name, member, &arg_vals, cur_block) {
+                        return Some(dest);
                     }
                     let dest = self.next_val();
                     let ret_ty = self.infer_fn_ret_ty(member);

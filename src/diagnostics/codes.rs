@@ -108,6 +108,15 @@ pub enum ErrorCode {
 
     // Deprecation & Modernization Warnings (W0100)
     DeprecatedFeature,
+
+    // Bridge Block Errors (E-BRIDGE-*, v1.4.2)
+    BridgeTypeMismatch,
+    BridgeUnsupportedType,
+    BridgeUnknownLanguage,
+
+    // Capability 2.0 Errors (E-CAP-*, v1.4.2)
+    CapMissingPermission,
+    CapGlobViolation,
 }
 
 impl ErrorCode {
@@ -190,6 +199,11 @@ impl ErrorCode {
             ErrorCode::PoolCapacityExceeded => "E1406",
             ErrorCode::OptimizationUnproven => "E-OPT-001",
             ErrorCode::DeprecatedFeature => "W0100",
+            ErrorCode::BridgeTypeMismatch => "E-BRIDGE-001",
+            ErrorCode::BridgeUnsupportedType => "E-BRIDGE-002",
+            ErrorCode::BridgeUnknownLanguage => "E-BRIDGE-003",
+            ErrorCode::CapMissingPermission => "E-CAP-001",
+            ErrorCode::CapGlobViolation => "E-CAP-002",
         }
     }
 
@@ -356,6 +370,21 @@ impl ErrorCode {
                 ErrorCode::DeprecatedFeature => {
                     "Устаревшая языковая конструкция: используйте современный аналог"
                 }
+                ErrorCode::BridgeTypeMismatch => {
+                    "Несоответствие типов аргументов декларативного моста"
+                }
+                ErrorCode::BridgeUnsupportedType => {
+                    "Неподдерживаемый тип данных в сигнатуре декларативного моста"
+                }
+                ErrorCode::BridgeUnknownLanguage => {
+                    "Неизвестный целевой язык для декларативного моста"
+                }
+                ErrorCode::CapMissingPermission => {
+                    "Операция требует объявленного разрешения в секции [capabilities] datara.toml"
+                }
+                ErrorCode::CapGlobViolation => {
+                    "Путь или адрес нарушает разрешённый glob-шаблон в секции [capabilities] datara.toml"
+                }
             }
         } else {
             match self {
@@ -514,6 +543,21 @@ impl ErrorCode {
 
                 ErrorCode::DeprecatedFeature => {
                     "Deprecated language construct: use the modern equivalent"
+                }
+                ErrorCode::BridgeTypeMismatch => {
+                    "Bridge argument type mismatch"
+                }
+                ErrorCode::BridgeUnsupportedType => {
+                    "Unsupported type in declarative bridge function signature"
+                }
+                ErrorCode::BridgeUnknownLanguage => {
+                    "Unknown foreign language in bridge declaration"
+                }
+                ErrorCode::CapMissingPermission => {
+                    "Operation requires declared permission in datara.toml [capabilities]"
+                }
+                ErrorCode::CapGlobViolation => {
+                    "Path or target address violates allowed glob in datara.toml [capabilities]"
                 }
             }
         }

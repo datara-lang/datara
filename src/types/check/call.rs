@@ -26,10 +26,10 @@ impl<'a> TypeChecker<'a> {
             if fn_name == "println" || fn_name == "print" || fn_name == "eprintln" {
                 return DataraType::Unit;
             }
-            if fn_name == "input_int" {
+            if fn_name == "input_int" || fn_name == "read_int" || fn_name == "fast_read_int" {
                 return DataraType::Int;
             }
-            if fn_name == "input_float" {
+            if fn_name == "input_float" || fn_name == "read_float" || fn_name == "fast_read_float" {
                 return DataraType::Float;
             }
             if fn_name == "len" || fn_name == "now" {
@@ -221,16 +221,29 @@ impl<'a> TypeChecker<'a> {
                     let expected_ty = subst_type_params(p_ty, &type_bindings);
                     if !a_ty.is_compatible_with_refined_with_args(&expected_ty, Some(self.resolver))
                     {
-                        diag.error(
-                            ErrorCode::TypeMismatch,
-                            format!(
-                                "Type mismatch for argument {}: expected '{}', got '{}'",
-                                idx + 1,
-                                expected_ty,
-                                a_ty
-                            ),
-                            Some(span.clone()),
-                        );
+                        if self.bridge_functions.contains(fn_name) {
+                            diag.error(
+                                ErrorCode::BridgeTypeMismatch,
+                                format!(
+                                    "Bridge argument type mismatch for argument {}: expected '{}', got '{}'",
+                                    idx + 1,
+                                    expected_ty,
+                                    a_ty
+                                ),
+                                Some(span.clone()),
+                            );
+                        } else {
+                            diag.error(
+                                ErrorCode::TypeMismatch,
+                                format!(
+                                    "Type mismatch for argument {}: expected '{}', got '{}'",
+                                    idx + 1,
+                                    expected_ty,
+                                    a_ty
+                                ),
+                                Some(span.clone()),
+                            );
+                        }
                     }
                 }
 
@@ -393,6 +406,58 @@ impl<'a> TypeChecker<'a> {
                     name: "Outcome".to_string(),
                     args: vec![payload_ty],
                 };
+            }
+            if let Expr::Identifier(mod_alias, _) = &**object {
+                if self
+                    .program_module_aliases
+                    .get(mod_alias)
+                    .map(|funcs| funcs.contains(member))
+                    .unwrap_or(false)
+                {
+                    let qualified = format!("{}.{}", mod_alias, member);
+                    let sig_opt = self
+                        .function_signatures
+                        .get(&qualified)
+                        .or_else(|| self.function_signatures.get(member))
+                        .cloned();
+
+                    if let Some((param_types, ret_ty, _)) = sig_opt {
+                        let is_bridge = self.bridge_functions.contains(&qualified)
+                            || self.bridge_functions.contains(member);
+
+                        for (idx, (p_ty, a_ty)) in
+                            param_types.iter().zip(arg_types.iter()).enumerate()
+                        {
+                            if !a_ty.is_compatible_with_refined_with_args(p_ty, Some(self.resolver))
+                            {
+                                if is_bridge {
+                                    diag.error(
+                                        ErrorCode::BridgeTypeMismatch,
+                                        format!(
+                                            "Bridge argument type mismatch for argument {}: expected '{}', got '{}'",
+                                            idx + 1,
+                                            p_ty,
+                                            a_ty
+                                        ),
+                                        Some(span.clone()),
+                                    );
+                                } else {
+                                    diag.error(
+                                        ErrorCode::TypeMismatch,
+                                        format!(
+                                            "Type mismatch for argument {}: expected '{}', got '{}'",
+                                            idx + 1,
+                                            p_ty,
+                                            a_ty
+                                        ),
+                                        Some(span.clone()),
+                                    );
+                                }
+                            }
+                        }
+                        return ret_ty;
+                    }
+                }
             }
             let obj_type = self.check_expr(object, diag);
             if let DataraType::GenericInstance { name, args } = &obj_type

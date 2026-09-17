@@ -9,6 +9,7 @@ pub mod asm;
 pub mod decl;
 pub mod expr;
 pub mod expr_call;
+pub mod expr_call_bridge;
 pub mod expr_composite;
 pub mod higher_order;
 pub mod infer;
@@ -34,6 +35,8 @@ pub struct Lowering<'a> {
     pub enum_variant_tags: HashMap<String, i64>,
     /// v1.3.3: module namespace aliases for qualified calls `alias.func()`.
     pub module_alias_functions: HashMap<String, Vec<String>>,
+    /// v1.4.2: declarative foreign bridge registry.
+    pub bridge_registry: crate::bridge_decl::BridgeRegistry,
     pub enum_variant_names: HashMap<i64, String>,
     pub enum_slots: HashMap<String, Vec<String>>,
     pub current_line_spans: Vec<crate::diagnostics::SourceSpan>,
@@ -421,6 +424,7 @@ impl<'a> Lowering<'a> {
             local_var_types: HashMap::new(),
             enum_variant_tags: HashMap::new(),
             module_alias_functions: HashMap::new(),
+            bridge_registry: crate::bridge_decl::BridgeRegistry::new(),
             enum_variant_names: HashMap::new(),
             enum_slots: HashMap::new(),
             current_line_spans: Vec::new(),
@@ -566,6 +570,7 @@ impl<'a> Lowering<'a> {
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
+        self.bridge_registry = crate::bridge_decl::BridgeRegistry::from_program(program);
 
         for decl in &program.declarations {
             if let Decl::Class(c) = decl {

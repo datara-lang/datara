@@ -4,6 +4,16 @@ All notable changes to the Datara compiler and toolchain (`forgen`) are document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.2] - 2026-09-17
+
+### Added
+- **Declarative Foreign Bridges (Bridge Hub)**: Added declarative `bridge <lang>::<module> { fn ... }` syntax across Python, JavaScript, C, and Rust with strict type whitelist enforcement (E-BRIDGE-002), call-site argument type checking (E-BRIDGE-001), and supported language validation (E-BRIDGE-003).
+- **Capabilities 2.0 Security Model**: Added manifest `[capabilities]` section supporting `fs-read`, `fs-write`, `net-listen`, `net-connect`, `env`, and `exec` with glob matching; allowed targets bypass `unsafe`, while missing permissions or glob violations trigger E-CAP-001 and E-CAP-002 with mandatory `unsafe(justification: "...")` escalation for `exec` and sockets.
+- **DPM Bridge Package Registry**: Added standard bridge package format (`bridge.toml` + `bridge.dtr`), CLI commands (`dpm add`, `dpm list`, `dpm remove`, `dpm search`, `dpm publish --dry-run`), and automatic `./dpm_packages/*/bridge.dtr` compiler scanning.
+- **Socket Ergonomics (Timeouts & Nonblocking)**: Added `socket_set_timeout(sock, ms) -> Outcome<Unit>`, `socket_nonblocking(sock, on: Bool) -> Outcome<Unit>`, and `socket_recv_outcome(sock, max_bytes) -> Outcome<Str>` returning `Outcome.err("would-block")` on nonblocking read without thread stalling.
+- **Fast Safe User Input Ergonomics**: Added zero-allocation fast scanners `read_int() -> Int`, `input_int(prompt) -> Int`, `read_float() -> Float`, `input_float(prompt) -> Float`, and dynamically resizing `read_line() -> Str` and `input(prompt) -> Str` handling arbitrarily long inputs safely without buffer overflows.
+- **Python Bridge Optimization & Doctor Diagnostics**: Enforced thread-safe single `Py_Initialize` per process, added `py_eval_batch(json_exprs)` for single GIL acquisition across multiple evaluations, and updated `forgen doctor --bridges` to report overhead categories (`[category: C-ABI (ns)]` vs `[category: in-process (µs)]`).
+
 ## [1.4.1] - 2026-09-17
 
 ### Added
@@ -15,6 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Diagnostic E-TYPE-010**: Precise compile-time diagnostics for list operation and combinator type violations.
 
 ### Fixed
+- **Diagnostic colour was unconditional and `NO_COLOR` was ignored**: `forgen
+  check | tee build.log` wrote raw `\x1b[1;31m` escape sequences into the log
+  file, and `NO_COLOR=1` had no effect even on a real terminal. `format_all()`
+  was hardcoded to the coloured renderer; the one `NO_COLOR`-aware helper lived
+  on a different code path and never asked the OS whether stdout was a terminal.
+  Colour is now resolved once per process by
+  `diagnostics::engine::color_enabled()` with the conventional precedence -
+  `NO_COLOR` beats `FORGEN_COLOR`/`CLICOLOR_FORCE`, which beat `CLICOLOR=0`,
+  which beats the `isatty`/`GetConsoleMode` probe - and every diagnostic
+  rendering site inherits it. No new dependency. Covered by
+  `tests/test_color_policy.rs`.
 - **LLVM Backend Pointer Comparison Mismatch**: Resolved `llc.exe` type error (`icmp eq i64` on pointer operands) by emitting typed `icmp ptr` operations and explicit `ptrtoint` conversions for mixed comparisons.
 - **Runtime Memory Pool Coherence**: Normalized `datara_rt_list_create_from` and `datara_rt_list_create_repeat` to delegate through `datara_rt_list_create_capacity`, ensuring thread-local allocation counters remain synchronized and preventing heap corruption on Windows MSVC.
 - **Linker Backward Compatibility**: Preserved `datara_rt_list_pop` and `datara_rt_list_pop_legacy` symbol exports alongside `datara_rt_list_pop_outcome` to eliminate unresolved external symbol linker failures.

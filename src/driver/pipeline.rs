@@ -307,6 +307,8 @@ pub(super) fn run_check_pipeline(
     let base_dir = Path::new(&program.file).parent().map(|p| p.to_path_buf());
     crate::cimport::expand_c_imports(&mut program, base_dir.as_deref(), diag, struct_return_abi);
     crate::rust_bridge::expand_rust_dependencies(&mut program, base_dir.as_deref(), diag);
+    scan_and_merge_dpm_bridges(&mut program, base_dir.as_deref(), diag);
+    crate::bridge_decl::expand_bridge_declarations(&mut program, diag);
     if diag.has_errors() {
         timings.total_ms = total_start.elapsed().as_millis();
         let d_str = diag.format_all();
@@ -366,6 +368,7 @@ pub(super) fn run_check_pipeline(
 
     // 6. Security & Zero-Trust Verifier (Proof-Carrying Code)
     let mut security = crate::security::SecurityVerifier::new(&resolver, &type_checker);
+    security.capabilities_manifest = resolve_manifest_capabilities(base_dir.as_deref());
     security.verify_program(&program, diag);
 
     // 7. DMIR Ownership Fixpoint Verification (if no prior errors)
@@ -482,6 +485,8 @@ pub(super) fn run_analysis_and_lower<R>(
     let struct_return_abi = compiler.struct_return_abi();
     crate::cimport::expand_c_imports(&mut program, base_dir, diag, struct_return_abi);
     crate::rust_bridge::expand_rust_dependencies(&mut program, base_dir, diag);
+    scan_and_merge_dpm_bridges(&mut program, base_dir, diag);
+    crate::bridge_decl::expand_bridge_declarations(&mut program, diag);
     if diag.has_errors() {
         timings.total_ms = total_start.elapsed().as_millis();
         let d_str = diag.format_all();
@@ -572,6 +577,7 @@ pub(super) fn run_analysis_and_lower<R>(
 
     // 7. Security & Zero-Trust Verifier (Proof-Carrying Code)
     let mut security = crate::security::SecurityVerifier::new(&resolver, &type_checker);
+    security.capabilities_manifest = resolve_manifest_capabilities(base_dir);
     security.verify_program(&program, diag);
     if diag.has_errors() {
         timings.total_ms = total_start.elapsed().as_millis();
@@ -815,3 +821,66 @@ pub(super) fn run_analysis_and_lower<R>(
         diag,
     }))
 }
+
+pub(crate) fn resolve_manifest_capabilities(
+    base_dir: Option<&Path>,
+) -> Option<crate::project::CapabilitiesConfig> {
+    if let Some(base) = base_dir {
+        if let Some((_, manifest)) = crate::rust_bridge::find_manifest(base) {
+            return manifest.capabilities;
+        }
+    }
+    if let Ok(cwd) = std::env::current_dir() {
+        if let Some((_, manifest)) = crate::rust_bridge::find_manifest(&cwd) {
+            return manifest.capabilities;
+        }
+    }
+    None
+}
+
+pub(crate) fn scan_and_merge_dpm_bridges(
+    program: &mut Program,
+    base_dir: Option<&Path>,
+    diag: &mut DiagnosticEngine,
+) {
+    let search_dirs: Vec<PathBuf> = [
+        base_dir.map(|p| p.to_path_buf()),
+        std::env::current_dir().ok(),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+
+    for dir in search_dirs {
+        let dpm_packages = dir.join("dpm_packages");
+        if dpm_packages.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&dpm_packages) {
+                for entry in entries.flatten() {
+                    let subpath = entry.path();
+                    if subpath.is_dir() {
+                        let bridge_dtr = subpath.join("bridge.dtr");
+                        if bridge_dtr.is_file() {
+                            if let Ok(content) = std::fs::read_to_string(&bridge_dtr) {
+                                let path_str = bridge_dtr.to_string_lossy();
+                                let tokens = crate::lexer::Lexer::new(&content, &path_str).tokenize(diag);
+                                let mut parser = crate::parser::Parser::new(tokens, diag, &path_str);
+                                let parsed = parser.parse_program();
+                                program.declarations.extend(parsed.declarations);
+                                for (k, v) in parsed.module_aliases {
+                                    let existing = program.module_aliases.entry(k).or_default();
+                                    for item in v {
+                                        if !existing.contains(&item) {
+                                            existing.push(item);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            break;
+        }
+    }
+}
+

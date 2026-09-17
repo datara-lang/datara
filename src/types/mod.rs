@@ -491,6 +491,9 @@ pub struct TypeChecker<'a> {
     /// from Program::module_aliases at check_program time. Maps alias ->
     /// exported function names for qualified `alias.func(...)` calls.
     pub program_module_aliases: HashMap<String, Vec<String>>,
+    /// Set of bridge function names (both qualified `mod.fn` and bare `fn`)
+    /// for emitting E-BRIDGE-001 on argument type mismatch.
+    pub bridge_functions: HashSet<String>,
     /// Current expression recursion depth. Incremented on every `check_expr`
     /// entry, decremented on exit. When it exceeds `MAX_EXPR_DEPTH` the
     /// checker emits E0999 and returns immediately to prevent stack overflow.

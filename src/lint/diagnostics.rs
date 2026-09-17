@@ -145,7 +145,14 @@ impl LintDiagnostic {
     }
 }
 
+/// Whether to colourise lint output.
+///
+/// This used to be `std::env::var("NO_COLOR").is_err()` under the name
+/// `is_terminal`, which is two separate mistakes in one line: it never asked
+/// whether the output *was* a terminal (so `forgen lint | grep` got escapes), and
+/// its name claimed it did. The decision is shared with the diagnostic engine now
+/// - see `crate::diagnostics::engine::color_enabled` - so the two paths cannot
+/// answer the same question differently, which they did.
 fn is_terminal() -> bool {
-    // In CI or test environments, avoid colors if NO_COLOR is set
-    std::env::var("NO_COLOR").is_err()
+    crate::diagnostics::engine::color_enabled()
 }

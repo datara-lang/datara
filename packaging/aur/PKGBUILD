@@ -1,6 +1,6 @@
 # Maintainer: Datara Language Project <https://github.com/datara-lang/datara>
 pkgname=datara-bin
-pkgver=1.4.1
+pkgver=1.4.2
 pkgrel=1
 pkgdesc="High-performance Post-OOP systems and application programming language"
 arch=('x86_64' 'aarch64')
@@ -11,7 +11,7 @@ provides=('datara' 'forgen')
 conflicts=('datara' 'forgen')
 source_x86_64=("https://github.com/datara-lang/datara/releases/download/v${pkgver}/forgen-linux-x64.tar.gz")
 source_aarch64=("https://github.com/datara-lang/datara/releases/download/v${pkgver}/forgen-linux-aarch64.tar.gz")
-sha256sums_x86_64=('c472b8942be0d8982b44cb92ee16694387b9f065e34e1110d07024f687d1d7d4')
+sha256sums_x86_64=('f6360e7f52a048c91c9dfd1c2d81ede401053266d998d9d8556e97a696c45c26')
 sha256sums_aarch64=('SKIP')
 
 package() {

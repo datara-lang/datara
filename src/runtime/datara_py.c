@@ -798,6 +798,171 @@ double datara_py_call_1_float(const char* fn_name, double arg0) {
     return s && s[0] ? atof(s) : 0.0;
 }
 
+double datara_py_call_2_float(const char* fn_name, double a, double b) {
+    char args_buf[256];
+    snprintf(args_buf, sizeof(args_buf), "[%f, %f]", a, b);
+    const char* s = datara_py_call(fn_name, args_buf);
+    return s && s[0] ? atof(s) : 0.0;
+}
+
+int64_t datara_py_call_2_float_bool(const char* fn_name, double a, double b) {
+    char args_buf[256];
+    snprintf(args_buf, sizeof(args_buf), "[%f, %f]", a, b);
+    const char* s = datara_py_call(fn_name, args_buf);
+    if (!s) return 0;
+    if (strcmp(s, "True") == 0 || strcmp(s, "true") == 0 || strcmp(s, "1") == 0) return 1;
+    return 0;
+}
+
+int64_t datara_py_call_1_int(const char* fn_name, int64_t a) {
+    char args_buf[128];
+    snprintf(args_buf, sizeof(args_buf), "[%lld]", (long long)a);
+    const char* s = datara_py_call(fn_name, args_buf);
+    return s && s[0] ? atoll(s) : 0;
+}
+
+int64_t datara_py_call_2_int(const char* fn_name, int64_t a, int64_t b) {
+    char args_buf[256];
+    snprintf(args_buf, sizeof(args_buf), "[%lld, %lld]", (long long)a, (long long)b);
+    const char* s = datara_py_call(fn_name, args_buf);
+    return s && s[0] ? atoll(s) : 0;
+}
+
+int64_t* datara_py_call_list_f64(const char* fn_name, int64_t* in_list) {
+    if (!in_list) return datara_rt_list_create(0);
+    int64_t len = in_list[0];
+    double* data = (double*)&in_list[1];
+
+    size_t cap = 64 + (size_t)len * 32;
+    char* buf = (char*)malloc(cap);
+    if (!buf) return datara_rt_list_create(0);
+    size_t offset = snprintf(buf, cap, "[");
+    for (int64_t i = 0; i < len; i++) {
+        if (i > 0 && offset < cap) offset += snprintf(buf + offset, cap - offset, ", ");
+        if (offset < cap) offset += snprintf(buf + offset, cap - offset, "%f", data[i]);
+    }
+    if (offset < cap) snprintf(buf + offset, cap - offset, "]");
+
+    const char* res_json = datara_py_call(fn_name, buf);
+    free(buf);
+
+    if (!res_json || res_json[0] != '[') {
+        return datara_rt_list_create(0);
+    }
+    int64_t* out_list = datara_rt_list_create_capacity(8);
+    const char* p = res_json + 1;
+    while (*p && *p != ']') {
+        while (*p == ' ' || *p == ',') p++;
+        if (*p == ']') break;
+        char* end = NULL;
+        double val = strtod(p, &end);
+        if (end == p) break;
+        union { double f; int64_t i; } u;
+        u.f = val;
+        out_list = datara_rt_list_append(out_list, u.i);
+        p = end;
+    }
+    return out_list;
+}
+
+const char* datara_py_eval_batch(const char* json_exprs) {
+    if (!datara_py_is_available()) return "[]";
+    if (!json_exprs || json_exprs[0] != '[') return "[]";
+
+    int32_t gstate = g_py.PyGILState_Ensure();
+
+    PyObject* json_mod = g_py.PyImport_ImportModule("json");
+    if (!json_mod) {
+        g_py.PyGILState_Release(gstate);
+        return "[]";
+    }
+    PyObject* loads_fn = g_py.PyObject_GetAttrString(json_mod, "loads");
+    PyObject* dumps_fn = g_py.PyObject_GetAttrString(json_mod, "dumps");
+    PyObject* json_str = g_py.PyUnicode_FromString(json_exprs);
+
+    if (!loads_fn || !dumps_fn || !json_str) {
+        if (json_str) g_py.Py_DecRef(json_str);
+        if (loads_fn) g_py.Py_DecRef(loads_fn);
+        if (dumps_fn) g_py.Py_DecRef(dumps_fn);
+        g_py.Py_DecRef(json_mod);
+        g_py.PyGILState_Release(gstate);
+        return "[]";
+    }
+
+    PyObject* py_list = g_py.PyObject_CallFunctionObjArgs(loads_fn, json_str, NULL);
+    g_py.Py_DecRef(json_str);
+    g_py.Py_DecRef(loads_fn);
+
+    if (!py_list || !g_py.PyList_Size) {
+        if (py_list) g_py.Py_DecRef(py_list);
+        g_py.Py_DecRef(dumps_fn);
+        g_py.Py_DecRef(json_mod);
+        g_py.PyGILState_Release(gstate);
+        return "[]";
+    }
+
+    int64_t count = g_py.PyList_Size(py_list);
+    PyObject* results_list = g_py.PyList_New(count);
+
+    PyObject* builtins = g_py.PyImport_ImportModule("builtins");
+    PyObject* eval_fn = builtins ? g_py.PyObject_GetAttrString(builtins, "eval") : NULL;
+    PyObject* main_mod = g_py.PyImport_ImportModule("__main__");
+    PyObject* main_dict = main_mod ? g_py.PyObject_GetAttrString(main_mod, "__dict__") : NULL;
+
+    for (int64_t i = 0; i < count; i++) {
+        PyObject* item = g_py.PyList_GetItem(py_list, i);
+        if (!item) {
+            PyObject* empty_s = g_py.PyUnicode_FromString("");
+            g_py.PyList_SetItem(results_list, i, empty_s);
+            continue;
+        }
+
+        if (eval_fn && main_dict) {
+            PyObject* res = g_py.PyObject_CallFunctionObjArgs(eval_fn, item, main_dict, main_dict, NULL);
+            if (!res || g_py.PyErr_Occurred()) {
+                g_py.PyErr_Clear();
+                PyObject* err_s = g_py.PyUnicode_FromString("error");
+                g_py.PyList_SetItem(results_list, i, err_s);
+            } else {
+                PyObject* str_res = g_py.PyObject_Str(res);
+                g_py.Py_DecRef(res);
+                g_py.PyList_SetItem(results_list, i, str_res ? str_res : g_py.PyUnicode_FromString(""));
+            }
+        } else {
+            PyObject* empty_s = g_py.PyUnicode_FromString("");
+            g_py.PyList_SetItem(results_list, i, empty_s);
+        }
+    }
+
+    if (main_dict) g_py.Py_DecRef(main_dict);
+    if (main_mod) g_py.Py_DecRef(main_mod);
+    if (eval_fn) g_py.Py_DecRef(eval_fn);
+    if (builtins) g_py.Py_DecRef(builtins);
+    g_py.Py_DecRef(py_list);
+
+    PyObject* out_json_str = g_py.PyObject_CallFunctionObjArgs(dumps_fn, results_list, NULL);
+    g_py.Py_DecRef(results_list);
+    g_py.Py_DecRef(dumps_fn);
+    g_py.Py_DecRef(json_mod);
+
+    char* ret_buf = "[]";
+    if (out_json_str) {
+        int64_t ulen = 0;
+        const char* utf8 = g_py.PyUnicode_AsUTF8AndSize(out_json_str, &ulen);
+        if (utf8) {
+            ret_buf = (char*)datara_rt_arena_alloc((size_t)ulen + 1);
+            if (ret_buf) {
+                memcpy(ret_buf, utf8, (size_t)ulen);
+                ret_buf[ulen] = '\0';
+            }
+        }
+        g_py.Py_DecRef(out_json_str);
+    }
+
+    g_py.PyGILState_Release(gstate);
+    return ret_buf ? ret_buf : "[]";
+}
+
 // ============================================================================
 // Zero-Copy DataraMemoryView Interop (Requirement 7)
 // ============================================================================
@@ -1040,4 +1205,10 @@ int64_t     py_import(const char* module_name) { return datara_py_import(module_
 const char* py_call(const char* fn_name, const char* args_json) { return datara_py_call(fn_name, args_json); }
 const char* py_call_1_str(const char* fn_name, const char* arg0) { return datara_py_call_1_str(fn_name, arg0); }
 double      py_call_1_float(const char* fn_name, double arg0) { return datara_py_call_1_float(fn_name, arg0); }
+double      py_call_2_float(const char* fn_name, double a, double b) { return datara_py_call_2_float(fn_name, a, b); }
+int64_t     py_call_2_float_bool(const char* fn_name, double a, double b) { return datara_py_call_2_float_bool(fn_name, a, b); }
+int64_t     py_call_1_int(const char* fn_name, int64_t a) { return datara_py_call_1_int(fn_name, a); }
+int64_t     py_call_2_int(const char* fn_name, int64_t a, int64_t b) { return datara_py_call_2_int(fn_name, a, b); }
+int64_t*    py_call_list_f64(const char* fn_name, int64_t* in_list) { return datara_py_call_list_f64(fn_name, in_list); }
+const char* py_eval_batch(const char* json_exprs) { return datara_py_eval_batch(json_exprs); }
 

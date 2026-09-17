@@ -171,6 +171,11 @@ unsafe extern "C" {
     pub fn datara_py_call(fn_name: *const c_char, args_json: *const c_char) -> *const c_char;
     pub fn datara_py_call_1_str(fn_name: *const c_char, arg0: *const c_char) -> *const c_char;
     pub fn datara_py_call_1_float(fn_name: *const c_char, arg0: f64) -> f64;
+    pub fn datara_py_call_2_float(fn_name: *const c_char, a: f64, b: f64) -> f64;
+    pub fn datara_py_call_1_int(fn_name: *const c_char, a: i64) -> i64;
+    pub fn datara_py_call_2_int(fn_name: *const c_char, a: i64, b: i64) -> i64;
+    pub fn datara_py_call_list_f64(fn_name: *const c_char, in_list: *mut i64) -> *mut i64;
+    pub fn datara_py_eval_batch(json_exprs: *const c_char) -> *const c_char;
     pub fn datara_py_last_error() -> *const c_char;
     pub fn datara_py_clear_error();
     pub fn datara_py_is_available() -> i32;
@@ -279,8 +284,13 @@ unsafe extern "C" {
     pub fn datara_rt_socket_connect(sock: i64, host: *const c_char, port: i64) -> i64;
     pub fn datara_rt_socket_send(sock: i64, data: *const c_char) -> i64;
     pub fn datara_rt_socket_recv(sock: i64, max_bytes: i64) -> *const c_char;
+    pub fn datara_rt_socket_recv_outcome(sock: i64, max_bytes: i64) -> *mut ();
+    pub fn datara_rt_socket_set_timeout(sock: i64, ms: i64) -> *mut ();
+    pub fn datara_rt_socket_nonblocking(sock: i64, on: i64) -> *mut ();
     pub fn datara_rt_socket_close(sock: i64);
     pub fn datara_rt_http_get(url: *const c_char) -> *const c_char;
+    pub fn datara_rt_fast_read_int() -> i64;
+    pub fn datara_rt_fast_read_float() -> f64;
 
     pub fn datara_rt_sha256(input: *const c_char) -> *const c_char;
     pub fn datara_rt_base64_encode(input: *const c_char) -> *const c_char;
@@ -436,7 +446,15 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("input", datara_rt_input);
     reg!("read_line", datara_rt_input);
     reg!("datara_rt_input_int", datara_rt_input_int);
+    reg!("input_int", datara_rt_input_int);
     reg!("datara_rt_input_float", datara_rt_input_float);
+    reg!("input_float", datara_rt_input_float);
+    reg!("datara_rt_fast_read_int", datara_rt_fast_read_int);
+    reg!("fast_read_int", datara_rt_fast_read_int);
+    reg!("read_int", datara_rt_fast_read_int);
+    reg!("datara_rt_fast_read_float", datara_rt_fast_read_float);
+    reg!("fast_read_float", datara_rt_fast_read_float);
+    reg!("read_float", datara_rt_fast_read_float);
 
     reg!("datara_rt_print_str", datara_rt_print_str);
     reg!("datara_rt_print_int", datara_rt_print_int);
@@ -592,6 +610,16 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("py_call_1_str", datara_py_call_1_str);
     reg!("datara_py_call_1_float", datara_py_call_1_float);
     reg!("py_call_1_float", datara_py_call_1_float);
+    reg!("datara_py_call_2_float", datara_py_call_2_float);
+    reg!("py_call_2_float", datara_py_call_2_float);
+    reg!("datara_py_call_1_int", datara_py_call_1_int);
+    reg!("py_call_1_int", datara_py_call_1_int);
+    reg!("datara_py_call_2_int", datara_py_call_2_int);
+    reg!("py_call_2_int", datara_py_call_2_int);
+    reg!("datara_py_call_list_f64", datara_py_call_list_f64);
+    reg!("py_call_list_f64", datara_py_call_list_f64);
+    reg!("datara_py_eval_batch", datara_py_eval_batch);
+    reg!("py_eval_batch", datara_py_eval_batch);
     reg!("datara_py_last_error", datara_py_last_error);
     reg!("py_last_error", datara_py_last_error);
     reg!("datara_py_clear_error", datara_py_clear_error);
@@ -725,8 +753,24 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("socket_send", datara_rt_socket_send);
     reg!("datara_rt_socket_recv", datara_rt_socket_recv);
     reg!("socket_recv", datara_rt_socket_recv);
+    reg!("datara_rt_socket_recv_outcome", datara_rt_socket_recv_outcome);
+    reg!("socket_recv_outcome", datara_rt_socket_recv_outcome);
+    reg!("datara_rt_socket_set_timeout", datara_rt_socket_set_timeout);
+    reg!("socket_set_timeout", datara_rt_socket_set_timeout);
+    reg!("datara_rt_socket_nonblocking", datara_rt_socket_nonblocking);
+    reg!("socket_nonblocking", datara_rt_socket_nonblocking);
     reg!("datara_rt_socket_close", datara_rt_socket_close);
     reg!("socket_close", datara_rt_socket_close);
+    reg!("datara_rt_input_int", datara_rt_input_int);
+    reg!("input_int", datara_rt_input_int);
+    reg!("datara_rt_input_float", datara_rt_input_float);
+    reg!("input_float", datara_rt_input_float);
+    reg!("datara_rt_fast_read_int", datara_rt_fast_read_int);
+    reg!("read_int", datara_rt_fast_read_int);
+    reg!("fast_read_int", datara_rt_fast_read_int);
+    reg!("datara_rt_fast_read_float", datara_rt_fast_read_float);
+    reg!("read_float", datara_rt_fast_read_float);
+    reg!("fast_read_float", datara_rt_fast_read_float);
     reg!("datara_rt_http_get", datara_rt_http_get);
 
     reg!("datara_rt_sha256", datara_rt_sha256);

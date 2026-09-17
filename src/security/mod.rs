@@ -14,6 +14,7 @@ pub struct SecurityVerifier<'a> {
     pub resolver: &'a Resolver,
     pub type_checker: &'a TypeChecker<'a>,
     pub function_decls: HashMap<String, (Vec<Param>, Vec<ContractClause>)>,
+    pub capabilities_manifest: Option<crate::project::CapabilitiesConfig>,
 }
 
 #[derive(Clone)]
@@ -34,7 +35,13 @@ impl<'a> SecurityVerifier<'a> {
             resolver,
             type_checker,
             function_decls: HashMap::new(),
+            capabilities_manifest: None,
         }
+    }
+
+    pub fn with_capabilities(mut self, caps: Option<crate::project::CapabilitiesConfig>) -> Self {
+        self.capabilities_manifest = caps;
+        self
     }
 
     pub fn verify_program(&mut self, program: &Program, diag: &mut DiagnosticEngine) {

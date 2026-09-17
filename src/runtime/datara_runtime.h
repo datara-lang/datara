@@ -310,8 +310,13 @@ int64_t     datara_rt_socket_accept(int64_t sock);
 int64_t     datara_rt_socket_connect(int64_t sock, const char* host, int64_t port);
 int64_t     datara_rt_socket_send(int64_t sock, const char* data);
 const char* datara_rt_socket_recv(int64_t sock, int64_t max_bytes);
+void*       datara_rt_socket_recv_outcome(int64_t sock, int64_t max_bytes);
+void*       datara_rt_socket_set_timeout(int64_t sock, int64_t ms);
+void*       datara_rt_socket_nonblocking(int64_t sock, int64_t on);
 void        datara_rt_socket_close(int64_t sock);
 const char* datara_rt_http_get(const char* url);
+int64_t     datara_rt_fast_read_int(void);
+double      datara_rt_fast_read_float(void);
 
 // Cryptography & Entropy
 const char* datara_rt_sha256(const char* input);

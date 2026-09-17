@@ -535,6 +535,29 @@ impl ForgenCompiler {
             let mut to_load: Vec<(PathBuf, SourceSpan)> = Vec::new();
             for decl in &program.declarations {
                 if let Decl::Use(u) = decl {
+                    let is_bridge_module = program.declarations.iter().any(|d| match d {
+                        Decl::Bridge(b) => {
+                            let lang_match = u
+                                .path
+                                .first()
+                                .map(|s| {
+                                    s.eq_ignore_ascii_case(&b.lang)
+                                        || (s == "py" && b.lang == "python")
+                                        || (s == "python" && b.lang == "py")
+                                        || (s == "rs" && b.lang == "rust")
+                                        || (s == "rust" && b.lang == "rs")
+                                        || (s == "js" && b.lang == "node")
+                                })
+                                .unwrap_or(false);
+                            let mod_match = u.path.get(1).map(|s| s == &b.module).unwrap_or(false);
+                            lang_match && mod_match
+                        }
+                        _ => false,
+                    });
+                    if is_bridge_module {
+                        continue;
+                    }
+
                     let first_seg = u.path.first().map(|s| s.as_str());
 
                     // 1. Smart Python Package Interop Detection (Global site-packages / sys.path)

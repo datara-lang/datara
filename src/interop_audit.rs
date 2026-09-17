@@ -403,7 +403,17 @@ pub fn render_table(scenarios: &[BridgeScenario]) -> String {
     for bridge in ["C", "PY", "JS", "RUST"] {
         let health = bridge_health(scenarios, bridge);
         let overhead = overhead_of(scenarios, bridge)
-            .map(|v| format!("{} ns/call", v))
+            .map(|v| {
+                if bridge == "C" || bridge == "RUST" {
+                    format!("{} ns/call [category: C-ABI (ns)]", v)
+                } else {
+                    format!(
+                        "{} ns/call ({:.2} µs/call) [category: in-process (µs)]",
+                        v,
+                        v as f64 / 1000.0
+                    )
+                }
+            })
             .unwrap_or_else(|| "n/a".to_string());
         out.push_str(&format!(
             "  {:<7} health: {:<11} overhead: {}\n",

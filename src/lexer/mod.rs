@@ -280,6 +280,19 @@ impl Lexer {
                                 self.file.clone(),
                             ),
                         ));
+                    } else if self.peek() == ':' {
+                        self.advance();
+                        tokens.push(Token::new(
+                            TokenType::ColonColon,
+                            "::".into(),
+                            SourceSpan::new(
+                                start_line,
+                                start_col,
+                                self.line,
+                                self.col,
+                                self.file.clone(),
+                            ),
+                        ));
                     } else {
                         tokens.push(Token::new(
                             TokenType::Colon,
@@ -900,6 +913,7 @@ impl Lexer {
                         "trait" => TokenType::Trait,
                         "impl" => TokenType::Impl,
                         "pub" => TokenType::Pub,
+                        "bridge" => TokenType::Bridge,
                         "asm" if self.peek() == '!' => {
                             self.advance();
                             TokenType::Asm

@@ -22,7 +22,7 @@ use forgen::driver::ForgenCompiler;
 /// code-page issues with cmd.exe are avoided entirely.
 fn echo_cmd(msg: &str) -> String {
     if cfg!(windows) {
-        format!("powershell -NoProfile -Command \"Write-Output '{msg}'\"")
+        format!("powershell -NoProfile -Command Write-Output {msg}")
     } else {
         format!("echo {msg}")
     }

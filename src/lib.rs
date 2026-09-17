@@ -1,4 +1,5 @@
 pub mod ast;
+pub mod bridge_decl;
 pub mod c_api;
 pub mod cimport;
 pub mod cli;

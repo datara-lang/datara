@@ -156,6 +156,45 @@ pub(crate) fn required_capability_for_op(callee: &str) -> Option<&'static str> {
     }
 }
 
+pub(crate) fn capability_kind_for_op(callee: &str) -> Option<crate::project::CapabilityKind> {
+    use crate::project::CapabilityKind;
+    match callee {
+        "fs_open" | "fs_read" | "read_file" | "file_read" | "file_read_bytes"
+        | "file_read_checked" | "dir_list" | "path_exists" => Some(CapabilityKind::FsRead),
+
+        "fs_write" | "file_write" | "write_file" | "file_append" | "file_write_bytes" => {
+            Some(CapabilityKind::FsWrite)
+        }
+
+        "net_listen" | "socket_listen" | "socket_bind" => Some(CapabilityKind::NetListen),
+
+        "net_connect" | "socket_connect" => Some(CapabilityKind::NetConnect),
+
+        "env_get" | "env_get_checked" | "env_set" => Some(CapabilityKind::Env),
+
+        "proc_spawn" | "process_run" | "system" | "exec" | "process_output"
+        | "exec_utf8" | "datara_rt_exec_utf8" => Some(CapabilityKind::Exec),
+
+        _ if callee.starts_with("socket_") => Some(CapabilityKind::NetConnect),
+
+        _ => None,
+    }
+}
+
+pub(crate) fn is_escalated_op(callee: &str) -> bool {
+    callee == "exec"
+        || callee.starts_with("socket_")
+        || matches!(
+            callee,
+            "proc_spawn"
+                | "process_run"
+                | "system"
+                | "process_output"
+                | "exec_utf8"
+                | "datara_rt_exec_utf8"
+        )
+}
+
 pub(crate) fn has_capability(symbols: &HashMap<String, DataraType>, req_cap: &str) -> bool {
     for ty in symbols.values() {
         if matches_capability(ty, req_cap) {

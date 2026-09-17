@@ -310,6 +310,7 @@ pub enum Decl {
     Register(RegisterDecl),
     Trait(TraitDef),
     Impl(ImplBlock),
+    Bridge(BridgeDecl),
 }
 
 impl Decl {
@@ -329,8 +330,25 @@ impl Decl {
             Decl::Register(d) => &d.span,
             Decl::Trait(d) => &d.span,
             Decl::Impl(d) => &d.span,
+            Decl::Bridge(d) => &d.span,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BridgeFn {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub return_type: Option<TypeNode>,
+    pub span: SourceSpan,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BridgeDecl {
+    pub lang: String,
+    pub module: String,
+    pub functions: Vec<BridgeFn>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

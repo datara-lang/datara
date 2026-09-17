@@ -79,6 +79,7 @@ pub enum TokenType {
     Impl,
     Pub,
     Struct,
+    Bridge,
 
     // Literals & Identifiers
     Identifier(String),
@@ -90,6 +91,7 @@ pub enum TokenType {
 
     // Operators & Delimiters
     ColonEqual,   // :=
+    ColonColon,   // ::
     FatArrow,     // =>
     Arrow,        // ->
     Pipe,         // |>

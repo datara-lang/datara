@@ -766,6 +766,30 @@ pub fn declare_runtime_ext<M: ClifModule>(
     );
     func_ids.insert("socket_close".into(), (rt_sock_close_id, rt_sock_close_sig));
 
+    // Network: socket_set_timeout, socket_nonblocking, socket_recv_outcome
+    let mut sock_2_i64_ret_sig = Signature::new(call_conv);
+    sock_2_i64_ret_sig.params.push(AbiParam::new(clif_types::I64));
+    sock_2_i64_ret_sig.params.push(AbiParam::new(clif_types::I64));
+    sock_2_i64_ret_sig.returns.push(AbiParam::new(clif_types::I64));
+
+    let rt_sock_to_id = module
+        .declare_function("datara_rt_socket_set_timeout", Linkage::Import, &sock_2_i64_ret_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert("datara_rt_socket_set_timeout".into(), (rt_sock_to_id, sock_2_i64_ret_sig.clone()));
+    func_ids.insert("socket_set_timeout".into(), (rt_sock_to_id, sock_2_i64_ret_sig.clone()));
+
+    let rt_sock_nb_id = module
+        .declare_function("datara_rt_socket_nonblocking", Linkage::Import, &sock_2_i64_ret_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert("datara_rt_socket_nonblocking".into(), (rt_sock_nb_id, sock_2_i64_ret_sig.clone()));
+    func_ids.insert("socket_nonblocking".into(), (rt_sock_nb_id, sock_2_i64_ret_sig.clone()));
+
+    let rt_sock_ro_id = module
+        .declare_function("datara_rt_socket_recv_outcome", Linkage::Import, &sock_2_i64_ret_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert("datara_rt_socket_recv_outcome".into(), (rt_sock_ro_id, sock_2_i64_ret_sig.clone()));
+    func_ids.insert("socket_recv_outcome".into(), (rt_sock_ro_id, sock_2_i64_ret_sig));
+
     // Network: http_get (takes the URL; a missing argument is tolerated
     // so legacy zero-arg `http_get()` calls still compile through codegen)
     let mut rt_http_get_sig = Signature::new(call_conv);

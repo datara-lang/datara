@@ -224,6 +224,18 @@ pub fn declare_module_symbols<M: ClifModule>(
         sig_2_str_1_f64.params.push(AbiParam::new(clif_types::F64));
         sig_2_str_1_f64.returns.push(AbiParam::new(clif_types::F64));
 
+        let mut py_str_2_f64_sig = Signature::new(call_conv);
+        py_str_2_f64_sig.params.push(AbiParam::new(clif_types::I64));
+        py_str_2_f64_sig.params.push(AbiParam::new(clif_types::F64));
+        py_str_2_f64_sig.params.push(AbiParam::new(clif_types::F64));
+        py_str_2_f64_sig.returns.push(AbiParam::new(clif_types::F64));
+
+        let mut py_str_2_f64_to_i64_sig = Signature::new(call_conv);
+        py_str_2_f64_to_i64_sig.params.push(AbiParam::new(clif_types::I64));
+        py_str_2_f64_to_i64_sig.params.push(AbiParam::new(clif_types::F64));
+        py_str_2_f64_to_i64_sig.params.push(AbiParam::new(clif_types::F64));
+        py_str_2_f64_to_i64_sig.returns.push(AbiParam::new(clif_types::I64));
+
         let mut sig_2_i64 = Signature::new(call_conv);
         sig_2_i64.params.push(AbiParam::new(clif_types::I64));
         sig_2_i64.params.push(AbiParam::new(clif_types::I64));
@@ -241,6 +253,24 @@ pub fn declare_module_symbols<M: ClifModule>(
             ("datara_py_call", "py_call", &py_2_str_sig),
             ("datara_py_call_1_str", "py_call_1_str", &py_2_str_sig),
             ("datara_py_call_1_float", "py_call_1_float", &py_str_f64_sig),
+            (
+                "datara_py_call_2_float",
+                "py_call_2_float",
+                &py_str_2_f64_sig,
+            ),
+            (
+                "datara_py_call_2_float_bool",
+                "py_call_2_float_bool",
+                &py_str_2_f64_to_i64_sig,
+            ),
+            ("datara_py_call_1_int", "py_call_1_int", &sig_2_i64),
+            ("datara_py_call_2_int", "py_call_2_int", &sig_2_str_1_i64),
+            (
+                "datara_py_call_list_f64",
+                "py_call_list_f64",
+                &py_str_list_sig,
+            ),
+            ("datara_py_eval_batch", "py_eval_batch", &py_1_str_sig),
             ("datara_py_import", "py_import", &py_1_str_to_i64_sig),
             ("datara_py_exec", "py_exec", &py_1_str_to_i64_sig),
             ("datara_py_last_error", "py_last_error", &py_0_arg_str_sig),
@@ -308,9 +338,11 @@ pub fn declare_module_symbols<M: ClifModule>(
     string_return_funcs.insert("datara_py_eval_safe".into());
     string_return_funcs.insert("datara_py_call".into());
     string_return_funcs.insert("datara_py_call_1_str".into());
+    string_return_funcs.insert("datara_py_eval_batch".into());
     string_return_funcs.insert("datara_py_last_error".into());
     string_return_funcs.insert("py_eval".into());
     string_return_funcs.insert("py_eval_safe".into());
+    string_return_funcs.insert("py_eval_batch".into());
     string_return_funcs.insert("py_call".into());
     string_return_funcs.insert("py_call_1_str".into());
     string_return_funcs.insert("py_last_error".into());
