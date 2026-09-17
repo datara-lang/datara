@@ -258,6 +258,7 @@ pub(super) fn parse_multi_sources(
             Decl::Role(r) => r.is_export,
             Decl::Trait(t) => t.is_export,
             Decl::Type(td) => td.is_export,
+            Decl::Global(g) => g.is_export,
             _ => false,
         });
         if !has_exports {
@@ -270,6 +271,7 @@ pub(super) fn parse_multi_sources(
                     Decl::Role(r) => r.is_export = true,
                     Decl::Trait(t) => t.is_export = true,
                     Decl::Type(td) => td.is_export = true,
+                    Decl::Global(g) => g.is_export = true,
                     _ => {}
                 }
             }
@@ -843,13 +845,21 @@ pub(crate) fn scan_and_merge_dpm_bridges(
     base_dir: Option<&Path>,
     diag: &mut DiagnosticEngine,
 ) {
-    let search_dirs: Vec<PathBuf> = [
+    let mut search_dirs: Vec<PathBuf> = [
         base_dir.map(|p| p.to_path_buf()),
         std::env::current_dir().ok(),
     ]
     .into_iter()
     .flatten()
     .collect();
+
+    if let Some(base) = base_dir {
+        if let Some((root, _)) = crate::rust_bridge::find_manifest(base) {
+            if !search_dirs.contains(&root) {
+                search_dirs.push(root);
+            }
+        }
+    }
 
     for dir in search_dirs {
         let dpm_packages = dir.join("dpm_packages");

@@ -127,7 +127,7 @@ impl Optimizer {
     ) {
         match inst {
             Inst::AssignVar { name, value } => {
-                if loaded_vars.contains(name) {
+                if loaded_vars.contains(name) || self.module_globals.contains(name) {
                     used_values.insert(*value);
                 }
             }
@@ -310,6 +310,7 @@ impl Optimizer {
             for (inst_idx, inst) in block.instructions.iter().enumerate() {
                 if let Inst::AssignVar { name, .. } = inst
                     && !loaded_vars.contains(name)
+                    && !self.module_globals.contains(name)
                 {
                     self.report.dead_instructions_removed += 1;
                     changed = true;

@@ -534,6 +534,7 @@ impl<'a> Parser<'a> {
             TokenType::Decide => self.parse_decide_expr(token.span),
             TokenType::Match => self.parse_match_expr(token.span),
             TokenType::Select => self.parse_select_expr(token.span),
+            TokenType::If => self.parse_if_expr(token.span),
             TokenType::LBrace => self.parse_map_literal_expr(token.span),
             TokenType::LBracket => self.parse_bracket_expr(token.span),
             TokenType::LParen => self.parse_paren_expr(token.span),
@@ -803,6 +804,63 @@ impl<'a> Parser<'a> {
                 start_span.start_col,
                 end_token.span.end_line,
                 end_token.span.end_col,
+                self.file.clone(),
+            ),
+        })
+    }
+
+    #[inline(never)]
+    pub(crate) fn parse_if_expr(&mut self, start_span: SourceSpan) -> Option<Expr> {
+        let condition = self.parse_condition()?;
+        let then_body = self.parse_arm_body()?;
+        let arm_span = SourceSpan::new(
+            start_span.start_line,
+            start_span.start_col,
+            then_body.span().end_line,
+            then_body.span().end_col,
+            self.file.clone(),
+        );
+        let mut arms = vec![SelectArm {
+            condition,
+            body: then_body,
+            span: arm_span,
+        }];
+        let mut else_arm = None;
+        let mut end_span = arms[0].span.clone();
+
+        while self.match_token(&TokenType::Else) {
+            if self.match_token(&TokenType::If) {
+                let else_if_cond = self.parse_condition()?;
+                let else_if_body = self.parse_arm_body()?;
+                let span = SourceSpan::new(
+                    else_if_cond.span().start_line,
+                    else_if_cond.span().start_col,
+                    else_if_body.span().end_line,
+                    else_if_body.span().end_col,
+                    self.file.clone(),
+                );
+                end_span = span.clone();
+                arms.push(SelectArm {
+                    condition: else_if_cond,
+                    body: else_if_body,
+                    span,
+                });
+            } else {
+                let else_body = self.parse_arm_body()?;
+                end_span = else_body.span().clone();
+                else_arm = Some(Box::new(else_body));
+                break;
+            }
+        }
+
+        Some(Expr::Select {
+            arms,
+            else_arm,
+            span: SourceSpan::new(
+                start_span.start_line,
+                start_span.start_col,
+                end_span.end_line,
+                end_span.end_col,
                 self.file.clone(),
             ),
         })

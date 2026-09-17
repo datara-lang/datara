@@ -144,20 +144,11 @@ impl<'a> Parser<'a> {
         if self.match_token(&TokenType::Bridge) {
             return self.parse_bridge_decl().map(Decl::Bridge);
         }
-        let is_class_keyword = self.check(&TokenType::Class);
         if self.match_token(&TokenType::Class)
             || self.match_token(&TokenType::Entity)
             || self.match_token(&TokenType::Struct)
             || self.match_token(&TokenType::Record)
         {
-            if is_class_keyword {
-                let prev_span = self.previous().span.clone();
-                self.diag.warning(
-                    ErrorCode::DeprecatedFeature,
-                    "The 'class' keyword is deprecated in favor of 'struct' for Data-Oriented Design (DOD). Replace 'class' with 'struct' and define methods in a 'behavior' block.".to_string(),
-                    Some(prev_span),
-                );
-            }
             return self.parse_class_decl(is_export, attrs).map(Decl::Class);
         }
         if self.match_token(&TokenType::Enum) {
@@ -204,6 +195,22 @@ impl<'a> Parser<'a> {
                 .parse_function_decl(is_export, attrs)
                 .map(Decl::Function);
         }
+        if self.match_token(&TokenType::Unsafe) {
+            let unsafe_span = self.previous().span.clone();
+            if self.match_token(&TokenType::Fn) || self.match_token(&TokenType::Function) {
+                let mut unsafe_attrs = attrs;
+                unsafe_attrs.push(Attribute {
+                    name: "unsafe".to_string(),
+                    args: Vec::new(),
+                    span: unsafe_span,
+                });
+                return self
+                    .parse_function_decl(is_export, unsafe_attrs)
+                    .map(Decl::Function);
+            }
+            self.error("Expected 'fn' or 'function' after 'unsafe' in declaration");
+            return None;
+        }
         if self.check_ident_str("test") {
             let next_is_fn = self
                 .tokens
@@ -245,9 +252,95 @@ impl<'a> Parser<'a> {
         if self.match_token(&TokenType::Type) {
             return self.parse_type_decl(is_export).map(Decl::Type);
         }
+        if self.match_token(&TokenType::Const) {
+            let start_span = self.previous().span.clone();
+            let name = self.consume_ident("Expected constant name after 'const'")?;
+            let mut type_node = None;
+            if self.match_token(&TokenType::Colon) {
+                type_node = self.parse_type();
+            }
+            self.consume(&TokenType::Equal, "Expected '=' in const declaration")?;
+            let init = self.parse_expression()?;
+            let end_span = self.previous().span.clone();
+            let span = SourceSpan::new(
+                start_span.start_line,
+                start_span.start_col,
+                end_span.end_line,
+                end_span.end_col,
+                self.file.clone(),
+            );
+            return Some(Decl::Global(GlobalDecl {
+                is_export,
+                is_mut: false,
+                is_const: true,
+                name,
+                type_node,
+                init,
+                span,
+            }));
+        }
+        if self.match_token(&TokenType::Mut) {
+            let start_span = self.previous().span.clone();
+            let name = self.consume_ident("Expected variable name after 'mut'")?;
+            let mut type_node = None;
+            if self.match_token(&TokenType::Colon) {
+                type_node = self.parse_type();
+            }
+            self.consume(&TokenType::Equal, "Expected '=' in mut declaration")?;
+            let init = self.parse_expression()?;
+            let end_span = self.previous().span.clone();
+            let span = SourceSpan::new(
+                start_span.start_line,
+                start_span.start_col,
+                end_span.end_line,
+                end_span.end_col,
+                self.file.clone(),
+            );
+            return Some(Decl::Global(GlobalDecl {
+                is_export,
+                is_mut: true,
+                is_const: false,
+                name,
+                type_node,
+                init,
+                span,
+            }));
+        }
+        if self.match_token(&TokenType::Let) {
+            let start_span = self.previous().span.clone();
+            let is_mut = self.match_token(&TokenType::Mut);
+            let name = self.consume_ident(if is_mut {
+                "Expected variable name after 'let mut'"
+            } else {
+                "Expected variable name after 'let'"
+            })?;
+            let mut type_node = None;
+            if self.match_token(&TokenType::Colon) {
+                type_node = self.parse_type();
+            }
+            self.consume(&TokenType::Equal, "Expected '=' in let declaration")?;
+            let init = self.parse_expression()?;
+            let end_span = self.previous().span.clone();
+            let span = SourceSpan::new(
+                start_span.start_line,
+                start_span.start_col,
+                end_span.end_line,
+                end_span.end_col,
+                self.file.clone(),
+            );
+            return Some(Decl::Global(GlobalDecl {
+                is_export,
+                is_mut,
+                is_const: false,
+                name,
+                type_node,
+                init,
+                span,
+            }));
+        }
 
         self.error(
-            "Expected top-level declaration (class, entity, behavior, fn, register, process, component, role, packet, extern, type, use)",
+            "Expected top-level declaration (class, entity, behavior, fn, register, process, component, role, packet, extern, type, use, const, mut, let)",
         );
         None
     }
@@ -491,7 +584,15 @@ impl<'a> Parser<'a> {
         is_export: bool,
         attributes: Vec<Attribute>,
     ) -> Option<ClassDecl> {
+        let is_class_kw = self.previous().token_type == TokenType::Class;
         let start_span = self.previous().span.clone();
+        if is_class_kw {
+            self.diag.warning(
+                crate::diagnostics::ErrorCode::DeprecatedFeature,
+                "The 'class' keyword is deprecated since v1.3.0. Use 'struct' for Data-Oriented Design representations.".to_string(),
+                Some(start_span.clone()),
+            );
+        }
         let name = self.consume_ident("Expected class name")?;
 
         let mut generic_params = Vec::new();

@@ -107,11 +107,15 @@ impl<'a> LlvmEmitter<'a> {
         }
     }
 
-    /// Escape string content for LLVM IR string literals: `c"...\00"`.
-    /// Returns the escaped string and the total byte length including null terminator.
+    /// Escape string content for LLVM IR string literals: `c"[len: i64]...\00"`.
+    /// Returns the escaped string and the total byte length including 8-byte length prefix and null terminator.
     pub fn escape_llvm_string(s: &str) -> (String, usize) {
         let mut out = String::new();
-        let mut bytes_count = 0;
+        let len_bytes = (s.len() as i64).to_le_bytes();
+        for b in len_bytes {
+            out.push_str(&format!("\\{:02X}", b));
+        }
+        let mut bytes_count = 8;
         for b in s.bytes() {
             bytes_count += 1;
             match b {
@@ -239,11 +243,33 @@ impl<'a> LlvmEmitter<'a> {
         for (content, id) in sorted_strings {
             let (escaped, len) = Self::escape_llvm_string(content);
             ir.push_str(&format!(
-                "@.str.{} = private unnamed_addr constant [{} x i8] c\"{}\", align 1\n",
+                "@.str.{} = private unnamed_addr constant [{} x i8] c\"{}\", align 8\n",
                 id, len, escaped
             ));
         }
         ir.push('\n');
+
+        // 1b. Module-level global variables
+        if !module.globals.is_empty() {
+            ir.push_str("; --- Module-Level Global Variables ---\n");
+            let mut sorted_globals: Vec<_> = module.globals.iter().collect();
+            sorted_globals.sort_by_key(|(name, _)| *name);
+            for (gname, (gty, _is_mut)) in sorted_globals {
+                let llvm_ty = self.dmir_type_to_llvm(gty);
+                let init_val = if llvm_ty == "double" {
+                    "0.0"
+                } else if llvm_ty == "ptr" {
+                    "null"
+                } else {
+                    "0"
+                };
+                ir.push_str(&format!(
+                    "@datara_global_{} = internal global {} {}, align 8\n",
+                    gname, llvm_ty, init_val
+                ));
+            }
+            ir.push('\n');
+        }
 
         runtime_decls::emit_runtime_declarations(&mut ir);
         simd::emit_simd_declarations(&mut ir);
@@ -292,7 +318,16 @@ impl<'a> LlvmEmitter<'a> {
                 .get(*fname)
                 .map(|e| e.is_pure())
                 .unwrap_or(false);
-            let is_pure = is_pure_ast || is_pure_eff;
+            let accesses_global = f.blocks.iter().any(|b| {
+                b.instructions.iter().any(|inst| match inst {
+                    crate::dmir::Inst::LoadVar { name, .. }
+                    | crate::dmir::Inst::AssignVar { name, .. } => {
+                        module.globals.contains_key(name)
+                    }
+                    _ => false,
+                })
+            });
+            let is_pure = (is_pure_ast || is_pure_eff) && !accesses_global;
             let (is_cold, is_hot, entry_count) = if *fname == "main" {
                 (false, false, None)
             } else if let Some(ref prof) = self.profile {
@@ -336,10 +371,15 @@ impl<'a> LlvmEmitter<'a> {
 
         // 4. Emit Loop Vectorization & Unroll Metadata (Honest contract: only enabled when target supports it)
         let vec_enabled = attributes::is_vector_supported(self.target);
-        ir.push_str("!0 = distinct !{!0, !1, !3}\n");
+        let width = if self.target.vector_support.contains(&crate::codegen::target::VectorExtension::Avx2) { 8 } else { 4 };
+        ir.push_str("!0 = distinct !{!0, !1, !2, !3}\n");
         ir.push_str(&format!(
             "!1 = !{{!\"llvm.loop.vectorize.enable\", i1 {}}}\n",
             if vec_enabled { 1 } else { 0 }
+        ));
+        ir.push_str(&format!(
+            "!2 = !{{!\"llvm.loop.vectorize.width\", i32 {}}}\n",
+            width
         ));
         ir.push_str("!3 = !{!\"llvm.loop.unroll.enable\", i1 1}\n");
         ir.push_str("!9 = !{!\"branch_weights\", i32 1, i32 1048576}\n\n");
@@ -671,6 +711,96 @@ impl<'a> LlvmEmitter<'a> {
             }
         }
 
+        let mut var_types: HashMap<String, &'static str> = HashMap::new();
+        for (gname, (gty, _)) in &module.globals {
+            var_types.insert(gname.clone(), self.dmir_type_to_llvm(gty));
+        }
+        for (pname, pty, _) in &f.params {
+            var_types.insert(pname.clone(), self.dmir_type_to_llvm(pty));
+        }
+        for vname in &local_vars {
+            let dt = types.fn_symbol_types.get(&(f.name.clone(), vname.clone()))
+                .or_else(|| {
+                    let base_name = f.name.split("__spec_").next().unwrap_or(&f.name);
+                    types.fn_symbol_types.get(&(base_name.to_string(), vname.clone()))
+                })
+                .or_else(|| {
+                    let base_name = f.name.split("__").next().unwrap_or(&f.name);
+                    types.fn_symbol_types.get(&(base_name.to_string(), vname.clone()))
+                });
+            if let Some(dt) = dt {
+                let vty = match dt {
+                    DataraType::Float => "double",
+                    DataraType::Int | DataraType::Bool | DataraType::Char => "i64",
+                    _ => "ptr",
+                };
+                var_types.insert(vname.clone(), vty);
+            }
+        }
+
+        // Secondary inference pass: check assignment instructions if symbol table lacked type
+        for vname in &local_vars {
+            if !var_types.contains_key(vname) {
+                for b in &f.blocks {
+                    for inst in &b.instructions {
+                        if let Inst::AssignVar { name, value } = inst {
+                            if name == vname {
+                                for b2 in &f.blocks {
+                                    for inst2 in &b2.instructions {
+                                        match inst2 {
+                                            Inst::ConstFloat { dest, .. } if dest == value => {
+                                                var_types.insert(vname.clone(), "double");
+                                            }
+                                            Inst::ConstInt { dest, .. } | Inst::ConstBool { dest, .. } if dest == value => {
+                                                var_types.insert(vname.clone(), "i64");
+                                            }
+                                            Inst::ConstStr { dest, .. } | Inst::StructInit { dest, .. } if dest == value => {
+                                                var_types.insert(vname.clone(), "ptr");
+                                            }
+                                            Inst::Call { dest, func, ty, .. } if dest == value => {
+                                                if func.starts_with("datara_rt_list_")
+                                                    || func.starts_with("datara_rt_str_")
+                                                    || func.starts_with("mem_alloc")
+                                                    || func.starts_with("arena_alloc")
+                                                    || func.starts_with("stack_alloc")
+                                                {
+                                                    var_types.insert(vname.clone(), "ptr");
+                                                } else if ty == "Float" {
+                                                    var_types.insert(vname.clone(), "double");
+                                                } else if ty == "Str" || ty == "String" || ty.starts_with("List<") {
+                                                    var_types.insert(vname.clone(), "ptr");
+                                                }
+                                            }
+                                            Inst::BinOp { dest, ty, .. } if dest == value => {
+                                                if ty == "Float" {
+                                                    var_types.insert(vname.clone(), "double");
+                                                } else if ty == "Str" || ty == "String" {
+                                                    var_types.insert(vname.clone(), "ptr");
+                                                }
+                                            }
+                                            _ => {}
+                                        }
+                                        if var_types.contains_key(vname) {
+                                            break;
+                                        }
+                                    }
+                                    if var_types.contains_key(vname) {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if var_types.contains_key(vname) {
+                            break;
+                        }
+                    }
+                    if var_types.contains_key(vname) {
+                        break;
+                    }
+                }
+            }
+        }
+
         // Allocate local variables in entry block if any
         let has_allocas =
             !local_vars.is_empty() || !f.params.is_empty() || !struct_inits.is_empty();
@@ -706,8 +836,10 @@ impl<'a> LlvmEmitter<'a> {
                 }
             }
             for vname in &local_vars {
-                if !f.params.iter().any(|(p, _, _)| p == vname) {
-                    out.push_str(&format!("  %var_{} = alloca [16 x i8], align 16\n", vname));
+                if !f.params.iter().any(|(p, _, _)| p == vname) && !module.globals.contains_key(vname) {
+                    let vty = var_types.get(vname).copied().unwrap_or("i64");
+                    let align = if vty == "<4 x float>" { 16 } else { 8 };
+                    out.push_str(&format!("  %var_{} = alloca {}, align {}\n", vname, vty, align));
                 }
             }
             for (s_id, s_size) in &struct_inits {
@@ -728,11 +860,6 @@ impl<'a> LlvmEmitter<'a> {
             }
         }
 
-        let mut var_types: HashMap<String, &'static str> = HashMap::new();
-        for (pname, pty, _) in &f.params {
-            var_types.insert(pname.clone(), self.dmir_type_to_llvm(pty));
-        }
-
         // Emit blocks
         for block in &f.blocks {
             out.push_str(&format!("bb{}:\n", block.id.0));
@@ -743,8 +870,25 @@ impl<'a> LlvmEmitter<'a> {
                 && let Some(preds) = incoming_edges.get(&block.id)
             {
                 for (param_idx, param) in block.params.iter().enumerate() {
-                    let param_ty = self.dmir_type_to_llvm(&param.ty);
+                    let param_ty = preds
+                        .iter()
+                        .find_map(|(_, args)| {
+                            args.get(param_idx)
+                                .and_then(|a| value_types.get(a).copied())
+                        })
+                        .or_else(|| {
+                            param
+                                .name
+                                .as_ref()
+                                .and_then(|n| var_types.get(n).copied())
+                        })
+                        .unwrap_or_else(|| self.dmir_type_to_llvm(&param.ty));
                     value_types.insert(param.val, param_ty);
+                    if let Some(ref name) = param.name {
+                        if let Some(c) = var_classes.get(name) {
+                            value_classes.insert(param.val, c.clone());
+                        }
+                    }
 
                     let phi_incoming = preds
                         .iter()

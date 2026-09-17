@@ -1,6 +1,8 @@
 use forgen::driver::ForgenCompiler;
 use std::process::Command;
 
+static CPYTHON_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 unsafe extern "C" {
     fn datara_py_self_test() -> i32;
     fn datara_py_last_error() -> *const std::ffi::c_char;
@@ -8,6 +10,7 @@ unsafe extern "C" {
 
 #[test]
 fn test_cpython_runtime_self_test() {
+    let _guard = CPYTHON_TEST_LOCK.lock().unwrap();
     let code = unsafe { datara_py_self_test() };
     if code != 0 {
         let err_ptr = unsafe { datara_py_last_error() };
@@ -29,6 +32,7 @@ fn test_cpython_runtime_self_test() {
 
 #[test]
 fn test_cpython_datara_eval_and_call() {
+    let _guard = CPYTHON_TEST_LOCK.lock().unwrap();
     let source = r#"
 import python
 
@@ -85,6 +89,7 @@ fn main() {
 
 #[test]
 fn test_cpython_datara_zerocopy_mutation() {
+    let _guard = CPYTHON_TEST_LOCK.lock().unwrap();
     let source = r#"
 import python
 
@@ -153,6 +158,7 @@ fn main() {
 
 #[test]
 fn test_cpython_datara_error_traceback() {
+    let _guard = CPYTHON_TEST_LOCK.lock().unwrap();
     let source = r#"
 import python
 
@@ -195,6 +201,7 @@ fn main() {
 
 #[test]
 fn test_cpython_dce_zero_cost() {
+    let _guard = CPYTHON_TEST_LOCK.lock().unwrap();
     let source = r#"
 fn compute(a: Int, b: Int) -> Int => a * 3 + b
 
@@ -266,6 +273,7 @@ fn main() {
 
 #[test]
 fn test_cpython_use_python_syntax_and_effects() {
+    let _guard = CPYTHON_TEST_LOCK.lock().unwrap();
     let source = r#"
 use python numpy as np
 
@@ -340,6 +348,7 @@ fn main() {
 
 #[test]
 fn test_cpython_numpy_zerocopy_and_benchmarks() {
+    let _guard = CPYTHON_TEST_LOCK.lock().unwrap();
     let source = r#"
 use python numpy as np
 

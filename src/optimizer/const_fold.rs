@@ -38,40 +38,44 @@ impl Optimizer {
                         new_instructions.push(inst.clone());
                     }
                     Inst::AssignVar { name, value } => {
-                        if let Some(v) = int_constants.get(value) {
-                            block_var_ints.insert(name.clone(), *v);
-                        } else {
-                            block_var_ints.remove(name);
-                        }
-                        if let Some(v) = float_constants.get(value) {
-                            block_var_floats.insert(name.clone(), *v);
-                        } else {
-                            block_var_floats.remove(name);
-                        }
-                        if let Some(v) = str_constants.get(value) {
-                            block_var_strs.insert(name.clone(), v.clone());
-                        } else {
-                            block_var_strs.remove(name);
-                        }
-                        if let Some(v) = bool_constants.get(value) {
-                            block_var_bools.insert(name.clone(), *v);
-                        } else {
-                            block_var_bools.remove(name);
+                        if !self.module_mutable_globals.contains(name) {
+                            if let Some(v) = int_constants.get(value) {
+                                block_var_ints.insert(name.clone(), *v);
+                            } else {
+                                block_var_ints.remove(name);
+                            }
+                            if let Some(v) = float_constants.get(value) {
+                                block_var_floats.insert(name.clone(), *v);
+                            } else {
+                                block_var_floats.remove(name);
+                            }
+                            if let Some(v) = str_constants.get(value) {
+                                block_var_strs.insert(name.clone(), v.clone());
+                            } else {
+                                block_var_strs.remove(name);
+                            }
+                            if let Some(v) = bool_constants.get(value) {
+                                block_var_bools.insert(name.clone(), *v);
+                            } else {
+                                block_var_bools.remove(name);
+                            }
                         }
                         new_instructions.push(inst.clone());
                     }
                     Inst::LoadVar { dest, name } => {
-                        if let Some(v) = block_var_ints.get(name) {
-                            int_constants.insert(*dest, *v);
-                        }
-                        if let Some(v) = block_var_floats.get(name) {
-                            float_constants.insert(*dest, *v);
-                        }
-                        if let Some(v) = block_var_strs.get(name) {
-                            str_constants.insert(*dest, v.clone());
-                        }
-                        if let Some(v) = block_var_bools.get(name) {
-                            bool_constants.insert(*dest, *v);
+                        if !self.module_mutable_globals.contains(name) {
+                            if let Some(v) = block_var_ints.get(name) {
+                                int_constants.insert(*dest, *v);
+                            }
+                            if let Some(v) = block_var_floats.get(name) {
+                                float_constants.insert(*dest, *v);
+                            }
+                            if let Some(v) = block_var_strs.get(name) {
+                                str_constants.insert(*dest, v.clone());
+                            }
+                            if let Some(v) = block_var_bools.get(name) {
+                                bool_constants.insert(*dest, *v);
+                            }
                         }
                         new_instructions.push(inst.clone());
                     }

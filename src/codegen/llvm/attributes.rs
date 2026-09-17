@@ -319,7 +319,7 @@ pub fn derive_loop_metadata(
             return format!(", !llvm.loop !{}", id);
         }
     }
-    ", !llvm.loop !0".to_string()
+    String::new()
 }
 
 /// Derive branch metadata (!prof branch weights) for conditional branches.

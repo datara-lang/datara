@@ -62,6 +62,11 @@ impl<'a> LlvmEmitter<'a> {
                     value_classes.insert(*dest, c.clone());
                 }
                 let align = if vty == "<4 x float>" { 16 } else { 8 };
+                let ptr_str = if module.globals.contains_key(name) {
+                    format!("@datara_global_{}", name)
+                } else {
+                    format!("%var_{}", name)
+                };
                 if let Some((min, max)) = get_range_for_var(fn_name, name, None, types) {
                     let high = max.saturating_add(1);
                     let meta_id = *range_metadata.entry((min, high)).or_insert_with(|| {
@@ -70,18 +75,26 @@ impl<'a> LlvmEmitter<'a> {
                         id
                     });
                     out.push_str(&format!(
-                        "  %v{} = load {}, ptr %var_{}, align {}, !range !{}\n",
-                        dest.0, vty, name, align, meta_id
+                        "  %v{} = load {}, ptr {}, align {}, !range !{}\n",
+                        dest.0, vty, ptr_str, align, meta_id
                     ));
                 } else {
                     out.push_str(&format!(
-                        "  %v{} = load {}, ptr %var_{}, align {}\n",
-                        dest.0, vty, name, align
+                        "  %v{} = load {}, ptr {}, align {}\n",
+                        dest.0, vty, ptr_str, align
                     ));
                 }
             }
             Inst::AssignVar { name, value } => {
-                let vty = value_types.get(value).copied().unwrap_or("i64");
+                let vty = if let Some((gty, _)) = module.globals.get(name) {
+                    self.dmir_type_to_llvm(gty)
+                } else {
+                    value_types
+                        .get(value)
+                        .copied()
+                        .or_else(|| var_types.get(name).copied())
+                        .unwrap_or("i64")
+                };
                 var_types.insert(name.clone(), vty);
                 if let Some(c) = value_classes.get(value) {
                     var_classes.insert(name.clone(), c.clone());
@@ -94,9 +107,14 @@ impl<'a> LlvmEmitter<'a> {
                     bool_vars.remove(name);
                 }
                 let align = if vty == "<4 x float>" { 16 } else { 8 };
+                let ptr_str = if module.globals.contains_key(name) {
+                    format!("@datara_global_{}", name)
+                } else {
+                    format!("%var_{}", name)
+                };
                 out.push_str(&format!(
-                    "  store {} %v{}, ptr %var_{}, align {}\n",
-                    vty, value.0, name, align
+                    "  store {} %v{}, ptr {}, align {}\n",
+                    vty, value.0, ptr_str, align
                 ));
                 if let Some((min, max)) = get_range_for_var(fn_name, name, None, types) {
                     out.push_str(&format!(

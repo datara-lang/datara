@@ -1424,6 +1424,18 @@ pub fn declare_runtime_core<M: ClifModule>(
         .map_err(|e| e.to_string())?;
     func_ids.insert(
         "datara_rt_arena_alloc".into(),
+        (rt_arena_alloc_id, arena_alloc_sig.clone()),
+    );
+    func_ids.insert(
+        "arena_alloc".into(),
+        (rt_arena_alloc_id, arena_alloc_sig.clone()),
+    );
+    func_ids.insert(
+        "stack_alloc".into(),
+        (rt_arena_alloc_id, arena_alloc_sig.clone()),
+    );
+    func_ids.insert(
+        "datara_rt_stack_alloc".into(),
         (rt_arena_alloc_id, arena_alloc_sig),
     );
 
@@ -1440,6 +1452,10 @@ pub fn declare_runtime_core<M: ClifModule>(
         .map_err(|e| e.to_string())?;
     func_ids.insert(
         "datara_rt_arena_checkpoint".into(),
+        (rt_arena_checkpoint_id, arena_checkpoint_sig.clone()),
+    );
+    func_ids.insert(
+        "arena_checkpoint".into(),
         (rt_arena_checkpoint_id, arena_checkpoint_sig),
     );
 
@@ -1450,6 +1466,10 @@ pub fn declare_runtime_core<M: ClifModule>(
         .map_err(|e| e.to_string())?;
     func_ids.insert(
         "datara_rt_arena_reset".into(),
+        (rt_arena_reset_id, arena_reset_sig.clone()),
+    );
+    func_ids.insert(
+        "arena_reset".into(),
         (rt_arena_reset_id, arena_reset_sig),
     );
 

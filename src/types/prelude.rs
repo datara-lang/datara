@@ -563,22 +563,22 @@ impl<'a> TypeChecker<'a> {
                 Vec::new(),
             ),
         );
-        function_signatures.insert(
-            "str_substring".to_string(),
-            (
-                vec![DataraType::String, DataraType::Int, DataraType::Int],
-                DataraType::String,
-                Vec::new(),
-            ),
-        );
-        function_signatures.insert(
-            "str_substr".to_string(),
-            (
-                vec![DataraType::String, DataraType::Int, DataraType::Int],
-                DataraType::String,
-                Vec::new(),
-            ),
-        );
+        for f in &[
+            "str_substring",
+            "substring",
+            "substr",
+            "str_substr",
+            "datara_rt_str_substring",
+        ] {
+            function_signatures.insert(
+                f.to_string(),
+                (
+                    vec![DataraType::String, DataraType::Int, DataraType::Int],
+                    DataraType::String,
+                    Vec::new(),
+                ),
+            );
+        }
         function_signatures.insert(
             "str_char_at".to_string(),
             (
@@ -881,6 +881,78 @@ impl<'a> TypeChecker<'a> {
                 ),
             );
         }
+        for f in &["arena_alloc", "datara_rt_arena_alloc", "mem_alloc", "datara_rt_mem_alloc", "stack_alloc", "datara_rt_stack_alloc"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::Int], DataraType::RawPtr, Vec::new()),
+            );
+        }
+        for f in &["arena_reset", "datara_rt_arena_reset"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::Int], DataraType::Unit, Vec::new()),
+            );
+        }
+        for f in &["arena_used", "datara_rt_arena_used"] {
+            function_signatures.insert(
+                f.to_string(),
+                (Vec::new(), DataraType::Int, Vec::new()),
+            );
+        }
+        for f in &["arena_clear", "datara_rt_arena_clear"] {
+            function_signatures.insert(
+                f.to_string(),
+                (Vec::new(), DataraType::Unit, Vec::new()),
+            );
+        }
+        for f in &["mem_free", "datara_rt_mem_free"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr], DataraType::Unit, Vec::new()),
+            );
+        }
+        for f in &["mem_copy", "datara_rt_mem_copy"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr, DataraType::RawPtr, DataraType::Int], DataraType::Unit, Vec::new()),
+            );
+        }
+        for f in &["ptr_read_i64", "datara_rt_ptr_read_i64", "ptr_read_u8", "datara_rt_ptr_read_u8"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr, DataraType::Int], DataraType::Int, Vec::new()),
+            );
+        }
+        for f in &["ptr_write_i64", "datara_rt_ptr_write_i64", "ptr_write_u8", "datara_rt_ptr_write_u8"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr, DataraType::Int, DataraType::Int], DataraType::Unit, Vec::new()),
+            );
+        }
+        for f in &["ptr_read_f64", "datara_rt_ptr_read_f64"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr, DataraType::Int], DataraType::Float, Vec::new()),
+            );
+        }
+        for f in &["ptr_write_f64", "datara_rt_ptr_write_f64"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr, DataraType::Int, DataraType::Float], DataraType::Unit, Vec::new()),
+            );
+        }
+        for f in &["cpu_fence", "datara_rt_cpu_fence"] {
+            function_signatures.insert(
+                f.to_string(),
+                (Vec::new(), DataraType::Unit, Vec::new()),
+            );
+        }
+        for f in &["cpu_prefetch", "datara_rt_cpu_prefetch"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr], DataraType::Unit, Vec::new()),
+            );
+        }
         for f in &["py_import", "datara_py_import"] {
             function_signatures.insert(
                 f.to_string(),
@@ -915,6 +987,85 @@ impl<'a> TypeChecker<'a> {
                     DataraType::Int,
                     Vec::new(),
                 ),
+            );
+        }
+        // 4-Tier Memory & Direct Hardware Spectrum
+        for f in &["arena_alloc", "datara_rt_arena_alloc"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::Int], DataraType::RawPtr, Vec::new()),
+            );
+        }
+        for f in &["arena_reset", "datara_rt_arena_reset", "arena_used", "datara_rt_arena_used"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![], DataraType::Int, Vec::new()),
+            );
+        }
+        for f in &["mem_alloc", "datara_rt_mem_alloc", "stack_alloc", "datara_rt_stack_alloc"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::Int], DataraType::RawPtr, Vec::new()),
+            );
+        }
+        for f in &["mem_free", "datara_rt_mem_free"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr], DataraType::Unit, Vec::new()),
+            );
+        }
+        for f in &["mem_copy", "datara_rt_mem_copy"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr, DataraType::RawPtr, DataraType::Int], DataraType::Unit, Vec::new()),
+            );
+        }
+        for f in &["ptr_read_i64", "datara_rt_ptr_read_i64"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr, DataraType::Int], DataraType::Int, Vec::new()),
+            );
+        }
+        for f in &["ptr_write_i64", "datara_rt_ptr_write_i64"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr, DataraType::Int, DataraType::Int], DataraType::Unit, Vec::new()),
+            );
+        }
+        for f in &["ptr_read_f64", "datara_rt_ptr_read_f64"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr, DataraType::Int], DataraType::Float, Vec::new()),
+            );
+        }
+        for f in &["ptr_write_f64", "datara_rt_ptr_write_f64"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr, DataraType::Int, DataraType::Float], DataraType::Unit, Vec::new()),
+            );
+        }
+        for f in &["ptr_read_u8", "datara_rt_ptr_read_u8"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr, DataraType::Int], DataraType::Int, Vec::new()),
+            );
+        }
+        for f in &["ptr_write_u8", "datara_rt_ptr_write_u8"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr, DataraType::Int, DataraType::Int], DataraType::Unit, Vec::new()),
+            );
+        }
+        for f in &["cpu_fence", "datara_rt_cpu_fence"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![], DataraType::Unit, Vec::new()),
+            );
+        }
+        for f in &["cpu_prefetch", "datara_rt_cpu_prefetch"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr], DataraType::Unit, Vec::new()),
             );
         }
         for f in &[

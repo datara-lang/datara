@@ -3,7 +3,54 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include "datara_rt_scheduler.h"
+
+// ============================================================================
+// Datara String ABI v2 ([len: i64][bytes...][\0])
+// ============================================================================
+typedef struct {
+    int64_t len;
+    char data[];
+} DataraString;
+
+static const int64_t g_empty_datara_str[2] = {0, 0};
+#define EMPTY_DATARA_STR ((const char*)g_empty_datara_str)
+
+static const struct { int64_t len; char data[8]; } g_true_datara_str = {4, "true\0\0\0"};
+static const struct { int64_t len; char data[8]; } g_false_datara_str = {5, "false\0\0"};
+#define TRUE_DATARA_STR ((const char*)&g_true_datara_str)
+#define FALSE_DATARA_STR ((const char*)&g_false_datara_str)
+
+static inline int datara_is_datara_str(const char* s) {
+    if (!s) return 0;
+    if (s == EMPTY_DATARA_STR || s == TRUE_DATARA_STR || s == FALSE_DATARA_STR) return 1;
+    int64_t len = *(const int64_t*)s;
+    if (len >= 0 && len < 67108864LL) {
+        if (s[sizeof(int64_t) + len] == '\0') {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static inline const char* datara_str_data(const char* s) {
+    if (!s) return "";
+    if (datara_is_datara_str(s)) {
+        return s + sizeof(int64_t);
+    }
+    return s;
+}
+
+static inline int64_t datara_str_len(const char* s) {
+    if (!s) return 0;
+    if (datara_is_datara_str(s)) {
+        return *(const int64_t*)s;
+    }
+    return (int64_t)strlen(s);
+}
+
+char* datara_str_alloc(size_t len);
 
 #ifdef __cplusplus
 extern "C" {
@@ -193,6 +240,29 @@ const char* datara_rt_format_percent(double val, int64_t decimals);
 const char* datara_rt_format_int_with_commas(int64_t n);
 const char* datara_rt_format_str_i64_str_i64(const char* s1, int64_t n1, const char* s2, int64_t n2);
 const char* datara_rt_range_str(int64_t start, int64_t end);
+const char* datara_rt_str_from_c_str(const char* c_str);
+
+// ============================================================================
+// 4-Tier Memory & Direct Hardware Spectrum
+// ============================================================================
+// Level 2: Regional / Arena Memory
+int64_t datara_rt_arena_used(void);
+void    datara_rt_arena_clear(void);
+
+// Level 3: Manual Memory / RawPtr Control
+void*   datara_rt_mem_alloc(int64_t bytes);
+void    datara_rt_mem_free(void* ptr);
+void    datara_rt_mem_copy(void* dst, const void* src, int64_t bytes);
+int64_t datara_rt_ptr_read_i64(const void* ptr, int64_t offset);
+void    datara_rt_ptr_write_i64(void* ptr, int64_t offset, int64_t val);
+double  datara_rt_ptr_read_f64(const void* ptr, int64_t offset);
+void    datara_rt_ptr_write_f64(void* ptr, int64_t offset, double val);
+int64_t datara_rt_ptr_read_u8(const void* ptr, int64_t offset);
+void    datara_rt_ptr_write_u8(void* ptr, int64_t offset, int64_t val);
+
+// Level 4: Hardware / SIMD / Intrinsics / CPU Control
+void    datara_rt_cpu_fence(void);
+void    datara_rt_cpu_prefetch(const void* ptr);
 
 // High-Speed JavaScript & Node.js Interop
 const char* datara_js_eval(const char* code);
@@ -260,6 +330,7 @@ int64_t*    datara_rt_list_create_3(int64_t a, int64_t b, int64_t c);
 int64_t*    datara_rt_list_create_4(int64_t a, int64_t b, int64_t c, int64_t d);
 int64_t*    datara_rt_list_create_5(int64_t a, int64_t b, int64_t c, int64_t d, int64_t e);
 int64_t*    datara_rt_list_append(int64_t* list, int64_t val);
+int64_t*    datara_rt_list_append_slow(int64_t* list, int64_t val);
 int64_t     datara_rt_list_get(int64_t* list, int64_t idx);
 int64_t     datara_rt_list_get_unchecked(int64_t* list, int64_t idx);
 int64_t     datara_rt_list_len(int64_t* list);
@@ -493,6 +564,21 @@ void*       datara_rt_arena_alloc(int64_t bytes);
 int64_t     datara_rt_arena_checkpoint(void);
 void        datara_rt_arena_reset(int64_t saved_top);
 int64_t     datara_rt_arena_remaining(void);
+int64_t     datara_rt_arena_used(void);
+void        datara_rt_arena_clear(void);
+void*       datara_rt_mem_alloc(int64_t bytes);
+void        datara_rt_mem_free(void* ptr);
+void        datara_rt_mem_copy(void* dest, const void* src, int64_t bytes);
+int64_t     datara_rt_ptr_read_i64(const void* ptr, int64_t offset_bytes);
+void        datara_rt_ptr_write_i64(void* ptr, int64_t offset_bytes, int64_t val);
+double      datara_rt_ptr_read_f64(const void* ptr, int64_t offset_bytes);
+void        datara_rt_ptr_write_f64(void* ptr, int64_t offset_bytes, double val);
+int64_t     datara_rt_ptr_read_u8(const void* ptr, int64_t offset_bytes);
+void        datara_rt_ptr_write_u8(void* ptr, int64_t offset_bytes, int64_t val);
+void        datara_rt_cpu_fence(void);
+void        datara_rt_cpu_prefetch(const void* ptr);
+void        datara_rt_global_set(const char* name, int64_t val);
+int64_t     datara_rt_global_get(const char* name);
 void        datara_rt_free(void* ptr);
 void        datara_rt_str_free(const char* s);
 void        datara_rt_list_free(void* list);

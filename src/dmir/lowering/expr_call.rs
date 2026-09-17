@@ -1106,6 +1106,9 @@ impl<'a> Lowering<'a> {
             if self.is_expr_list(object) {
                 let elem_repr = self.list_elem_repr(object);
                 match member.as_str() {
+                    "join" => {
+                        method_ty = "String".into();
+                    }
                     "sort" | "reverse" | "clear" | "insert_at" | "slice" => {
                         method_ty = format!("List<{}>", elem_repr);
                     }

@@ -1,0 +1,37 @@
+fn compute_matmul(n: Int) -> Float {
+    let total = n * n
+    mut a: List<Float> = []
+    mut b: List<Float> = []
+    mut c: List<Float> = []
+    mut i = 0
+    while i < total {
+        a.push(1.0)
+        b.push(2.0)
+        c.push(0.0)
+        i = i + 1
+    }
+    mut row = 0
+    while row < n {
+        mut col = 0
+        while col < n {
+            mut sum = 0.0
+            mut k = 0
+            while k < n {
+                sum = sum + a[row * n + k] * b[k * n + col]
+                k = k + 1
+            }
+            c[row * n + col] = sum
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return c[total - 1]
+}
+
+fn main() {
+    let t0 = now_ns()
+    let res = compute_matmul(96)
+    let t1 = now_ns()
+    out "DATARA_IN_PROCESS_US: " + ((t1 - t0) / 1000)
+    out res
+}

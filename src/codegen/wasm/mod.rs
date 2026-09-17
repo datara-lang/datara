@@ -470,7 +470,7 @@ impl WasmEmitter {
             if !string_table.contains_key(val) {
                 let offset = base_memory_offset + (data_bytes.len() as u32);
                 let s_bytes = val.as_bytes();
-                data_bytes.extend_from_slice(&(s_bytes.len() as u32).to_le_bytes());
+                data_bytes.extend_from_slice(&(s_bytes.len() as i64).to_le_bytes());
                 data_bytes.extend_from_slice(s_bytes);
                 data_bytes.push(0); // null terminator
                 string_table.insert(val.to_string(), offset);

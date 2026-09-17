@@ -61,6 +61,8 @@ pub struct Lowering<'a> {
     /// loops the continue target is the increment block so the induction
     /// variable still advances.
     pub loop_stack: Vec<(BasicBlockId, BasicBlockId)>,
+    pub global_vars: HashMap<String, (String, bool)>,
+    pub program_globals: Vec<GlobalDecl>,
 }
 
 impl<'a> Lowering<'a> {
@@ -152,6 +154,24 @@ impl<'a> Lowering<'a> {
         function_return_types.insert("datara_rt_int_to_str".into(), "String".into());
         function_return_types.insert("float_to_str".into(), "String".into());
         function_return_types.insert("datara_rt_float_to_str".into(), "String".into());
+        for f in &["split", "str_split", "datara_rt_str_split"] {
+            function_return_types.insert((*f).into(), "List<String>".into());
+        }
+        for f in &["join", "str_join", "datara_rt_str_join"] {
+            function_return_types.insert((*f).into(), "String".into());
+        }
+        for f in &["substring", "substr", "str_substring", "str_substr", "datara_rt_str_substring"] {
+            function_return_types.insert((*f).into(), "String".into());
+        }
+        for f in &["repeat", "str_repeat", "datara_rt_str_repeat"] {
+            function_return_types.insert((*f).into(), "String".into());
+        }
+        for f in &["pad_left", "str_pad_left", "datara_rt_str_pad_left", "pad_right", "str_pad_right", "datara_rt_str_pad_right"] {
+            function_return_types.insert((*f).into(), "String".into());
+        }
+        for f in &["replace", "str_replace", "datara_rt_str_replace"] {
+            function_return_types.insert((*f).into(), "String".into());
+        }
         function_return_types.insert("socket_create".into(), "Int".into());
         function_return_types.insert("socket_bind".into(), "Int".into());
         function_return_types.insert("socket_listen".into(), "Int".into());
@@ -407,8 +427,45 @@ impl<'a> Lowering<'a> {
             "i32x4_horizontal_add",
             "i32x8_dot",
             "i32x8_horizontal_add",
+            "arena_alloc",
+            "datara_rt_arena_alloc",
+            "mem_alloc",
+            "datara_rt_mem_alloc",
+            "arena_used",
+            "datara_rt_arena_used",
+            "ptr_read_i64",
+            "datara_rt_ptr_read_i64",
+            "ptr_read_u8",
+            "datara_rt_ptr_read_u8",
+            "datara_rt_global_get",
         ] {
             function_return_types.insert((*f).into(), "Int".into());
+        }
+        for f in &["ptr_read_f64", "datara_rt_ptr_read_f64"] {
+            function_return_types.insert((*f).into(), "Float".into());
+        }
+        for f in &[
+            "arena_reset",
+            "datara_rt_arena_reset",
+            "arena_clear",
+            "datara_rt_arena_clear",
+            "mem_free",
+            "datara_rt_mem_free",
+            "mem_copy",
+            "datara_rt_mem_copy",
+            "ptr_write_i64",
+            "datara_rt_ptr_write_i64",
+            "ptr_write_f64",
+            "datara_rt_ptr_write_f64",
+            "ptr_write_u8",
+            "datara_rt_ptr_write_u8",
+            "cpu_fence",
+            "datara_rt_cpu_fence",
+            "cpu_prefetch",
+            "datara_rt_cpu_prefetch",
+            "datara_rt_global_set",
+        ] {
+            function_return_types.insert((*f).into(), "Unit".into());
         }
 
         Self {
@@ -434,6 +491,8 @@ impl<'a> Lowering<'a> {
             inlineable_fns: HashMap::new(),
             lambda_captures: HashMap::new(),
             loop_stack: Vec::new(),
+            global_vars: HashMap::new(),
+            program_globals: Vec::new(),
         }
     }
 
@@ -451,6 +510,14 @@ impl<'a> Lowering<'a> {
         }
         if let Some(ty) = self.types.symbol_types.get(var_name) {
             return Some(ty.clone());
+        }
+        if let Some((ty_str, _)) = self.global_vars.get(var_name) {
+            return Some(match ty_str.as_str() {
+                "String" | "Str" => DataraType::String,
+                "Float" | "Float64" | "f64" => DataraType::Float,
+                "Bool" => DataraType::Bool,
+                _ => DataraType::Int,
+            });
         }
         None
     }
@@ -571,6 +638,23 @@ impl<'a> Lowering<'a> {
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
         self.bridge_registry = crate::bridge_decl::BridgeRegistry::from_program(program);
+        self.global_vars.clear();
+        self.program_globals.clear();
+
+        for decl in &program.declarations {
+            if let Decl::Global(g) = decl {
+                let ty_str = if let Some(t) = &g.type_node {
+                    Self::repr_type_string(t)
+                } else if let Some(ty) = self.types.symbol_types.get(&g.name) {
+                    ty.to_string()
+                } else {
+                    "Int".to_string()
+                };
+                self.global_vars.insert(g.name.clone(), (ty_str.clone(), g.is_mut));
+                self.program_globals.push(g.clone());
+                module.globals.insert(g.name.clone(), (ty_str, g.is_mut));
+            }
+        }
 
         for decl in &program.declarations {
             if let Decl::Class(c) = decl {

@@ -43,6 +43,9 @@ impl Resolver {
                 }
                 self.current_target_type = None;
             }
+            Decl::Global(g) => {
+                self.resolve_expr(&g.init, diag);
+            }
             _ => {}
         }
     }

@@ -13,9 +13,22 @@ use std::path::{Path, PathBuf};
 
 impl ForgenCompiler {
     /// Candidate base directories for resolving local module paths:
-    /// the importing file's directory, then the current directory.
+    /// the importing file's directory, project root / src / packages / lib if inside a project,
+    /// and the current working directory.
     pub(super) fn module_base_dirs(&self, source_file: &Path) -> Vec<PathBuf> {
         let mut base_dirs = Vec::new();
+        let add_root = |dirs: &mut Vec<PathBuf>, r: &Path| {
+            if !dirs.contains(&r.to_path_buf()) {
+                dirs.push(r.to_path_buf());
+            }
+            for sub in ["src", "packages", "lib"] {
+                let p = r.join(sub);
+                if p.is_dir() && !dirs.contains(&p) {
+                    dirs.push(p);
+                }
+            }
+        };
+
         if let Some(parent) = source_file.parent()
             && !parent.as_os_str().is_empty()
         {
@@ -25,9 +38,17 @@ impl ForgenCompiler {
             {
                 base_dirs.push(grandparent.to_path_buf());
             }
+            if let Some((root, _)) = crate::rust_bridge::find_manifest(parent) {
+                add_root(&mut base_dirs, &root);
+            }
         }
         if let Ok(cwd) = std::env::current_dir() {
-            base_dirs.push(cwd);
+            if !base_dirs.contains(&cwd) {
+                base_dirs.push(cwd.clone());
+            }
+            if let Some((root, _)) = crate::rust_bridge::find_manifest(&cwd) {
+                add_root(&mut base_dirs, &root);
+            }
         }
         base_dirs
     }
@@ -59,16 +80,14 @@ impl ForgenCompiler {
             && let Some(exe_dir) = exe.parent()
         {
             candidates.push(exe_dir.join("stdlib"));
-            if let Some(p1) = exe_dir.parent() {
-                candidates.push(p1.join("stdlib"));
-                candidates.push(p1.join("share").join("datara").join("stdlib"));
-                if let Some(p2) = p1.parent() {
-                    candidates.push(p2.join("stdlib"));
-                    candidates.push(p2.join("share").join("datara").join("stdlib"));
-                    if let Some(p3) = p2.parent() {
-                        candidates.push(p3.join("stdlib"));
-                        candidates.push(p3.join("share").join("datara").join("stdlib"));
-                    }
+            let mut cur = exe_dir.to_path_buf();
+            for _ in 0..3 {
+                if let Some(p) = cur.parent() {
+                    candidates.push(p.join("stdlib"));
+                    candidates.push(p.join("share").join("datara").join("stdlib"));
+                    cur = p.to_path_buf();
+                } else {
+                    break;
                 }
             }
         }

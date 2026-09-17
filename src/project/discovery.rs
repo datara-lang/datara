@@ -25,22 +25,29 @@ pub struct ProjectLayout {
 impl ProjectLayout {
     /// Returns the target binary name derived from manifest target, package name, or entry file stem
     pub fn binary_name(&self) -> String {
-        let raw = if let Some(ref m) = self.manifest {
-            if let Some(ref t) = m.target
-                && let Some(ref bin) = t.bin_name
-                && !bin.trim().is_empty()
-            {
-                bin.as_str()
-            } else if !m.package.name.trim().is_empty() {
-                m.package.name.as_str()
-            } else {
-                "app"
+        let raw = match self.kind {
+            ProjectKind::SingleFile(ref p) => {
+                p.file_stem().and_then(|s| s.to_str()).unwrap_or("app")
             }
-        } else {
-            self.entry_point
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("app")
+            _ => {
+                if let Some(ref m) = self.manifest {
+                    if let Some(ref t) = m.target
+                        && let Some(ref bin) = t.bin_name
+                        && !bin.trim().is_empty()
+                    {
+                        bin.as_str()
+                    } else if !m.package.name.trim().is_empty() {
+                        m.package.name.as_str()
+                    } else {
+                        "app"
+                    }
+                } else {
+                    self.entry_point
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("app")
+                }
+            }
         };
         let sanitized = Path::new(raw)
             .file_name()
@@ -71,10 +78,77 @@ impl ProjectDiscovery {
                     .unwrap_or("app")
                     .to_string();
                 let abs_path = base.canonicalize().unwrap_or_else(|_| base.to_path_buf());
-                let root = abs_path
+                let parent_dir = abs_path
                     .parent()
                     .unwrap_or_else(|| Path::new("."))
                     .to_path_buf();
+                let (root, manifest) = if let Some((m_root, m)) = crate::rust_bridge::find_manifest(&parent_dir) {
+                    (m_root, Some(m))
+                } else {
+                    (parent_dir, None)
+                };
+
+                if let Some(m) = manifest {
+                    let ep = root.join("src").join("main.dtr");
+                    let is_entry_point = abs_path == ep || abs_path == root.join("main.dtr");
+
+                    let mut source_files = Vec::new();
+                    if is_entry_point {
+                        let src_dir = root.join("src");
+                        if src_dir.exists() && src_dir.is_dir() {
+                            let _ = Self::collect_dtr_files(&src_dir, &mut source_files);
+                        } else {
+                            let _ = Self::collect_dtr_files(&root, &mut source_files);
+                        }
+                        source_files.sort();
+                        if let Some(pos) = source_files.iter().position(|p| p == &abs_path) {
+                            source_files.remove(pos);
+                        }
+                        source_files.insert(0, abs_path.clone());
+                    } else {
+                        source_files.push(abs_path.clone());
+                    }
+
+                    let mut test_files = Vec::new();
+                    let tests_dir = root.join("tests");
+                    if tests_dir.exists() && tests_dir.is_dir() {
+                        let _ = Self::collect_dtr_files(&tests_dir, &mut test_files);
+                        test_files.sort();
+                    }
+
+                    let mut example_files = Vec::new();
+                    let examples_dir = root.join("examples");
+                    if examples_dir.exists() && examples_dir.is_dir() {
+                        let _ = Self::collect_dtr_files(&examples_dir, &mut example_files);
+                        example_files.sort();
+                    }
+
+                    let mut bench_files = Vec::new();
+                    let benches_dir = root.join("benches");
+                    if benches_dir.exists() && benches_dir.is_dir() {
+                        let _ = Self::collect_dtr_files(&benches_dir, &mut bench_files);
+                        bench_files.sort();
+                    }
+
+                    let kind = if is_entry_point {
+                        ProjectKind::ManifestProject(root.clone())
+                    } else {
+                        ProjectKind::SingleFile(abs_path.clone())
+                    };
+
+                    return Ok(ProjectLayout {
+                        root: root.clone(),
+                        kind,
+                        manifest: Some(m),
+                        name,
+                        entry_point: abs_path,
+                        source_files,
+                        test_files,
+                        example_files,
+                        bench_files,
+                    });
+                }
+
                 return Ok(ProjectLayout {
                     root,
                     kind: ProjectKind::SingleFile(abs_path.clone()),

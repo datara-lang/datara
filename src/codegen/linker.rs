@@ -922,10 +922,12 @@ pub fn compile_with_clang(
                     cmd.arg("-fuse-ld=lld");
                 }
             }
-            if target_triple.is_none()
-                || target_triple == Some("native")
-                || target_triple == Some("host")
-            {
+            if target_triple == Some("native") || target_triple == Some("host") {
+                let is_x86_target = cfg!(target_arch = "x86_64");
+                if is_x86_target {
+                    cmd.arg("-march=native");
+                }
+            } else if target_triple.is_none() {
                 // x86-64 only: default LLVM builds target the portable
                 // x86-64-v2 baseline (SSE4.2, POPCNT) instead of the host
                 // CPU. clang -O3 -march=native vectorizes our float4 SIMD
@@ -936,10 +938,7 @@ pub fn compile_with_clang(
                 // and has no such host/baseline split in practice, so no
                 // -march is passed there. Explicit --native / --tune=native
                 // builds still opt into the host ISA on x86-64.
-                let is_x86_target = target_triple
-                    .as_deref()
-                    .map(|t| t.contains("x86_64") || t.contains("x86-"))
-                    .unwrap_or(cfg!(target_arch = "x86_64"));
+                let is_x86_target = cfg!(target_arch = "x86_64");
                 if is_x86_target {
                     cmd.arg("-march=x86-64-v2");
                 }

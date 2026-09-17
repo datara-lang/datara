@@ -242,11 +242,27 @@ pub(crate) fn cmd_fmt(args: &[String]) -> bool {
 pub(crate) fn cmd_lint(command: &str, args: &[String]) -> bool {
     let is_audit = command == "audit";
     let is_fix = args.iter().any(|a| a == "--fix");
-    let target_opt = args
-        .iter()
-        .skip(2)
-        .find(|a| !a.starts_with("-"))
-        .map(Path::new);
+
+    let mut target_opt: Option<&Path> = None;
+    let mut profile_arg: Option<&str> = None;
+    let mut i = 2;
+    while i < args.len() {
+        if args[i] == "--profile" {
+            if i + 1 < args.len() {
+                profile_arg = Some(&args[i + 1]);
+                i += 2;
+                continue;
+            }
+        }
+        if args[i].starts_with("-") {
+            i += 1;
+            continue;
+        }
+        if target_opt.is_none() {
+            target_opt = Some(Path::new(&args[i]));
+        }
+        i += 1;
+    }
 
     let layout = match ProjectDiscovery::discover(target_opt) {
         Ok(l) => l,
@@ -256,18 +272,36 @@ pub(crate) fn cmd_lint(command: &str, args: &[String]) -> bool {
         }
     };
 
+    let profile_str = profile_arg
+        .or_else(|| {
+            layout
+                .manifest
+                .as_ref()
+                .and_then(|m| m.lint.as_ref())
+                .and_then(|l| l.profile.as_deref())
+        })
+        .unwrap_or("standard");
+    let lint_profile: crate::lint::LintProfile = profile_str
+        .parse()
+        .unwrap_or(crate::lint::LintProfile::Standard);
+
     let start = Instant::now();
     let mut total_warnings = 0;
+    let mut total_errors = 0;
     let mut total_fixes = 0;
 
     for file_path in &layout.source_files {
-        match crate::lint::lint_file(file_path) {
+        match crate::lint::lint_file_with_profile(file_path, lint_profile) {
             Ok(diags) => {
                 if !diags.is_empty() {
                     for diag in &diags {
                         print!("{}", diag.render(None));
+                        if diag.severity == crate::lint::LintSeverity::Error {
+                            total_errors += 1;
+                        } else {
+                            total_warnings += 1;
+                        }
                     }
-                    total_warnings += diags.len();
 
                     if is_fix && let Ok(source) = fs::read_to_string(file_path) {
                         let fixed = crate::lint::apply_fixes(&source, &diags);
@@ -286,25 +320,33 @@ pub(crate) fn cmd_lint(command: &str, args: &[String]) -> bool {
 
     let elapsed = start.elapsed().as_millis();
     if is_audit {
-        if total_warnings == 0 {
+        if total_warnings == 0 && total_errors == 0 {
             println!(
                 "[Forgen audit] Security capability audit: 0 purity leaks detected. All external effects strictly isolated in Effect Lattice."
             );
         } else {
             println!(
                 "[Forgen audit] Security capability audit FAILED: {} purity leak(s) detected across {} files. External effects are NOT strictly isolated.",
-                total_warnings,
+                total_warnings + total_errors,
                 layout.source_files.len()
             );
             std::process::exit(1);
         }
     }
+    if total_errors > 0 {
+        eprintln!(
+            "[Forgen {}] FAILED: {} fatal error(s) and {} warning(s) under profile '{}' in {}ms",
+            command, total_errors, total_warnings, profile_str, elapsed
+        );
+        std::process::exit(1);
+    }
     if total_warnings == 0 {
         println!(
-            "[Forgen {}] Clean! 0 warnings across {} files (verified in {}ms)",
+            "[Forgen {}] Clean! 0 warnings across {} files (verified in {}ms under profile '{}')",
             command,
             layout.source_files.len(),
-            elapsed
+            elapsed,
+            profile_str
         );
     } else if is_fix {
         println!(

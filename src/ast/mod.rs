@@ -311,6 +311,7 @@ pub enum Decl {
     Trait(TraitDef),
     Impl(ImplBlock),
     Bridge(BridgeDecl),
+    Global(GlobalDecl),
 }
 
 impl Decl {
@@ -331,8 +332,20 @@ impl Decl {
             Decl::Trait(d) => &d.span,
             Decl::Impl(d) => &d.span,
             Decl::Bridge(d) => &d.span,
+            Decl::Global(d) => &d.span,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlobalDecl {
+    pub is_export: bool,
+    pub is_mut: bool,
+    pub is_const: bool,
+    pub name: String,
+    pub type_node: Option<TypeNode>,
+    pub init: Expr,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -513,11 +513,14 @@ pub fn declare_module_symbols<M: ClifModule>(
         }
     }
 
-    // Pre-define all string literals in the module
+    // Pre-define all string literals in the module (String ABI v2: [len: i64][bytes...][\0])
     let mut string_literal_map: HashMap<String, cranelift_module::DataId> = HashMap::new();
     let add_str_literal = |s: &str, m: &mut M| -> Result<cranelift_module::DataId, String> {
         let mut data_ctx = DataDescription::new();
-        let mut bytes = s.as_bytes().to_vec();
+        let len = s.len() as i64;
+        let mut bytes = Vec::with_capacity(8 + s.len() + 1);
+        bytes.extend_from_slice(&len.to_le_bytes());
+        bytes.extend_from_slice(s.as_bytes());
         bytes.push(0); // null terminator
         data_ctx.define(bytes.into_boxed_slice());
         let data_id = m
@@ -568,6 +571,19 @@ pub fn declare_module_symbols<M: ClifModule>(
         }
     }
 
+    let mut global_data_map: HashMap<String, cranelift_module::DataId> = HashMap::new();
+    for (gname, _) in &dmir_module.globals {
+        let mut data_ctx = DataDescription::new();
+        data_ctx.define_zeroinit(8);
+        let data_id = module
+            .declare_data(gname, Linkage::Export, true, false)
+            .map_err(|e| e.to_string())?;
+        module
+            .define_data(data_id, &data_ctx)
+            .map_err(|e| e.to_string())?;
+        global_data_map.insert(gname.clone(), data_id);
+    }
+
     Ok(ModuleDecls {
         class_field_offsets,
         string_fields,
@@ -575,5 +591,6 @@ pub fn declare_module_symbols<M: ClifModule>(
         main_entry_info,
         sorted_func_names,
         string_return_funcs,
+        global_data_map,
     })
 }

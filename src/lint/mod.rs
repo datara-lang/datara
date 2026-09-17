@@ -1,14 +1,24 @@
 pub mod diagnostics;
+pub mod profile;
 pub mod rules;
 
 use crate::diagnostics::DiagnosticEngine;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 pub use diagnostics::{LintDiagnostic, LintFix, LintSeverity};
+pub use profile::LintProfile;
 use std::fs;
 use std::path::Path;
 
 pub fn lint_source(source: &str, file_name: &str) -> Result<Vec<LintDiagnostic>, String> {
+    lint_source_with_profile(source, file_name, LintProfile::Standard)
+}
+
+pub fn lint_source_with_profile(
+    source: &str,
+    file_name: &str,
+    profile: LintProfile,
+) -> Result<Vec<LintDiagnostic>, String> {
     let mut diag_engine = DiagnosticEngine::new("en");
     diag_engine.set_source(file_name, source);
 
@@ -26,6 +36,14 @@ pub fn lint_source(source: &str, file_name: &str) -> Result<Vec<LintDiagnostic>,
 
     let mut diags = rules::run_all_rules(&program);
 
+    // Apply profile rules: filter suppressed and escalate errors
+    diags.retain(|d| !profile.should_suppress(d.code));
+    for d in &mut diags {
+        if profile.should_escalate_to_error(d.code) {
+            d.severity = LintSeverity::Error;
+        }
+    }
+
     // Sort diagnostics by line and column
     diags.sort_by(|a, b| {
         a.span
@@ -38,10 +56,17 @@ pub fn lint_source(source: &str, file_name: &str) -> Result<Vec<LintDiagnostic>,
 }
 
 pub fn lint_file(path: &Path) -> Result<Vec<LintDiagnostic>, String> {
+    lint_file_with_profile(path, LintProfile::Standard)
+}
+
+pub fn lint_file_with_profile(
+    path: &Path,
+    profile: LintProfile,
+) -> Result<Vec<LintDiagnostic>, String> {
     let source = fs::read_to_string(path)
         .map_err(|e| format!("Cannot read file {}: {}", path.display(), e))?;
     let file_str = path.to_string_lossy().to_string();
-    lint_source(&source, &file_str)
+    lint_source_with_profile(&source, &file_str, profile)
 }
 
 /// Apply non-destructive automated fixes (--fix) to source code.

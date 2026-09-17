@@ -45,6 +45,11 @@ pub struct ProfileConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LintConfig {
+    pub profile: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DataraManifest {
     pub package: PackageMeta,
     #[serde(default)]
@@ -56,6 +61,8 @@ pub struct DataraManifest {
     pub profiles: HashMap<String, ProfileConfig>,
     #[serde(default)]
     pub capabilities: Option<CapabilitiesConfig>,
+    #[serde(default)]
+    pub lint: Option<LintConfig>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

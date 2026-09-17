@@ -190,6 +190,7 @@ pub struct ModuleDecls {
     pub main_entry_info: Option<(FuncId, Signature)>,
     pub sorted_func_names: Vec<String>,
     pub string_return_funcs: HashSet<String>,
+    pub global_data_map: HashMap<String, DataId>,
 }
 
 pub struct FunctionCompileCtx<'a, 'b, M: ClifModule> {

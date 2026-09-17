@@ -51,7 +51,7 @@ impl<'a> Lowering<'a> {
                 Some(dest)
             }
             Expr::Identifier(name, _) => {
-                if self.symbol_values.contains_key(name) {
+                if self.symbol_values.contains_key(name) || self.global_vars.contains_key(name) {
                     let dest = self.next_val();
                     self.get_block_mut(*cur_block)
                         .instructions

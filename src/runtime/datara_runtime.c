@@ -78,10 +78,10 @@ void datara_rt_out_bool(int64_t v) {
     datara_rt_print_newline();
 }
 
-// Returns a pointer to a static literal; never freed. The runtime's string
+// Returns a pointer to a static DataraString; never freed. The runtime's string
 // concat also never frees its inputs, so this is safe in the same way.
 const char* datara_rt_bool_to_str(int64_t v) {
-    return v ? "true" : "false";
+    return v ? TRUE_DATARA_STR : FALSE_DATARA_STR;
 }
 
 void datara_rt_out_float(double v) {
@@ -90,25 +90,40 @@ void datara_rt_out_float(double v) {
 }
 
 const char* datara_rt_float_to_str(double v) {
+    char temp[64];
+    size_t len = 0;
     if (isnan(v)) {
-        return signbit(v) ? "-NaN" : "NaN";
-    }
-    if (isinf(v)) {
-        return v < 0 ? "-Infinity" : "Infinity";
-    }
-    char* buf = (char*)malloc(64);
-    if (!buf) return "";
-    if (v == floor(v) && fabs(v) < 1e15) {
-        snprintf(buf, 64, "%.0f", v);
-        return buf;
-    }
-    for (int prec = 4; prec < 17; prec++) {
-        snprintf(buf, 64, "%.*g", prec, v);
-        if (strtod(buf, NULL) == v) {
-            return buf;
+        const char* s = signbit(v) ? "-NaN" : "NaN";
+        len = strlen(s);
+        memcpy(temp, s, len + 1);
+    } else if (isinf(v)) {
+        const char* s = v < 0 ? "-Infinity" : "Infinity";
+        len = strlen(s);
+        memcpy(temp, s, len + 1);
+    } else if (v == floor(v) && fabs(v) < 1e15) {
+        int n = snprintf(temp, sizeof(temp), "%.0f", v);
+        len = (n > 0) ? (size_t)n : 0;
+    } else {
+        int matched = 0;
+        for (int prec = 4; prec < 17; prec++) {
+            snprintf(temp, sizeof(temp), "%.*g", prec, v);
+            if (strtod(temp, NULL) == v) {
+                len = strlen(temp);
+                matched = 1;
+                break;
+            }
+        }
+        if (!matched) {
+            int n = snprintf(temp, sizeof(temp), "%.17g", v);
+            len = (n > 0) ? (size_t)n : 0;
         }
     }
-    snprintf(buf, 64, "%.17g", v);
+    char* buf = datara_str_alloc(len);
+    if (!buf) return EMPTY_DATARA_STR;
+    if (len > 0) {
+        memcpy(buf + sizeof(int64_t), temp, len);
+    }
+    buf[sizeof(int64_t) + len] = '\0';
     return buf;
 }
 
@@ -246,33 +261,10 @@ void datara_rt_box_free(int64_t* b) {
 
 #define DATARA_SSO_MAX_LEN 22
 #define DATARA_SSO_RING_COUNT 2048
-#define DATARA_SSO_SLOT_SIZE 24
+#define DATARA_SSO_SLOT_SIZE 32
 
 static DATARA_TLS char tls_sso_ring[DATARA_SSO_RING_COUNT][DATARA_SSO_SLOT_SIZE];
 static DATARA_TLS uint32_t tls_sso_idx = 0;
-
-const char* datara_rt_str_sso(const char* s) {
-    if (!s) return "";
-    size_t len = strlen(s);
-    if (len <= DATARA_SSO_MAX_LEN) {
-        uint32_t idx = (tls_sso_idx++) % DATARA_SSO_RING_COUNT;
-        char* slot = tls_sso_ring[idx];
-        memcpy(slot, s, len);
-        slot[len] = '\0';
-        return slot;
-    }
-    tls_heap_alloc_count++;
-    char* buf = (char*)malloc(len + 1);
-    if (!buf) return "";
-    memcpy(buf, s, len);
-    buf[len] = '\0';
-    return buf;
-}
-
-int64_t datara_rt_str_is_sso(const char* s) {
-    if (!s) return 1;
-    return strlen(s) <= DATARA_SSO_MAX_LEN ? 1 : 0;
-}
 
 static DATARA_TLS char* tls_scratch_ring = NULL;
 static DATARA_TLS size_t tls_scratch_offset = 0;
@@ -287,15 +279,58 @@ static inline char* datara_scratch_alloc(size_t len) {
         return (char*)malloc(len + 1);
     }
     if (tls_scratch_offset + needed >= DATARA_SCRATCH_RING_SIZE) {
-        // Ring exhausted: fall back to the heap instead of wrapping around,
-        // which would silently overwrite strings that may still be live.
-        // The fallback block is intentionally never freed (the runtime leaks
-        // scratch strings by design) — that is safe, unlike corruption.
         return (char*)malloc(len + 1);
     }
     char* p = &tls_scratch_ring[tls_scratch_offset];
     tls_scratch_offset += needed;
     return p;
+}
+
+char* datara_str_alloc(size_t len) {
+    size_t total = sizeof(int64_t) + len + 1;
+    char* buf = datara_scratch_alloc(total);
+    if (!buf) {
+        buf = (char*)malloc(total);
+    }
+    *(int64_t*)buf = (int64_t)len;
+    buf[sizeof(int64_t) + len] = '\0';
+    return buf;
+}
+
+const char* datara_rt_str_from_c_str(const char* c_str) {
+    if (!c_str) return EMPTY_DATARA_STR;
+    if (datara_is_datara_str(c_str)) return c_str;
+    size_t len = strlen(c_str);
+    char* buf = datara_str_alloc(len);
+    if (len > 0) memcpy(buf + sizeof(int64_t), c_str, len);
+    buf[sizeof(int64_t) + len] = '\0';
+    return buf;
+}
+
+const char* datara_rt_str_sso(const char* s) {
+    if (!s) return EMPTY_DATARA_STR;
+    int64_t len = datara_str_len(s);
+    const char* src = datara_str_data(s);
+    if (len <= DATARA_SSO_MAX_LEN) {
+        uint32_t idx = (tls_sso_idx++) % DATARA_SSO_RING_COUNT;
+        char* slot = tls_sso_ring[idx];
+        *(int64_t*)slot = len;
+        memcpy(slot + sizeof(int64_t), src, (size_t)len);
+        slot[sizeof(int64_t) + len] = '\0';
+        return slot;
+    }
+    tls_heap_alloc_count++;
+    char* buf = (char*)malloc(sizeof(int64_t) + (size_t)len + 1);
+    if (!buf) return EMPTY_DATARA_STR;
+    *(int64_t*)buf = len;
+    memcpy(buf + sizeof(int64_t), src, (size_t)len);
+    buf[sizeof(int64_t) + len] = '\0';
+    return buf;
+}
+
+int64_t datara_rt_str_is_sso(const char* s) {
+    if (!s) return 1;
+    return datara_str_len(s) <= DATARA_SSO_MAX_LEN ? 1 : 0;
 }
 
 static inline void datara_fast_copy(char* dst, const char* src, size_t len) {
@@ -316,25 +351,29 @@ static inline void datara_fast_copy(char* dst, const char* src, size_t len) {
 
 // Ultra-fast zero-malloc string concatenation via thread-local circular bump allocator
 const char* datara_rt_str_concat(const char* a, const char* b) {
-    if (!a || a[0] == '\0') return b ? b : "";
-    if (!b || b[0] == '\0') return a ? a : "";
+    int64_t la = datara_str_len(a);
+    int64_t lb = datara_str_len(b);
+    if (la == 0) return b ? (datara_is_datara_str(b) ? b : datara_rt_str_from_c_str(b)) : EMPTY_DATARA_STR;
+    if (lb == 0) return a ? (datara_is_datara_str(a) ? a : datara_rt_str_from_c_str(a)) : EMPTY_DATARA_STR;
 
-    size_t la = strlen(a);
-    size_t lb = strlen(b);
-    size_t total = la + lb;
+    size_t total = (size_t)(la + lb);
+    const char* da = datara_str_data(a);
+    const char* db = datara_str_data(b);
+
     if (total <= DATARA_SSO_MAX_LEN) {
         uint32_t idx = (tls_sso_idx++) % DATARA_SSO_RING_COUNT;
         char* slot = tls_sso_ring[idx];
-        datara_fast_copy(slot, a, la);
-        datara_fast_copy(slot + la, b, lb);
-        slot[total] = '\0';
+        *(int64_t*)slot = (int64_t)total;
+        datara_fast_copy(slot + sizeof(int64_t), da, (size_t)la);
+        datara_fast_copy(slot + sizeof(int64_t) + la, db, (size_t)lb);
+        slot[sizeof(int64_t) + total] = '\0';
         return slot;
     }
-    char* buf = datara_scratch_alloc(total);
-    if (!buf) return "";
-    datara_fast_copy(buf, a, la);
-    datara_fast_copy(buf + la, b, lb);
-    buf[total] = '\0';
+    char* buf = datara_str_alloc(total);
+    if (!buf) return EMPTY_DATARA_STR;
+    datara_fast_copy(buf + sizeof(int64_t), da, (size_t)la);
+    datara_fast_copy(buf + sizeof(int64_t) + la, db, (size_t)lb);
+    buf[sizeof(int64_t) + total] = '\0';
     return buf;
 }
 
@@ -429,91 +468,89 @@ static inline size_t fast_i64toa(int64_t val, char* buf) {
 }
 
 const char* datara_rt_int_to_str(int64_t v) {
-    char* buf = tls_int_bufs[tls_int_idx & 255];
-    tls_int_idx++;
-    size_t len = fast_i64toa(v, buf);
-    buf[31] = (char)len;
+    char temp[32];
+    size_t len = fast_i64toa(v, temp);
+    char* buf = datara_str_alloc(len);
+    if (!buf) return EMPTY_DATARA_STR;
+    memcpy(buf + sizeof(int64_t), temp, len);
+    buf[sizeof(int64_t) + len] = '\0';
     return buf;
 }
 
 static inline size_t datara_fast_strlen(const char* s) {
-    if (!s) return 0;
-    ptrdiff_t diff = s - &tls_int_bufs[0][0];
-    if ((size_t)diff < sizeof(tls_int_bufs) && (((size_t)diff) & 31) == 0) {
-        return (size_t)(uint8_t)s[31];
-    }
-    return strlen(s);
+    return (size_t)datara_str_len(s);
 }
 
 const char* datara_rt_str_concat_3(const char* a, const char* b, const char* c) {
-    size_t la = datara_fast_strlen(a);
-    size_t lb = datara_fast_strlen(b);
-    size_t lc = datara_fast_strlen(c);
-    size_t total = la + lb + lc;
-    char* buf = datara_scratch_alloc(total);
-    if (!buf) return "";
-    char* p = buf;
-    if (la) { datara_fast_copy(p, a, la); p += la; }
-    if (lb) { datara_fast_copy(p, b, lb); p += lb; }
-    if (lc) { datara_fast_copy(p, c, lc); p += lc; }
+    int64_t la = datara_str_len(a);
+    int64_t lb = datara_str_len(b);
+    int64_t lc = datara_str_len(c);
+    size_t total = (size_t)(la + lb + lc);
+    char* buf = datara_str_alloc(total);
+    if (!buf) return EMPTY_DATARA_STR;
+    char* p = buf + sizeof(int64_t);
+    if (la) { datara_fast_copy(p, datara_str_data(a), (size_t)la); p += la; }
+    if (lb) { datara_fast_copy(p, datara_str_data(b), (size_t)lb); p += lb; }
+    if (lc) { datara_fast_copy(p, datara_str_data(c), (size_t)lc); p += lc; }
     *p = '\0';
     return buf;
 }
 
 const char* datara_rt_str_concat_4(const char* a, const char* b, const char* c, const char* d) {
-    size_t la = datara_fast_strlen(a);
-    size_t lb = datara_fast_strlen(b);
-    size_t lc = datara_fast_strlen(c);
-    size_t ld = datara_fast_strlen(d);
-    size_t total = la + lb + lc + ld;
-    char* buf = datara_scratch_alloc(total);
-    if (!buf) return "";
-    char* p = buf;
-    if (la) { datara_fast_copy(p, a, la); p += la; }
-    if (lb) { datara_fast_copy(p, b, lb); p += lb; }
-    if (lc) { datara_fast_copy(p, c, lc); p += lc; }
-    if (ld) { datara_fast_copy(p, d, ld); p += ld; }
+    int64_t la = datara_str_len(a);
+    int64_t lb = datara_str_len(b);
+    int64_t lc = datara_str_len(c);
+    int64_t ld = datara_str_len(d);
+    size_t total = (size_t)(la + lb + lc + ld);
+    char* buf = datara_str_alloc(total);
+    if (!buf) return EMPTY_DATARA_STR;
+    char* p = buf + sizeof(int64_t);
+    if (la) { datara_fast_copy(p, datara_str_data(a), (size_t)la); p += la; }
+    if (lb) { datara_fast_copy(p, datara_str_data(b), (size_t)lb); p += lb; }
+    if (lc) { datara_fast_copy(p, datara_str_data(c), (size_t)lc); p += lc; }
+    if (ld) { datara_fast_copy(p, datara_str_data(d), (size_t)ld); p += ld; }
     *p = '\0';
     return buf;
 }
 
 const char* datara_rt_str_concat_5(const char* a, const char* b, const char* c, const char* d, const char* e) {
-    size_t la = datara_fast_strlen(a);
-    size_t lb = datara_fast_strlen(b);
-    size_t lc = datara_fast_strlen(c);
-    size_t ld = datara_fast_strlen(d);
-    size_t le = datara_fast_strlen(e);
-    size_t total = la + lb + lc + ld + le;
-    char* buf = datara_scratch_alloc(total);
-    if (!buf) return "";
-    char* p = buf;
-    if (la) { datara_fast_copy(p, a, la); p += la; }
-    if (lb) { datara_fast_copy(p, b, lb); p += lb; }
-    if (lc) { datara_fast_copy(p, c, lc); p += lc; }
-    if (ld) { datara_fast_copy(p, d, ld); p += ld; }
-    if (le) { datara_fast_copy(p, e, le); p += le; }
+    int64_t la = datara_str_len(a);
+    int64_t lb = datara_str_len(b);
+    int64_t lc = datara_str_len(c);
+    int64_t ld = datara_str_len(d);
+    int64_t le = datara_str_len(e);
+    size_t total = (size_t)(la + lb + lc + ld + le);
+    char* buf = datara_str_alloc(total);
+    if (!buf) return EMPTY_DATARA_STR;
+    char* p = buf + sizeof(int64_t);
+    if (la) { datara_fast_copy(p, datara_str_data(a), (size_t)la); p += la; }
+    if (lb) { datara_fast_copy(p, datara_str_data(b), (size_t)lb); p += lb; }
+    if (lc) { datara_fast_copy(p, datara_str_data(c), (size_t)lc); p += lc; }
+    if (ld) { datara_fast_copy(p, datara_str_data(d), (size_t)ld); p += ld; }
+    if (le) { datara_fast_copy(p, datara_str_data(e), (size_t)le); p += le; }
     *p = '\0';
     return buf;
 }
 
 const char* datara_rt_format_str_i64_str_i64(const char* s1, int64_t n1, const char* s2, int64_t n2) {
-    size_t l1 = s1 ? datara_fast_strlen(s1) : 0;
-    size_t l2 = s2 ? datara_fast_strlen(s2) : 0;
+    size_t l1 = (size_t)datara_str_len(s1);
+    size_t l2 = (size_t)datara_str_len(s2);
     size_t max_needed = l1 + l2 + 50;
-    char* buf = datara_scratch_alloc(max_needed);
-    if (!buf) return "";
-    char* p = buf;
+    char* buf = datara_str_alloc(max_needed);
+    if (!buf) return EMPTY_DATARA_STR;
+    char* p = buf + sizeof(int64_t);
     if (l1) {
-        datara_fast_copy(p, s1, l1);
+        datara_fast_copy(p, datara_str_data(s1), l1);
         p += l1;
     }
     p += fast_i64toa(n1, p);
     if (l2) {
-        datara_fast_copy(p, s2, l2);
+        datara_fast_copy(p, datara_str_data(s2), l2);
         p += l2;
     }
     p += fast_i64toa(n2, p);
     *p = '\0';
+    *(int64_t*)buf = (int64_t)(p - (buf + sizeof(int64_t)));
     return buf;
 }
 
@@ -1152,7 +1189,9 @@ void datara_rt_print_str(const char* s) {
     if (!s) {
         datara_rt_buf_write("None", 4);
     } else {
-        datara_rt_buf_write(s, strlen(s));
+        int64_t len = datara_str_len(s);
+        const char* d = datara_str_data(s);
+        datara_rt_buf_write(d, (size_t)len);
     }
 }
 
@@ -1235,7 +1274,11 @@ void datara_rt_print(const char* s) {
 
 void datara_rt_eprintln(const char* s) {
     datara_rt_flush();
-    fputs(s ? s : "", stderr);
+    if (s) {
+        int64_t len = datara_str_len(s);
+        const char* d = datara_str_data(s);
+        fwrite(d, 1, (size_t)len, stderr);
+    }
     fputc('\n', stderr);
     fflush(stderr);
 }
@@ -1486,7 +1529,7 @@ int64_t datara_rt_wrapping_mul(int64_t a, int64_t b) {
 }
 
 int64_t datara_rt_len(const char* s) {
-    return s ? (int64_t)strlen(s) : 0;
+    return datara_str_len(s);
 }
 
 const char* datara_rt_input(const char* prompt) {
@@ -1610,55 +1653,70 @@ void datara_rt_out_dec64(int64_t val) {
 int64_t datara_rt_str_eq(const char* a, const char* b) {
     if (a == b) return 1;
     if (!a || !b) return 0;
-    return strcmp(a, b) == 0 ? 1 : 0;
+    int64_t la = datara_str_len(a);
+    int64_t lb = datara_str_len(b);
+    if (la != lb) return 0;
+    if (la == 0) return 1;
+    return memcmp(datara_str_data(a), datara_str_data(b), (size_t)la) == 0 ? 1 : 0;
 }
 
 int64_t datara_rt_str_cmp(const char* a, const char* b) {
     if (a == b) return 0;
     if (!a) return -1;
     if (!b) return 1;
-    int res = strcmp(a, b);
-    if (res < 0) return -1;
-    if (res > 0) return 1;
+    int64_t la = datara_str_len(a);
+    int64_t lb = datara_str_len(b);
+    const char* da = datara_str_data(a);
+    const char* db = datara_str_data(b);
+    size_t min_len = (size_t)(la < lb ? la : lb);
+    if (min_len > 0) {
+        int res = memcmp(da, db, min_len);
+        if (res < 0) return -1;
+        if (res > 0) return 1;
+    }
+    if (la < lb) return -1;
+    if (la > lb) return 1;
     return 0;
 }
 
 const char* datara_rt_str_from_byte(int64_t b) {
-    char* buf = (char*)malloc(2);
-    if (!buf) return "";
-    buf[0] = (char)(b & 0xFF);
-    buf[1] = '\0';
+    char* buf = datara_str_alloc(1);
+    if (!buf) return EMPTY_DATARA_STR;
+    buf[sizeof(int64_t)] = (char)(b & 0xFF);
+    buf[sizeof(int64_t) + 1] = '\0';
     return buf;
 }
 
 const char* datara_rt_str_from_bytes(const int64_t* bytes) {
-    if (!bytes || bytes[0] <= 0) return "";
+    if (!bytes || bytes[0] <= 0) return EMPTY_DATARA_STR;
     int64_t len = bytes[0];
-    char* buf = (char*)malloc((size_t)len + 1);
-    if (!buf) return "";
+    char* buf = datara_str_alloc((size_t)len);
+    if (!buf) return EMPTY_DATARA_STR;
+    char* p = buf + sizeof(int64_t);
     for (int64_t i = 0; i < len; i++) {
-        buf[i] = (char)(bytes[i + 1] & 0xFF);
+        p[i] = (char)(bytes[i + 1] & 0xFF);
     }
-    buf[len] = '\0';
+    buf[sizeof(int64_t) + len] = '\0';
     return buf;
 }
 
 int64_t* datara_rt_str_bytes(const char* s) {
     if (!s) return datara_rt_list_create(0);
-    size_t len = strlen(s);
-    int64_t* list = datara_rt_list_create((int64_t)len);
-    for (size_t i = 0; i < len; i++) {
-        list = datara_rt_list_append(list, (int64_t)(unsigned char)s[i]);
+    int64_t len = datara_str_len(s);
+    int64_t* list = datara_rt_list_create_capacity(len);
+    const unsigned char* p = (const unsigned char*)datara_str_data(s);
+    for (int64_t i = 0; i < len; i++) {
+        list = datara_rt_list_append(list, (int64_t)p[i]);
     }
     return list;
 }
 
 int64_t datara_rt_str_len(const char* s) {
-    return s ? (int64_t)strlen(s) : 0;
+    return datara_str_len(s);
 }
 
 int64_t datara_rt_byte_len(const char* s) {
-    return s ? (int64_t)strlen(s) : 0;
+    return datara_str_len(s);
 }
 
 int64_t datara_rt_list_get(int64_t* list, int64_t idx) {
@@ -1826,6 +1884,10 @@ int64_t* datara_rt_list_append(int64_t* list, int64_t v) {
     }
     new_list[count + 1] = v;
     return new_list;
+}
+
+int64_t* datara_rt_list_append_slow(int64_t* list, int64_t v) {
+    return datara_rt_list_append(list, v);
 }
 
 // v1.4.1: the checked pop lives in datara_rt_list_pop_outcome, which returns
@@ -2346,12 +2408,15 @@ int64_t datara_rt_map_len(int64_t* map) {
 }
 
 const char* datara_rt_range_str(int64_t start, int64_t end) {
-    char* buf = (char*)malloc(48);
-    if (!buf) return "";
-    size_t l1 = fast_i64toa(start, buf);
-    buf[l1] = '.';
-    buf[l1 + 1] = '.';
-    fast_i64toa(end, buf + l1 + 2);
+    char tmp[48];
+    size_t l1 = fast_i64toa(start, tmp);
+    tmp[l1] = '.';
+    tmp[l1 + 1] = '.';
+    size_t l2 = fast_i64toa(end, tmp + l1 + 2);
+    size_t total = l1 + 2 + l2;
+    char* buf = datara_str_alloc(total);
+    if (!buf) return EMPTY_DATARA_STR;
+    memcpy(buf + sizeof(int64_t), tmp, total);
     return buf;
 }
 
@@ -2458,10 +2523,12 @@ static FILE* datara_rt_fopen(const char* path, const char* mode) {
 int64_t datara_rt_file_write(const char* path, const char* content) {
     datara_rt_cap_require(DATARA_CAP_FS_WRITE, "fs::write");
     if (!path || !content) return 0;
-    FILE* f = datara_rt_fopen(path, "wb");
+    const char* actual_path = datara_str_data(path);
+    FILE* f = datara_rt_fopen(actual_path, "wb");
     if (!f) return 0;
-    size_t len = strlen(content);
-    size_t written = fwrite(content, 1, len, f);
+    size_t len = (size_t)datara_str_len(content);
+    const char* data = datara_str_data(content);
+    size_t written = fwrite(data, 1, len, f);
     fclose(f);
     return written == len ? 1 : 0;
 }
@@ -2469,42 +2536,43 @@ int64_t datara_rt_file_write(const char* path, const char* content) {
 int64_t datara_rt_file_append(const char* path, const char* content) {
     datara_rt_cap_require(DATARA_CAP_FS_WRITE, "fs::append");
     if (!path || !content) return 0;
-    FILE* f = datara_rt_fopen(path, "ab");
+    const char* actual_path = datara_str_data(path);
+    FILE* f = datara_rt_fopen(actual_path, "ab");
     if (!f) return 0;
-    size_t len = strlen(content);
-    size_t written = fwrite(content, 1, len, f);
+    size_t len = (size_t)datara_str_len(content);
+    const char* data = datara_str_data(content);
+    size_t written = fwrite(data, 1, len, f);
     fclose(f);
     return written == len ? 1 : 0;
 }
 
 const char* datara_rt_file_read(const char* path) {
     datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::read");
-    if (!path) return "";
-    FILE* f = datara_rt_fopen(path, "rb");
-    if (!f) return "";
+    if (!path) return EMPTY_DATARA_STR;
+    const char* actual_path = datara_str_data(path);
+    FILE* f = datara_rt_fopen(actual_path, "rb");
+    if (!f) return EMPTY_DATARA_STR;
     fseek(f, 0, SEEK_END);
     long sz = ftell(f);
-    if (sz < 0 || sz > 1024L * 1024 * 1024) { fclose(f); return ""; }
+    if (sz < 0 || sz > 1024L * 1024 * 1024) { fclose(f); return EMPTY_DATARA_STR; }
     fseek(f, 0, SEEK_SET);
-    char* buf = (char*)malloc((size_t)sz + 1);
-    if (!buf) { fclose(f); return ""; }
-    size_t read_bytes = fread(buf, 1, (size_t)sz, f);
-    buf[read_bytes] = '\0';
+    char* buf = datara_str_alloc((size_t)sz);
+    if (!buf) { fclose(f); return EMPTY_DATARA_STR; }
+    size_t read_bytes = fread(buf + sizeof(int64_t), 1, (size_t)sz, f);
+    *(int64_t*)buf = (int64_t)read_bytes;
+    buf[sizeof(int64_t) + read_bytes] = '\0';
     fclose(f);
     return buf;
 }
 
-// Binary-safe file I/O. Datara strings are NUL-terminated C strings at the
-// runtime ABI boundary, so a length channel does not exist for text reads:
-// `datara_rt_file_read` keeps the whole file in memory (fread, NUL bytes
-// included) but every strlen-based consumer stops at the first NUL. The
-// bytes builtins carry the real length through the list ABI instead:
-// each element is one byte value (0..=255), which round-trips binary
-// content exactly.
+// Binary-safe file I/O. With String ABI v2, Datara strings are length-prefixed
+// [len: int64_t][bytes...][\0], so both datara_rt_file_read and file_read_bytes
+// are 100% binary transparent and retain all bytes including embedded NULs.
 int64_t* datara_rt_file_read_bytes(const char* path) {
     datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::read_bytes");
     if (!path) return datara_rt_list_create(0);
-    FILE* f = datara_rt_fopen(path, "rb");
+    const char* actual_path = datara_str_data(path);
+    FILE* f = datara_rt_fopen(actual_path, "rb");
     if (!f) return datara_rt_list_create(0);
     fseek(f, 0, SEEK_END);
     long sz = ftell(f);
@@ -2526,7 +2594,8 @@ int64_t* datara_rt_file_read_bytes(const char* path) {
 int64_t datara_rt_file_write_bytes(const char* path, const int64_t* bytes) {
     datara_rt_cap_require(DATARA_CAP_FS_WRITE, "fs::write_bytes");
     if (!path) return 0;
-    FILE* f = datara_rt_fopen(path, "wb");
+    const char* actual_path = datara_str_data(path);
+    FILE* f = datara_rt_fopen(actual_path, "wb");
     if (!f) return 0;
     int64_t count = bytes ? datara_rt_list_len((int64_t*)bytes) : 0;
     size_t written = 0;
@@ -2541,7 +2610,8 @@ int64_t datara_rt_file_write_bytes(const char* path, const int64_t* bytes) {
 int64_t datara_rt_file_exists(const char* path) {
     datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::exists");
     if (!path) return 0;
-    FILE* f = datara_rt_fopen(path, "rb");
+    const char* actual_path = datara_str_data(path);
+    FILE* f = datara_rt_fopen(actual_path, "rb");
     if (f) {
         fclose(f);
         return 1;
@@ -2563,8 +2633,8 @@ static void* datara_rt_outcome_build(int64_t is_success, const char* value, cons
     int64_t* obj = (int64_t*)malloc(3 * sizeof(int64_t));
     if (!obj) return NULL;
     obj[0] = is_success;
-    obj[1] = (int64_t)(uintptr_t)(value ? value : "");
-    obj[2] = (int64_t)(uintptr_t)(msg ? msg : "");
+    obj[1] = (int64_t)(uintptr_t)(value ? (datara_is_datara_str(value) ? value : datara_rt_str_from_c_str(value)) : EMPTY_DATARA_STR);
+    obj[2] = (int64_t)(uintptr_t)(msg ? (datara_is_datara_str(msg) ? msg : datara_rt_str_from_c_str(msg)) : EMPTY_DATARA_STR);
     return (void*)obj;
 }
 
@@ -2578,7 +2648,7 @@ static void* datara_rt_outcome_build_raw(int64_t is_success, int64_t value_raw, 
     if (!obj) return NULL;
     obj[0] = is_success;
     obj[1] = value_raw;
-    obj[2] = (int64_t)(uintptr_t)(msg ? msg : "");
+    obj[2] = (int64_t)(uintptr_t)(msg ? (datara_is_datara_str(msg) ? msg : datara_rt_str_from_c_str(msg)) : EMPTY_DATARA_STR);
     return (void*)obj;
 }
 
@@ -2625,30 +2695,30 @@ void* datara_rt_list_pop_outcome(int64_t* list) {
 void* datara_rt_file_read_checked(const char* path) {
     datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::read_checked");
     if (!path) {
-        return datara_rt_outcome_build(0, "", "file read failed: path is null");
+        return datara_rt_outcome_build(0, EMPTY_DATARA_STR, "file read failed: path is null");
     }
-    FILE* f = datara_rt_fopen(path, "rb");
+    const char* actual_path = datara_str_data(path);
+    FILE* f = datara_rt_fopen(actual_path, "rb");
     if (!f) {
         char stack_msg[512];
-        snprintf(stack_msg, sizeof(stack_msg), "file read failed: cannot open '%s'", path);
-        char* msg = datara_scratch_alloc(strlen(stack_msg) + 1);
-        if (msg) memcpy(msg, stack_msg, strlen(stack_msg) + 1);
-        return datara_rt_outcome_build(0, "", msg ? msg : "file read failed: cannot open file");
+        snprintf(stack_msg, sizeof(stack_msg), "file read failed: cannot open '%s'", actual_path);
+        return datara_rt_outcome_build(0, EMPTY_DATARA_STR, stack_msg);
     }
     fseek(f, 0, SEEK_END);
     long sz = ftell(f);
     if (sz < 0 || sz > 1024L * 1024 * 1024) {
         fclose(f);
-        return datara_rt_outcome_build(0, "", "file read failed: file too large or unreadable");
+        return datara_rt_outcome_build(0, EMPTY_DATARA_STR, "file read failed: file too large or unreadable");
     }
     fseek(f, 0, SEEK_SET);
-    char* buf = (char*)malloc((size_t)sz + 1);
+    char* buf = datara_str_alloc((size_t)sz);
     if (!buf) {
         fclose(f);
-        return datara_rt_outcome_build(0, "", "file read failed: out of memory");
+        return datara_rt_outcome_build(0, EMPTY_DATARA_STR, "file read failed: out of memory");
     }
-    size_t read_bytes = fread(buf, 1, (size_t)sz, f);
-    buf[read_bytes] = '\0';
+    size_t read_bytes = fread(buf + sizeof(int64_t), 1, (size_t)sz, f);
+    *(int64_t*)buf = (int64_t)read_bytes;
+    buf[sizeof(int64_t) + read_bytes] = '\0';
     fclose(f);
     return datara_rt_outcome_build(1, buf, "");
 }
@@ -2724,17 +2794,15 @@ int64_t datara_rt_env_set(const char* key, const char* value) {
 void* datara_rt_env_get_checked(const char* name) {
     datara_rt_cap_require(DATARA_CAP_SYS_ENV, "sys::env_checked");
     if (!name) {
-        return datara_rt_outcome_build(0, "", "env get failed: name is null");
+        return datara_rt_outcome_build(0, EMPTY_DATARA_STR, "env get failed: name is null");
     }
-    const char* val = getenv(name);
+    const char* val = getenv(datara_str_data(name));
     if (!val) {
         char stack_msg[512];
-        snprintf(stack_msg, sizeof(stack_msg), "env get failed: '%s' is not set", name);
-        char* msg = datara_scratch_alloc(strlen(stack_msg) + 1);
-        if (msg) memcpy(msg, stack_msg, strlen(stack_msg) + 1);
-        return datara_rt_outcome_build(0, "", msg ? msg : "env get failed: variable is not set");
+        snprintf(stack_msg, sizeof(stack_msg), "env get failed: '%s' is not set", datara_str_data(name));
+        return datara_rt_outcome_build(0, EMPTY_DATARA_STR, stack_msg);
     }
-    return datara_rt_outcome_build(1, val, "");
+    return datara_rt_outcome_build(1, datara_rt_str_from_c_str(val), "");
 }
 
 // Directory listing. Returns a Datara List (list[0] = length, elements at
@@ -2743,8 +2811,8 @@ void* datara_rt_env_get_checked(const char* name) {
 // malloc'd and intentionally never freed, matching every other runtime
 // string return.
 static int datara_rt_dir_name_cmp(const void* a, const void* b) {
-    const char* sa = *(const char* const*)a;
-    const char* sb = *(const char* const*)b;
+    const char* sa = datara_str_data(*(const char* const*)a);
+    const char* sb = datara_str_data(*(const char* const*)b);
     return strcmp(sa, sb);
 }
 
@@ -2752,14 +2820,15 @@ int64_t* datara_rt_dir_list(const char* path) {
     datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::dir_list");
     if (!path) return datara_rt_list_create(0);
 
-    size_t plen = strlen(path);
+    const char* actual_path = datara_str_data(path);
+    size_t plen = (size_t)datara_str_len(path);
     char pattern[1024];
 #ifdef _WIN32
-    int has_sep = plen > 0 && (path[plen - 1] == '/' || path[plen - 1] == '\\');
+    int has_sep = plen > 0 && (actual_path[plen - 1] == '/' || actual_path[plen - 1] == '\\');
     if (has_sep) {
-        snprintf(pattern, sizeof(pattern), "%s*", path);
+        snprintf(pattern, sizeof(pattern), "%s*", actual_path);
     } else {
-        snprintf(pattern, sizeof(pattern), "%s\\*", path);
+        snprintf(pattern, sizeof(pattern), "%s\\*", actual_path);
     }
 #else
     (void)plen;
@@ -2795,15 +2864,15 @@ int64_t* datara_rt_dir_list(const char* path) {
             cap = ncap;
         }
         int u8_len = WideCharToMultiByte(CP_UTF8, 0, fd.cFileName, -1, NULL, 0, NULL, NULL);
-        if (u8_len <= 0) continue;
-        char* copy = (char*)malloc((size_t)u8_len);
+        if (u8_len <= 1) continue;
+        char* copy = datara_str_alloc((size_t)(u8_len - 1));
         if (!copy) break;
-        WideCharToMultiByte(CP_UTF8, 0, fd.cFileName, -1, copy, u8_len, NULL, NULL);
+        WideCharToMultiByte(CP_UTF8, 0, fd.cFileName, -1, copy + sizeof(int64_t), u8_len, NULL, NULL);
         names[count++] = copy;
     } while (FindNextFileW(h, &fd));
     FindClose(h);
 #else
-    DIR* d = opendir(path);
+    DIR* d = opendir(actual_path);
     if (!d) {
         free(names);
         return datara_rt_list_create(0);
@@ -2820,9 +2889,9 @@ int64_t* datara_rt_dir_list(const char* path) {
             cap = ncap;
         }
         size_t nlen = strlen(name);
-        char* copy = (char*)malloc(nlen + 1);
+        char* copy = datara_str_alloc(nlen);
         if (!copy) break;
-        memcpy(copy, name, nlen + 1);
+        memcpy(copy + sizeof(int64_t), name, nlen);
         names[count++] = copy;
     }
     closedir(d);
@@ -2848,42 +2917,45 @@ int64_t* datara_rt_dir_list(const char* path) {
 int64_t datara_rt_path_exists(const char* path) {
     datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::path_exists");
     if (!path) return 0;
+    const char* p = datara_str_data(path);
 #ifdef _WIN32
-    int wlen = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, p, -1, NULL, 0);
     if (wlen <= 0) return 0;
     wchar_t* wpath = (wchar_t*)malloc((size_t)wlen * sizeof(wchar_t));
     if (!wpath) return 0;
-    MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, wlen);
+    MultiByteToWideChar(CP_UTF8, 0, p, -1, wpath, wlen);
     DWORD attrs = GetFileAttributesW(wpath);
     free(wpath);
     return attrs != INVALID_FILE_ATTRIBUTES ? 1 : 0;
 #else
     struct stat st;
-    return stat(path, &st) == 0 ? 1 : 0;
+    return stat(p, &st) == 0 ? 1 : 0;
 #endif
 }
 
 const char* datara_rt_path_join(const char* a, const char* b) {
-    if (!a && !b) return "";
-    if (!a || strlen(a) == 0) return b ? b : "";
-    if (!b || strlen(b) == 0) return a ? a : "";
-    size_t la = strlen(a);
-    size_t lb = strlen(b);
-    int needs_sep = (a[la - 1] != '/' && a[la - 1] != '\\' && b[0] != '/' && b[0] != '\\');
-    size_t total = la + (needs_sep ? 1 : 0) + lb + 1;
-    char* buf = datara_scratch_alloc(total);
-    if (!buf) return "";
-    memcpy(buf, a, la);
+    if (!a && !b) return EMPTY_DATARA_STR;
+    if (!a || datara_str_len(a) == 0) return b ? datara_rt_str_from_c_str(b) : EMPTY_DATARA_STR;
+    if (!b || datara_str_len(b) == 0) return a ? datara_rt_str_from_c_str(a) : EMPTY_DATARA_STR;
+    size_t la = (size_t)datara_str_len(a);
+    size_t lb = (size_t)datara_str_len(b);
+    const char* da = datara_str_data(a);
+    const char* db = datara_str_data(b);
+    int needs_sep = (da[la - 1] != '/' && da[la - 1] != '\\' && db[0] != '/' && db[0] != '\\');
+    size_t total = la + (needs_sep ? 1 : 0) + lb;
+    char* buf = datara_str_alloc(total);
+    if (!buf) return EMPTY_DATARA_STR;
+    char* p = buf + sizeof(int64_t);
+    memcpy(p, da, la);
     size_t pos = la;
     if (needs_sep) {
 #ifdef _WIN32
-        buf[pos++] = '\\';
+        p[pos++] = '\\';
 #else
-        buf[pos++] = '/';
+        p[pos++] = '/';
 #endif
     }
-    memcpy(buf + pos, b, lb);
-    buf[pos + lb] = '\0';
+    memcpy(p + pos, db, lb);
     return buf;
 }
 
@@ -2904,97 +2976,119 @@ int64_t datara_rt_args_count(void) {
 }
 
 const char* datara_rt_args_get(int64_t idx) {
-    if (idx < 0 || idx >= g_argc || !g_argv) return "";
-    return g_argv[idx];
+    if (idx < 0 || idx >= g_argc || !g_argv) return EMPTY_DATARA_STR;
+    return datara_rt_str_from_c_str(g_argv[idx]);
 }
 
 int64_t datara_rt_str_contains(const char* s, const char* sub) {
     if (!s || !sub) return 0;
-    return strstr(s, sub) != NULL ? 1 : 0;
+    int64_t ls = datara_str_len(s);
+    int64_t lsub = datara_str_len(sub);
+    if (lsub == 0) return 1;
+    if (ls < lsub) return 0;
+    const char* ds = datara_str_data(s);
+    const char* dsub = datara_str_data(sub);
+    for (int64_t i = 0; i <= ls - lsub; i++) {
+        if (memcmp(ds + i, dsub, (size_t)lsub) == 0) return 1;
+    }
+    return 0;
 }
 
 int64_t datara_rt_str_starts_with(const char* s, const char* prefix) {
     if (!s || !prefix) return 0;
-    size_t len_s = strlen(s);
-    size_t len_p = strlen(prefix);
-    if (len_s < len_p) return 0;
-    return strncmp(s, prefix, len_p) == 0 ? 1 : 0;
+    int64_t ls = datara_str_len(s);
+    int64_t lp = datara_str_len(prefix);
+    if (ls < lp) return 0;
+    const char* ds = datara_str_data(s);
+    const char* dp = datara_str_data(prefix);
+    return memcmp(ds, dp, (size_t)lp) == 0 ? 1 : 0;
 }
 
 int64_t datara_rt_str_ends_with(const char* s, const char* suffix) {
     if (!s || !suffix) return 0;
-    size_t len_s = strlen(s);
-    size_t len_suf = strlen(suffix);
-    if (len_s < len_suf) return 0;
-    return strcmp(s + len_s - len_suf, suffix) == 0 ? 1 : 0;
+    int64_t ls = datara_str_len(s);
+    int64_t lsuf = datara_str_len(suffix);
+    if (ls < lsuf) return 0;
+    const char* ds = datara_str_data(s);
+    const char* dsuf = datara_str_data(suffix);
+    return memcmp(ds + ls - lsuf, dsuf, (size_t)lsuf) == 0 ? 1 : 0;
 }
 
 int64_t datara_rt_str_index_of(const char* s, const char* sub) {
     if (!s || !sub) return -1;
-    const char* p = strstr(s, sub);
-    if (!p) return -1;
-    return (int64_t)(p - s);
+    int64_t ls = datara_str_len(s);
+    int64_t lsub = datara_str_len(sub);
+    if (lsub == 0) return 0;
+    if (ls < lsub) return -1;
+    const char* ds = datara_str_data(s);
+    const char* dsub = datara_str_data(sub);
+    for (int64_t i = 0; i <= ls - lsub; i++) {
+        if (memcmp(ds + i, dsub, (size_t)lsub) == 0) return i;
+    }
+    return -1;
 }
 
 const char* datara_rt_str_trim(const char* s) {
-    if (!s) return "";
-    while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n') {
-        s++;
+    if (!s) return EMPTY_DATARA_STR;
+    int64_t ls = datara_str_len(s);
+    const char* ds = datara_str_data(s);
+    int64_t start = 0;
+    while (start < ls && (ds[start] == ' ' || ds[start] == '\t' || ds[start] == '\r' || ds[start] == '\n')) {
+        start++;
     }
-    if (*s == '\0') return "";
-    size_t len = strlen(s);
-    while (len > 0 && (s[len - 1] == ' ' || s[len - 1] == '\t' || s[len - 1] == '\r' || s[len - 1] == '\n')) {
-        len--;
+    int64_t end = ls;
+    while (end > start && (ds[end - 1] == ' ' || ds[end - 1] == '\t' || ds[end - 1] == '\r' || ds[end - 1] == '\n')) {
+        end--;
     }
-    char* buf = (char*)malloc(len + 1);
-    if (!buf) return "";
-    memcpy(buf, s, len);
-    buf[len] = '\0';
+    int64_t new_len = end - start;
+    if (new_len <= 0) return EMPTY_DATARA_STR;
+    char* buf = datara_str_alloc((size_t)new_len);
+    if (!buf) return EMPTY_DATARA_STR;
+    memcpy(buf + sizeof(int64_t), ds + start, (size_t)new_len);
     return buf;
 }
 
 int64_t datara_rt_str_to_int(const char* s) {
     if (!s) return 0;
-    return (int64_t)atoll(s);
+    return (int64_t)atoll(datara_str_data(s));
 }
 
 double datara_rt_str_to_float(const char* s) {
     if (!s) return 0.0;
-    return atof(s);
+    return atof(datara_str_data(s));
 }
 
 const char* datara_rt_str_substring(const char* s, int64_t start, int64_t len) {
-    if (!s || start < 0 || len <= 0) return "";
-    int64_t total_len = (int64_t)strlen(s);
-    if (start >= total_len) return "";
+    if (!s || start < 0 || len <= 0) return EMPTY_DATARA_STR;
+    int64_t total_len = datara_str_len(s);
+    if (start >= total_len) return EMPTY_DATARA_STR;
     if (start + len > total_len) {
         len = total_len - start;
     }
-    char* buf = datara_scratch_alloc((size_t)len);
-    if (!buf) return "";
-    memcpy(buf, s + start, (size_t)len);
-    buf[len] = '\0';
+    char* buf = datara_str_alloc((size_t)len);
+    if (!buf) return EMPTY_DATARA_STR;
+    memcpy(buf + sizeof(int64_t), datara_str_data(s) + start, (size_t)len);
     return buf;
 }
 
 int64_t datara_rt_str_chars(const char* s) {
     if (!s) return 0;
     int64_t count = 0;
-    const unsigned char* p = (const unsigned char*)s;
-    while (*p) {
-        if ((*p & 0xC0) != 0x80) {
+    int64_t len = datara_str_len(s);
+    const unsigned char* p = (const unsigned char*)datara_str_data(s);
+    for (int64_t i = 0; i < len; i++) {
+        if ((p[i] & 0xC0) != 0x80) {
             count++;
         }
-        p++;
     }
     return count;
 }
 
 int32_t datara_rt_validate_utf8(const char* s) {
     if (!s) return 1;
-    const unsigned char* bytes = (const unsigned char*)s;
+    const unsigned char* bytes = (const unsigned char*)datara_str_data(s);
     size_t i = 0;
-    size_t len = strlen(s);
+    size_t len = (size_t)datara_str_len(s);
     while (i < len) {
         unsigned char b0 = bytes[i];
         if (b0 <= 0x7F) {
@@ -3061,13 +3155,13 @@ int64_t datara_rt_char_len(const char* s) {
 }
 
 const char* datara_rt_str_sanitize_utf8(const char* s) {
-    if (!s) return "";
+    if (!s) return EMPTY_DATARA_STR;
     if (datara_rt_validate_utf8(s)) return s;
-    size_t len = strlen(s);
-    char* buf = datara_scratch_alloc(len * 3 + 1);
-    if (!buf) return "";
+    size_t len = (size_t)datara_str_len(s);
+    char* buf = (char*)malloc(len * 3 + 1);
+    if (!buf) return EMPTY_DATARA_STR;
     size_t out_idx = 0;
-    const unsigned char* p = (const unsigned char*)s;
+    const unsigned char* p = (const unsigned char*)datara_str_data(s);
     size_t i = 0;
     while (i < len) {
         unsigned char b0 = p[i];
@@ -3094,91 +3188,91 @@ const char* datara_rt_str_sanitize_utf8(const char* s) {
             i += 1;
         }
     }
-    buf[out_idx] = '\0';
-    return buf;
+    char* out = datara_str_alloc(out_idx);
+    if (out) memcpy(out + sizeof(int64_t), buf, out_idx);
+    free(buf);
+    return out ? out : EMPTY_DATARA_STR;
 }
 
 const char* datara_rt_str_next_scalar(const char* s, int64_t* inout_offset) {
-    if (!s || !inout_offset || *inout_offset < 0) return "";
-    size_t slen = strlen(s);
-    if ((size_t)*inout_offset >= slen) return "";
+    if (!s || !inout_offset || *inout_offset < 0) return EMPTY_DATARA_STR;
+    int64_t slen = datara_str_len(s);
+    if (*inout_offset >= slen) return EMPTY_DATARA_STR;
 
-    const unsigned char* p = (const unsigned char*)(s + *inout_offset);
-    size_t char_len = 1;
+    const unsigned char* p = (const unsigned char*)(datara_str_data(s) + *inout_offset);
+    int64_t char_len = 1;
     if (*p < 0x80) char_len = 1;
     else if ((*p & 0xE0) == 0xC0) char_len = 2;
     else if ((*p & 0xF0) == 0xE0) char_len = 3;
     else if ((*p & 0xF8) == 0xF0) char_len = 4;
 
-    if ((size_t)*inout_offset + char_len > slen) {
-        char_len = slen - (size_t)*inout_offset;
+    if (*inout_offset + char_len > slen) {
+        char_len = slen - *inout_offset;
     }
 
-    char* buf = datara_scratch_alloc(char_len);
-    if (!buf) return "";
-    memcpy(buf, p, char_len);
-    buf[char_len] = '\0';
-    *inout_offset += (int64_t)char_len;
+    char* buf = datara_str_alloc((size_t)char_len);
+    if (!buf) return EMPTY_DATARA_STR;
+    memcpy(buf + sizeof(int64_t), p, (size_t)char_len);
+    *inout_offset += char_len;
     return buf;
 }
 
 const char* datara_rt_str_scalar_at(const char* s, int64_t offset) {
-    if (!s || offset < 0) return "";
-    size_t slen = strlen(s);
-    if ((size_t)offset >= slen) return "";
+    if (!s || offset < 0) return EMPTY_DATARA_STR;
+    int64_t slen = datara_str_len(s);
+    if (offset >= slen) return EMPTY_DATARA_STR;
 
-    const unsigned char* p = (const unsigned char*)(s + offset);
-    size_t char_len = 1;
+    const unsigned char* p = (const unsigned char*)(datara_str_data(s) + offset);
+    int64_t char_len = 1;
     if (*p < 0x80) char_len = 1;
     else if ((*p & 0xE0) == 0xC0) char_len = 2;
     else if ((*p & 0xF0) == 0xE0) char_len = 3;
     else if ((*p & 0xF8) == 0xF0) char_len = 4;
 
-    if ((size_t)offset + char_len > slen) {
-        char_len = slen - (size_t)offset;
+    if (offset + char_len > slen) {
+        char_len = slen - offset;
     }
 
-    char* buf = datara_scratch_alloc(char_len);
-    if (!buf) return "";
-    memcpy(buf, p, char_len);
-    buf[char_len] = '\0';
+    char* buf = datara_str_alloc((size_t)char_len);
+    if (!buf) return EMPTY_DATARA_STR;
+    memcpy(buf + sizeof(int64_t), p, (size_t)char_len);
     return buf;
 }
 
 int64_t datara_rt_str_next_offset(const char* s, int64_t current_offset) {
     if (!s || current_offset < 0) return 0;
-    size_t slen = strlen(s);
-    if ((size_t)current_offset >= slen) return (int64_t)slen;
+    int64_t slen = datara_str_len(s);
+    if (current_offset >= slen) return slen;
 
-    const unsigned char* p = (const unsigned char*)(s + current_offset);
-    size_t char_len = 1;
+    const unsigned char* p = (const unsigned char*)(datara_str_data(s) + current_offset);
+    int64_t char_len = 1;
     if (*p < 0x80) char_len = 1;
     else if ((*p & 0xE0) == 0xC0) char_len = 2;
     else if ((*p & 0xF0) == 0xE0) char_len = 3;
     else if ((*p & 0xF8) == 0xF0) char_len = 4;
 
-    if ((size_t)current_offset + char_len > slen) {
-        char_len = slen - (size_t)current_offset;
+    if (current_offset + char_len > slen) {
+        char_len = slen - current_offset;
     }
-    return current_offset + (int64_t)char_len;
+    return current_offset + char_len;
 }
 
 int64_t datara_rt_str_byte_at(const char* s, int64_t idx) {
     if (!s || idx < 0) return -1;
-    size_t slen = strlen(s);
-    if ((size_t)idx >= slen) return -1;
-    return (int64_t)((const unsigned char*)s)[idx];
+    int64_t slen = datara_str_len(s);
+    if (idx >= slen) return -1;
+    return (int64_t)((const unsigned char*)datara_str_data(s))[idx];
 }
 
 const char* datara_rt_str_char_at(const char* s, int64_t idx) {
-    if (!s || idx < 0) return "";
-    size_t slen = strlen(s);
-    const unsigned char* p = (const unsigned char*)s;
+    if (!s || idx < 0) return EMPTY_DATARA_STR;
+    int64_t slen = datara_str_len(s);
+    const unsigned char* p = (const unsigned char*)datara_str_data(s);
     int64_t cur_char = 0;
-    size_t byte_pos = 0;
+    int64_t byte_pos = 0;
 
     while (byte_pos < slen) {
-        size_t char_len = 1;
+        int64_t char_len = 1;
         unsigned char b = p[byte_pos];
         if (b < 0x80) char_len = 1;
         else if ((b & 0xE0) == 0xC0) char_len = 2;
@@ -3190,221 +3284,246 @@ const char* datara_rt_str_char_at(const char* s, int64_t idx) {
         }
 
         if (cur_char == idx) {
-            char* buf = datara_scratch_alloc(char_len);
-            if (!buf) return "";
-            memcpy(buf, s + byte_pos, char_len);
-            buf[char_len] = '\0';
+            char* buf = datara_str_alloc((size_t)char_len);
+            if (!buf) return EMPTY_DATARA_STR;
+            memcpy(buf + sizeof(int64_t), datara_str_data(s) + byte_pos, (size_t)char_len);
             return buf;
         }
 
         cur_char++;
         byte_pos += char_len;
     }
-    return "";
+    return EMPTY_DATARA_STR;
 }
 
 const char* datara_rt_str_repeat(const char* s, int64_t count) {
-    if (!s || count <= 0) return "";
-    size_t slen = strlen(s);
-    if (slen == 0) return "";
-    if (count != 0 && slen > SIZE_MAX / (size_t)count) return NULL;
-    size_t total = slen * (size_t)count;
-    char* buf = datara_scratch_alloc(total);
-    if (!buf) return "";
-    char* p = buf;
+    if (!s || count <= 0) return EMPTY_DATARA_STR;
+    int64_t slen = datara_str_len(s);
+    if (slen == 0) return EMPTY_DATARA_STR;
+    if (slen > (int64_t)(SIZE_MAX / (size_t)count)) return EMPTY_DATARA_STR;
+    size_t total = (size_t)slen * (size_t)count;
+    char* buf = datara_str_alloc(total);
+    if (!buf) return EMPTY_DATARA_STR;
+    char* p = buf + sizeof(int64_t);
+    const char* ds = datara_str_data(s);
     for (int64_t i = 0; i < count; i++) {
-        memcpy(p, s, slen);
+        memcpy(p, ds, (size_t)slen);
         p += slen;
     }
-    *p = '\0';
     return buf;
 }
 
 const char* datara_rt_str_pad_left(const char* s, int64_t total_len, const char* pad) {
-    if (!s) s = "";
-    if (!pad || pad[0] == '\0') pad = " ";
-    int64_t slen = (int64_t)strlen(s);
+    if (!s) s = EMPTY_DATARA_STR;
+    int64_t slen = datara_str_len(s);
     if (slen >= total_len) return s;
+    const char* dpad = pad ? datara_str_data(pad) : " ";
+    int64_t pad_len = pad ? datara_str_len(pad) : 1;
+    if (pad_len <= 0) { dpad = " "; pad_len = 1; }
     int64_t pad_needed = total_len - slen;
-    size_t pad_len = strlen(pad);
-    char* buf = datara_scratch_alloc((size_t)total_len);
+    char* buf = datara_str_alloc((size_t)total_len);
     if (!buf) return s;
-    char* p = buf;
+    char* p = buf + sizeof(int64_t);
     int64_t rem = pad_needed;
     while (rem > 0) {
-        size_t take = (size_t)rem < pad_len ? (size_t)rem : pad_len;
-        memcpy(p, pad, take);
+        size_t take = (size_t)(rem < pad_len ? rem : pad_len);
+        memcpy(p, dpad, take);
         p += take;
         rem -= (int64_t)take;
     }
-    memcpy(p, s, (size_t)slen);
-    p += slen;
-    *p = '\0';
+    memcpy(p, datara_str_data(s), (size_t)slen);
     return buf;
 }
 
 const char* datara_rt_str_pad_right(const char* s, int64_t total_len, const char* pad) {
-    if (!s) s = "";
-    if (!pad || pad[0] == '\0') pad = " ";
-    int64_t slen = (int64_t)strlen(s);
+    if (!s) s = EMPTY_DATARA_STR;
+    int64_t slen = datara_str_len(s);
     if (slen >= total_len) return s;
+    const char* dpad = pad ? datara_str_data(pad) : " ";
+    int64_t pad_len = pad ? datara_str_len(pad) : 1;
+    if (pad_len <= 0) { dpad = " "; pad_len = 1; }
     int64_t pad_needed = total_len - slen;
-    size_t pad_len = strlen(pad);
-    char* buf = datara_scratch_alloc((size_t)total_len);
+    char* buf = datara_str_alloc((size_t)total_len);
     if (!buf) return s;
-    char* p = buf;
-    memcpy(p, s, (size_t)slen);
+    char* p = buf + sizeof(int64_t);
+    memcpy(p, datara_str_data(s), (size_t)slen);
     p += slen;
     int64_t rem = pad_needed;
     while (rem > 0) {
-        size_t take = (size_t)rem < pad_len ? (size_t)rem : pad_len;
-        memcpy(p, pad, take);
+        size_t take = (size_t)(rem < pad_len ? rem : pad_len);
+        memcpy(p, dpad, take);
         p += take;
         rem -= (int64_t)take;
     }
-    *p = '\0';
     return buf;
 }
 
 const char* datara_rt_str_replace(const char* s, const char* target, const char* replacement) {
-    if (!s) return "";
-    if (!target || target[0] == '\0') return s;
-    if (!replacement) replacement = "";
-    size_t slen = strlen(s);
-    size_t tlen = strlen(target);
-    size_t rlen = strlen(replacement);
+    if (!s) return EMPTY_DATARA_STR;
+    int64_t slen = datara_str_len(s);
+    if (!target) return s;
+    int64_t tlen = datara_str_len(target);
+    if (tlen == 0) return s;
+    int64_t rlen = replacement ? datara_str_len(replacement) : 0;
+    const char* ds = datara_str_data(s);
+    const char* dt = datara_str_data(target);
+    const char* dr = replacement ? datara_str_data(replacement) : "";
 
     size_t count = 0;
-    const char* p = s;
-    while ((p = strstr(p, target)) != NULL) {
-        count++;
-        p += tlen;
+    for (int64_t i = 0; i <= slen - tlen; ) {
+        if (memcmp(ds + i, dt, (size_t)tlen) == 0) {
+            count++;
+            i += tlen;
+        } else {
+            i++;
+        }
     }
     if (count == 0) return s;
 
-    size_t new_len = slen + count * (rlen > tlen ? (rlen - tlen) : 0);
-    char* buf = datara_scratch_alloc(new_len);
+    int64_t new_len = slen + (int64_t)count * (rlen - tlen);
+    if (new_len < 0) return EMPTY_DATARA_STR;
+    char* buf = datara_str_alloc((size_t)new_len);
     if (!buf) return s;
 
-    char* dst = buf;
-    p = s;
-    const char* match;
-    while ((match = strstr(p, target)) != NULL) {
-        size_t seg = (size_t)(match - p);
-        memcpy(dst, p, seg);
-        dst += seg;
-        memcpy(dst, replacement, rlen);
-        dst += rlen;
-        p = match + tlen;
+    char* dst = buf + sizeof(int64_t);
+    int64_t i = 0;
+    while (i <= slen - tlen) {
+        if (memcmp(ds + i, dt, (size_t)tlen) == 0) {
+            if (rlen > 0) {
+                memcpy(dst, dr, (size_t)rlen);
+                dst += rlen;
+            }
+            i += tlen;
+        } else {
+            *dst++ = ds[i++];
+        }
     }
-    size_t rest = strlen(p);
-    memcpy(dst, p, rest);
-    dst[rest] = '\0';
+    while (i < slen) {
+        *dst++ = ds[i++];
+    }
     return buf;
 }
 
 const char* datara_rt_str_to_upper(const char* s) {
-    if (!s) return "";
-    size_t len = strlen(s);
-    char* buf = datara_scratch_alloc(len);
-    if (!buf) return "";
-    for (size_t i = 0; i < len; i++) {
-        char c = s[i];
+    if (!s) return EMPTY_DATARA_STR;
+    int64_t len = datara_str_len(s);
+    if (len == 0) return EMPTY_DATARA_STR;
+    char* buf = datara_str_alloc((size_t)len);
+    if (!buf) return EMPTY_DATARA_STR;
+    const char* ds = datara_str_data(s);
+    char* dst = buf + sizeof(int64_t);
+    for (int64_t i = 0; i < len; i++) {
+        char c = ds[i];
         if (c >= 'a' && c <= 'z') c = (char)(c - ('a' - 'A'));
-        buf[i] = c;
+        dst[i] = c;
     }
-    buf[len] = '\0';
     return buf;
 }
 
 const char* datara_rt_str_to_lower(const char* s) {
-    if (!s) return "";
-    size_t len = strlen(s);
-    char* buf = datara_scratch_alloc(len);
-    if (!buf) return "";
-    for (size_t i = 0; i < len; i++) {
-        char c = s[i];
+    if (!s) return EMPTY_DATARA_STR;
+    int64_t len = datara_str_len(s);
+    if (len == 0) return EMPTY_DATARA_STR;
+    char* buf = datara_str_alloc((size_t)len);
+    if (!buf) return EMPTY_DATARA_STR;
+    const char* ds = datara_str_data(s);
+    char* dst = buf + sizeof(int64_t);
+    for (int64_t i = 0; i < len; i++) {
+        char c = ds[i];
         if (c >= 'A' && c <= 'Z') c = (char)(c + ('a' - 'A'));
-        buf[i] = c;
+        dst[i] = c;
     }
-    buf[len] = '\0';
     return buf;
 }
 
 int64_t* datara_rt_str_split(const char* s, const char* delim) {
     if (!s) return datara_rt_list_create(0);
-    if (!delim || delim[0] == '\0') {
+    int64_t slen = datara_str_len(s);
+    const char* ds = datara_str_data(s);
+    if (!delim || datara_str_len(delim) == 0) {
         int64_t* list = datara_rt_list_create_capacity(1);
-        list = datara_rt_list_append(list, (int64_t)s);
+        list = datara_rt_list_append(list, (int64_t)(uintptr_t)s);
         return list;
     }
-    size_t delim_len = strlen(delim);
+    int64_t delim_len = datara_str_len(delim);
+    const char* ddelim = datara_str_data(delim);
     int64_t* list = datara_rt_list_create_capacity(8);
-    const char* cur = s;
-    const char* found;
-    while ((found = strstr(cur, delim)) != NULL) {
-        size_t part_len = (size_t)(found - cur);
-        char* part = datara_scratch_alloc(part_len);
-        if (part) {
-            memcpy(part, cur, part_len);
-            part[part_len] = '\0';
-            list = datara_rt_list_append(list, (int64_t)part);
+    int64_t last_pos = 0;
+    int64_t cur = 0;
+    while (cur <= slen - delim_len) {
+        if (memcmp(ds + cur, ddelim, (size_t)delim_len) == 0) {
+            int64_t part_len = cur - last_pos;
+            char* part = datara_str_alloc((size_t)part_len);
+            if (part) {
+                if (part_len > 0) {
+                    memcpy(part + sizeof(int64_t), ds + last_pos, (size_t)part_len);
+                }
+                list = datara_rt_list_append(list, (int64_t)(uintptr_t)part);
+            }
+            cur += delim_len;
+            last_pos = cur;
+        } else {
+            cur++;
         }
-        cur = found + delim_len;
     }
-    size_t rem_len = strlen(cur);
-    char* rem = datara_scratch_alloc(rem_len);
+    int64_t rem_len = slen - last_pos;
+    char* rem = datara_str_alloc((size_t)rem_len);
     if (rem) {
-        memcpy(rem, cur, rem_len);
-        rem[rem_len] = '\0';
-        list = datara_rt_list_append(list, (int64_t)rem);
+        if (rem_len > 0) {
+            memcpy(rem + sizeof(int64_t), ds + last_pos, (size_t)rem_len);
+        }
+        list = datara_rt_list_append(list, (int64_t)(uintptr_t)rem);
     }
     return list;
 }
 
 const char* datara_rt_str_join(const int64_t* list, const char* delim) {
-    if (!list) return "";
+    if (!list) return EMPTY_DATARA_STR;
     int64_t count = datara_rt_list_len((int64_t*)list);
-    if (count == 0) return "";
-    if (!delim) delim = "";
-    size_t delim_len = strlen(delim);
+    if (count == 0) return EMPTY_DATARA_STR;
+    int64_t delim_len = delim ? datara_str_len(delim) : 0;
+    const char* ddelim = delim ? datara_str_data(delim) : "";
 
     size_t total_len = 0;
     for (int64_t i = 0; i < count; i++) {
         const char* item = (const char*)datara_rt_list_get((int64_t*)list, i);
         if (item) {
-            total_len += strlen(item);
+            total_len += (size_t)datara_str_len(item);
         }
         if (i + 1 < count) {
-            total_len += delim_len;
+            total_len += (size_t)delim_len;
         }
     }
 
-    char* res = datara_scratch_alloc(total_len);
-    if (!res) return "";
-    char* p = res;
+    char* res = datara_str_alloc(total_len);
+    if (!res) return EMPTY_DATARA_STR;
+    char* p = res + sizeof(int64_t);
     for (int64_t i = 0; i < count; i++) {
         const char* item = (const char*)datara_rt_list_get((int64_t*)list, i);
         if (item) {
-            size_t ilen = strlen(item);
-            memcpy(p, item, ilen);
-            p += ilen;
+            int64_t ilen = datara_str_len(item);
+            if (ilen > 0) {
+                memcpy(p, datara_str_data(item), (size_t)ilen);
+                p += ilen;
+            }
         }
         if (i + 1 < count && delim_len > 0) {
-            memcpy(p, delim, delim_len);
+            memcpy(p, ddelim, (size_t)delim_len);
             p += delim_len;
         }
     }
-    *p = '\0';
     return res;
 }
 
 const char* datara_rt_format_percent(double val, int64_t decimals) {
     if (decimals < 0) decimals = 0;
     if (decimals > 10) decimals = 10;
-    char* buf = datara_scratch_alloc(32);
-    if (!buf) return "";
-    snprintf(buf, 32, "%.*f%%", (int)decimals, val * 100.0);
+    char tmp[64];
+    int n = snprintf(tmp, sizeof(tmp), "%.*f%%", (int)decimals, val * 100.0);
+    if (n <= 0) return EMPTY_DATARA_STR;
+    char* buf = datara_str_alloc((size_t)n);
+    if (!buf) return EMPTY_DATARA_STR;
+    memcpy(buf + sizeof(int64_t), tmp, (size_t)n);
     return buf;
 }
 
@@ -3415,11 +3534,12 @@ const char* datara_rt_format_int_with_commas(int64_t n) {
     size_t digits_start = (temp[0] == '-') ? 1 : 0;
     size_t num_digits = len - digits_start;
     size_t commas = (num_digits > 0) ? (num_digits - 1) / 3 : 0;
+    size_t total = len + commas;
 
-    char* buf = datara_scratch_alloc(len + commas);
-    if (!buf) return "";
+    char* buf = datara_str_alloc(total);
+    if (!buf) return EMPTY_DATARA_STR;
 
-    char* dst = buf;
+    char* dst = buf + sizeof(int64_t);
     if (digits_start) {
         *dst++ = '-';
     }
@@ -3438,7 +3558,6 @@ const char* datara_rt_format_int_with_commas(int64_t n) {
         dst += 3;
         src += 3;
     }
-    *dst = '\0';
     return buf;
 }
 
@@ -3560,39 +3679,37 @@ int64_t datara_rt_socket_connect(int64_t sock, const char* host, int64_t port) {
 
 int64_t datara_rt_socket_send(int64_t sock, const char* data) {
     if (sock < 0 || !data) return -1;
-    int len = (int)strlen(data);
+    int len = (int)datara_str_len(data);
+    const char* p = datara_str_data(data);
 #ifdef _WIN32
-    int sent = send((SOCKET)sock, data, len, 0);
+    int sent = send((SOCKET)sock, p, len, 0);
     return sent == SOCKET_ERROR ? -1 : (int64_t)sent;
 #else
-    ssize_t sent = send((int)sock, data, len, 0);
+    ssize_t sent = send((int)sock, p, (size_t)len, 0);
     return sent < 0 ? -1 : (int64_t)sent;
 #endif
 }
 
 const char* datara_rt_socket_recv(int64_t sock, int64_t max_bytes) {
-    if (sock < 0) return "";
+    if (sock < 0) return EMPTY_DATARA_STR;
     int cap = max_bytes > 0 ? (int)max_bytes : 4096;
-    char* buf = (char*)malloc(cap + 1);
-    if (!buf) return "";
+    char* buf = (char*)malloc((size_t)cap);
+    if (!buf) return EMPTY_DATARA_STR;
 #ifdef _WIN32
     int n = recv((SOCKET)sock, buf, cap, 0);
 #else
-    ssize_t n = recv((int)sock, buf, cap, 0);
+    ssize_t n = recv((int)sock, buf, (size_t)cap, 0);
 #endif
     if (n <= 0) {
         free(buf);
-        return "";
+        return EMPTY_DATARA_STR;
     }
-    char* scratch = datara_scratch_alloc((size_t)n);
-    if (scratch) {
-        memcpy(scratch, buf, n);
-        scratch[n] = '\0';
-        free(buf);
-        return scratch;
+    char* str = datara_str_alloc((size_t)n);
+    if (str) {
+        memcpy(str + sizeof(int64_t), buf, (size_t)n);
     }
-    buf[n] = '\0';
-    return buf;
+    free(buf);
+    return str ? str : EMPTY_DATARA_STR;
 }
 
 void datara_rt_socket_close(int64_t sock) {
@@ -3651,7 +3768,7 @@ void* datara_rt_socket_nonblocking(int64_t sock, int64_t on) {
 void* datara_rt_socket_recv_outcome(int64_t sock, int64_t max_bytes) {
     if (sock < 0) return datara_rt_outcome_build_raw(0, 0, "invalid socket handle");
     int cap = max_bytes > 0 ? (int)max_bytes : 4096;
-    char* buf = (char*)malloc((size_t)cap + 1);
+    char* buf = (char*)malloc((size_t)cap);
     if (!buf) return datara_rt_outcome_build_raw(0, 0, "out of memory");
 #ifdef _WIN32
     int n = recv((SOCKET)sock, buf, cap, 0);
@@ -3659,9 +3776,9 @@ void* datara_rt_socket_recv_outcome(int64_t sock, int64_t max_bytes) {
         int err = WSAGetLastError();
         free(buf);
         if (err == WSAEWOULDBLOCK || err == WSAETIMEDOUT) {
-            return datara_rt_outcome_build(0, "", "would-block");
+            return datara_rt_outcome_build(0, EMPTY_DATARA_STR, "would-block");
         }
-        return datara_rt_outcome_build(0, "", "socket recv error");
+        return datara_rt_outcome_build(0, EMPTY_DATARA_STR, "socket recv error");
     }
 #else
     ssize_t n = recv((int)sock, buf, (size_t)cap, 0);
@@ -3669,19 +3786,21 @@ void* datara_rt_socket_recv_outcome(int64_t sock, int64_t max_bytes) {
         int err = errno;
         free(buf);
         if (err == EWOULDBLOCK || err == EAGAIN || err == ETIMEDOUT) {
-            return datara_rt_outcome_build(0, "", "would-block");
+            return datara_rt_outcome_build(0, EMPTY_DATARA_STR, "would-block");
         }
-        return datara_rt_outcome_build(0, "", "socket recv error");
+        return datara_rt_outcome_build(0, EMPTY_DATARA_STR, "socket recv error");
     }
 #endif
     if (n == 0) {
         free(buf);
-        return datara_rt_outcome_build(0, "", "connection closed");
+        return datara_rt_outcome_build(0, EMPTY_DATARA_STR, "connection closed");
     }
-    buf[n] = '\0';
-    void* out = datara_rt_outcome_build(1, buf, "");
+    char* str = datara_str_alloc((size_t)n);
+    if (str) {
+        memcpy(str + sizeof(int64_t), buf, (size_t)n);
+    }
     free(buf);
-    return out;
+    return datara_rt_outcome_build(1, str ? str : EMPTY_DATARA_STR, "");
 }
 
 // ---------------------------------------------------------------------------
@@ -3695,11 +3814,11 @@ void* datara_rt_socket_recv_outcome(int64_t sock, int64_t max_bytes) {
 static const char* datara_http_error(const char* msg) {
     size_t prefix_len = strlen("HTTP_ERROR: ");
     size_t msg_len = msg ? strlen(msg) : 0;
-    char* buf = datara_scratch_alloc(prefix_len + msg_len);
-    if (!buf) return "HTTP_ERROR: out of memory";
-    memcpy(buf, "HTTP_ERROR: ", prefix_len);
-    memcpy(buf + prefix_len, msg, msg_len);
-    buf[prefix_len + msg_len] = '\0';
+    char* buf = datara_str_alloc(prefix_len + msg_len);
+    if (!buf) return EMPTY_DATARA_STR;
+    char* p = buf + sizeof(int64_t);
+    memcpy(p, "HTTP_ERROR: ", prefix_len);
+    if (msg_len > 0) memcpy(p + prefix_len, msg, msg_len);
     return buf;
 }
 
@@ -3798,19 +3917,20 @@ static size_t datara_http_decode_chunked(char* body, size_t body_len) {
 
 const char* datara_rt_http_get(const char* url) {
     datara_rt_cap_require(DATARA_CAP_NET_CLIENT, "http::get");
-    if (!url || !url[0]) {
+    const char* actual_url = datara_str_data(url);
+    if (!actual_url || !actual_url[0]) {
         return datara_http_error("empty url");
     }
     datara_rt_ensure_sockets();
 
     // Parse http://host[:port]/path — https is explicitly unsupported.
-    if (strncmp(url, "http://", 7) != 0) {
-        if (strncmp(url, "https://", 8) == 0) {
+    if (strncmp(actual_url, "http://", 7) != 0) {
+        if (strncmp(actual_url, "https://", 8) == 0) {
             return datara_http_error("https not supported");
         }
         return datara_http_error("invalid url (expected http://...)");
     }
-    const char* host_start = url + 7;
+    const char* host_start = actual_url + 7;
     const char* path_start = strchr(host_start, '/');
     const char* path = path_start ? path_start : "/";
     size_t host_len = path_start ? (size_t)(path_start - host_start) : strlen(host_start);
@@ -3961,13 +4081,12 @@ const char* datara_rt_http_get(const char* url) {
         }
     }
 
-    char* out = datara_scratch_alloc(body_len);
+    char* out = datara_str_alloc(body_len);
     if (!out) {
         free(raw);
         return datara_http_error("out of memory");
     }
-    memcpy(out, body, body_len);
-    out[body_len] = '\0';
+    memcpy(out + sizeof(int64_t), body, body_len);
     free(raw);
     return out;
 }
@@ -7002,10 +7121,12 @@ static int datara_strbuf_reserve(DataraStrBuf* sb, size_t extra) {
 void* datara_rt_strbuf_push(void* sb_ptr, const char* s) {
     DataraStrBuf* sb = (DataraStrBuf*)sb_ptr;
     if (!sb) return NULL;
-    if (!s || s[0] == '\0') return sb;
-    size_t slen = strlen(s);
+    if (!s) return sb;
+    size_t slen = (size_t)datara_str_len(s);
+    if (slen == 0) return sb;
     if (!datara_strbuf_reserve(sb, slen)) return sb;
-    datara_fast_copy(sb->data + sb->len, s, slen);
+    const char* ds = datara_str_data(s);
+    datara_fast_copy(sb->data + sb->len, ds, slen);
     sb->len += slen;
     sb->data[sb->len] = '\0';
     return sb;
@@ -7016,16 +7137,20 @@ void* datara_rt_strbuf_push_int(void* sb_ptr, int64_t v) {
     if (!sb) return NULL;
     char tmp[32];
     snprintf(tmp, sizeof(tmp), "%lld", (long long)v);
-    return datara_rt_strbuf_push(sb, tmp);
+    size_t slen = strlen(tmp);
+    if (!datara_strbuf_reserve(sb, slen)) return sb;
+    datara_fast_copy(sb->data + sb->len, tmp, slen);
+    sb->len += slen;
+    sb->data[sb->len] = '\0';
+    return sb;
 }
 
 const char* datara_rt_strbuf_join(void* sb_ptr) {
     DataraStrBuf* sb = (DataraStrBuf*)sb_ptr;
-    if (!sb) return "";
-    char* out = datara_scratch_alloc(sb->len + 1);
-    if (!out) return "";
-    datara_fast_copy(out, sb->data, sb->len);
-    out[sb->len] = '\0';
+    if (!sb) return EMPTY_DATARA_STR;
+    char* out = datara_str_alloc(sb->len);
+    if (!out) return EMPTY_DATARA_STR;
+    datara_fast_copy(out + sizeof(int64_t), sb->data, sb->len);
     return out;
 }
 
@@ -7041,3 +7166,145 @@ void datara_rt_strbuf_free(void* sb_ptr) {
     free(sb->data);
     free(sb);
 }
+
+// ============================================================================
+// 4-Tier Memory & Direct Hardware Spectrum Implementation
+// ============================================================================
+int64_t datara_rt_arena_used(void) {
+    return datara_rt_arena_checkpoint();
+}
+
+void datara_rt_arena_clear(void) {
+    datara_rt_arena_reset(0);
+}
+
+void* datara_rt_mem_alloc(int64_t bytes) {
+    if (bytes <= 0) return NULL;
+    return malloc((size_t)bytes);
+}
+
+void datara_rt_mem_free(void* ptr) {
+    if (ptr) free(ptr);
+}
+
+void datara_rt_mem_copy(void* dst, const void* src, int64_t bytes) {
+    if (!dst || !src || bytes <= 0) return;
+    datara_fast_copy(dst, src, (size_t)bytes);
+}
+
+int64_t datara_rt_ptr_read_i64(const void* ptr, int64_t offset) {
+    if (!ptr) return 0;
+    const char* byte_ptr = (const char*)ptr + offset;
+    int64_t val = 0;
+    memcpy(&val, byte_ptr, sizeof(int64_t));
+    return val;
+}
+
+void datara_rt_ptr_write_i64(void* ptr, int64_t offset, int64_t val) {
+    if (!ptr) return;
+    char* byte_ptr = (char*)ptr + offset;
+    memcpy(byte_ptr, &val, sizeof(int64_t));
+}
+
+double datara_rt_ptr_read_f64(const void* ptr, int64_t offset) {
+    if (!ptr) return 0.0;
+    const char* byte_ptr = (const char*)ptr + offset;
+    double val = 0.0;
+    memcpy(&val, byte_ptr, sizeof(double));
+    return val;
+}
+
+void datara_rt_ptr_write_f64(void* ptr, int64_t offset, double val) {
+    if (!ptr) return;
+    char* byte_ptr = (char*)ptr + offset;
+    memcpy(byte_ptr, &val, sizeof(double));
+}
+
+int64_t datara_rt_ptr_read_u8(const void* ptr, int64_t offset) {
+    if (!ptr) return 0;
+    const uint8_t* byte_ptr = (const uint8_t*)ptr + offset;
+    return (int64_t)(*byte_ptr);
+}
+
+void datara_rt_ptr_write_u8(void* ptr, int64_t offset, int64_t val) {
+    if (!ptr) return;
+    uint8_t* byte_ptr = (uint8_t*)ptr + offset;
+    *byte_ptr = (uint8_t)(val & 0xFF);
+}
+
+void datara_rt_cpu_fence(void) {
+#ifdef _MSC_VER
+    MemoryBarrier();
+#else
+    __sync_synchronize();
+#endif
+}
+
+void datara_rt_cpu_prefetch(const void* ptr) {
+    if (!ptr) return;
+#if defined(__GNUC__) || defined(__clang__)
+    __builtin_prefetch(ptr, 0, 3);
+#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+    // volatile read acts as prefetch hint
+    volatile char dummy = *(const volatile char*)ptr;
+    (void)dummy;
+#endif
+}
+
+// Module-level global state storage
+typedef struct {
+    char name[64];
+    int64_t val;
+} DataraModuleGlobal;
+
+static DataraModuleGlobal g_datara_module_globals[512];
+static size_t g_datara_module_global_count = 0;
+
+void datara_rt_global_set(const char* name, int64_t val) {
+    if (!name) return;
+    for (size_t i = 0; i < g_datara_module_global_count; ++i) {
+        if (strcmp(g_datara_module_globals[i].name, name) == 0) {
+            g_datara_module_globals[i].val = val;
+            return;
+        }
+    }
+    if (g_datara_module_global_count < 512) {
+#if defined(_MSC_VER)
+        strncpy_s(g_datara_module_globals[g_datara_module_global_count].name, 64, name, 63);
+#else
+        strncpy(g_datara_module_globals[g_datara_module_global_count].name, name, 63);
+#endif
+        g_datara_module_globals[g_datara_module_global_count].name[63] = '\0';
+        g_datara_module_globals[g_datara_module_global_count].val = val;
+        g_datara_module_global_count++;
+    }
+}
+
+int64_t datara_rt_global_get(const char* name) {
+    if (!name) return 0;
+    for (size_t i = 0; i < g_datara_module_global_count; ++i) {
+        if (strcmp(g_datara_module_globals[i].name, name) == 0) {
+            return g_datara_module_globals[i].val;
+        }
+    }
+    return 0;
+}
+
+// Aliases without datara_rt_ prefix for direct C ABI invocations
+void* arena_alloc(int64_t bytes) { return datara_rt_arena_alloc(bytes); }
+void arena_reset(int64_t saved_top) { datara_rt_arena_reset(saved_top); }
+int64_t arena_used(void) { return datara_rt_arena_used(); }
+void arena_clear(void) { datara_rt_arena_clear(); }
+void* mem_alloc(int64_t bytes) { return datara_rt_mem_alloc(bytes); }
+void mem_free(void* ptr) { datara_rt_mem_free(ptr); }
+void mem_copy(void* dest, const void* src, int64_t bytes) { datara_rt_mem_copy(dest, src, bytes); }
+int64_t ptr_read_i64(const void* ptr, int64_t offset_bytes) { return datara_rt_ptr_read_i64(ptr, offset_bytes); }
+void ptr_write_i64(void* ptr, int64_t offset_bytes, int64_t val) { datara_rt_ptr_write_i64(ptr, offset_bytes, val); }
+double ptr_read_f64(const void* ptr, int64_t offset_bytes) { return datara_rt_ptr_read_f64(ptr, offset_bytes); }
+void ptr_write_f64(void* ptr, int64_t offset_bytes, double val) { datara_rt_ptr_write_f64(ptr, offset_bytes, val); }
+int64_t ptr_read_u8(const void* ptr, int64_t offset_bytes) { return datara_rt_ptr_read_u8(ptr, offset_bytes); }
+void ptr_write_u8(void* ptr, int64_t offset_bytes, int64_t val) { datara_rt_ptr_write_u8(ptr, offset_bytes, val); }
+void cpu_fence(void) { datara_rt_cpu_fence(); }
+void cpu_prefetch(const void* ptr) { datara_rt_cpu_prefetch(ptr); }
+void* datara_rt_stack_alloc(int64_t bytes) { return datara_rt_arena_alloc(bytes); }
+void* stack_alloc(int64_t bytes) { return datara_rt_stack_alloc(bytes); }

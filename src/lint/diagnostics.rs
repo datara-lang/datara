@@ -3,6 +3,7 @@ use std::fs;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LintSeverity {
+    Error,
     Warning,
     Info,
 }
@@ -57,9 +58,14 @@ impl LintDiagnostic {
 
     /// Render diagnostic in Rust/Cargo style with colored ANSI output and source context.
     pub fn render(&self, source_code: Option<&str>) -> String {
-        let (color_warn, color_blue, color_cyan, color_reset, color_bold) = if is_terminal() {
+        let (color_sev, color_blue, color_cyan, color_reset, color_bold) = if is_terminal() {
+            let s_col = match self.severity {
+                LintSeverity::Error => "\x1b[1;31m",
+                LintSeverity::Warning => "\x1b[1;33m",
+                LintSeverity::Info => "\x1b[1;36m",
+            };
             (
-                "\x1b[1;33m",
+                s_col,
                 "\x1b[1;34m",
                 "\x1b[1;36m",
                 "\x1b[0m",
@@ -70,13 +76,14 @@ impl LintDiagnostic {
         };
 
         let sev_str = match self.severity {
+            LintSeverity::Error => "error",
             LintSeverity::Warning => "warning",
             LintSeverity::Info => "info",
         };
 
         let mut out = format!(
             "{}{}[{}]{}: {}{}{}\n",
-            color_warn, sev_str, self.code, color_reset, color_bold, self.message, color_reset
+            color_sev, sev_str, self.code, color_reset, color_bold, self.message, color_reset
         );
 
         out.push_str(&format!(
@@ -119,7 +126,7 @@ impl LintDiagnostic {
                         color_blue,
                         color_reset,
                         indent,
-                        color_warn,
+                        color_sev,
                         carets,
                         color_cyan,
                         help,
@@ -128,7 +135,7 @@ impl LintDiagnostic {
                 } else {
                     out.push_str(&format!(
                         "  {}|{} {}{}{}{}\n",
-                        color_blue, color_reset, indent, color_warn, carets, color_reset
+                        color_blue, color_reset, indent, color_sev, carets, color_reset
                     ));
                 }
             }

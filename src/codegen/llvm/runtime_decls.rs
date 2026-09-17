@@ -6,8 +6,8 @@ pub fn emit_runtime_declarations(ir: &mut String) {
 
 const RUNTIME_DECLARATIONS: &str = r#"; --- Datara Standard Runtime Declarations ---
 declare void @llvm.assume(i1)
-declare void @datara_rt_overflow_panic()
-declare void @datara_rt_div_zero_panic()
+declare void @datara_rt_overflow_panic() cold noreturn nounwind
+declare void @datara_rt_div_zero_panic() cold noreturn nounwind
 declare { i64, i1 } @llvm.sadd.with.overflow.i64(i64, i64)
 declare { i64, i1 } @llvm.ssub.with.overflow.i64(i64, i64)
 declare { i64, i1 } @llvm.smul.with.overflow.i64(i64, i64)
@@ -140,7 +140,7 @@ entry:
   ret ptr %list
 }
 
-define internal double @datara_rt_list_get_f64_unchecked(ptr %list, i64 %idx) alwaysinline {
+define internal double @datara_rt_list_get_f64_unchecked(ptr readonly %list, i64 %idx) alwaysinline {
 entry:
   %off = add i64 %idx, 1
   %ptr = getelementptr inbounds double, ptr %list, i64 %off
@@ -153,6 +153,94 @@ entry:
   %off = add i64 %idx, 1
   %ptr = getelementptr inbounds double, ptr %list, i64 %off
   store double %val, ptr %ptr, align 8
+  ret ptr %list
+}
+
+define internal i64 @datara_rt_list_get(ptr readonly %list, i64 %idx) alwaysinline {
+entry:
+  %null_check = icmp eq ptr %list, null
+  br i1 %null_check, label %oob, label %chk_cnt, !prof !9
+
+chk_cnt:
+  %count = load i64, ptr %list, align 8
+  %neg_check = icmp slt i64 %idx, 0
+  %hi_check = icmp sge i64 %idx, %count
+  %oob_check = or i1 %neg_check, %hi_check
+  br i1 %oob_check, label %oob, label %in_bounds, !prof !9
+
+in_bounds:
+  %off = add i64 %idx, 1
+  %ptr = getelementptr inbounds i64, ptr %list, i64 %off
+  %val = load i64, ptr %ptr, align 8
+  ret i64 %val
+
+oob:
+  ret i64 0
+}
+
+define internal double @datara_rt_list_get_f64(ptr readonly %list, i64 %idx) alwaysinline {
+entry:
+  %null_check = icmp eq ptr %list, null
+  br i1 %null_check, label %oob, label %chk_cnt, !prof !9
+
+chk_cnt:
+  %count = load i64, ptr %list, align 8
+  %neg_check = icmp slt i64 %idx, 0
+  %hi_check = icmp sge i64 %idx, %count
+  %oob_check = or i1 %neg_check, %hi_check
+  br i1 %oob_check, label %oob, label %in_bounds, !prof !9
+
+in_bounds:
+  %off = add i64 %idx, 1
+  %ptr = getelementptr inbounds double, ptr %list, i64 %off
+  %val = load double, ptr %ptr, align 8
+  ret double %val
+
+oob:
+  ret double 0.0
+}
+
+define internal ptr @datara_rt_list_set(ptr %list, i64 %idx, i64 %val) alwaysinline {
+entry:
+  %null_check = icmp eq ptr %list, null
+  br i1 %null_check, label %done, label %chk_cnt, !prof !9
+
+chk_cnt:
+  %count = load i64, ptr %list, align 8
+  %neg_check = icmp slt i64 %idx, 0
+  %hi_check = icmp sge i64 %idx, %count
+  %oob_check = or i1 %neg_check, %hi_check
+  br i1 %oob_check, label %done, label %in_bounds, !prof !9
+
+in_bounds:
+  %off = add i64 %idx, 1
+  %ptr = getelementptr inbounds i64, ptr %list, i64 %off
+  store i64 %val, ptr %ptr, align 8
+  br label %done
+
+done:
+  ret ptr %list
+}
+
+define internal ptr @datara_rt_list_set_f64(ptr %list, i64 %idx, double %val) alwaysinline {
+entry:
+  %null_check = icmp eq ptr %list, null
+  br i1 %null_check, label %done, label %chk_cnt, !prof !9
+
+chk_cnt:
+  %count = load i64, ptr %list, align 8
+  %neg_check = icmp slt i64 %idx, 0
+  %hi_check = icmp sge i64 %idx, %count
+  %oob_check = or i1 %neg_check, %hi_check
+  br i1 %oob_check, label %done, label %in_bounds, !prof !9
+
+in_bounds:
+  %off = add i64 %idx, 1
+  %ptr = getelementptr inbounds double, ptr %list, i64 %off
+  store double %val, ptr %ptr, align 8
+  br label %done
+
+done:
   ret ptr %list
 }
 
@@ -231,15 +319,45 @@ declare ptr @datara_rt_args_get(i64)
 declare ptr @datara_rt_dir_list(ptr)
 declare i64 @datara_rt_path_exists(ptr)
 declare void @datara_rt_exit(i32)
-declare ptr @datara_rt_list_create(i64)
-declare ptr @datara_rt_list_create_1(i64)
-declare ptr @datara_rt_list_create_2(i64, i64)
-declare ptr @datara_rt_list_create_3(i64, i64, i64)
-declare ptr @datara_rt_list_create_4(i64, i64, i64, i64)
-declare ptr @datara_rt_list_create_5(i64, i64, i64, i64, i64)
-declare ptr @datara_rt_list_append(ptr, i64)
-declare i64 @datara_rt_list_get(ptr, i64)
-declare ptr @datara_rt_list_set(ptr, i64, i64)
+declare noalias ptr @datara_rt_list_create(i64)
+declare noalias ptr @datara_rt_list_create_1(i64)
+declare noalias ptr @datara_rt_list_create_2(i64, i64)
+declare noalias ptr @datara_rt_list_create_3(i64, i64, i64)
+declare noalias ptr @datara_rt_list_create_4(i64, i64, i64, i64)
+declare noalias ptr @datara_rt_list_create_5(i64, i64, i64, i64, i64)
+declare noalias ptr @datara_rt_stack_alloc(i64)
+declare ptr @datara_rt_list_append_slow(ptr, i64)
+
+define internal ptr @datara_rt_list_append(ptr %list, i64 %v) alwaysinline {
+entry:
+  %null_chk = icmp eq ptr %list, null
+  br i1 %null_chk, label %slow, label %chk_magic, !prof !9
+
+chk_magic:
+  %hdr_magic_ptr = getelementptr inbounds i64, ptr %list, i64 -1
+  %magic = load i64, ptr %hdr_magic_ptr, align 8
+  %magic_masked = and i64 %magic, -16
+  %is_magic = icmp eq i64 %magic_masked, 4918304954689737776
+  br i1 %is_magic, label %chk_cap, label %slow, !prof !9
+
+chk_cap:
+  %hdr_cap_ptr = getelementptr inbounds i64, ptr %list, i64 -2
+  %cap = load i64, ptr %hdr_cap_ptr, align 8
+  %count = load i64, ptr %list, align 8
+  %new_count = add i64 %count, 1
+  %has_cap = icmp sle i64 %new_count, %cap
+  br i1 %has_cap, label %fast, label %slow, !prof !9
+
+fast:
+  store i64 %new_count, ptr %list, align 8
+  %elem_ptr = getelementptr inbounds i64, ptr %list, i64 %new_count
+  store i64 %v, ptr %elem_ptr, align 8
+  ret ptr %list
+
+slow:
+  %res = call ptr @datara_rt_list_append_slow(ptr %list, i64 %v)
+  ret ptr %res
+}
 declare i64 @datara_rt_list_len(ptr)
 declare i64 @datara_rt_list_sort(ptr, i64, i64)
 declare i64 @datara_rt_list_remove_at(ptr, i64)
@@ -357,4 +475,22 @@ declare i64 @datara_rt_cap_get_mask()
 declare void @datara_rt_cap_revoke(i64)
 declare void @datara_rt_cap_grant(i64)
 declare void @datara_rt_cap_require(i64, ptr)
+declare ptr @arena_alloc(i64)
+declare void @arena_reset(i64)
+declare i64 @arena_used()
+declare void @arena_clear()
+declare ptr @mem_alloc(i64)
+declare ptr @stack_alloc(i64)
+declare void @mem_free(ptr)
+declare void @mem_copy(ptr, ptr, i64)
+declare i64 @ptr_read_i64(ptr, i64)
+declare void @ptr_write_i64(ptr, i64, i64)
+declare double @ptr_read_f64(ptr, i64)
+declare void @ptr_write_f64(ptr, i64, double)
+declare i64 @ptr_read_u8(ptr, i64)
+declare void @ptr_write_u8(ptr, i64, i64)
+declare void @cpu_fence()
+declare void @cpu_prefetch(ptr)
+declare void @datara_rt_global_set(ptr, i64)
+declare i64 @datara_rt_global_get(ptr)
 "#;

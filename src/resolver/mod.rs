@@ -227,6 +227,36 @@ impl Resolver {
             "datara_lua_exec",
             "polyglot_parallel_exec",
             "datara_polyglot_parallel_exec",
+            "arena_alloc",
+            "datara_rt_arena_alloc",
+            "arena_reset",
+            "datara_rt_arena_reset",
+            "arena_used",
+            "datara_rt_arena_used",
+            "mem_alloc",
+            "datara_rt_mem_alloc",
+            "stack_alloc",
+            "datara_rt_stack_alloc",
+            "mem_free",
+            "datara_rt_mem_free",
+            "mem_copy",
+            "datara_rt_mem_copy",
+            "ptr_read_i64",
+            "datara_rt_ptr_read_i64",
+            "ptr_write_i64",
+            "datara_rt_ptr_write_i64",
+            "ptr_read_f64",
+            "datara_rt_ptr_read_f64",
+            "ptr_write_f64",
+            "datara_rt_ptr_write_f64",
+            "ptr_read_u8",
+            "datara_rt_ptr_read_u8",
+            "ptr_write_u8",
+            "datara_rt_ptr_write_u8",
+            "cpu_fence",
+            "datara_rt_cpu_fence",
+            "cpu_prefetch",
+            "datara_rt_cpu_prefetch",
             "int_to_str",
             "datara_rt_int_to_str",
             "float_to_str",
@@ -531,7 +561,7 @@ impl Resolver {
                     let first_seg = u.path.first().map(|s| s.as_str());
                     if matches!(
                         first_seg,
-                        Some("python" | "rust" | "c" | "cpp" | "cxx" | "npm" | "js" | "ts")
+                        Some("python" | "rust" | "c" | "cpp" | "cxx" | "npm" | "js" | "ts" | "zig" | "csharp" | "cs" | "dotnet" | "lua")
                     ) {
                         let alias = u
                             .alias
@@ -1110,6 +1140,23 @@ impl Resolver {
                 }
                 Decl::CImport(_) => {}
                 Decl::Bridge(_) => {}
+                Decl::Global(g) => {
+                    let sym = Symbol {
+                        name: g.name.clone(),
+                        kind: SymbolKind::Variable,
+                        is_mut: g.is_mut,
+                        is_export: g.is_export,
+                        span: g.span.clone(),
+                        fields: HashMap::new(),
+                        methods: HashMap::new(),
+                        base_type: None,
+                        compositions: Vec::new(),
+                        generic_params: Vec::new(),
+                        type_node: g.type_node.clone(),
+                        return_type: None,
+                    };
+                    self.scopes[0].define(g.name.clone(), sym);
+                }
             }
         }
 

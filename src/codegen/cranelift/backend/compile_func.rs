@@ -207,6 +207,20 @@ pub fn compile_all_functions<M: ClifModule>(
             var_map.insert(p_name.clone(), var);
         }
 
+        for (gname, (gty, _)) in &dmir_module.globals {
+            if gty == "String" || gty == "Str" {
+                string_vars.insert(gname.clone());
+            }
+            if gty == "Bool" {
+                bool_vars.insert(gname.clone());
+            }
+            if gty.starts_with("List") || gty.starts_with('[') {
+                list_vars.insert(gname.clone());
+            } else if gty == "Map" || gty.starts_with("Map<") {
+                map_vars.insert(gname.clone());
+            }
+        }
+
         // v1.4.0 allocator tiers. The prologue is emitted inside the block
         // loop, right after the entry block is switched to
         // (switch_to_block requires the previous position to be pristine or
@@ -275,7 +289,13 @@ pub fn compile_all_functions<M: ClifModule>(
                             );
                     }
                     Inst::LoadVar { dest, name } => {
-                        if let Some(&var) = var_map.get(name) {
+                        if let Some(data_id) = decls.global_data_map.get(name) {
+                            let gv = module.declare_data_in_func(*data_id, builder.func);
+                            let addr = builder.ins().symbol_value(clif_types::I64, gv);
+                            let flags = cranelift_codegen::ir::MachMemFlags::new();
+                            let v = builder.ins().load(clif_types::I64, flags, addr, 0);
+                            val_map.insert(*dest, v);
+                        } else if let Some(&var) = var_map.get(name) {
                             let v = builder.use_var(var);
                             val_map.insert(*dest, v);
                         } else {
@@ -303,6 +323,12 @@ pub fn compile_all_functions<M: ClifModule>(
                             .get(value)
                             .copied()
                             .unwrap_or_else(|| builder.ins().iconst(clif_types::I64, 0));
+                        if let Some(data_id) = decls.global_data_map.get(name) {
+                            let gv = module.declare_data_in_func(*data_id, builder.func);
+                            let addr = builder.ins().symbol_value(clif_types::I64, gv);
+                            let flags = cranelift_codegen::ir::MachMemFlags::new();
+                            builder.ins().store(flags, v, addr, 0);
+                        }
                         if string_vids.contains(value) {
                             string_vars.insert(name.clone());
                         }
@@ -318,13 +344,15 @@ pub fn compile_all_functions<M: ClifModule>(
                         if let Some(c) = val_to_class.get(value) {
                             var_to_class.insert(name.clone(), c.clone());
                         }
-                        if let Some(&var) = var_map.get(name) {
-                            builder.def_var(var, v);
-                        } else {
-                            let v_ty = builder.func.dfg.value_type(v);
-                            let var = builder.declare_var(v_ty);
-                            builder.def_var(var, v);
-                            var_map.insert(name.clone(), var);
+                        if !decls.global_data_map.contains_key(name) {
+                            if let Some(&var) = var_map.get(name) {
+                                builder.def_var(var, v);
+                            } else {
+                                let v_ty = builder.func.dfg.value_type(v);
+                                let var = builder.declare_var(v_ty);
+                                builder.def_var(var, v);
+                                var_map.insert(name.clone(), var);
+                            }
                         }
                     }
 

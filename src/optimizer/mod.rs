@@ -105,6 +105,8 @@ pub struct Optimizer {
     pub sae: SemanticAdaptationEngine,
     pub function_effects: HashMap<String, crate::effects::EffectSet>,
     pub diagnostics: Vec<crate::diagnostics::Diagnostic>,
+    pub module_globals: HashSet<String>,
+    pub module_mutable_globals: HashSet<String>,
 }
 
 impl Optimizer {
@@ -116,6 +118,8 @@ impl Optimizer {
             mode: mode.to_string(),
             opt_tier: OptTier::Default,
             function_effects: HashMap::new(),
+            module_globals: HashSet::new(),
+            module_mutable_globals: HashSet::new(),
             report: OptimizationReport {
                 modules_analyzed: 1,
                 symbols_analyzed: 0,
@@ -181,6 +185,13 @@ impl Optimizer {
             return Err(diag);
         }
         self.report.symbols_analyzed = module.functions.len();
+        self.module_globals = module.globals.keys().cloned().collect();
+        self.module_mutable_globals = module
+            .globals
+            .iter()
+            .filter(|(_, (_, is_mut))| *is_mut)
+            .map(|(k, _)| k.clone())
+            .collect();
 
         if self.mode == "debug"
             || self.mode == "quick"
@@ -225,21 +236,23 @@ impl Optimizer {
                 })?;
             }
 
-            // 1.2 Loop Interchange: swaps nested loops (e.g. matmul) before mem2reg
+            // 1.2 Loop Interchange: swaps nested loops in domain mode before mem2reg
             // while induction variables and strides are in named variable form.
-            self.run_mutating_pass("loop_interchange", module, |opt, m| {
-                let mut fn_names: Vec<String> = m.functions.keys().cloned().collect();
-                fn_names.sort();
-                for name in fn_names {
-                    if let Some(f) = m.functions.get_mut(&name) {
-                        loops::engine_v2::LoopEngineV2::interchange_nested_loops(
-                            f,
-                            &opt.cost_model,
-                            &mut opt.trace,
-                        );
+            if self.mode == "domain" {
+                self.run_mutating_pass("loop_interchange", module, |opt, m| {
+                    let mut fn_names: Vec<String> = m.functions.keys().cloned().collect();
+                    fn_names.sort();
+                    for name in fn_names {
+                        if let Some(f) = m.functions.get_mut(&name) {
+                            loops::engine_v2::LoopEngineV2::interchange_nested_loops(
+                                f,
+                                &opt.cost_model,
+                                &mut opt.trace,
+                            );
+                        }
                     }
-                }
-            })?;
+                })?;
+            }
 
             // 1.5 Mem2Reg: promote named scalar variables into SSA values with
             // block parameters. Running it after inlining means inlined bodies are

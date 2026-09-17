@@ -23,8 +23,11 @@ fn find_msvc_cl() -> Option<PathBuf> {
     None
 }
 
+static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[test]
 fn test_c_header_datara_h_compilation() {
+    let _guard = TEST_LOCK.lock().unwrap();
     let cl_path = match find_msvc_cl() {
         Some(p) => p,
         None => {
@@ -126,6 +129,7 @@ int main(void) {
 
 #[test]
 fn test_cpp_header_datara_hpp_compilation_and_execution() {
+    let _guard = TEST_LOCK.lock().unwrap();
     let cl_path = match find_msvc_cl() {
         Some(p) => p,
         None => {
@@ -263,6 +267,7 @@ int main() {
 
 #[test]
 fn test_python_1m_floats_zero_copy_performance() {
+    let _guard = TEST_LOCK.lock().unwrap();
     let source = r#"
 import python
 

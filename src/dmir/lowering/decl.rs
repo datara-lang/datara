@@ -68,6 +68,18 @@ impl<'a> Lowering<'a> {
             self.symbol_values.insert(p.name.clone(), p_val);
         }
 
+        if f.name == "main" {
+            for g in self.program_globals.clone() {
+                if let Some(init_val) = self.lower_expr(&g.init, &mut entry_id) {
+                    self.symbol_values.insert(g.name.clone(), init_val);
+                    self.get_block_mut(entry_id).instructions.push(Inst::AssignVar {
+                        name: g.name.clone(),
+                        value: init_val,
+                    });
+                }
+            }
+        }
+
         for req in &f.requires {
             if is_contract_statically_true(&req.condition, &param_refinements) {
                 continue;

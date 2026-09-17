@@ -162,12 +162,12 @@ impl SLPOptimizer {
                     ) = quad
                     {
                         let is_float = ty0 == "Float" || ty0 == "Float32" || ty0 == "f32";
-                        let is_int = ty0 == "Int32" || ty0 == "i32";
+                        let is_int = ty0 == "Int" || ty0 == "Int32" || ty0 == "i32";
 
                         let same_op = op0 == op1
                             && op0 == op2
                             && op0 == op3
-                            && (op0 == "+" || op0 == "-" || op0 == "*");
+                            && (op0 == "+" || op0 == "-" || op0 == "*" || (is_float && op0 == "/"));
                         let same_ty =
                             ty0 == ty1 && ty0 == ty2 && ty0 == ty3 && (is_float || is_int);
 
@@ -202,6 +202,7 @@ impl SLPOptimizer {
                                 let func = match op0.as_str() {
                                     "-" => "f32x4_sub",
                                     "*" => "f32x4_mul",
+                                    "/" => "f32x4_div",
                                     _ => "f32x4_add",
                                 };
                                 ("float4", func, "float4", "Float4")

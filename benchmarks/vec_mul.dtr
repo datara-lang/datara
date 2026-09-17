@@ -1,0 +1,26 @@
+fn compute_vec_mul(n: Int) -> Float {
+    mut a: List<Float> = []
+    mut b: List<Float> = []
+    mut c: List<Float> = []
+    mut i = 0
+    while i < n {
+        a.push(1.25)
+        b.push(4.0)
+        c.push(0.0)
+        i = i + 1
+    }
+    mut idx = 0
+    while idx < n {
+        c[idx] = a[idx] * b[idx]
+        idx = idx + 1
+    }
+    return c[n - 1]
+}
+
+fn main() {
+    let t0 = now_ns()
+    let res = compute_vec_mul(100000)
+    let t1 = now_ns()
+    out "DATARA_IN_PROCESS_US: " + ((t1 - t0) / 1000)
+    out res
+}

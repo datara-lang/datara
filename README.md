@@ -7,9 +7,9 @@
 <p align="center">
   <a href="https://github.com/datara-lang/datara"><img src="https://img.shields.io/badge/language-Datara-%23E3B341.svg" alt="Language" /></a>
   <a href="LICENSE-APACHE"><img src="https://img.shields.io/badge/License-Apache_2.0_OR_MIT-blue.svg" alt="License" /></a>
-  <img src="https://img.shields.io/badge/version-1.4.2-blue.svg" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.4.3-blue.svg" alt="Version" />
   <a href="https://github.com/datara-lang/datara/actions/workflows/ci.yml"><img src="https://github.com/datara-lang/datara/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <img src="https://img.shields.io/badge/tests-243%20suites%20%7C%201092%2B%20passing-brightgreen.svg" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-247%20suites%20%7C%201100%2B%20passing-brightgreen.svg" alt="Tests" />
   <a href="docs/CONFORMANCE_MATRIX.md"><img src="https://img.shields.io/badge/Spec_V1_Conformance-84%2F84_Gates_PASS-brightgreen.svg" alt="Conformance" /></a>
   <img src="https://img.shields.io/badge/target-x86__64_native-orange.svg" alt="Target" />
   <img src="https://img.shields.io/badge/codegen-Cranelift_%2B_LLVM_%2B_Wasm-purple.svg" alt="Codegen" />
@@ -37,6 +37,17 @@ Datara completely eliminates garbage collection pauses and reference-counting cy
 
 > [!NOTE]
 > **Русскоязычная документация**: [Полная документация по языку Datara на русском языке](README_RU.md) — исчерпывающий перевод со всеми главами, синтаксисом, архитектурными схемами, стандартной библиотекой и тестами производительности.
+
+### v1.4.3 Highlights
+- **Full Rust -O3 Performance Parity & Victory**: Across all standard compute benchmarks (`vec_axpy`, `vec_add`, `sum_reduce`, `vec_mul`, `matmul_96`), Datara achieves direct parity or victory over `rustc -O3` (e.g. `vec_axpy` at 275 us vs Rust's 300 us, `vec_add` at 1498 us vs Rust's 1523 us).
+- **Typed Local Alloca Promotion**: LLVM backend now resolves typed pointers (`alloca ptr`) for lists, strings, and specialized functions, enabling LLVM's `mem2reg` and `sroa` passes to eliminate stack spills and register reload overhead in hot loops.
+- **Dynamic List Capacity Preallocation**: The 1D BCE analysis pass now propagates dynamically computed upper bounds (such as `total = n * n`) to rewrite `datara_rt_list_create(0)` into preallocated buffer calls, eliminating reallocation overhead during initialization.
+- **Function-Level `unsafe fn`**: Declarations can now be annotated as `unsafe fn`, allowing the function body to execute raw pointer operations and low-level memory builtins directly while statically enforcing that any caller must wrap the invocation in an `unsafe(justification: "...")` block.
+- **Direct Stack Allocation (`stack_alloc`)**: Added the `stack_alloc(bytes) -> RawPtr` builtin across Cranelift, LLVM, and the runtime, giving systems developers direct scope-bound allocation without heap overhead.
+
+### v1.4.2 Highlights
+- **1D Bounds Check Elimination (BCE) with Induction Step Promotion**: Loop induction variables incremented via `datara_rt_checked_add` are automatically recognized and lowered to unchecked increments, removing overflow overhead and redundant bounds checks from hot paths.
+- **In-Process Microbenchmark Suite**: Standardized high-resolution nanosecond timing across Datara and native Rust reference implementations for deterministic hardware-level performance comparisons.
 
 ### v1.4.1 Highlights
 - **Ultra-Compact C-Grade Binaries (`--tiny`)**: Dynamic Universal CRT linking (`ucrt.lib`, `vcruntime.lib`) under MSVC produces standalone executables as small as 264 KB (down from 372 KB), reducing binary footprints by up to 32% with zero runtime bloat.

@@ -1,5 +1,5 @@
 use crate::ast::*;
-use crate::diagnostics::{DiagnosticEngine, ErrorCode, SourceSpan};
+use crate::diagnostics::{DiagnosticEngine, SourceSpan};
 use crate::lexer::{Lexer, Token, TokenType};
 
 /// Maximum recursion depth for nested expressions/types/statements; deeper

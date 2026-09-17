@@ -1,0 +1,30 @@
+fn compute_vec_add(n: Int, iters: Int) -> Float {
+    mut a: List<Float> = []
+    mut b: List<Float> = []
+    mut c: List<Float> = []
+    mut i = 0
+    while i < n {
+        a.push(1.5)
+        b.push(2.5)
+        c.push(0.0)
+        i = i + 1
+    }
+    mut it = 0
+    while it < iters {
+        mut idx = 0
+        while idx < n {
+            c[idx] = a[idx] + b[idx]
+            idx = idx + 1
+        }
+        it = it + 1
+    }
+    return c[n - 1]
+}
+
+fn main() {
+    let t0 = now_ns()
+    let res = compute_vec_add(100000, 50)
+    let t1 = now_ns()
+    out "DATARA_IN_PROCESS_US: " + ((t1 - t0) / 1000)
+    out res
+}

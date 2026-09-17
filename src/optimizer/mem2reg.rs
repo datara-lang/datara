@@ -36,9 +36,10 @@ pub fn promote_module(module: &mut Module) -> usize {
     }
     let mut next = max_id + 1;
 
+    let globals: HashSet<String> = module.globals.keys().cloned().collect();
     let mut total = 0;
     for function in module.functions.values_mut() {
-        total += promote_function(function, &mut next);
+        total += promote_function_with_globals(function, &mut next, &globals);
     }
     total
 }
@@ -174,12 +175,18 @@ fn visit_vids(inst: &Inst, f: &mut dyn FnMut(&ValueId)) {
     }
 }
 
-/// Promote one function. Returns the number of promoted variables (0 when the
-/// function was restored unchanged because some condition was not provable).
 pub fn promote_function(function: &mut Function, next: &mut usize) -> usize {
+    promote_function_with_globals(function, next, &HashSet::new())
+}
+
+pub fn promote_function_with_globals(
+    function: &mut Function,
+    next: &mut usize,
+    globals: &HashSet<String>,
+) -> usize {
     let mut original = Some(function.clone());
 
-    match promote_function_inner(function, next) {
+    match promote_function_inner(function, next, globals) {
         Ok(count) => {
             if count > 0 {
                 // Self-check before committing: a pass that cannot prove its
@@ -199,7 +206,11 @@ pub fn promote_function(function: &mut Function, next: &mut usize) -> usize {
     }
 }
 
-fn promote_function_inner(function: &mut Function, next: &mut usize) -> Result<usize, String> {
+fn promote_function_inner(
+    function: &mut Function,
+    next: &mut usize,
+    globals: &HashSet<String>,
+) -> Result<usize, String> {
     // Legacy compound nodes duplicate instruction lists inside a single
     // instruction; renaming through them is not worth the complexity and the
     // lowering no longer produces them.
@@ -248,7 +259,7 @@ fn promote_function_inner(function: &mut Function, next: &mut usize) -> Result<u
     // named variable; conflicts mark a name as unpromotable.
     let mut def_type: HashMap<ValueId, String> = HashMap::new();
     let mut var_type: HashMap<String, String> = HashMap::new();
-    let mut bad_names: HashSet<String> = HashSet::new();
+    let mut bad_names: HashSet<String> = globals.clone();
     for (name, (_, ty)) in &param_seeds {
         var_type.entry(name.clone()).or_insert_with(|| ty.clone());
     }

@@ -1,0 +1,24 @@
+fn compute_axpy(n: Int, alpha: Float) -> Float {
+    mut x: List<Float> = []
+    mut y: List<Float> = []
+    mut i = 0
+    while i < n {
+        x.push(2.0)
+        y.push(10.0)
+        i = i + 1
+    }
+    mut idx = 0
+    while idx < n {
+        y[idx] = alpha * x[idx] + y[idx]
+        idx = idx + 1
+    }
+    return y[n - 1]
+}
+
+fn main() {
+    let t0 = now_ns()
+    let res = compute_axpy(100000, 3.5)
+    let t1 = now_ns()
+    out "DATARA_IN_PROCESS_US: " + ((t1 - t0) / 1000)
+    out res
+}

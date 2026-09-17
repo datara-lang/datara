@@ -171,6 +171,9 @@ impl LoopOptimizer {
             "cross",
             "cross3",
             "pure_",
+            "checked_",
+            "wrapping_",
+            "saturating_",
         ];
         pure_prefixes.iter().any(|p| clean.starts_with(p))
     }
@@ -234,7 +237,7 @@ impl LoopOptimizer {
         match inst {
             // Loading a variable that the loop never writes produces the same
             // value on every iteration, so the load is loop-invariant.
-            Inst::LoadVar { name, .. } => !facts.may_alias && !facts.assigned.contains(name),
+            Inst::LoadVar { name, .. } => !facts.assigned.contains(name),
             // GetField dereferences its object: hoisting it out of a zero-trip
             // loop could introduce a fault the original never had. Stay
             // conservative and never hoist it.

@@ -750,6 +750,8 @@ pub struct Module {
     pub function_line_spans: HashMap<String, Vec<crate::diagnostics::SourceSpan>>,
     #[serde(default)]
     pub link_libraries: Vec<String>,
+    #[serde(default)]
+    pub globals: HashMap<String, (String, bool)>,
 }
 
 impl Module {
@@ -765,6 +767,7 @@ impl Module {
             function_spans: HashMap::new(),
             function_line_spans: HashMap::new(),
             link_libraries: Vec::new(),
+            globals: HashMap::new(),
         }
     }
 }

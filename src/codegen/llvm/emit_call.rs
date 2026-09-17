@@ -207,11 +207,16 @@ impl<'a> LlvmEmitter<'a> {
         if actual_func.ends_with("http_get") && args.is_empty() {
             converted_args.push("ptr null".to_string());
         }
-        let is_set_f64_unchecked = actual_func == "datara_rt_list_set_unchecked"
+        let is_set_f64 = (actual_func == "datara_rt_list_set"
+            || actual_func == "datara_rt_list_set_unchecked")
             && args.len() >= 3
             && value_types.get(&args[2]).copied() == Some("double");
-        let actual_func = if is_set_f64_unchecked {
-            "datara_rt_list_set_f64_unchecked"
+        let actual_func = if is_set_f64 {
+            if actual_func == "datara_rt_list_set_unchecked" {
+                "datara_rt_list_set_f64_unchecked"
+            } else {
+                "datara_rt_list_set_f64"
+            }
         } else {
             actual_func
         };
@@ -226,7 +231,7 @@ impl<'a> LlvmEmitter<'a> {
                 continue;
             }
             let is_list_slot_f64 = aty == "double"
-                && !is_set_f64_unchecked
+                && !is_set_f64
                 && ((actual_func == "datara_rt_list_append" && idx == 1)
                     || (actual_func == "datara_rt_list_set" && idx == 2)
                     || (actual_func == "datara_rt_list_create_repeat" && idx == 1)
@@ -263,20 +268,16 @@ impl<'a> LlvmEmitter<'a> {
             ));
         } else if actual_func == "datara_rt_list_get_f64_unchecked"
             || (actual_func == "datara_rt_list_get_unchecked" && ret_ty == "double")
+            || (actual_func == "datara_rt_list_get" && ret_ty == "double")
         {
+            let callee = if actual_func.contains("unchecked") {
+                "datara_rt_list_get_f64_unchecked"
+            } else {
+                "datara_rt_list_get_f64"
+            };
             out.push_str(&format!(
-                "  %v{} = {} double @datara_rt_list_get_f64_unchecked({})\n",
-                dest.0, call_prefix, args_str
-            ));
-        } else if actual_func == "datara_rt_list_get" && ret_ty == "double" {
-            let raw_tmp = format!("%raw_f64_get_{}", dest.0);
-            out.push_str(&format!(
-                "  {} = {} i64 @{}({})\n",
-                raw_tmp, call_prefix, actual_func, args_str
-            ));
-            out.push_str(&format!(
-                "  %v{} = bitcast i64 {} to double\n",
-                dest.0, raw_tmp
+                "  %v{} = {} double @{}({})\n",
+                dest.0, call_prefix, callee, args_str
             ));
         } else {
             out.push_str(&format!(
@@ -284,7 +285,7 @@ impl<'a> LlvmEmitter<'a> {
                 dest.0, call_prefix, ret_ty, actual_func, args_str
             ));
         }
-        if (actual_func == "datara_rt_list_get" || actual_func == "datara_rt_list_get_unchecked")
+        if actual_func.starts_with("datara_rt_list_get")
             && args.len() >= 2
         {
             out.push_str(&format!(
@@ -433,11 +434,16 @@ impl<'a> LlvmEmitter<'a> {
             format!("ptr %v{}", object.0)
         };
 
-        let is_set_f64_unchecked = actual_func == "datara_rt_list_set_unchecked"
+        let is_set_f64 = (actual_func == "datara_rt_list_set"
+            || actual_func == "datara_rt_list_set_unchecked")
             && args.len() >= 2
             && value_types.get(&args[1]).copied() == Some("double");
-        let actual_func = if is_set_f64_unchecked {
-            "datara_rt_list_set_f64_unchecked".to_string()
+        let actual_func = if is_set_f64 {
+            if actual_func == "datara_rt_list_set_unchecked" {
+                "datara_rt_list_set_f64_unchecked".to_string()
+            } else {
+                "datara_rt_list_set_f64".to_string()
+            }
         } else {
             actual_func
         };
@@ -491,25 +497,31 @@ impl<'a> LlvmEmitter<'a> {
             ));
         } else if actual_func == "datara_rt_list_get_f64_unchecked"
             || (actual_func == "datara_rt_list_get_unchecked" && ret_ty == "double")
+            || (actual_func == "datara_rt_list_get" && ret_ty == "double")
         {
+            let callee = if actual_func.contains("unchecked") {
+                "datara_rt_list_get_f64_unchecked"
+            } else {
+                "datara_rt_list_get_f64"
+            };
             out.push_str(&format!(
-                "  %v{} = {} double @datara_rt_list_get_f64_unchecked({})\n",
-                dest.0, call_prefix, args_str
-            ));
-        } else if actual_func == "datara_rt_list_get" && ret_ty == "double" {
-            let raw_tmp = format!("%mraw_f64_get_{}", dest.0);
-            out.push_str(&format!(
-                "  {} = {} i64 @{}({})\n",
-                raw_tmp, call_prefix, actual_func, args_str
-            ));
-            out.push_str(&format!(
-                "  %v{} = bitcast i64 {} to double\n",
-                dest.0, raw_tmp
+                "  %v{} = {} double @{}({})\n",
+                dest.0, call_prefix, callee, args_str
             ));
         } else {
             out.push_str(&format!(
                 "  %v{} = {} {} @{}({})\n",
                 dest.0, call_prefix, ret_ty, actual_func, args_str
+            ));
+        }
+        if actual_func.starts_with("datara_rt_list_get") && !args.is_empty() {
+            out.push_str(&format!(
+                "  %fvrp_mbce_min_{} = icmp sge i64 %v{}, 0\n",
+                dest.0, args[0].0
+            ));
+            out.push_str(&format!(
+                "  call void @llvm.assume(i1 %fvrp_mbce_min_{})\n",
+                dest.0
             ));
         }
         // v1.4.1: record the Outcome class on checked-accessor

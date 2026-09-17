@@ -15,6 +15,7 @@ pub struct SecurityVerifier<'a> {
     pub type_checker: &'a TypeChecker<'a>,
     pub function_decls: HashMap<String, (Vec<Param>, Vec<ContractClause>)>,
     pub capabilities_manifest: Option<crate::project::CapabilitiesConfig>,
+    pub unsafe_functions: HashSet<String>,
 }
 
 #[derive(Clone)]
@@ -36,6 +37,7 @@ impl<'a> SecurityVerifier<'a> {
             type_checker,
             function_decls: HashMap::new(),
             capabilities_manifest: None,
+            unsafe_functions: HashSet::new(),
         }
     }
 
@@ -46,11 +48,15 @@ impl<'a> SecurityVerifier<'a> {
 
     pub fn verify_program(&mut self, program: &Program, diag: &mut DiagnosticEngine) {
         self.function_decls.clear();
+        self.unsafe_functions.clear();
         for decl in &program.declarations {
             match decl {
                 Decl::Function(f) | Decl::Flow(f) | Decl::Task(f) => {
                     self.function_decls
                         .insert(f.name.clone(), (f.params.clone(), f.requires.clone()));
+                    if f.attributes.iter().any(|a| a.name == "unsafe") {
+                        self.unsafe_functions.insert(f.name.clone());
+                    }
                 }
                 Decl::Class(c) => {
                     for item in &c.body_items {
@@ -162,13 +168,18 @@ impl<'a> SecurityVerifier<'a> {
 
         let is_no_alloc = f.attributes.iter().any(|a| a.name == "no_alloc");
         let is_no_panic = f.attributes.iter().any(|a| a.name == "no_panic");
+        let is_unsafe_fn = f.attributes.iter().any(|a| a.name == "unsafe");
 
         let mut ctx = FnContext {
             fn_name: f.name.clone(),
             requires,
             symbols,
             proven_non_zero,
-            unsafe_justification: None,
+            unsafe_justification: if is_unsafe_fn {
+                Some("unsafe function body".to_string())
+            } else {
+                None
+            },
             outer_vars,
             is_no_alloc,
             is_no_panic,
@@ -256,12 +267,18 @@ impl<'a> SecurityVerifier<'a> {
         let is_no_alloc = m.attributes.iter().any(|a| a.name == "no_alloc");
         let is_no_panic = m.attributes.iter().any(|a| a.name == "no_panic");
 
+        let is_unsafe_method = m.attributes.iter().any(|a| a.name == "unsafe");
+
         let mut ctx = FnContext {
             fn_name,
             requires,
             symbols,
             proven_non_zero,
-            unsafe_justification: None,
+            unsafe_justification: if is_unsafe_method {
+                Some("unsafe method body".to_string())
+            } else {
+                None
+            },
             outer_vars,
             is_no_alloc,
             is_no_panic,

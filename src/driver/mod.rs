@@ -467,11 +467,15 @@ impl ForgenCompiler {
                         };
                         match link_result {
                             Ok(()) => {
-                                let _ = std::fs::remove_file(&ll_path);
+                                if std::env::var("FORGEN_KEEP_LLVM").is_err() {
+                                    let _ = std::fs::remove_file(&ll_path);
+                                }
                                 Ok(abs_target)
                             }
                             Err(e) => {
-                                let _ = std::fs::remove_file(&ll_path);
+                                if std::env::var("FORGEN_KEEP_LLVM").is_err() {
+                                    let _ = std::fs::remove_file(&ll_path);
+                                }
                                 if is_shared_lib {
                                     Err(format!("Shared library link failed: {}", e))
                                 } else {
@@ -637,6 +641,13 @@ impl ForgenCompiler {
     }
 
     pub fn compile_file_to_dmir(&self, path: &Path) -> Result<Module, String> {
+        if let Ok(abs) = path.canonicalize() {
+            if let Ok(layout) = crate::project::ProjectDiscovery::discover(Some(&abs)) {
+                if layout.source_files.len() > 1 {
+                    return self.compile_files_to_dmir(&layout.source_files);
+                }
+            }
+        }
         self.compile_files_to_dmir(&[path.to_path_buf()])
     }
 
@@ -769,6 +780,13 @@ impl ForgenCompiler {
     }
 
     pub fn compile_file(&self, path: &Path, output_path: Option<&Path>) -> CompilationResult {
+        if let Ok(abs) = path.canonicalize() {
+            if let Ok(layout) = crate::project::ProjectDiscovery::discover(Some(&abs)) {
+                if layout.source_files.len() > 1 {
+                    return self.compile_files(&layout.source_files, output_path);
+                }
+            }
+        }
         let source = match fs::read_to_string(path) {
             Ok(s) => s,
             Err(e) => {

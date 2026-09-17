@@ -2,6 +2,7 @@ mod alloc_tier;
 pub mod compile_func;
 pub mod declare_core;
 pub mod declare_ext;
+pub mod declare_memory;
 pub mod declare_module;
 pub mod hot_reload;
 pub mod inst_binop;
@@ -149,6 +150,7 @@ impl RealCraneliftBackend {
     ) -> Result<ModuleCompileArtifacts, String> {
         let mut func_ids = HashMap::new();
         let core_ids = declare_core::declare_runtime_core(module, call_conv, &mut func_ids)?;
+        declare_memory::declare_runtime_memory(module, call_conv, &mut func_ids)?;
         let (rt_str_char_at_id, rt_str_eq_id, strbuf_ids) =
             declare_ext::declare_runtime_ext(module, dmir_module, call_conv, &mut func_ids)?;
         let declare_ext::StrBufIds {

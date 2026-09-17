@@ -447,7 +447,7 @@ int32_t datara_py_is_available(void) {
 }
 
 const char* datara_py_last_error(void) {
-    return g_py_last_error;
+    return datara_rt_str_from_c_str(g_py_last_error);
 }
 
 void datara_py_clear_error(void) {
@@ -464,6 +464,7 @@ static void py_handle_destructor(void* ptr) {
 int64_t datara_py_exec(const char* code) {
     if (!datara_py_is_available()) return -1;
     if (!code) return 0;
+    const char* c_code = datara_str_data(code);
 
     int32_t gstate = g_py.PyGILState_Ensure();
 
@@ -477,7 +478,7 @@ int64_t datara_py_exec(const char* code) {
     PyObject* exec_fn = g_py.PyObject_GetAttrString(builtins, "exec");
     PyObject* main_mod = g_py.PyImport_ImportModule("__main__");
     PyObject* main_dict = main_mod ? g_py.PyObject_GetAttrString(main_mod, "__dict__") : NULL;
-    PyObject* code_str = g_py.PyUnicode_FromString(code);
+    PyObject* code_str = g_py.PyUnicode_FromString(c_code);
 
     int64_t status = 0;
     if (exec_fn && main_dict && code_str) {
@@ -505,8 +506,9 @@ int64_t datara_py_exec(const char* code) {
 }
 
 const char* datara_py_eval(const char* code) {
-    if (!datara_py_is_available()) return "";
-    if (!code) return "";
+    if (!datara_py_is_available()) return EMPTY_DATARA_STR;
+    if (!code) return EMPTY_DATARA_STR;
+    const char* c_code = datara_str_data(code);
 
     int32_t gstate = g_py.PyGILState_Ensure();
 
@@ -514,15 +516,15 @@ const char* datara_py_eval(const char* code) {
     if (!builtins) {
         capture_current_python_error();
         g_py.PyGILState_Release(gstate);
-        return "";
+        return EMPTY_DATARA_STR;
     }
 
     PyObject* eval_fn = g_py.PyObject_GetAttrString(builtins, "eval");
     PyObject* main_mod = g_py.PyImport_ImportModule("__main__");
     PyObject* main_dict = main_mod ? g_py.PyObject_GetAttrString(main_mod, "__dict__") : NULL;
-    PyObject* code_str = g_py.PyUnicode_FromString(code);
+    PyObject* code_str = g_py.PyUnicode_FromString(c_code);
 
-    char* ret_buf = "";
+    char* ret_buf = (char*)EMPTY_DATARA_STR;
 
     if (eval_fn && main_dict && code_str) {
         PyObject* res = g_py.PyObject_CallFunctionObjArgs(eval_fn, code_str, main_dict, main_dict, NULL);
@@ -534,12 +536,11 @@ const char* datara_py_eval(const char* code) {
                 int64_t len = 0;
                 const char* utf8 = g_py.PyUnicode_AsUTF8AndSize(s_obj, &len);
                 if (utf8) {
-                    ret_buf = (char*)datara_rt_arena_alloc(len + 1);
+                    ret_buf = datara_str_alloc((size_t)len);
                     if (ret_buf) {
-                        memcpy(ret_buf, utf8, len);
-                        ret_buf[len] = '\0';
+                        memcpy(ret_buf + sizeof(int64_t), utf8, (size_t)len);
                     } else {
-                        ret_buf = "";
+                        ret_buf = (char*)EMPTY_DATARA_STR;
                     }
                 }
                 g_py.Py_DecRef(s_obj);
@@ -568,6 +569,7 @@ const char* datara_py_eval_safe(const char* code) {
 int64_t datara_py_eval_int(const char* code) {
     if (!datara_py_is_available()) return 0;
     if (!code) return 0;
+    const char* c_code = datara_str_data(code);
 
     int32_t gstate = g_py.PyGILState_Ensure();
 
@@ -581,7 +583,7 @@ int64_t datara_py_eval_int(const char* code) {
     PyObject* eval_fn = g_py.PyObject_GetAttrString(builtins, "eval");
     PyObject* main_mod = g_py.PyImport_ImportModule("__main__");
     PyObject* main_dict = main_mod ? g_py.PyObject_GetAttrString(main_mod, "__dict__") : NULL;
-    PyObject* code_str = g_py.PyUnicode_FromString(code);
+    PyObject* code_str = g_py.PyUnicode_FromString(c_code);
 
     int64_t ret_val = 0;
 
@@ -616,6 +618,7 @@ int64_t datara_py_eval_int(const char* code) {
 double datara_py_eval_float(const char* code) {
     if (!datara_py_is_available()) return 0.0;
     if (!code) return 0.0;
+    const char* c_code = datara_str_data(code);
 
     int32_t gstate = g_py.PyGILState_Ensure();
 
@@ -629,7 +632,7 @@ double datara_py_eval_float(const char* code) {
     PyObject* eval_fn = g_py.PyObject_GetAttrString(builtins, "eval");
     PyObject* main_mod = g_py.PyImport_ImportModule("__main__");
     PyObject* main_dict = main_mod ? g_py.PyObject_GetAttrString(main_mod, "__dict__") : NULL;
-    PyObject* code_str = g_py.PyUnicode_FromString(code);
+    PyObject* code_str = g_py.PyUnicode_FromString(c_code);
 
     double ret_val = 0.0;
 
@@ -664,10 +667,11 @@ double datara_py_eval_float(const char* code) {
 int64_t datara_py_import(const char* module_name) {
     if (!datara_py_is_available()) return 0;
     if (!module_name) return 0;
+    const char* c_name = datara_str_data(module_name);
 
     int32_t gstate = g_py.PyGILState_Ensure();
 
-    PyObject* mod = g_py.PyImport_ImportModule(module_name);
+    PyObject* mod = g_py.PyImport_ImportModule(c_name);
     if (!mod || g_py.PyErr_Occurred()) {
         capture_current_python_error();
         g_py.PyGILState_Release(gstate);
@@ -681,18 +685,20 @@ int64_t datara_py_import(const char* module_name) {
 }
 
 const char* datara_py_call(const char* fn_name, const char* args_json) {
-    if (!datara_py_is_available()) return "";
-    if (!fn_name) return "";
+    if (!datara_py_is_available()) return EMPTY_DATARA_STR;
+    if (!fn_name) return EMPTY_DATARA_STR;
+    const char* c_fn = datara_str_data(fn_name);
+    const char* c_args = args_json ? datara_str_data(args_json) : NULL;
 
     int32_t gstate = g_py.PyGILState_Ensure();
 
     PyObject* target_fn = NULL;
-    const char* dot = strchr(fn_name, '.');
+    const char* dot = strchr(c_fn, '.');
     if (dot) {
-        size_t mod_len = (size_t)(dot - fn_name);
+        size_t mod_len = (size_t)(dot - c_fn);
         char mod_name[256];
         if (mod_len < sizeof(mod_name)) {
-            memcpy(mod_name, fn_name, mod_len);
+            memcpy(mod_name, c_fn, mod_len);
             mod_name[mod_len] = '\0';
             PyObject* mod = g_py.PyImport_ImportModule(mod_name);
             if (mod) {
@@ -703,13 +709,13 @@ const char* datara_py_call(const char* fn_name, const char* args_json) {
     } else {
         PyObject* main_mod = g_py.PyImport_ImportModule("__main__");
         if (main_mod) {
-            target_fn = g_py.PyObject_GetAttrString(main_mod, fn_name);
+            target_fn = g_py.PyObject_GetAttrString(main_mod, c_fn);
             g_py.Py_DecRef(main_mod);
         }
         if (!target_fn) {
             PyObject* builtins = g_py.PyImport_ImportModule("builtins");
             if (builtins) {
-                target_fn = g_py.PyObject_GetAttrString(builtins, fn_name);
+                target_fn = g_py.PyObject_GetAttrString(builtins, c_fn);
                 g_py.Py_DecRef(builtins);
             }
         }
@@ -718,18 +724,18 @@ const char* datara_py_call(const char* fn_name, const char* args_json) {
     if (!target_fn) {
         capture_current_python_error();
         if (g_py_last_error[0] == '\0') {
-            snprintf(g_py_last_error, sizeof(g_py_last_error), "Python function '%s' not found", fn_name);
+            snprintf(g_py_last_error, sizeof(g_py_last_error), "Python function '%s' not found", c_fn);
         }
         g_py.PyGILState_Release(gstate);
-        return "";
+        return EMPTY_DATARA_STR;
     }
 
     PyObject* args_tuple = NULL;
-    if (args_json && args_json[0] == '[') {
+    if (c_args && c_args[0] == '[') {
         PyObject* json_mod = g_py.PyImport_ImportModule("json");
         if (json_mod) {
             PyObject* loads_fn = g_py.PyObject_GetAttrString(json_mod, "loads");
-            PyObject* json_str = g_py.PyUnicode_FromString(args_json);
+            PyObject* json_str = g_py.PyUnicode_FromString(c_args);
             if (loads_fn && json_str) {
                 PyObject* py_list = g_py.PyObject_CallFunctionObjArgs(loads_fn, json_str, NULL);
                 if (py_list && g_py.PyList_Size) {
@@ -755,7 +761,7 @@ const char* datara_py_call(const char* fn_name, const char* args_json) {
         args_tuple = g_py.PyTuple_New(0);
     }
 
-    char* ret_buf = "";
+    char* ret_buf = (char*)EMPTY_DATARA_STR;
     PyObject* call_res = g_py.PyObject_Call(target_fn, args_tuple, NULL);
     if (!call_res || g_py.PyErr_Occurred()) {
         capture_current_python_error();
@@ -765,10 +771,11 @@ const char* datara_py_call(const char* fn_name, const char* args_json) {
             int64_t len = 0;
             const char* utf8 = g_py.PyUnicode_AsUTF8AndSize(s, &len);
             if (utf8) {
-                ret_buf = (char*)datara_rt_arena_alloc(len + 1);
+                ret_buf = datara_str_alloc((size_t)len);
                 if (ret_buf) {
-                    memcpy(ret_buf, utf8, len);
-                    ret_buf[len] = '\0';
+                    memcpy(ret_buf + sizeof(int64_t), utf8, (size_t)len);
+                } else {
+                    ret_buf = (char*)EMPTY_DATARA_STR;
                 }
             }
             g_py.Py_DecRef(s);
@@ -787,7 +794,8 @@ const char* datara_py_call(const char* fn_name, const char* args_json) {
 const char* datara_py_call_1_str(const char* fn_name, const char* arg0) {
     char args_buf[1024];
     // Form simple JSON array [ "arg0" ]
-    snprintf(args_buf, sizeof(args_buf), "[\"%s\"]", arg0 ? arg0 : "");
+    const char* c_arg0 = arg0 ? datara_str_data(arg0) : "";
+    snprintf(args_buf, sizeof(args_buf), "[\"%s\"]", c_arg0);
     return datara_py_call(fn_name, args_buf);
 }
 
@@ -795,14 +803,16 @@ double datara_py_call_1_float(const char* fn_name, double arg0) {
     char args_buf[128];
     snprintf(args_buf, sizeof(args_buf), "[%f]", arg0);
     const char* s = datara_py_call(fn_name, args_buf);
-    return s && s[0] ? atof(s) : 0.0;
+    const char* ds = datara_str_data(s);
+    return ds && ds[0] ? atof(ds) : 0.0;
 }
 
 double datara_py_call_2_float(const char* fn_name, double a, double b) {
     char args_buf[256];
     snprintf(args_buf, sizeof(args_buf), "[%f, %f]", a, b);
     const char* s = datara_py_call(fn_name, args_buf);
-    return s && s[0] ? atof(s) : 0.0;
+    const char* ds = datara_str_data(s);
+    return ds && ds[0] ? atof(ds) : 0.0;
 }
 
 int64_t datara_py_call_2_float_bool(const char* fn_name, double a, double b) {
@@ -810,7 +820,8 @@ int64_t datara_py_call_2_float_bool(const char* fn_name, double a, double b) {
     snprintf(args_buf, sizeof(args_buf), "[%f, %f]", a, b);
     const char* s = datara_py_call(fn_name, args_buf);
     if (!s) return 0;
-    if (strcmp(s, "True") == 0 || strcmp(s, "true") == 0 || strcmp(s, "1") == 0) return 1;
+    const char* ds = datara_str_data(s);
+    if (strcmp(ds, "True") == 0 || strcmp(ds, "true") == 0 || strcmp(ds, "1") == 0) return 1;
     return 0;
 }
 
@@ -818,14 +829,16 @@ int64_t datara_py_call_1_int(const char* fn_name, int64_t a) {
     char args_buf[128];
     snprintf(args_buf, sizeof(args_buf), "[%lld]", (long long)a);
     const char* s = datara_py_call(fn_name, args_buf);
-    return s && s[0] ? atoll(s) : 0;
+    const char* ds = datara_str_data(s);
+    return ds && ds[0] ? atoll(ds) : 0;
 }
 
 int64_t datara_py_call_2_int(const char* fn_name, int64_t a, int64_t b) {
     char args_buf[256];
     snprintf(args_buf, sizeof(args_buf), "[%lld, %lld]", (long long)a, (long long)b);
     const char* s = datara_py_call(fn_name, args_buf);
-    return s && s[0] ? atoll(s) : 0;
+    const char* ds = datara_str_data(s);
+    return ds && ds[0] ? atoll(ds) : 0;
 }
 
 int64_t* datara_py_call_list_f64(const char* fn_name, int64_t* in_list) {
@@ -846,11 +859,12 @@ int64_t* datara_py_call_list_f64(const char* fn_name, int64_t* in_list) {
     const char* res_json = datara_py_call(fn_name, buf);
     free(buf);
 
-    if (!res_json || res_json[0] != '[') {
+    const char* d_res = datara_str_data(res_json);
+    if (!d_res || d_res[0] != '[') {
         return datara_rt_list_create(0);
     }
     int64_t* out_list = datara_rt_list_create_capacity(8);
-    const char* p = res_json + 1;
+    const char* p = d_res + 1;
     while (*p && *p != ']') {
         while (*p == ' ' || *p == ',') p++;
         if (*p == ']') break;
@@ -866,19 +880,20 @@ int64_t* datara_py_call_list_f64(const char* fn_name, int64_t* in_list) {
 }
 
 const char* datara_py_eval_batch(const char* json_exprs) {
-    if (!datara_py_is_available()) return "[]";
-    if (!json_exprs || json_exprs[0] != '[') return "[]";
+    if (!datara_py_is_available()) return datara_rt_str_from_c_str("[]");
+    const char* c_exprs = datara_str_data(json_exprs);
+    if (!c_exprs || c_exprs[0] != '[') return datara_rt_str_from_c_str("[]");
 
     int32_t gstate = g_py.PyGILState_Ensure();
 
     PyObject* json_mod = g_py.PyImport_ImportModule("json");
     if (!json_mod) {
         g_py.PyGILState_Release(gstate);
-        return "[]";
+        return datara_rt_str_from_c_str("[]");
     }
     PyObject* loads_fn = g_py.PyObject_GetAttrString(json_mod, "loads");
     PyObject* dumps_fn = g_py.PyObject_GetAttrString(json_mod, "dumps");
-    PyObject* json_str = g_py.PyUnicode_FromString(json_exprs);
+    PyObject* json_str = g_py.PyUnicode_FromString(c_exprs);
 
     if (!loads_fn || !dumps_fn || !json_str) {
         if (json_str) g_py.Py_DecRef(json_str);
@@ -886,7 +901,7 @@ const char* datara_py_eval_batch(const char* json_exprs) {
         if (dumps_fn) g_py.Py_DecRef(dumps_fn);
         g_py.Py_DecRef(json_mod);
         g_py.PyGILState_Release(gstate);
-        return "[]";
+        return datara_rt_str_from_c_str("[]");
     }
 
     PyObject* py_list = g_py.PyObject_CallFunctionObjArgs(loads_fn, json_str, NULL);
@@ -898,7 +913,7 @@ const char* datara_py_eval_batch(const char* json_exprs) {
         g_py.Py_DecRef(dumps_fn);
         g_py.Py_DecRef(json_mod);
         g_py.PyGILState_Release(gstate);
-        return "[]";
+        return datara_rt_str_from_c_str("[]");
     }
 
     int64_t count = g_py.PyList_Size(py_list);
@@ -945,22 +960,23 @@ const char* datara_py_eval_batch(const char* json_exprs) {
     g_py.Py_DecRef(dumps_fn);
     g_py.Py_DecRef(json_mod);
 
-    char* ret_buf = "[]";
+    char* ret_buf = (char*)EMPTY_DATARA_STR;
     if (out_json_str) {
         int64_t ulen = 0;
         const char* utf8 = g_py.PyUnicode_AsUTF8AndSize(out_json_str, &ulen);
         if (utf8) {
-            ret_buf = (char*)datara_rt_arena_alloc((size_t)ulen + 1);
+            ret_buf = datara_str_alloc((size_t)ulen);
             if (ret_buf) {
-                memcpy(ret_buf, utf8, (size_t)ulen);
-                ret_buf[ulen] = '\0';
+                memcpy(ret_buf + sizeof(int64_t), utf8, (size_t)ulen);
+            } else {
+                ret_buf = (char*)EMPTY_DATARA_STR;
             }
         }
         g_py.Py_DecRef(out_json_str);
     }
 
     g_py.PyGILState_Release(gstate);
-    return ret_buf ? ret_buf : "[]";
+    return ret_buf ? ret_buf : datara_rt_str_from_c_str("[]");
 }
 
 // ============================================================================
@@ -970,6 +986,7 @@ const char* datara_py_eval_batch(const char* json_exprs) {
 int32_t datara_py_export_memview(const char* var_name, const DataraMemoryView* view) {
     if (!datara_py_is_available()) return -1;
     if (!var_name || !view || !view->data || view->total_bytes <= 0) return -1;
+    const char* c_var = datara_str_data(var_name);
 
     int32_t gstate = g_py.PyGILState_Ensure();
 
@@ -1024,7 +1041,7 @@ int32_t datara_py_export_memview(const char* var_name, const DataraMemoryView* v
         "except Exception:\n"
         "    %s = __dt_mv_temp__.cast('%s')\n"
         "del __dt_mv_temp__\n",
-        var_name, fmt, var_name, fmt);
+        c_var, fmt, c_var, fmt);
 
     PyObject* builtins = g_py.PyImport_ImportModule("builtins");
     if (builtins) {
@@ -1059,6 +1076,7 @@ int64_t datara_py_export_list_f64(const char* var_name, int64_t* list) {
 
 int64_t datara_py_assert_same_ptr(const char* var_name, int64_t* list) {
     if (!datara_py_is_available() || !var_name || !list) return 0;
+    const char* c_var = datara_str_data(var_name);
 
     int32_t gstate = g_py.PyGILState_Ensure();
 
@@ -1075,7 +1093,7 @@ int64_t datara_py_assert_same_ptr(const char* var_name, int64_t* list) {
         return 0;
     }
 
-    PyObject* obj = g_py.PyDict_GetItemString(main_dict, var_name);
+    PyObject* obj = g_py.PyDict_GetItemString(main_dict, c_var);
     if (!obj) {
         g_py.Py_DecRef(main_dict);
         g_py.Py_DecRef(main_mod);
@@ -1170,17 +1188,21 @@ int32_t datara_py_self_test(void) {
     if (f_val < 4.49 || f_val > 4.51) return 103;
 
     const char* s_val = datara_py_eval("'hello ' + 'datara'");
-    if (!s_val || strstr(s_val, "hello datara") == NULL) return 104;
+    const char* s_data = datara_str_data(s_val);
+    if (!s_data || strstr(s_data, "hello datara") == NULL) return 104;
 
     // 2. Python Function Call
     const char* sqrt_val = datara_py_call("math.sqrt", "[25.0]");
-    if (!sqrt_val || atof(sqrt_val) != 5.0) return 105;
+    const char* sqrt_data = datara_str_data(sqrt_val);
+    if (!sqrt_data || atof(sqrt_data) != 5.0) return 105;
 
     // 3. Traceback & Error Capture
     const char* bad_val = datara_py_eval("10 / 0");
-    if (bad_val && bad_val[0] != '\0') return 106; // Must return empty on error
+    const char* bad_data = datara_str_data(bad_val);
+    if (bad_data && bad_data[0] != '\0') return 106; // Must return empty on error
     const char* err = datara_py_last_error();
-    if (!err || strstr(err, "ZeroDivisionError") == NULL) return 107;
+    const char* err_data = datara_str_data(err);
+    if (!err_data || strstr(err_data, "ZeroDivisionError") == NULL) return 107;
     datara_py_clear_error();
 
     // 4. Zero-Copy In-Place Buffer Mutation

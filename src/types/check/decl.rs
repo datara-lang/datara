@@ -21,7 +21,7 @@ impl<'a> TypeChecker<'a> {
                     let first_seg = u.path.first().map(|s| s.as_str());
                     if matches!(
                         first_seg,
-                        Some("python" | "rust" | "c" | "cpp" | "cxx" | "npm" | "js" | "ts")
+                        Some("python" | "rust" | "c" | "cpp" | "cxx" | "npm" | "js" | "ts" | "zig" | "csharp" | "cs" | "dotnet" | "lua")
                     ) {
                         let alias = u
                             .alias
@@ -31,6 +31,20 @@ impl<'a> TypeChecker<'a> {
                             self.symbol_types.entry(alias).or_insert(DataraType::Val);
                         }
                     }
+                }
+                Decl::Global(g) => {
+                    let g_type = g
+                        .type_node
+                        .as_ref()
+                        .map(|t| self.resolve_type_node(t, diag))
+                        .unwrap_or_else(|| self.check_expr(&g.init, diag));
+                    self.symbol_types.insert(g.name.clone(), g_type);
+                    let mut_kind = if g.is_mut {
+                        MutabilityKind::MutableFixed
+                    } else {
+                        MutabilityKind::Immutable
+                    };
+                    self.symbol_mutability.insert(g.name.clone(), mut_kind);
                 }
                 Decl::Trait(t) => {
                     self.traits.insert(t.name.clone(), t.clone());
@@ -248,6 +262,22 @@ impl<'a> TypeChecker<'a> {
         match decl {
             Decl::Type(td) => {
                 let _ = self.resolve_type_node(&td.base_type, diag);
+            }
+            Decl::Global(g) => {
+                let init_ty = self.check_expr(&g.init, diag);
+                if let Some(tn) = &g.type_node {
+                    let expected = self.resolve_type_node(tn, diag);
+                    if !init_ty.is_compatible_with_refined_with_args(&expected, Some(self.resolver)) {
+                        diag.error(
+                            ErrorCode::TypeMismatch,
+                            format!(
+                                "Type mismatch in global '{}': expected {}, found {}",
+                                g.name, expected, init_ty
+                            ),
+                            Some(g.span.clone()),
+                        );
+                    }
+                }
             }
             Decl::Function(f) | Decl::Flow(f) | Decl::Task(f) => {
                 let saved_types = self.symbol_types.clone();

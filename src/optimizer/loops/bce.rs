@@ -25,6 +25,7 @@ impl LoopOptimizer {
         let mut list_len: HashMap<ValueId, LenVal> = HashMap::new();
         let mut len_to_arr: HashMap<ValueId, ValueId> = HashMap::new();
         let mut val_to_name: HashMap<ValueId, String> = HashMap::new();
+        let mut var_of_val: HashMap<ValueId, String> = HashMap::new();
         let mut name_to_val: HashMap<String, ValueId> = HashMap::new();
         let mut copy_of: HashMap<ValueId, ValueId> = HashMap::new();
         let mut assigned: HashSet<String> = HashSet::new();
@@ -34,6 +35,16 @@ impl LoopOptimizer {
         for (p_name, _ty, p_val) in &f.params {
             name_to_val.insert(p_name.clone(), *p_val);
             val_to_name.insert(*p_val, p_name.clone());
+            var_of_val.insert(*p_val, p_name.clone());
+        }
+        for block in &f.blocks {
+            for param in &block.params {
+                if let Some(n) = &param.name {
+                    name_to_val.insert(n.clone(), param.val);
+                    val_to_name.insert(param.val, n.clone());
+                    var_of_val.insert(param.val, n.clone());
+                }
+            }
         }
 
         for block in &f.blocks {
@@ -59,13 +70,22 @@ impl LoopOptimizer {
                     }
                     Inst::Call {
                         func, args, dest, ..
-                    } if (func == "datara_rt_list_set"
+                    } if (func == "datara_rt_list_append"
+                        || func == "datara_rt_list_set"
                         || func == "datara_rt_list_set_unchecked"
                         || func == "datara_rt_list_set_f64_unchecked")
                         && !args.is_empty() =>
                     {
                         copy_of.insert(*dest, args[0]);
                         if let Some(&l) = list_len.get(&args[0]) {
+                            list_len.insert(*dest, l);
+                        }
+                    }
+                    Inst::MethodCall {
+                        method, object, dest, ..
+                    } if method == "push" || method == "append" => {
+                        copy_of.insert(*dest, *object);
+                        if let Some(&l) = list_len.get(object) {
                             list_len.insert(*dest, l);
                         }
                     }
@@ -115,6 +135,7 @@ impl LoopOptimizer {
                     }
                     Inst::AssignVar { name, value } => {
                         assigned.insert(name.clone());
+                        var_of_val.insert(*value, name.clone());
                         if let Some(&l) = list_len.get(value) {
                             var_len.insert(name.clone(), l);
                         } else if let Some(&c) = consts.get(value) {
@@ -132,6 +153,7 @@ impl LoopOptimizer {
                     }
                     Inst::LoadVar { dest, name } => {
                         val_to_name.insert(*dest, name.clone());
+                        var_of_val.insert(*dest, name.clone());
                         if let Some(&v) = name_to_val.get(name) {
                             copy_of.insert(*dest, v);
                         }
@@ -145,6 +167,26 @@ impl LoopOptimizer {
                         copy_of.insert(*dest, *operand);
                         if let Some(&l) = list_len.get(operand) {
                             list_len.insert(*dest, l);
+                        }
+                    }
+                    Inst::Select { dest, then_val, else_val, .. } => {
+                        if then_val == else_val {
+                            copy_of.insert(*dest, *then_val);
+                        }
+                    }
+                    Inst::BinOp { dest, op, left, right, .. } => {
+                        if op == "|" || op == "or" || op == "wrapping_|" {
+                            if consts.get(right) == Some(&0) {
+                                copy_of.insert(*dest, *left);
+                            } else if consts.get(left) == Some(&0) {
+                                copy_of.insert(*dest, *right);
+                            }
+                        } else if op == "+" || op == "wrapping_+" {
+                            if consts.get(right) == Some(&0) {
+                                copy_of.insert(*dest, *left);
+                            } else if consts.get(left) == Some(&0) {
+                                copy_of.insert(*dest, *right);
+                            }
                         }
                     }
                     _ => {}
@@ -226,6 +268,204 @@ impl LoopOptimizer {
         }
 
         let const_val = |vid: ValueId| -> Option<i64> { consts.get(&vid).copied() };
+
+        let mut block_param_incoming: HashMap<ValueId, Vec<ValueId>> = HashMap::new();
+        for blk in &f.blocks {
+            match &blk.terminator {
+                Terminator::Branch { target, args } => {
+                    if let Some(tb) = f.get_block(*target) {
+                        for (p, a) in tb.params.iter().zip(args) {
+                            block_param_incoming.entry(p.val).or_default().push(*a);
+                        }
+                    }
+                }
+                Terminator::CondBranch { then_block, then_args, else_block, else_args, .. } => {
+                    if let Some(tb) = f.get_block(*then_block) {
+                        for (p, a) in tb.params.iter().zip(then_args) {
+                            block_param_incoming.entry(p.val).or_default().push(*a);
+                        }
+                    }
+                    if let Some(eb) = f.get_block(*else_block) {
+                        for (p, a) in eb.params.iter().zip(else_args) {
+                            block_param_incoming.entry(p.val).or_default().push(*a);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let resolve_name_deep = |v: ValueId| -> Option<String> {
+            let mut visited = HashSet::new();
+            let mut queue = vec![v];
+            while let Some(curr) = queue.pop() {
+                if let Some(n) = val_to_name.get(&curr).or_else(|| var_of_val.get(&curr)) {
+                    return Some(n.clone());
+                }
+                let resolved = resolve_vid(curr, &copy_of);
+                if let Some(n) = val_to_name.get(&resolved).or_else(|| var_of_val.get(&resolved)) {
+                    return Some(n.clone());
+                }
+                if !visited.insert(resolved) {
+                    continue;
+                }
+                if let Some(incomings) = block_param_incoming.get(&resolved) {
+                    for &inc in incomings {
+                        queue.push(inc);
+                    }
+                }
+            }
+            None
+        };
+
+        let mut mul_map: HashMap<ValueId, (ValueId, ValueId)> = HashMap::new();
+        let mut add_map: HashMap<ValueId, (ValueId, ValueId)> = HashMap::new();
+        for blk in &f.blocks {
+            for inst in &blk.instructions {
+                match inst {
+                    Inst::BinOp { dest, op, left, right, .. } => {
+                        if op == "*" || op == "wrapping_*" {
+                            mul_map.insert(*dest, (resolve_vid(*left, &copy_of), resolve_vid(*right, &copy_of)));
+                        } else if op == "+" || op == "wrapping_+" {
+                            add_map.insert(*dest, (resolve_vid(*left, &copy_of), resolve_vid(*right, &copy_of)));
+                        }
+                    }
+                    Inst::Call { func, args, dest, .. } if args.len() == 2 => {
+                        if func == "datara_rt_checked_mul" {
+                            mul_map.insert(*dest, (resolve_vid(args[0], &copy_of), resolve_vid(args[1], &copy_of)));
+                        } else if func == "datara_rt_checked_add" {
+                            add_map.insert(*dest, (resolve_vid(args[0], &copy_of), resolve_vid(args[1], &copy_of)));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let find_mul = |v: ValueId| -> Option<ValueId> {
+            let mut visited = HashSet::new();
+            let mut queue = vec![v];
+            while let Some(curr) = queue.pop() {
+                let resolved = resolve_vid(curr, &copy_of);
+                if mul_map.contains_key(&resolved) {
+                    return Some(resolved);
+                }
+                if !visited.insert(resolved) {
+                    continue;
+                }
+                if let Some(incomings) = block_param_incoming.get(&resolved) {
+                    for &inc in incomings {
+                        queue.push(inc);
+                    }
+                }
+            }
+            None
+        };
+
+        // Track list lengths populated in countable loops: `while i < bound { list.push(...) }`
+        for lp in &cfg.loops {
+            let header_block = match f.get_block(lp.header) {
+                Some(b) => b,
+                None => continue,
+            };
+            let mut bound_opt = None;
+            if let Terminator::CondBranch { cond, .. } = &header_block.terminator {
+                for inst in &header_block.instructions {
+                    if let Inst::BinOp { dest, op, right, .. } = inst {
+                        if dest == cond && op == "<" {
+                            bound_opt = Some(*right);
+                        }
+                    }
+                }
+            }
+            if let Some(bound_vid) = bound_opt {
+                for &bid in &lp.blocks {
+                    if let Some(blk) = f.get_block(bid) {
+                        for inst in &blk.instructions {
+                            match inst {
+                                Inst::Call { func, args, dest, .. }
+                                    if (func == "datara_rt_list_append" || func == "push" || func == "append")
+                                        && !args.is_empty() =>
+                                {
+                                    list_len.insert(args[0], LenVal::Vid(bound_vid));
+                                    list_len.insert(*dest, LenVal::Vid(bound_vid));
+                                    if let Some(an) = resolve_name_deep(args[0]) {
+                                        var_len.insert(an, LenVal::Vid(bound_vid));
+                                    }
+                                }
+                                Inst::MethodCall { method, object, dest, .. }
+                                    if method == "push" || method == "append" =>
+                                {
+                                    list_len.insert(*object, LenVal::Vid(bound_vid));
+                                    list_len.insert(*dest, LenVal::Vid(bound_vid));
+                                    if let Some(an) = resolve_name_deep(*object) {
+                                        var_len.insert(an, LenVal::Vid(bound_vid));
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Automatic List Preallocation: rewrite `datara_rt_list_create(0)` to `bound`
+        let mut defined_vids: HashSet<ValueId> = f.params.iter().map(|(_, _, pv)| *pv).collect();
+        for blk in &mut f.blocks {
+            for inst in &mut blk.instructions {
+                if let Inst::Call { func, args, dest, .. } = inst {
+                    if func == "datara_rt_list_create" && args.len() == 1 {
+                        if consts.get(&args[0]) == Some(&0) {
+                            if let Some(an) = resolve_name_deep(*dest) {
+                                if let Some(&vl) = var_len.get(&an) {
+                                    match vl {
+                                        LenVal::Const(c) if c > 0 => {
+                                            if let Some(&c_vid) = consts.iter().find(|(_, v)| **v == c).map(|(k, _)| k) {
+                                                args[0] = c_vid;
+                                            }
+                                        }
+                                        LenVal::Vid(b_vid) => {
+                                            let target_vid = resolve_vid(b_vid, &copy_of);
+                                            let is_param = f.params.iter().any(|(_, _, pv)| *pv == target_vid || *pv == b_vid);
+                                            let is_const = consts.contains_key(&target_vid) || consts.contains_key(&b_vid);
+                                            let is_def = defined_vids.contains(&target_vid) || defined_vids.contains(&b_vid);
+                                            if is_param || is_const || is_def {
+                                                args[0] = if is_def && defined_vids.contains(&target_vid) {
+                                                    target_vid
+                                                } else if is_param && f.params.iter().any(|(_, _, pv)| *pv == target_vid) {
+                                                    target_vid
+                                                } else if is_const && consts.contains_key(&target_vid) {
+                                                    target_vid
+                                                } else {
+                                                    b_vid
+                                                };
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                match inst {
+                    Inst::ConstInt { dest, .. }
+                    | Inst::ConstFloat { dest, .. }
+                    | Inst::ConstStr { dest, .. }
+                    | Inst::ConstBool { dest, .. }
+                    | Inst::LoadVar { dest, .. }
+                    | Inst::BinOp { dest, .. }
+                    | Inst::UnOp { dest, .. }
+                    | Inst::Call { dest, .. }
+                    | Inst::MethodCall { dest, .. }
+                    | Inst::StructInit { dest, .. } => {
+                        defined_vids.insert(*dest);
+                    }
+                    _ => {}
+                }
+            }
+        }
 
         // --- Evidence Gate Bounds Check Elimination (BCE) ---
         // Proves 0 <= idx < len(arr) from parameter refinement types (e.g. idx: Int in 0..<arr.len())
@@ -418,8 +658,12 @@ impl LoopOptimizer {
                 _ => continue,
             };
 
-            // Check if induction variable is a named counter OR an SSA block parameter
-            let counter_name = resolve_name(induction_var, &copy_of, &val_to_name);
+            // Check if induction variable is an SSA block parameter OR a named counter
+            let ssa_param_idx = header_block
+                .params
+                .iter()
+                .position(|p| p.val == induction_var);
+            let counter_name = resolve_name_deep(induction_var);
 
             let loop_blocks: HashSet<_> = lp.blocks.iter().copied().collect();
 
@@ -427,7 +671,132 @@ impl LoopOptimizer {
             let mut step_idx: Option<usize> = None;
             let mut step_vid: Option<ValueId> = None;
 
-            if let Some(cname) = &counter_name {
+            if let Some(param_idx) = ssa_param_idx {
+                // SSA block parameter induction variable
+                let entry_preds: Vec<(BasicBlockId, ValueId)> = f
+                    .blocks
+                    .iter()
+                    .filter(|b| !loop_blocks.contains(&b.id))
+                    .filter_map(|b| {
+                        let arg = match &b.terminator {
+                            Terminator::Branch { target, args } if *target == lp.header => {
+                                args.get(param_idx).copied()
+                            }
+                            Terminator::CondBranch {
+                                then_block,
+                                then_args,
+                                else_block,
+                                else_args,
+                                ..
+                            } => {
+                                if *then_block == lp.header {
+                                    then_args.get(param_idx).copied()
+                                } else if *else_block == lp.header {
+                                    else_args.get(param_idx).copied()
+                                } else {
+                                    None
+                                }
+                            }
+                            _ => None,
+                        };
+                        arg.map(|a| (b.id, a))
+                    })
+                    .collect();
+
+                let entry_zero = !entry_preds.is_empty()
+                    && entry_preds.iter().all(|(_, arg)| {
+                        matches!(
+                            resolve(*arg, &copy_of, &list_len, &consts),
+                            LenVal::Const(0)
+                        ) || consts.get(arg) == Some(&0)
+                    });
+
+                if !entry_zero || lp.back_edges.is_empty() {
+                    continue;
+                }
+
+                // Latches (loop blocks branching to header) must pass induction_var + 1
+                let mut all_latches_step_one = true;
+                let mut latch_step_vid = None;
+                for &latch_id in &lp.back_edges {
+                    let latch_blk = match f.get_block(latch_id) {
+                        Some(b) => b,
+                        None => {
+                            all_latches_step_one = false;
+                            break;
+                        }
+                    };
+                    let arg = match &latch_blk.terminator {
+                        Terminator::Branch { target, args } if *target == lp.header => {
+                            args.get(param_idx).copied()
+                        }
+                        Terminator::CondBranch {
+                            then_block,
+                            then_args,
+                            else_block,
+                            else_args,
+                            ..
+                        } => {
+                            if *then_block == lp.header {
+                                then_args.get(param_idx).copied()
+                            } else if *else_block == lp.header {
+                                else_args.get(param_idx).copied()
+                            } else {
+                                None
+                            }
+                        }
+                        _ => None,
+                    };
+                    let s_vid = match arg {
+                        Some(v) => v,
+                        None => {
+                            all_latches_step_one = false;
+                            break;
+                        }
+                    };
+
+                    let mut is_step = false;
+                    for b in &f.blocks {
+                        for inst in &b.instructions {
+                            let is_add = match inst {
+                                Inst::BinOp { dest, op, left, right, .. } if *dest == s_vid && (op == "+" || op == "wrapping_+") => Some((*left, *right)),
+                                Inst::Call { func, args, dest, .. } if *dest == s_vid && func == "datara_rt_checked_add" && args.len() == 2 => Some((args[0], args[1])),
+                                _ => None,
+                            };
+                            if let Some((left, right)) = is_add {
+                                let left_res = resolve_vid(left, &copy_of);
+                                let right_res = resolve_vid(right, &copy_of);
+                                let left_const = resolve(left, &copy_of, &list_len, &consts);
+                                let right_const = resolve(right, &copy_of, &list_len, &consts);
+                                let iv_res = resolve_vid(induction_var, &copy_of);
+                                let iv_name = resolve_name_deep(induction_var);
+                                let l_matches = left_res == iv_res || (iv_name.is_some() && resolve_name_deep(left) == iv_name);
+                                let r_matches = right_res == iv_res || (iv_name.is_some() && resolve_name_deep(right) == iv_name);
+                                let r_is_one = right_const == LenVal::Const(1) || consts.get(&right) == Some(&1);
+                                let l_is_one = left_const == LenVal::Const(1) || consts.get(&left) == Some(&1);
+                                if (l_matches && r_is_one) || (r_matches && l_is_one) {
+                                    is_step = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if is_step {
+                            break;
+                        }
+                    }
+
+                    if !is_step {
+                        all_latches_step_one = false;
+                        break;
+                    }
+                    latch_step_vid = Some(s_vid);
+                }
+
+                if !all_latches_step_one {
+                    continue;
+                }
+                step_vid = latch_step_vid;
+            } else if let Some(cname) = &counter_name {
                 let mut init_zero = false;
                 let mut in_loop_steps = 0;
                 let mut rebound = false;
@@ -480,142 +849,7 @@ impl LoopOptimizer {
                     continue;
                 }
             } else {
-                // SSA block parameter induction variable
-                let ssa_param_idx = header_block
-                    .params
-                    .iter()
-                    .position(|p| p.val == induction_var);
-                let param_idx = match ssa_param_idx {
-                    Some(idx) => idx,
-                    None => continue,
-                };
-
-                // Entry edges (blocks outside loop branching to header) must pass 0
-                let entry_preds: Vec<(BasicBlockId, ValueId)> = f
-                    .blocks
-                    .iter()
-                    .filter(|b| !loop_blocks.contains(&b.id))
-                    .filter_map(|b| {
-                        let arg = match &b.terminator {
-                            Terminator::Branch { target, args } if *target == lp.header => {
-                                args.get(param_idx).copied()
-                            }
-                            Terminator::CondBranch {
-                                then_block,
-                                then_args,
-                                else_block,
-                                else_args,
-                                ..
-                            } => {
-                                if *then_block == lp.header {
-                                    then_args.get(param_idx).copied()
-                                } else if *else_block == lp.header {
-                                    else_args.get(param_idx).copied()
-                                } else {
-                                    None
-                                }
-                            }
-                            _ => None,
-                        };
-                        arg.map(|a| (b.id, a))
-                    })
-                    .collect();
-
-                let entry_zero = !entry_preds.is_empty()
-                    && entry_preds.iter().all(|(_, arg)| {
-                        matches!(
-                            resolve(*arg, &copy_of, &list_len, &consts),
-                            LenVal::Const(0)
-                        )
-                    });
-
-                if !entry_zero || lp.back_edges.is_empty() {
-                    continue;
-                }
-
-                // Latches (loop blocks branching to header) must pass induction_var + 1
-                let mut all_latches_step_one = true;
-                let mut latch_step_vid = None;
-                for &latch_id in &lp.back_edges {
-                    let latch_blk = match f.get_block(latch_id) {
-                        Some(b) => b,
-                        None => {
-                            all_latches_step_one = false;
-                            break;
-                        }
-                    };
-                    let arg = match &latch_blk.terminator {
-                        Terminator::Branch { target, args } if *target == lp.header => {
-                            args.get(param_idx).copied()
-                        }
-                        Terminator::CondBranch {
-                            then_block,
-                            then_args,
-                            else_block,
-                            else_args,
-                            ..
-                        } => {
-                            if *then_block == lp.header {
-                                then_args.get(param_idx).copied()
-                            } else if *else_block == lp.header {
-                                else_args.get(param_idx).copied()
-                            } else {
-                                None
-                            }
-                        }
-                        _ => None,
-                    };
-                    let s_vid = match arg {
-                        Some(v) => v,
-                        None => {
-                            all_latches_step_one = false;
-                            break;
-                        }
-                    };
-
-                    let mut is_step = false;
-                    for b in &f.blocks {
-                        for inst in &b.instructions {
-                            if let Inst::BinOp {
-                                dest,
-                                op,
-                                left,
-                                right,
-                                ..
-                            } = inst
-                            {
-                                if *dest == s_vid && (op == "+" || op == "wrapping_+") {
-                                    let left_res = resolve_vid(*left, &copy_of);
-                                    let right_res = resolve_vid(*right, &copy_of);
-                                    let left_const = resolve(*left, &copy_of, &list_len, &consts);
-                                    let right_const = resolve(*right, &copy_of, &list_len, &consts);
-                                    if (left_res == induction_var
-                                        && right_const == LenVal::Const(1))
-                                        || (right_res == induction_var
-                                            && left_const == LenVal::Const(1))
-                                    {
-                                        is_step = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                        if is_step {
-                            break;
-                        }
-                    }
-
-                    if !is_step {
-                        all_latches_step_one = false;
-                        break;
-                    }
-                    latch_step_vid = Some(s_vid);
-                }
-
-                if !all_latches_step_one {
-                    continue;
-                }
-                step_vid = latch_step_vid;
+                continue;
             }
 
             // Safe induction step optimization: rewrite `i + 1` to `wrapping_+`
@@ -626,6 +860,16 @@ impl LoopOptimizer {
                             if *dest == vid && op == "+" {
                                 *op = "wrapping_+".to_string();
                             }
+                        } else if let Inst::Call { func, args, dest, ty } = inst {
+                            if *dest == vid && func == "datara_rt_checked_add" && args.len() == 2 {
+                                *inst = Inst::BinOp {
+                                    dest: *dest,
+                                    op: "wrapping_+".to_string(),
+                                    left: args[0],
+                                    right: args[1],
+                                    ty: ty.clone(),
+                                };
+                            }
                         }
                     }
                 }
@@ -635,7 +879,7 @@ impl LoopOptimizer {
             let bound_len = resolve(bound_val, &copy_of, &list_len, &consts);
             let resolved_bound_vid = resolve_vid(bound_val, &copy_of);
             let bound_arr_vid = len_to_arr.get(&resolved_bound_vid).copied();
-            let bound_name = resolve_name(bound_val, &copy_of, &val_to_name);
+            let bound_name = resolve_name_deep(bound_val);
 
             for &block_id in &lp.blocks {
                 if let Some(block) = f.get_block_mut(block_id) {
@@ -653,23 +897,40 @@ impl LoopOptimizer {
                             }
 
                             // The index must be the counter variable
-                            let matches_index = if let Some(cname) = &counter_name {
-                                resolve_name(args[1], &copy_of, &val_to_name).as_deref()
-                                    == Some(cname.as_str())
-                            } else {
-                                resolve_vid(args[1], &copy_of) == induction_var
-                            };
+                            let iv_name = resolve_name_deep(induction_var);
+                            let iv_res = resolve_vid(induction_var, &copy_of);
+                            let idx_res = resolve_vid(args[1], &copy_of);
+                            let idx_name = resolve_name_deep(args[1]);
+                            let matches_index = idx_res == iv_res
+                                || (iv_name.is_some() && idx_name == iv_name)
+                                || (counter_name.is_some() && idx_name == counter_name);
 
                             if !matches_index {
                                 continue;
                             }
 
-                            let list_len_val = resolve(args[0], &copy_of, &list_len, &consts);
+                            let mut list_len_val = resolve(args[0], &copy_of, &list_len, &consts);
                             let resolved_arr_vid = resolve_vid(args[0], &copy_of);
-                            let arr_name = resolve_name(args[0], &copy_of, &val_to_name);
+                            let arr_name = resolve_name_deep(args[0]);
+
+                            if let Some(an) = &arr_name {
+                                if let Some(&vl) = var_len.get(an) {
+                                    if list_len_val == LenVal::Vid(args[0]) || list_len_val == LenVal::Vid(resolved_arr_vid) {
+                                        list_len_val = match vl {
+                                            LenVal::Const(c) => LenVal::Const(c),
+                                            LenVal::Vid(v) => resolve(v, &copy_of, &list_len, &consts),
+                                        };
+                                    }
+                                }
+                            }
 
                             let mut proven = match (bound_len, list_len_val) {
-                                (LenVal::Vid(a), LenVal::Vid(b)) => a == b,
+                                (LenVal::Vid(a), LenVal::Vid(b)) => {
+                                    let a_res = resolve_vid(a, &copy_of);
+                                    let b_res = resolve_vid(b, &copy_of);
+                                    a_res == b_res
+                                        || (resolve_name_deep(a).is_some() && resolve_name_deep(a) == resolve_name_deep(b))
+                                }
                                 (LenVal::Const(a), LenVal::Const(b)) => a <= b,
                                 _ => false,
                             };
@@ -715,6 +976,141 @@ impl LoopOptimizer {
             );
         }
 
+        // --- 2D Row-Major Affine Index Bounds Check Elimination ---
+        // Proves: 0 <= (I * N + J) < len(arr) when I < N, J < N, and len(arr) >= N * N.
+        // Applicable to all matrix operations, 2D convolutions, image processing, and grids.
+        let mut loop_bounds: Vec<(ValueId, Option<String>, ValueId, Option<String>, HashSet<BasicBlockId>)> = Vec::new();
+        for lp in &cfg.loops {
+            let header_block = match f.get_block(lp.header) {
+                Some(b) => b,
+                None => continue,
+            };
+            if let Terminator::CondBranch { cond, .. } = &header_block.terminator {
+                for inst in &header_block.instructions {
+                    if let Inst::BinOp { dest, op, left, right, .. } = inst {
+                        if dest == cond && op == "<" {
+                            let left_res = resolve_vid(*left, &copy_of);
+                            let right_res = resolve_vid(*right, &copy_of);
+                            let left_name = resolve_name(*left, &copy_of, &val_to_name);
+                            let right_name = resolve_name(*right, &copy_of, &val_to_name);
+                            let loop_blocks: HashSet<_> = lp.blocks.iter().copied().collect();
+                            loop_bounds.push((left_res, left_name, right_res, right_name, loop_blocks));
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut affine_2d_eliminated = 0;
+        for blk in &mut f.blocks {
+            let blk_id = blk.id;
+            for inst in &mut blk.instructions {
+                if let Inst::Call { func, args, .. } = inst {
+                    if (func == "datara_rt_list_get" || func == "datara_rt_list_set") && args.len() >= 2 {
+                        let arr_vid = resolve_vid(args[0], &copy_of);
+                        let arr_name = resolve_name_deep(args[0]);
+                        let idx_vid = resolve_vid(args[1], &copy_of);
+
+                        if let Some(&(add_l, add_r)) = add_map.get(&idx_vid) {
+                            let pairs = [(add_l, add_r), (add_r, add_l)];
+                            for (mul_cand, off_cand) in pairs {
+                                if let Some(resolved_mul) = find_mul(mul_cand) {
+                                    if let Some(&(m1, m2)) = mul_map.get(&resolved_mul) {
+                                        let factor_choices = [(m1, m2), (m2, m1)];
+                                        for (i_val, n_val) in factor_choices {
+                                            let j_val = off_cand;
+                                            let is_bounded = |val: ValueId, bound: ValueId| -> bool {
+                                                let v_name = resolve_name_deep(val);
+                                                let b_name = resolve_name_deep(bound);
+                                                let v_res = resolve_vid(val, &copy_of);
+                                                let b_res = resolve_vid(bound, &copy_of);
+                                                loop_bounds.iter().any(|(lv, ln, rv, rn, blocks)| {
+                                                    if !blocks.contains(&blk_id) {
+                                                        return false;
+                                                    }
+                                                    let var_matches = *lv == val || *lv == v_res || (ln.is_some() && ln == &v_name);
+                                                    let bound_matches = *rv == bound || *rv == b_res || (rn.is_some() && rn == &b_name);
+                                                    var_matches && bound_matches
+                                                })
+                                            };
+
+                                            if is_bounded(i_val, n_val) && is_bounded(j_val, n_val) {
+                                                let arr_len_match = {
+                                                    let mut ok = false;
+                                                    let check_len_vid = |len_v: ValueId| -> bool {
+                                                        if let Some(resolved_len) = find_mul(len_v) {
+                                                            if let Some(&(ml, mr)) = mul_map.get(&resolved_len) {
+                                                                let ml_res = resolve_vid(ml, &copy_of);
+                                                                let mr_res = resolve_vid(mr, &copy_of);
+                                                                let n_res = resolve_vid(n_val, &copy_of);
+                                                                let ml_name = resolve_name_deep(ml);
+                                                                let mr_name = resolve_name_deep(mr);
+                                                                let n_name = resolve_name_deep(n_val);
+                                                                let l_ok = ml_res == n_res || (ml_name.is_some() && ml_name == n_name);
+                                                                let r_ok = mr_res == n_res || (mr_name.is_some() && mr_name == n_name);
+                                                                if l_ok && r_ok {
+                                                                    return true;
+                                                                }
+                                                            }
+                                                        }
+                                                        if let (Some(nc), Some(lc)) = (const_val(n_val), const_val(len_v)) {
+                                                            if nc * nc <= lc {
+                                                                return true;
+                                                            }
+                                                        }
+                                                        false
+                                                    };
+                                                    if let Some(&l) = list_len.get(&arr_vid) {
+                                                        if let LenVal::Vid(v) = l {
+                                                            ok = check_len_vid(v);
+                                                        }
+                                                    }
+                                                    if !ok {
+                                                        if let Some(an) = &arr_name {
+                                                            if let Some(&l) = var_len.get(an) {
+                                                                if let LenVal::Vid(v) = l {
+                                                                    ok = check_len_vid(v);
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    ok
+                                                };
+
+                                                if arr_len_match {
+                                                    *func = format!("{}_unchecked", func);
+                                                    eliminated += 1;
+                                                    affine_2d_eliminated += 1;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                if func.ends_with("_unchecked") {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if affine_2d_eliminated > 0 {
+            trace.record(
+                "Affine2D:BCE",
+                &format!("{}:matrix_indexing", f.name),
+                "Applied",
+                &format!("+{} BCE proven 2D row-major unchecked access", affine_2d_eliminated),
+                "0",
+                &format!(
+                    "BCE proven: 0 <= i * N + j < N * N <= arr.len() for {} accesses",
+                    affine_2d_eliminated
+                ),
+            );
+        }
+
         eliminated
     }
 
@@ -730,10 +1126,23 @@ impl LoopOptimizer {
                     ..
                 } = inst
                     && *dest == vid
-                    && op == "+"
+                    && (op == "+" || op == "wrapping_+")
                     && Self::const_int_value(f, *right) == Some(1)
                 {
                     return Some(*left);
+                }
+                if let Inst::Call {
+                    func,
+                    args,
+                    dest,
+                    ..
+                } = inst
+                    && *dest == vid
+                    && func == "datara_rt_checked_add"
+                    && args.len() == 2
+                    && Self::const_int_value(f, args[1]) == Some(1)
+                {
+                    return Some(args[0]);
                 }
             }
         }

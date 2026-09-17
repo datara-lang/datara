@@ -647,7 +647,7 @@ impl LoopEngineV2 {
             // semantics-preserving for any trip count: with no memory writes
             // and no output effects, the clone is a pure recomputation that
             // later CSE folds.
-            let is_pure_body = !body_blk_ref.instructions.iter().any(|inst| {
+            let _is_pure_body = !body_blk_ref.instructions.iter().any(|inst| {
                 matches!(
                     inst,
                     Inst::AssignVar { .. }
@@ -696,9 +696,7 @@ impl LoopEngineV2 {
             );
 
             let use_chained_seeds = chained_even_trips;
-            let pure_duplicate_ok =
-                is_pure_body && (f.name.contains("matmul") || const_bound.is_some());
-            if !use_chained_seeds && !pure_duplicate_ok {
+            if !use_chained_seeds {
                 continue;
             }
 

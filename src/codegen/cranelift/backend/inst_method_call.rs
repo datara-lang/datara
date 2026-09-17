@@ -176,6 +176,7 @@ pub fn compile_method_call<M: ClifModule>(
             "clear" => Some(ctx.runtime.rt_list_clear_id),
             "slice" => Some(ctx.runtime.rt_list_slice_id),
             "is_empty" => Some(ctx.runtime.rt_list_is_empty_id),
+            "join" => ctx.func_ids.get("str_join").map(|v| v.0),
             _ => None,
         }
     } else if ctx.string_vids.contains(object) {
@@ -233,6 +234,9 @@ pub fn compile_method_call<M: ClifModule>(
                 );
             }
             ctx.val_map.insert(*dest, r_val);
+            if method == "join" {
+                ctx.string_vids.insert(*dest);
+            }
             // Only set/push/append return the (possibly
             // reallocated) list itself; length/get
             // return plain ints.

@@ -198,6 +198,19 @@ unsafe extern "C" {
     pub fn datara_lua_eval_float(code: *const c_char) -> f64;
     pub fn datara_lua_exec(code: *const c_char) -> i64;
     pub fn datara_polyglot_parallel_exec(engine_type: *const c_char, code: *const c_char) -> i64;
+    pub fn datara_rt_arena_used() -> i64;
+    pub fn datara_rt_arena_clear();
+    pub fn datara_rt_mem_alloc(bytes: i64) -> *mut u8;
+    pub fn datara_rt_mem_free(ptr: *mut u8);
+    pub fn datara_rt_mem_copy(dst: *mut u8, src: *const u8, bytes: i64);
+    pub fn datara_rt_ptr_read_i64(ptr: *const u8, offset: i64) -> i64;
+    pub fn datara_rt_ptr_write_i64(ptr: *mut u8, offset: i64, val: i64);
+    pub fn datara_rt_ptr_read_f64(ptr: *const u8, offset: i64) -> f64;
+    pub fn datara_rt_ptr_write_f64(ptr: *mut u8, offset: i64, val: f64);
+    pub fn datara_rt_ptr_read_u8(ptr: *const u8, offset: i64) -> i64;
+    pub fn datara_rt_ptr_write_u8(ptr: *mut u8, offset: i64, val: i64);
+    pub fn datara_rt_cpu_fence();
+    pub fn datara_rt_cpu_prefetch(ptr: *const u8);
 
     pub fn datara_rt_file_read(path: *const c_char) -> *const c_char;
     pub fn datara_rt_file_read_bytes(path: *const c_char) -> *mut i64;
@@ -340,6 +353,8 @@ unsafe extern "C" {
     pub fn datara_rt_arena_alloc(bytes: i64) -> *mut ();
     pub fn datara_rt_arena_checkpoint() -> i64;
     pub fn datara_rt_arena_reset(saved_top: i64);
+    pub fn datara_rt_global_set(name: *const c_char, val: i64);
+    pub fn datara_rt_global_get(name: *const c_char) -> i64;
     pub fn datara_rt_strbuf_new() -> *mut ();
     pub fn datara_rt_strbuf_push(sb: *mut (), s: *const c_char) -> *mut ();
     pub fn datara_rt_strbuf_push_int(sb: *mut (), v: i64) -> *mut ();
@@ -652,6 +667,41 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     );
     reg!("polyglot_parallel_exec", datara_polyglot_parallel_exec);
 
+    reg!("datara_rt_arena_alloc", datara_rt_arena_alloc);
+    reg!("arena_alloc", datara_rt_arena_alloc);
+    reg!("datara_rt_stack_alloc", datara_rt_arena_alloc);
+    reg!("stack_alloc", datara_rt_arena_alloc);
+    reg!("datara_rt_arena_reset", datara_rt_arena_reset);
+    reg!("arena_reset", datara_rt_arena_reset);
+    reg!("datara_rt_arena_used", datara_rt_arena_used);
+    reg!("arena_used", datara_rt_arena_used);
+    reg!("datara_rt_arena_clear", datara_rt_arena_clear);
+    reg!("arena_clear", datara_rt_arena_clear);
+    reg!("datara_rt_mem_alloc", datara_rt_mem_alloc);
+    reg!("mem_alloc", datara_rt_mem_alloc);
+    reg!("datara_rt_mem_free", datara_rt_mem_free);
+    reg!("mem_free", datara_rt_mem_free);
+    reg!("datara_rt_mem_copy", datara_rt_mem_copy);
+    reg!("mem_copy", datara_rt_mem_copy);
+    reg!("datara_rt_ptr_read_i64", datara_rt_ptr_read_i64);
+    reg!("ptr_read_i64", datara_rt_ptr_read_i64);
+    reg!("datara_rt_ptr_write_i64", datara_rt_ptr_write_i64);
+    reg!("ptr_write_i64", datara_rt_ptr_write_i64);
+    reg!("datara_rt_ptr_read_f64", datara_rt_ptr_read_f64);
+    reg!("ptr_read_f64", datara_rt_ptr_read_f64);
+    reg!("datara_rt_ptr_write_f64", datara_rt_ptr_write_f64);
+    reg!("ptr_write_f64", datara_rt_ptr_write_f64);
+    reg!("datara_rt_ptr_read_u8", datara_rt_ptr_read_u8);
+    reg!("ptr_read_u8", datara_rt_ptr_read_u8);
+    reg!("datara_rt_ptr_write_u8", datara_rt_ptr_write_u8);
+    reg!("ptr_write_u8", datara_rt_ptr_write_u8);
+    reg!("datara_rt_cpu_fence", datara_rt_cpu_fence);
+    reg!("cpu_fence", datara_rt_cpu_fence);
+    reg!("datara_rt_cpu_prefetch", datara_rt_cpu_prefetch);
+    reg!("cpu_prefetch", datara_rt_cpu_prefetch);
+    reg!("datara_rt_global_set", datara_rt_global_set);
+    reg!("datara_rt_global_get", datara_rt_global_get);
+
     reg!("datara_rt_file_read", datara_rt_file_read);
     reg!("file_read", datara_rt_file_read);
     reg!("read", datara_rt_file_read);
@@ -873,6 +923,8 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("schedule_cancel", datara_rt_schedule_cancel);
 
     reg!("datara_rt_arena_alloc", datara_rt_arena_alloc);
+    reg!("datara_rt_stack_alloc", datara_rt_arena_alloc);
+    reg!("stack_alloc", datara_rt_arena_alloc);
     reg!("datara_rt_arena_checkpoint", datara_rt_arena_checkpoint);
     reg!("datara_rt_arena_reset", datara_rt_arena_reset);
     reg!("datara_rt_strbuf_new", datara_rt_strbuf_new);

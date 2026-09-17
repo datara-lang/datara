@@ -1,0 +1,23 @@
+fn compute_sum_reduce(n: Int) -> Float {
+    mut a: List<Float> = []
+    mut i = 0
+    while i < n {
+        a.push(1.5)
+        i = i + 1
+    }
+    mut sum = 0.0
+    mut idx = 0
+    while idx < n {
+        sum = sum + a[idx]
+        idx = idx + 1
+    }
+    return sum
+}
+
+fn main() {
+    let t0 = now_ns()
+    let res = compute_sum_reduce(100000)
+    let t1 = now_ns()
+    out "DATARA_IN_PROCESS_US: " + ((t1 - t0) / 1000)
+    out res
+}

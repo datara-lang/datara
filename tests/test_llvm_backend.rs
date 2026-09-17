@@ -251,3 +251,25 @@ fn main() {
     let _ = fs::remove_file(&exe_path);
     let _ = fs::remove_dir(&temp_dir);
 }
+
+#[test]
+fn test_llvm_list_reassigned_in_while() {
+    let source = r#"
+fn main() {
+    mut xs = [1, 2]
+    mut i = 0
+    while i < 5 {
+        xs = [3, 4]
+        i = i + 1
+    }
+    out(xs.len())
+}
+"#;
+
+    let compiler = ForgenCompiler::new("release").with_llvm(true);
+    let res = compiler.compile_source(source, "list_while.dtr", None);
+
+    assert!(res.success, "Compilation must succeed: {:?}", res.error);
+    let llvm = res.llvm_source.expect("LLVM IR source must be generated");
+    println!("LLVM IR:\n{}", llvm);
+}

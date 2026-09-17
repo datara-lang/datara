@@ -92,19 +92,29 @@ impl<'a> SecurityVerifier<'a> {
                         );
                     }
 
-                    // Gate 3: Unchecked FFI Gate
-                    if self.resolver.extern_functions.contains_key(callee_name) {
+                    // Gate 3: Unchecked FFI & Unsafe Function Gate
+                    let is_extern = self.resolver.extern_functions.contains_key(callee_name);
+                    let is_unsafe_fn = self.unsafe_functions.contains(callee_name);
+                    if is_extern || is_unsafe_fn {
                         let justified = match &ctx.unsafe_justification {
                             Some(j) => !j.trim().is_empty(),
                             None => false,
                         };
                         if !justified {
-                            diag.error(
-                                ErrorCode::UncheckedFFIViolation,
+                            let msg = if is_unsafe_fn {
+                                format!(
+                                    "Security Violation: Call to unsafe function '{}' requires 'unsafe(justification: \"...\")' block",
+                                    callee_name
+                                )
+                            } else {
                                 format!(
                                     "Security Violation: Foreign call to extern function '{}' requires 'unsafe(justification: \"...\")' block",
                                     callee_name
-                                ),
+                                )
+                            };
+                            diag.error(
+                                ErrorCode::UncheckedFFIViolation,
+                                msg,
                                 Some(callee_span.clone()),
                             );
                         }
