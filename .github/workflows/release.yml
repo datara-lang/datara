@@ -281,14 +281,15 @@ jobs:
           rm -f dist-all/RELEASE_NOTES.md dist-all/*.tmp dist-all/*.sha256
           
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG exists, updating notes and assets..."
-            gh release edit "$TAG" --notes-file /tmp/RELEASE_NOTES.md
+            echo "Release $TAG exists, updating notes, assets, and publishing..."
+            gh release edit "$TAG" --notes-file /tmp/RELEASE_NOTES.md --draft=false --latest
             gh release upload "$TAG" dist-all/* --clobber
           else
             echo "Creating release $TAG..."
             gh release create "$TAG" dist-all/* \
               --title "Datara $TAG" \
-              --notes-file /tmp/RELEASE_NOTES.md
+              --notes-file /tmp/RELEASE_NOTES.md \
+              --latest
           fi
 
   publish-github-package-docker:
