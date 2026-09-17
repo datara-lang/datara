@@ -27,6 +27,31 @@ cargo check
 cargo test
 ```
 
+### Windows: source `scripts/msvc-env.sh` before running the tests
+
+On Windows under Git-Bash, any test that AOT-links a native binary fails with a
+message that looks like a compiler bug:
+
+```
+Linking failed: status=ExitStatus(1)
+linker: ...\PortableGit\...\usr\bin\link.exe
+stderr: /usr/bin/link: extra operand '/DEBUG:NONE'
+```
+
+It is not a compiler bug. Git-Bash ships a GNU `link` (a coreutils hard-link
+utility) that shadows MSVC's `link.exe` on `PATH`, so the linker driver hands
+MSVC flags to the wrong program. Prepend the real toolchain:
+
+```bash
+source scripts/msvc-env.sh
+cargo test --release
+```
+
+The script discovers the MSVC and Windows SDK versions via `vswhere`, so it
+survives BuildTools updates. It must be **sourced**, not executed. A bare
+`cargo test` is not a valid signal on Windows for the suites that link — if you
+see the message above, you have not sourced it.
+
 ---
 
 ## Architecture Guidelines

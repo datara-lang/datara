@@ -7,7 +7,12 @@ impl TempDir {
     fn new(name: &str) -> Self {
         static CNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let id = CNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let p = std::env::temp_dir().join(format!("forgen_test_cap2_{}_{}_{}", name, std::process::id(), id));
+        let p = std::env::temp_dir().join(format!(
+            "forgen_test_cap2_{}_{}_{}",
+            name,
+            std::process::id(),
+            id
+        ));
         let _ = fs::create_dir_all(&p);
         TempDir(p)
     }

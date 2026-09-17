@@ -862,8 +862,10 @@ pub(crate) fn scan_and_merge_dpm_bridges(
                         if bridge_dtr.is_file() {
                             if let Ok(content) = std::fs::read_to_string(&bridge_dtr) {
                                 let path_str = bridge_dtr.to_string_lossy();
-                                let tokens = crate::lexer::Lexer::new(&content, &path_str).tokenize(diag);
-                                let mut parser = crate::parser::Parser::new(tokens, diag, &path_str);
+                                let tokens =
+                                    crate::lexer::Lexer::new(&content, &path_str).tokenize(diag);
+                                let mut parser =
+                                    crate::parser::Parser::new(tokens, diag, &path_str);
                                 let parsed = parser.parse_program();
                                 program.declarations.extend(parsed.declarations);
                                 for (k, v) in parsed.module_aliases {
@@ -883,4 +885,3 @@ pub(crate) fn scan_and_merge_dpm_bridges(
         }
     }
 }
-

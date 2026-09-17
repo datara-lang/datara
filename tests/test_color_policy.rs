@@ -18,8 +18,8 @@
 //!    `NO_COLOR` > `CLICOLOR_FORCE`/`FORGEN_COLOR` > `CLICOLOR` > tty probe.
 //! 3. End to end: the built binary writes no escape bytes into a pipe.
 
-use forgen::diagnostics::engine::DiagnosticEngine;
 use forgen::diagnostics::ErrorCode;
+use forgen::diagnostics::engine::DiagnosticEngine;
 
 /// Build an engine holding a single error, enough to check rendering.
 fn engine_with_one_error() -> DiagnosticEngine {
@@ -97,8 +97,5 @@ fn no_color_beats_every_opt_in() {
         "NO_COLOR lost to CLICOLOR=1"
     );
     assert!(policy(false, true, None), "explicit opt-in was ignored");
-    assert!(
-        !policy(false, false, Some("0")),
-        "CLICOLOR=0 was ignored"
-    );
+    assert!(!policy(false, false, Some("0")), "CLICOLOR=0 was ignored");
 }

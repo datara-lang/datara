@@ -544,9 +544,7 @@ impl ErrorCode {
                 ErrorCode::DeprecatedFeature => {
                     "Deprecated language construct: use the modern equivalent"
                 }
-                ErrorCode::BridgeTypeMismatch => {
-                    "Bridge argument type mismatch"
-                }
+                ErrorCode::BridgeTypeMismatch => "Bridge argument type mismatch",
                 ErrorCode::BridgeUnsupportedType => {
                     "Unsupported type in declarative bridge function signature"
                 }

@@ -41,7 +41,9 @@ impl BridgeRegistry {
         for decl in &program.declarations {
             if let Decl::Bridge(b) = decl {
                 let lang_lower = b.lang.to_lowercase();
-                registry.module_to_lang.insert(b.module.clone(), lang_lower.clone());
+                registry
+                    .module_to_lang
+                    .insert(b.module.clone(), lang_lower.clone());
                 for f in &b.functions {
                     let param_types = f
                         .params
@@ -187,7 +189,9 @@ impl BridgeRegistry {
     ) -> bool {
         if let Some(meta) = self.lookup(fn_name) {
             let mut ok = true;
-            for (idx, (expected, actual)) in meta.param_types.iter().zip(arg_types.iter()).enumerate() {
+            for (idx, (expected, actual)) in
+                meta.param_types.iter().zip(arg_types.iter()).enumerate()
+            {
                 if !actual.is_compatible(expected) {
                     diag.error(
                         ErrorCode::BridgeTypeMismatch,

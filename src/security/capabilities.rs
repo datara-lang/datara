@@ -172,8 +172,13 @@ pub(crate) fn capability_kind_for_op(callee: &str) -> Option<crate::project::Cap
 
         "env_get" | "env_get_checked" | "env_set" => Some(CapabilityKind::Env),
 
-        "proc_spawn" | "process_run" | "system" | "exec" | "process_output"
-        | "exec_utf8" | "datara_rt_exec_utf8" => Some(CapabilityKind::Exec),
+        "proc_spawn"
+        | "process_run"
+        | "system"
+        | "exec"
+        | "process_output"
+        | "exec_utf8"
+        | "datara_rt_exec_utf8" => Some(CapabilityKind::Exec),
 
         _ if callee.starts_with("socket_") => Some(CapabilityKind::NetConnect),
 

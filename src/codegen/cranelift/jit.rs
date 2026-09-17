@@ -753,7 +753,10 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("socket_send", datara_rt_socket_send);
     reg!("datara_rt_socket_recv", datara_rt_socket_recv);
     reg!("socket_recv", datara_rt_socket_recv);
-    reg!("datara_rt_socket_recv_outcome", datara_rt_socket_recv_outcome);
+    reg!(
+        "datara_rt_socket_recv_outcome",
+        datara_rt_socket_recv_outcome
+    );
     reg!("socket_recv_outcome", datara_rt_socket_recv_outcome);
     reg!("datara_rt_socket_set_timeout", datara_rt_socket_set_timeout);
     reg!("socket_set_timeout", datara_rt_socket_set_timeout);

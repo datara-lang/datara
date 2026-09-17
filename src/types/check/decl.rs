@@ -137,8 +137,10 @@ impl<'a> TypeChecker<'a> {
                         .map(|t| self.resolve_type_node(t, diag))
                         .unwrap_or(DataraType::Unit);
                     let qualified = format!("{}.{}", b.module, f.name);
-                    self.function_signatures
-                        .insert(qualified.clone(), (p_types.clone(), ret.clone(), Vec::new()));
+                    self.function_signatures.insert(
+                        qualified.clone(),
+                        (p_types.clone(), ret.clone(), Vec::new()),
+                    );
                     self.function_signatures
                         .insert(f.name.clone(), (p_types, ret, Vec::new()));
                     self.bridge_functions.insert(qualified);

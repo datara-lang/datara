@@ -1248,7 +1248,8 @@ impl<'a> Parser<'a> {
 
     pub(crate) fn parse_bridge_decl(&mut self) -> Option<BridgeDecl> {
         let start_span = self.previous().span.clone();
-        let lang = self.consume_ident_or_keyword("Expected bridge foreign language (e.g. py, c, js, rs)")?;
+        let lang =
+            self.consume_ident_or_keyword("Expected bridge foreign language (e.g. py, c, js, rs)")?;
         if !self.match_token(&TokenType::ColonColon) && !self.match_token(&TokenType::Dot) {
             self.error("Expected '::' or '.' after bridge language identifier");
             return None;
@@ -1260,8 +1261,12 @@ impl<'a> Parser<'a> {
         while !self.check(&TokenType::RBrace) && !self.is_at_end() {
             if self.match_token(&TokenType::Fn) || self.match_token(&TokenType::Function) {
                 let fn_start_span = self.previous().span.clone();
-                let fn_name = self.consume_ident_or_keyword("Expected function name in bridge block")?;
-                self.consume(&TokenType::LParen, "Expected '(' after bridge function name")?;
+                let fn_name =
+                    self.consume_ident_or_keyword("Expected function name in bridge block")?;
+                self.consume(
+                    &TokenType::LParen,
+                    "Expected '(' after bridge function name",
+                )?;
                 let params = self.parse_param_list().unwrap_or_default();
                 self.consume(&TokenType::RParen, "Expected ')' after parameters")?;
                 let return_type = if self.match_token(&TokenType::Arrow) {

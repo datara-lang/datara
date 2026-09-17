@@ -10,7 +10,12 @@ impl TempDir {
     fn new(name: &str) -> Self {
         static CNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let id = CNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let p = std::env::temp_dir().join(format!("forgen_test_dpm_{}_{}_{}", name, std::process::id(), id));
+        let p = std::env::temp_dir().join(format!(
+            "forgen_test_dpm_{}_{}_{}",
+            name,
+            std::process::id(),
+            id
+        ));
         let _ = fs::create_dir_all(&p);
         TempDir(p)
     }
@@ -138,8 +143,16 @@ fn test_dpm_remove_bridge_package() {
 
     let dpm_pkg_dir = dir.path().join("dpm_packages").join("numpy");
     fs::create_dir_all(&dpm_pkg_dir).expect("create dpm pkg dir");
-    fs::write(dpm_pkg_dir.join("bridge.toml"), "[bridge]\nname=\"numpy\"\nlang=\"py\"\nversion=\"1.0.0\"\n").unwrap();
-    fs::write(dpm_pkg_dir.join("bridge.dtr"), "use py::numpy\nbridge py::numpy {}\n").unwrap();
+    fs::write(
+        dpm_pkg_dir.join("bridge.toml"),
+        "[bridge]\nname=\"numpy\"\nlang=\"py\"\nversion=\"1.0.0\"\n",
+    )
+    .unwrap();
+    fs::write(
+        dpm_pkg_dir.join("bridge.dtr"),
+        "use py::numpy\nbridge py::numpy {}\n",
+    )
+    .unwrap();
 
     let toml = "[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[dependencies]\n\"py:numpy\" = \"1.0.0\"\n";
     fs::write("datara.toml", toml).unwrap();

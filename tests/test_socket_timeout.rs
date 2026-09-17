@@ -1,4 +1,4 @@
-﻿use forgen::driver::ForgenCompiler;
+use forgen::driver::ForgenCompiler;
 
 static MSVC_ENV: std::sync::Once = std::sync::Once::new();
 fn ensure_msvc_env() {
@@ -66,7 +66,11 @@ fn test_socket_timeout_invalid_handle() {
     let path = write_source(&dir, "sock_timeout_inv.dtr", &code);
     let (stdout, _stderr, code) = run_stdout(&path);
     assert_eq!(code, 0);
-    assert!(stdout.contains("INVALID_HANDLE_ERR_OK"), "stdout: {}", stdout);
+    assert!(
+        stdout.contains("INVALID_HANDLE_ERR_OK"),
+        "stdout: {}",
+        stdout
+    );
     cleanup(&path);
 }
 

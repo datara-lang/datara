@@ -1,4 +1,4 @@
-﻿use forgen::driver::ForgenCompiler;
+use forgen::driver::ForgenCompiler;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
@@ -27,7 +27,10 @@ fn cleanup(path: &std::path::Path) {
     let _ = std::fs::remove_file(path.with_extension("obj"));
 }
 
-fn compile_and_run_with_input(src_path: &std::path::Path, input_data: &str) -> (String, String, i32) {
+fn compile_and_run_with_input(
+    src_path: &std::path::Path,
+    input_data: &str,
+) -> (String, String, i32) {
     let compiler = ForgenCompiler::new("release");
     let res = compiler.compile_file(src_path, None);
     assert!(
@@ -44,7 +47,9 @@ fn compile_and_run_with_input(src_path: &std::path::Path, input_data: &str) -> (
         .expect("failed to spawn executable");
 
     if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(input_data.as_bytes()).expect("failed to write to stdin");
+        stdin
+            .write_all(input_data.as_bytes())
+            .expect("failed to write to stdin");
     }
 
     let output = child.wait_with_output().expect("failed to wait on child");

@@ -510,9 +510,15 @@ impl<'a> Lowering<'a> {
                         });
                     empty
                 };
-                let (target_func, ret_ty) = if fn_name == "input_int" || fn_name == "read_int" || fn_name == "fast_read_int" {
+                let (target_func, ret_ty) = if fn_name == "input_int"
+                    || fn_name == "read_int"
+                    || fn_name == "fast_read_int"
+                {
                     ("datara_rt_input_int", "Int")
-                } else if fn_name == "input_float" || fn_name == "read_float" || fn_name == "fast_read_float" {
+                } else if fn_name == "input_float"
+                    || fn_name == "read_float"
+                    || fn_name == "fast_read_float"
+                {
                     ("datara_rt_input_float", "Float")
                 } else {
                     ("datara_rt_input", "String")
@@ -570,7 +576,8 @@ impl<'a> Lowering<'a> {
                     });
                 return Some(dest);
             }
-            if (fn_name == "py_eval_batch" || fn_name == "datara_py_eval_batch") && args.len() == 1 {
+            if (fn_name == "py_eval_batch" || fn_name == "datara_py_eval_batch") && args.len() == 1
+            {
                 let json_expr = self.lower_expr(&args[0], cur_block)?;
                 let dest = self.next_val();
                 self.get_block_mut(*cur_block)
@@ -666,7 +673,9 @@ impl<'a> Lowering<'a> {
                             arg_vals.push(av);
                         }
                     }
-                    if let Some(dest) = self.lower_bridge_call(ns_name, member, &arg_vals, cur_block) {
+                    if let Some(dest) =
+                        self.lower_bridge_call(ns_name, member, &arg_vals, cur_block)
+                    {
                         return Some(dest);
                     }
                     let dest = self.next_val();

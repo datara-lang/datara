@@ -165,7 +165,8 @@ pub fn run_dpm_cli_args(args: &[String]) {
                         let mut content = if manifest_path.exists() {
                             fs::read_to_string(&manifest_path).unwrap_or_default()
                         } else {
-                            "[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[dependencies]\n".to_string()
+                            "[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[dependencies]\n"
+                                .to_string()
                         };
                         if !content.contains("[dependencies]") {
                             content.push_str("\n[dependencies]\n");
@@ -738,13 +739,25 @@ pub fn run_dpm_cli_args(args: &[String]) {
             let bridge_catalog = [
                 ("py:math", "0.1.0", "Python standard math library bridge"),
                 ("py:numpy", "1.24.0", "NumPy array and matrix computations"),
-                ("py:torch", "2.1.0", "PyTorch deep learning and tensor operations"),
+                (
+                    "py:torch",
+                    "2.1.0",
+                    "PyTorch deep learning and tensor operations",
+                ),
                 ("c:sqlite3", "3.40.0", "SQLite embedded relational database"),
                 ("c:zlib", "1.2.13", "Lossless data compression library"),
-                ("js:lodash", "4.17.21", "JavaScript functional utility library"),
+                (
+                    "js:lodash",
+                    "4.17.21",
+                    "JavaScript functional utility library",
+                ),
                 ("js:express", "4.18.2", "Node.js web application framework"),
                 ("rs:rand", "0.8.5", "Rust random number generation"),
-                ("rs:serde", "1.0.190", "Rust generic serialization framework"),
+                (
+                    "rs:serde",
+                    "1.0.190",
+                    "Rust generic serialization framework",
+                ),
             ];
             let matching_bridges: Vec<_> = bridge_catalog
                 .iter()

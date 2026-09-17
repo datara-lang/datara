@@ -124,9 +124,14 @@ impl<'a> SecurityVerifier<'a> {
                                     Some(callee_span.clone()),
                                 );
                             } else {
-                                let (target_opt, target_span) = if (callee_name == "socket_connect" || callee_name == "socket_bind") && args.len() >= 2 {
+                                let (target_opt, target_span) = if (callee_name == "socket_connect"
+                                    || callee_name == "socket_bind")
+                                    && args.len() >= 2
+                                {
                                     let host_opt = match &args[1] {
-                                        Expr::Literal(LiteralValue::String(s), _) => Some(s.as_str()),
+                                        Expr::Literal(LiteralValue::String(s), _) => {
+                                            Some(s.as_str())
+                                        }
                                         _ => None,
                                     };
                                     let port_opt = if args.len() >= 3 {
@@ -145,7 +150,9 @@ impl<'a> SecurityVerifier<'a> {
                                     (formatted, args[1].span().clone())
                                 } else if let Some(first_arg) = args.first() {
                                     let s = match first_arg {
-                                        Expr::Literal(LiteralValue::String(s), _) => Some(s.clone()),
+                                        Expr::Literal(LiteralValue::String(s), _) => {
+                                            Some(s.clone())
+                                        }
                                         _ => None,
                                     };
                                     (s, first_arg.span().clone())
@@ -172,7 +179,10 @@ impl<'a> SecurityVerifier<'a> {
                                             );
                                         }
                                     } else if !args.is_empty() {
-                                        let has_wildcard = caps.patterns(kind).iter().any(|p| p == "*" || p == "**");
+                                        let has_wildcard = caps
+                                            .patterns(kind)
+                                            .iter()
+                                            .any(|p| p == "*" || p == "**");
                                         if !has_wildcard {
                                             diag.error(
                                                 ErrorCode::CapGlobViolation,

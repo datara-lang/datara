@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
+#include <errno.h>
 #include "datara_runtime.h"
 
 #ifdef _WIN32

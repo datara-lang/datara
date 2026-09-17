@@ -228,13 +228,23 @@ pub fn declare_module_symbols<M: ClifModule>(
         py_str_2_f64_sig.params.push(AbiParam::new(clif_types::I64));
         py_str_2_f64_sig.params.push(AbiParam::new(clif_types::F64));
         py_str_2_f64_sig.params.push(AbiParam::new(clif_types::F64));
-        py_str_2_f64_sig.returns.push(AbiParam::new(clif_types::F64));
+        py_str_2_f64_sig
+            .returns
+            .push(AbiParam::new(clif_types::F64));
 
         let mut py_str_2_f64_to_i64_sig = Signature::new(call_conv);
-        py_str_2_f64_to_i64_sig.params.push(AbiParam::new(clif_types::I64));
-        py_str_2_f64_to_i64_sig.params.push(AbiParam::new(clif_types::F64));
-        py_str_2_f64_to_i64_sig.params.push(AbiParam::new(clif_types::F64));
-        py_str_2_f64_to_i64_sig.returns.push(AbiParam::new(clif_types::I64));
+        py_str_2_f64_to_i64_sig
+            .params
+            .push(AbiParam::new(clif_types::I64));
+        py_str_2_f64_to_i64_sig
+            .params
+            .push(AbiParam::new(clif_types::F64));
+        py_str_2_f64_to_i64_sig
+            .params
+            .push(AbiParam::new(clif_types::F64));
+        py_str_2_f64_to_i64_sig
+            .returns
+            .push(AbiParam::new(clif_types::I64));
 
         let mut sig_2_i64 = Signature::new(call_conv);
         sig_2_i64.params.push(AbiParam::new(clif_types::I64));
