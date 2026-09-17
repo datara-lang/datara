@@ -18,6 +18,7 @@ fn run_datara(code: &str, tag: &str) -> (String, i32) {
 
     let _ = fs::remove_file(&exe);
     let _ = fs::remove_file(exe.with_extension("obj"));
+    let _ = fs::remove_file(exe.with_extension("o"));
     (stdout.trim().replace("\r\n", "\n"), code)
 }
 
