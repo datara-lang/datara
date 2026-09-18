@@ -81,6 +81,22 @@ pub fn run_cli() {
 }
 
 pub fn run_cli_with_args(args: &[String]) {
+    // Ultra-fast path: print version or help directly on main thread without thread-spawn penalty
+    if args.len() >= 2 && (args[1] == "--version" || args[1] == "-v" || args[1] == "version") {
+        let triple = crate::codegen::target::TargetInfo::host().triple_string();
+        println!(
+            "Datara Toolchain & Forgen AOT Native Compiler v{}",
+            env!("CARGO_PKG_VERSION")
+        );
+        println!("Target Architecture: {} (Cranelift Backend)", triple);
+        println!("Datara Language Specification 2026 Edition");
+        return;
+    }
+    if args.len() >= 2 && (args[1] == "--help" || args[1] == "-h" || args[1] == "help") {
+        misc::print_help();
+        return;
+    }
+
     if std::thread::current().name() == Some("datara-compiler") {
         run_cli_inner(args);
     } else {

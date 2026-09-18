@@ -115,6 +115,29 @@ impl ForgenCompiler {
         candidates.into_iter().find(|d| d.is_dir())
     }
 
+    /// Helper to queue a synthetic stdlib bridge shim (e.g. "python", "zig", "lua", "csharp") into to_load.
+    fn queue_shim_module(
+        &self,
+        shim: &str,
+        span: &SourceSpan,
+        stdlib_dir: Option<&Path>,
+        visited: &HashSet<PathBuf>,
+        to_load: &mut Vec<(PathBuf, SourceSpan)>,
+    ) {
+        let u = UseDecl {
+            path: vec![shim.to_string()],
+            group: Vec::new(),
+            alias: None,
+            span: span.clone(),
+        };
+        if let Some(p) = self.stdlib_module_path(&u, stdlib_dir) {
+            let canon = p.canonicalize().unwrap_or_else(|_| p.clone());
+            if !visited.contains(&canon) {
+                to_load.push((canon, span.clone()));
+            }
+        }
+    }
+
     /// Map a `use stdlib.<...>` declaration to its stdlib source file.
     /// `stdlib.io.fs.Fs` -> `stdlib/io/fs.dtr`.
     /// If no on-disk stdlib is available, automatically falls back to the embedded standard library.
@@ -158,34 +181,19 @@ impl ForgenCompiler {
         // and both 3-segment (`stdlib.math.Math`) and 4-segment (`stdlib.io.fs.Fs`) imports.
         let mut candidates: Vec<Vec<String>> = Vec::new();
         candidates.push(base_rel.to_vec());
-        if base_rel.first().map(|s| s.as_str()) == Some("python") {
-            candidates.push(vec!["interop".into(), "python".into()]);
-            candidates.push(vec!["python".into()]);
-        }
-        if base_rel.first().map(|s| s.as_str()) == Some("js") {
-            candidates.push(vec!["interop".into(), "js".into()]);
-            candidates.push(vec!["js".into()]);
-        }
-        if base_rel.first().map(|s| s.as_str()) == Some("node") {
-            candidates.push(vec!["interop".into(), "node".into()]);
-            candidates.push(vec!["node".into()]);
-        }
-        if base_rel.first().map(|s| s.as_str()) == Some("zig") {
-            candidates.push(vec!["interop".into(), "zig".into()]);
-            candidates.push(vec!["zig".into()]);
-        }
-        if base_rel.first().map(|s| s.as_str()) == Some("csharp")
-            || base_rel.first().map(|s| s.as_str()) == Some("cs")
-            || base_rel.first().map(|s| s.as_str()) == Some("dotnet")
-        {
-            candidates.push(vec!["interop".into(), "csharp".into()]);
-            candidates.push(vec!["csharp".into()]);
-        }
-        if base_rel.first().map(|s| s.as_str()) == Some("lua")
-            || base_rel.first().map(|s| s.as_str()) == Some("luajit")
-        {
-            candidates.push(vec!["interop".into(), "lua".into()]);
-            candidates.push(vec!["lua".into()]);
+        if let Some(first) = base_rel.first().map(|s| s.as_str()) {
+            let canon = match first {
+                "python" => Some("python"),
+                "js" | "node" => Some("js"),
+                "zig" => Some("zig"),
+                "csharp" | "cs" | "dotnet" => Some("csharp"),
+                "lua" | "luajit" => Some("lua"),
+                _ => None,
+            };
+            if let Some(c) = canon {
+                candidates.push(vec!["interop".into(), c.into()]);
+                candidates.push(vec![c.into()]);
+            }
         }
         let lower: Vec<String> = base_rel.iter().map(|s| s.to_lowercase()).collect();
         if lower != base_rel {
@@ -520,10 +528,14 @@ impl ForgenCompiler {
         let mut checked_python_pkgs: HashSet<String> = HashSet::new();
         let mut checked_rust_crates: HashSet<String> = HashSet::new();
         let mut checked_c_libs: HashSet<String> = HashSet::new();
+        let mut checked_cpp_pkgs: HashSet<String> = HashSet::new();
         let mut checked_js_pkgs: HashSet<String> = HashSet::new();
         let mut checked_zig_pkgs: HashSet<String> = HashSet::new();
         let mut checked_csharp_pkgs: HashSet<String> = HashSet::new();
         let mut checked_lua_pkgs: HashSet<String> = HashSet::new();
+        let mut checked_go_pkgs: HashSet<String> = HashSet::new();
+        let mut checked_luau_pkgs: HashSet<String> = HashSet::new();
+        let mut checked_jvm_pkgs: HashSet<String> = HashSet::new();
         let mut hinted_pkgs: HashSet<String> = HashSet::new();
         // file -> module files it imports (for cycle detection)
         let mut deps: Vec<(PathBuf, Vec<PathBuf>)> = Vec::new();
@@ -682,22 +694,7 @@ impl ForgenCompiler {
                             }
                         }
                         if !diag.has_errors() {
-                            let py_use = UseDecl {
-                                path: vec!["python".to_string()],
-                                group: Vec::new(),
-                                alias: None,
-                                span: u.span.clone(),
-                            };
-                            if let Some(py_stdlib_path) =
-                                self.stdlib_module_path(&py_use, stdlib_dir.as_deref())
-                            {
-                                let canon = py_stdlib_path
-                                    .canonicalize()
-                                    .unwrap_or_else(|_| py_stdlib_path.clone());
-                                if !visited.contains(&canon) {
-                                    to_load.push((canon, u.span.clone()));
-                                }
-                            }
+                            self.queue_shim_module("python", &u.span, stdlib_dir.as_deref(), &visited, &mut to_load);
                         }
                         continue;
                     }
@@ -753,17 +750,13 @@ impl ForgenCompiler {
                         continue;
                     }
 
-                    // 3. Smart C / C++ Library Interop Detection (System32 / MSVC LIB / PATH)
-                    if (first_seg == Some("c")
-                        || first_seg == Some("cpp")
-                        || first_seg == Some("cxx"))
-                        && u.path.len() > 1
-                    {
+                    // 3a. Plain C Library Interop (System32 / MSVC LIB / PATH)
+                    if first_seg == Some("c") && u.path.len() > 1 {
                         let c_lib = u.path.get(1).map(|s| s.as_str()).unwrap_or("");
                         if !c_lib.is_empty() && checked_c_libs.insert(c_lib.to_string()) {
                             if let Some(lib_path) = self.find_system_c_cpp_lib(c_lib) {
                                 println!(
-                                    "[Forgen FFI] Successfully bound C/C++ library '{}' (found at: {})",
+                                    "[Forgen FFI] Bound C library '{}' (found at: {})",
                                     c_lib,
                                     lib_path.display()
                                 );
@@ -771,7 +764,7 @@ impl ForgenCompiler {
                                 diag.error(
                                     ErrorCode::ResolveUnreachableModule,
                                     format!(
-                                        "C/C++ library '{}' not found in System32, MSVC LIB, or PATH directories.\n  --> Ensure the library or SDK is installed.",
+                                        "C library '{}' not found in System32, MSVC LIB, or PATH directories.\n  --> Ensure the library or SDK is installed.",
                                         c_lib
                                     ),
                                     Some(u.span.clone()),
@@ -781,10 +774,26 @@ impl ForgenCompiler {
                         continue;
                     }
 
+                    // 3b. C++ Library Interop (.lib/.a/.dll/.so/.hpp with full diagnostics)
+                    if (first_seg == Some("cpp") || first_seg == Some("cxx"))
+                        && u.path.len() > 1
+                    {
+                        let cpp_pkg = u.path.get(1).map(|s| s.as_str()).unwrap_or("");
+                        if !cpp_pkg.is_empty() && checked_cpp_pkgs.insert(cpp_pkg.to_string()) {
+                            super::polyglot::PolyglotResolver::resolve_cpp(
+                                u,
+                                &base_dirs,
+                                diag,
+                            );
+                        }
+                        continue;
+                    }
+
                     // 4. Smart JS / TS / NPM Package Interop Detection (Local node_modules / Global npm / Node)
                     if (first_seg == Some("js")
                         || first_seg == Some("ts")
-                        || first_seg == Some("npm"))
+                        || first_seg == Some("npm")
+                        || first_seg == Some("node"))
                         && u.path.len() > 1
                     {
                         let js_pkg = u.path.get(1).map(|s| s.as_str()).unwrap_or("");
@@ -814,18 +823,7 @@ impl ForgenCompiler {
                         if !zig_pkg.is_empty() && checked_zig_pkgs.insert(zig_pkg.to_string()) {
                             super::polyglot::PolyglotResolver::resolve_zig(u, &base_dirs, diag);
                         }
-                        let zig_use = UseDecl {
-                            path: vec!["zig".to_string()],
-                            group: Vec::new(),
-                            alias: None,
-                            span: u.span.clone(),
-                        };
-                        if let Some(p) = self.stdlib_module_path(&zig_use, stdlib_dir.as_deref()) {
-                            let canon = p.canonicalize().unwrap_or_else(|_| p.clone());
-                            if !visited.contains(&canon) {
-                                to_load.push((canon, u.span.clone()));
-                            }
-                        }
+                        self.queue_shim_module("zig", &u.span, stdlib_dir.as_deref(), &visited, &mut to_load);
                         continue;
                     }
 
@@ -839,18 +837,7 @@ impl ForgenCompiler {
                         if !cs_pkg.is_empty() && checked_csharp_pkgs.insert(cs_pkg.to_string()) {
                             super::polyglot::PolyglotResolver::resolve_csharp(u, &base_dirs, diag);
                         }
-                        let cs_use = UseDecl {
-                            path: vec!["csharp".to_string()],
-                            group: Vec::new(),
-                            alias: None,
-                            span: u.span.clone(),
-                        };
-                        if let Some(p) = self.stdlib_module_path(&cs_use, stdlib_dir.as_deref()) {
-                            let canon = p.canonicalize().unwrap_or_else(|_| p.clone());
-                            if !visited.contains(&canon) {
-                                to_load.push((canon, u.span.clone()));
-                            }
-                        }
+                        self.queue_shim_module("csharp", &u.span, stdlib_dir.as_deref(), &visited, &mut to_load);
                         continue;
                     }
 
@@ -861,17 +848,39 @@ impl ForgenCompiler {
                         if !lua_pkg.is_empty() && checked_lua_pkgs.insert(lua_pkg.to_string()) {
                             super::polyglot::PolyglotResolver::resolve_lua(u, &base_dirs, diag);
                         }
-                        let lua_use = UseDecl {
-                            path: vec!["lua".to_string()],
-                            group: Vec::new(),
-                            alias: None,
-                            span: u.span.clone(),
-                        };
-                        if let Some(p) = self.stdlib_module_path(&lua_use, stdlib_dir.as_deref()) {
-                            let canon = p.canonicalize().unwrap_or_else(|_| p.clone());
-                            if !visited.contains(&canon) {
-                                to_load.push((canon, u.span.clone()));
-                            }
+                        self.queue_shim_module("lua", &u.span, stdlib_dir.as_deref(), &visited, &mut to_load);
+                        continue;
+                    }
+
+                    // 8. Smart Go Interop Detection (c-shared / CGo archives)
+                    if (first_seg == Some("go") || first_seg == Some("golang"))
+                        && u.path.len() > 1
+                    {
+                        let go_pkg = u.path.get(1).map(|s| s.as_str()).unwrap_or("");
+                        if !go_pkg.is_empty() && checked_go_pkgs.insert(go_pkg.to_string()) {
+                            super::polyglot::PolyglotResolver::resolve_go(u, &base_dirs, diag);
+                        }
+                        continue;
+                    }
+
+                    // 9. Luau (Roblox / standalone Luau runtime)
+                    if first_seg == Some("luau") && u.path.len() > 1 {
+                        let luau_pkg = u.path.get(1).map(|s| s.as_str()).unwrap_or("");
+                        if !luau_pkg.is_empty() && checked_luau_pkgs.insert(luau_pkg.to_string()) {
+                            super::polyglot::PolyglotResolver::resolve_luau(u, &base_dirs, diag);
+                        }
+                        continue;
+                    }
+
+                    // 10. JVM (Java / Kotlin via GraalVM Native Image or JAR)
+                    if (first_seg == Some("java")
+                        || first_seg == Some("kotlin")
+                        || first_seg == Some("jvm"))
+                        && u.path.len() > 1
+                    {
+                        let jvm_pkg = u.path.get(1).map(|s| s.as_str()).unwrap_or("");
+                        if !jvm_pkg.is_empty() && checked_jvm_pkgs.insert(jvm_pkg.to_string()) {
+                            super::polyglot::PolyglotResolver::resolve_jvm(u, &base_dirs, diag);
                         }
                         continue;
                     }
@@ -886,13 +895,7 @@ impl ForgenCompiler {
                     let path = match path {
                         Some(p) => Some(p),
                         None => {
-                            // JIT Predictive Auto-Install from HyperGrid.
-                            // Auto-install is strictly opt-in via
-                            // FORGEN_AUTO_INSTALL=1 (also set by the
-                            // --auto-install / -y CLI flags). We never prompt
-                            // on stdin here: resolve_modules runs during
-                            // check/run where interactive input would hang
-                            // non-interactive builds and CI.
+                            // Auto-install: opt-in via FORGEN_AUTO_INSTALL=1. Never prompts stdin.
                             let pkg_name = first_seg.unwrap_or("");
                             let auto_install_env = std::env::var("FORGEN_AUTO_INSTALL")
                                 .or_else(|_| std::env::var("DATARA_AUTO_INSTALL"))

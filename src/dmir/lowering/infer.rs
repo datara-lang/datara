@@ -121,8 +121,15 @@ impl<'a> Lowering<'a> {
                     self.infer_expr_datara_type(expr)
                 }
             }
-            Expr::Call { callee, .. } => match &**callee {
+            Expr::Call { callee, args, .. } => match &**callee {
                 Expr::Identifier(fn_name, _) => {
+                    if fn_name == "join" || fn_name == "thread_join" || fn_name == "ThreadHandle_join" {
+                        if args.len() == 1 {
+                            return Some(DataraType::Int);
+                        } else if args.len() >= 2 {
+                            return Some(DataraType::String);
+                        }
+                    }
                     let ret = self.infer_fn_ret_ty(fn_name);
                     if let Some(rest) = ret.strip_prefix("List<")
                         && let Some(inner) = rest.strip_suffix('>')
@@ -264,11 +271,42 @@ impl<'a> Lowering<'a> {
             || func_name == "datara_polyglot_parallel_exec"
             || func_name == "str_len"
             || func_name == "datara_rt_str_len"
+            || func_name == "ThreadHandle_join"
+            || func_name == "thread_join"
+            || func_name == "datara_thread_join"
+            || func_name == "Channel_len"
+            || func_name == "datara_channel_len"
+            || func_name == "Channel_recv"
+            || func_name == "datara_channel_recv"
+            || func_name == "channel_recv"
+            || func_name == "scratch_enter"
+            || func_name == "datara_scratch_enter"
+            || func_name.starts_with("hton")
+            || func_name.starts_with("ntoh")
+            || func_name.starts_with("bswap")
+            || func_name.starts_with("datara_sys_hton")
+            || func_name.starts_with("datara_sys_ntoh")
+            || func_name.starts_with("datara_sys_bswap")
+            || func_name.starts_with("SliceView_read_")
+            || func_name.starts_with("SliceView_get_")
+            || func_name == "SliceView_len"
             || func_name.ends_with("_to_int")
             || func_name.contains("count")
             || func_name.contains("index")
         {
             "Int".into()
+        } else if func_name == "slice_alloc"
+            || func_name == "slice_from_buffer"
+            || func_name == "SliceView_subslice"
+            || func_name.starts_with("datara_sys_slice_alloc")
+            || func_name.starts_with("datara_sys_slice_from")
+            || func_name.starts_with("datara_sys_slice_sub")
+        {
+            "SliceView".into()
+        } else if func_name == "volatile_ptr" || func_name == "datara_hw_volatile_ptr" {
+            "VolatilePtr".into()
+        } else if func_name == "typed_zero_init" || func_name == "datara_hw_typed_zero_init" {
+            "RawPtr".into()
         } else if func_name == "str_to_float"
             || func_name == "datara_rt_str_to_float"
             || func_name == "js_eval_float"
@@ -316,8 +354,6 @@ impl<'a> Lowering<'a> {
             || func_name.contains("replace")
             || func_name.contains("upper")
             || func_name.contains("lower")
-            || func_name.contains("join")
-            || func_name == "join"
             || func_name == "str_join"
             || func_name == "datara_rt_str_join"
             || func_name == "read"

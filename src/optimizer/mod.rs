@@ -289,14 +289,14 @@ impl Optimizer {
             })?;
 
             // 2.2 Interprocedural Optimization (Phase 14: Specialization, Devirtualization, Cross-Module Pure Inlining)
-            if self.mode == "domain" || self.mode == "release" {
+            if self.mode == "domain" || self.mode == "release" || self.mode == "tiny" {
                 self.run_mutating_pass("ipo", module, |opt, m| {
                     ipo::InterproceduralOptimizer::optimize_module(m, &mut opt.trace);
                 })?;
             }
 
             // Tail recursion & sibling recursion elimination (domain and release mode)
-            if self.mode == "domain" || self.mode == "release" {
+            if self.mode == "domain" || self.mode == "release" || self.mode == "tiny" {
                 self.run_mutating_pass("tail_recursion", module, |opt, m| {
                     let mut fn_names: Vec<String> = m.functions.keys().cloned().collect();
                     fn_names.sort();
@@ -337,8 +337,8 @@ impl Optimizer {
             }
         }
 
-        // 3. Reachability Analysis & Dead Symbol Elimination (in domain/release mode)
-        if self.mode == "domain" || self.mode == "release" {
+        // 3. Reachability Analysis & Dead Symbol Elimination (in domain/release/tiny mode)
+        if self.mode == "domain" || self.mode == "release" || self.mode == "tiny" {
             self.run_mutating_pass("dead_symbol_elimination", module, |opt, m| {
                 opt.dead_symbol_elimination(m);
             })?;
@@ -1034,6 +1034,17 @@ impl Optimizer {
                             val_to_struct.insert(*dest, *s_id);
                         }
                     }
+                    Inst::GetField { object, field, .. } => {
+                        if let Some(s_id) = val_to_struct.get(object) {
+                            if let Some(field_map) = struct_inits.get(s_id) {
+                                if !field_map.contains_key(field) {
+                                    escaping_structs.insert(*s_id);
+                                }
+                            } else {
+                                escaping_structs.insert(*s_id);
+                            }
+                        }
+                    }
                     Inst::MethodCall { object, args, .. } => {
                         if let Some(s_id) = val_to_struct.get(object) {
                             escaping_structs.insert(*s_id);
@@ -1111,7 +1122,13 @@ impl Optimizer {
                             });
                         }
                     }
-                    _ => {}
+                    other => {
+                        self.visit_inst_vids(other, &mut |v| {
+                            if let Some(s_id) = val_to_struct.get(v) {
+                                escaping_structs.insert(*s_id);
+                            }
+                        });
+                    }
                 }
             }
 
@@ -1182,6 +1199,17 @@ impl Optimizer {
                             && struct_inits.contains_key(&var_to_struct[name]) =>
                     {
                         // Struct load eliminated
+                        changed = true;
+                        continue;
+                    }
+                    Inst::UnOp {
+                        dest: _,
+                        op,
+                        operand,
+                        ..
+                    } if op == "copy"
+                        && val_to_struct.get(operand).map(|s| struct_inits.contains_key(s)).unwrap_or(false) =>
+                    {
                         changed = true;
                         continue;
                     }

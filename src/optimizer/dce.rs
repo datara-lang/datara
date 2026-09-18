@@ -2,6 +2,41 @@ use super::*;
 use crate::dmir::{Function, Inst, Module, Terminator, ValueId};
 use std::collections::HashSet;
 
+fn is_intrinsic_method(method: &str) -> bool {
+    matches!(
+        method,
+        "push"
+            | "append"
+            | "pop"
+            | "set"
+            | "get"
+            | "at"
+            | "len"
+            | "length"
+            | "count"
+            | "first"
+            | "last"
+            | "is_empty"
+            | "sort"
+            | "reverse"
+            | "clear"
+            | "slice"
+            | "remove_at"
+            | "remove_value"
+            | "insert_at"
+            | "contains"
+            | "index_of"
+            | "byte_len"
+            | "char_len"
+            | "chars"
+            | "byte_at"
+            | "char_at"
+            | "to_float"
+            | "to_int"
+            | "join"
+    )
+}
+
 impl Optimizer {
     pub(crate) fn dead_symbol_elimination(&mut self, module: &mut Module) {
         // Conservative guard: reachability is seeded from `main` only. For a
@@ -16,36 +51,51 @@ impl Optimizer {
         let mut reachable: HashSet<String> = HashSet::new();
         let mut worklist: Vec<String> = Vec::new();
 
-        let mut method_map: HashMap<String, Vec<String>> = HashMap::new();
+        // Index user class behavior methods: {ClassName}_{method} -> [full_names]
+        let mut user_methods: HashMap<String, Vec<String>> = HashMap::new();
         let mut all_fn_names: Vec<String> = module.functions.keys().cloned().collect();
         all_fn_names.sort();
         for f_name in &all_fn_names {
-            let mut start = 0;
-            while let Some(idx) = f_name[start..].find('_') {
-                let actual_idx = start + idx;
-                let suffix = &f_name[actual_idx + 1..];
-                method_map
-                    .entry(suffix.to_string())
-                    .or_default()
-                    .push(f_name.clone());
-                start = actual_idx + 1;
+            if let Some((cls, m_name)) = f_name.split_once('_') {
+                if cls.chars().next().map(|c| c.is_ascii_uppercase()).unwrap_or(false) {
+                    user_methods
+                        .entry(m_name.to_string())
+                        .or_default()
+                        .push(f_name.clone());
+                }
             }
         }
 
-        if module.functions.contains_key("main") {
-            reachable.insert("main".to_string());
-            worklist.push("main".to_string());
-        }
+        reachable.insert("main".to_string());
+        worklist.push("main".to_string());
+
+        let mut used_externs: HashSet<String> = HashSet::new();
 
         while let Some(current_fn) = worklist.pop() {
             if let Some(f) = module.functions.get(&current_fn) {
+                let mut val_to_class: HashMap<ValueId, String> = HashMap::new();
+                let mut var_to_class: HashMap<String, String> = HashMap::new();
+
+                for (p_name, p_ty, p_val) in &f.params {
+                    let base_ty = p_ty.split('<').next().unwrap_or(p_ty);
+                    if base_ty.chars().next().map(|c| c.is_ascii_uppercase()).unwrap_or(false)
+                        && !matches!(base_ty, "Int" | "Float" | "Bool" | "Str" | "Void")
+                    {
+                        var_to_class.insert(p_name.clone(), base_ty.to_string());
+                        val_to_class.insert(*p_val, base_ty.to_string());
+                    }
+                }
+
                 for block in &f.blocks {
                     self.collect_calls(
                         &block.instructions,
                         module,
-                        &method_map,
+                        &user_methods,
                         &mut reachable,
                         &mut worklist,
+                        &mut used_externs,
+                        &mut val_to_class,
+                        &mut var_to_class,
                     );
                 }
             }
@@ -56,26 +106,62 @@ impl Optimizer {
 
         if !reachable.is_empty() {
             module.functions.retain(|name, _| reachable.contains(name));
+            module.function_spans.retain(|name, _| reachable.contains(name));
+            module.function_line_spans.retain(|name, _| reachable.contains(name));
+            module.extern_functions.retain(|name, _| used_externs.contains(name));
+            module.extern_sret.retain(|name, _| used_externs.contains(name));
+            module.extern_sysv.retain(|name, _| used_externs.contains(name));
             self.report.removed_symbols = initial_count - module.functions.len();
         } else {
             self.report.reachable_symbols = initial_count;
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn collect_calls(
         &self,
         instructions: &[Inst],
         module: &Module,
-        method_map: &HashMap<String, Vec<String>>,
+        user_methods: &HashMap<String, Vec<String>>,
         reachable: &mut HashSet<String>,
         worklist: &mut Vec<String>,
+        used_externs: &mut HashSet<String>,
+        val_to_class: &mut HashMap<ValueId, String>,
+        var_to_class: &mut HashMap<String, String>,
     ) {
         for inst in instructions {
             match inst {
-                Inst::Call { func, .. } => {
-                    if module.functions.contains_key(func) && !reachable.contains(func) {
-                        reachable.insert(func.clone());
-                        worklist.push(func.clone());
+                Inst::StructInit { dest, class_name, .. } => {
+                    val_to_class.insert(*dest, class_name.clone());
+                }
+                Inst::AssignVar { name, value } => {
+                    if let Some(c) = val_to_class.get(value) {
+                        var_to_class.insert(name.clone(), c.clone());
+                    }
+                }
+                Inst::LoadVar { dest, name } => {
+                    if let Some(c) = var_to_class.get(name) {
+                        val_to_class.insert(*dest, c.clone());
+                    }
+                }
+                Inst::Call { dest, func, .. } => {
+                    if module.functions.contains_key(func) {
+                        if !reachable.contains(func) {
+                            reachable.insert(func.clone());
+                            worklist.push(func.clone());
+                        }
+                        if let Some(target_f) = module.functions.get(func) {
+                            let r_ty = &target_f.return_type;
+                            let base_r = r_ty.split('<').next().unwrap_or(r_ty);
+                            if base_r.chars().next().map(|c| c.is_ascii_uppercase()).unwrap_or(false)
+                                && !matches!(base_r, "Int" | "Float" | "Bool" | "Str" | "Void")
+                            {
+                                val_to_class.insert(*dest, base_r.to_string());
+                            }
+                        }
+                    }
+                    if module.extern_functions.contains_key(func) {
+                        used_externs.insert(func.clone());
                     }
                 }
                 Inst::GetFuncAddr { func_name, .. } => {
@@ -83,17 +169,73 @@ impl Optimizer {
                         reachable.insert(func_name.clone());
                         worklist.push(func_name.clone());
                     }
-                }
-                Inst::MethodCall { method, .. } => {
-                    if module.functions.contains_key(method) && !reachable.contains(method) {
-                        reachable.insert(method.clone());
-                        worklist.push(method.clone());
+                    if module.extern_functions.contains_key(func_name) {
+                        used_externs.insert(func_name.clone());
                     }
-                    if let Some(funcs) = method_map.get(method) {
-                        for f_name in funcs {
-                            if !reachable.contains(f_name) {
-                                reachable.insert(f_name.clone());
-                                worklist.push(f_name.clone());
+                }
+                Inst::MethodCall { dest, object, method, .. } => {
+                    let mut resolved = false;
+
+                    // 1. If receiver class is known statically
+                    if let Some(cls) = val_to_class.get(object) {
+                        let base_cls = cls.split('<').next().unwrap_or(cls).split('_').next().unwrap_or(cls);
+                        let cand1 = format!("{}_{}", cls, method);
+                        let cand2 = format!("{}_{}", base_cls, method);
+                        if module.functions.contains_key(&cand1) {
+                            if !reachable.contains(&cand1) {
+                                reachable.insert(cand1.clone());
+                                worklist.push(cand1.clone());
+                            }
+                            if let Some(target_f) = module.functions.get(&cand1) {
+                                let r_ty = &target_f.return_type;
+                                let base_r = r_ty.split('<').next().unwrap_or(r_ty);
+                                if base_r.chars().next().map(|c| c.is_ascii_uppercase()).unwrap_or(false)
+                                    && !matches!(base_r, "Int" | "Float" | "Bool" | "Str" | "Void")
+                                {
+                                    val_to_class.insert(*dest, base_r.to_string());
+                                }
+                            }
+                            resolved = true;
+                        } else if module.functions.contains_key(&cand2) {
+                            if !reachable.contains(&cand2) {
+                                reachable.insert(cand2.clone());
+                                worklist.push(cand2.clone());
+                            }
+                            if let Some(target_f) = module.functions.get(&cand2) {
+                                let r_ty = &target_f.return_type;
+                                let base_r = r_ty.split('<').next().unwrap_or(r_ty);
+                                if base_r.chars().next().map(|c| c.is_ascii_uppercase()).unwrap_or(false)
+                                    && !matches!(base_r, "Int" | "Float" | "Bool" | "Str" | "Void")
+                                {
+                                    val_to_class.insert(*dest, base_r.to_string());
+                                }
+                            }
+                            resolved = true;
+                        }
+                    }
+
+                    // 2. Direct full-name match in module.functions
+                    if !resolved && module.functions.contains_key(method) {
+                        if !reachable.contains(method) {
+                            reachable.insert(method.clone());
+                            worklist.push(method.clone());
+                        }
+                        resolved = true;
+                    }
+
+                    // 3. Intrinsic collection/string method — direct runtime intrinsic dispatch
+                    if !resolved && is_intrinsic_method(method) {
+                        resolved = true;
+                    }
+
+                    // 4. Fallback for dynamic/polymorphic receiver
+                    if !resolved {
+                        if let Some(cands) = user_methods.get(method) {
+                            for cand in cands {
+                                if !reachable.contains(cand) {
+                                    reachable.insert(cand.clone());
+                                    worklist.push(cand.clone());
+                                }
                             }
                         }
                     }
@@ -103,16 +245,16 @@ impl Optimizer {
                     body_insts,
                     ..
                 } => {
-                    self.collect_calls(condition_insts, module, method_map, reachable, worklist);
-                    self.collect_calls(body_insts, module, method_map, reachable, worklist);
+                    self.collect_calls(condition_insts, module, user_methods, reachable, worklist, used_externs, val_to_class, var_to_class);
+                    self.collect_calls(body_insts, module, user_methods, reachable, worklist, used_externs, val_to_class, var_to_class);
                 }
                 Inst::TryCatch {
                     try_insts,
                     catch_insts,
                     ..
                 } => {
-                    self.collect_calls(try_insts, module, method_map, reachable, worklist);
-                    self.collect_calls(catch_insts, module, method_map, reachable, worklist);
+                    self.collect_calls(try_insts, module, user_methods, reachable, worklist, used_externs, val_to_class, var_to_class);
+                    self.collect_calls(catch_insts, module, user_methods, reachable, worklist, used_externs, val_to_class, var_to_class);
                 }
                 _ => {}
             }

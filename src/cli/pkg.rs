@@ -158,6 +158,15 @@ pub(crate) fn cmd_remove(args: &[String]) -> bool {
 
 /// `forgen install` / `restore` / `install-deps` — synchronize dependencies from datara.toml and requirements.txt.
 pub(crate) fn cmd_install(_args: &[String]) -> bool {
+    let cwd = Path::new(".");
+    if let Some((manifest_path, dpm)) = crate::project::dpm::DpmManifest::find_in_dir(cwd) {
+        println!(
+            ":: [DPM Orchestrator] Synchronizing polyglot dependencies from {}...",
+            manifest_path.display()
+        );
+        let _ = dpm.install_all(cwd);
+    }
+
     let manifest_path = Path::new("datara.toml");
     if manifest_path.exists() {
         println!(":: [HyperGrid] Restoring project dependencies from datara.toml...");

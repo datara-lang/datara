@@ -13,6 +13,7 @@ target/
 *.node
 *.wasm
 *.wat
+*.exp
 /*.js
 examples/*.js
 examples/*.wasm

@@ -157,7 +157,7 @@ impl<'a> Lowering<'a> {
         for f in &["split", "str_split", "datara_rt_str_split"] {
             function_return_types.insert((*f).into(), "List<String>".into());
         }
-        for f in &["join", "str_join", "datara_rt_str_join"] {
+        for f in &["str_join", "datara_rt_str_join"] {
             function_return_types.insert((*f).into(), "String".into());
         }
         for f in &[
@@ -991,6 +991,13 @@ impl<'a> Lowering<'a> {
                     }
                 }
                 Decl::Class(c) => {
+                    if c.attributes.iter().any(|a| a.name == "packed") {
+                        module.packed_classes.insert(c.name.clone());
+                    }
+                    if let Some(a) = c.attributes.iter().find(|a| a.name == "endian") {
+                        let order = a.args.first().map(|(arg, _)| arg.as_str()).unwrap_or("big");
+                        module.endian_classes.insert(c.name.clone(), order.to_string());
+                    }
                     self.lower_class(c, program, &mut module);
                 }
                 Decl::Behavior(b) => {

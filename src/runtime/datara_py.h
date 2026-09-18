@@ -58,6 +58,19 @@ int64_t     datara_py_export_list_f64(const char* var_name, int64_t* list);
 int64_t     datara_py_assert_same_ptr(const char* var_name, int64_t* list);
 int32_t     datara_py_test_zerocopy(void);
 
+// Shadow Heap Pinning (v1.4.4 Track 2: sub-500ns repeat buffer interop)
+typedef struct DataraShadowPin {
+    void* ptr;
+    size_t length;
+    uint32_t generation;
+    void* py_buffer_obj;
+} DataraShadowPin;
+
+int32_t  datara_py_shadow_pin(const char* var_name, void* ptr, size_t length, uint32_t elem_size);
+void     datara_py_shadow_unpin(void* ptr);
+void     datara_py_shadow_invalidate_all(void);
+uint32_t datara_py_shadow_pin_count(void);
+
 // Self-Test Harness
 int32_t     datara_py_self_test(void);
 

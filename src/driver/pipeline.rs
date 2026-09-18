@@ -412,6 +412,21 @@ pub(super) fn run_check_pipeline(
         }
         dmir_analyzer.set_signatures(signatures);
         let _ = dmir_analyzer.analyze_and_lower_module(&mut dmir_module, diag);
+        if !diag.has_errors() {
+            let mut optimizer = crate::optimizer::Optimizer::new("release");
+            if let Err(err_diag) = optimizer.optimize_module(&mut dmir_module) {
+                diag.error_raw(err_diag);
+            } else if std::env::var("FORGEN_CHECK_VERIFY_BACKEND").map(|v| v != "0").unwrap_or(true) {
+                let backend = crate::codegen::cranelift::CraneliftBackend::for_host();
+                if let Err(codegen_err) = backend.real_backend.compile_to_object_bytes(&dmir_module) {
+                    diag.error(
+                        crate::diagnostics::ErrorCode::CodegenBackendFailed,
+                        format!("[E-CODEGEN-001] Backend compilation verification failed: {}", codegen_err),
+                        None,
+                    );
+                }
+            }
+        }
     }
 
     timings.total_ms = total_start.elapsed().as_millis();
@@ -765,7 +780,7 @@ pub(super) fn run_analysis_and_lower<R>(
             .as_deref()
             .map(|t| t.contains("wasm"))
             .unwrap_or(false);
-        if compiler.use_llvm || wasm_target {
+        if wasm_target {
             let offenders: Vec<crate::diagnostics::Diagnostic> = dmir_module
                 .functions
                 .values()
@@ -774,7 +789,7 @@ pub(super) fn run_analysis_and_lower<R>(
                     crate::diagnostics::Diagnostic::error(
                         crate::diagnostics::ErrorCode::AsmUnsupportedBackend,
                         format!(
-                            "function '{}': structured 'asm' blocks are only supported on the Cranelift backend; rebuild without --llvm/--target=wasm",
+                            "function '{}': structured 'asm' blocks are not supported on the WASM backend; rebuild with native target",
                             f.name
                         ),
                         dmir_module.function_spans.get(&f.name).cloned(),

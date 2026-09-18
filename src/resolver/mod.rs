@@ -468,6 +468,47 @@ impl Resolver {
             "saturating_add",
             "saturating_sub",
             "saturating_mul",
+            "spawn",
+            "join",
+            "join_timeout",
+            "channel_create",
+            "channel_new",
+            "channel_send",
+            "channel_recv",
+            "channel_try_recv",
+            "channel_close",
+            "channel_len",
+            "scratch_enter",
+            "scratch_alloc",
+            "scratch_exit",
+            "scratch_promote",
+            "hton16",
+            "ntoh16",
+            "hton32",
+            "ntoh32",
+            "hton64",
+            "ntoh64",
+            "bswap16",
+            "bswap32",
+            "bswap64",
+            "slice_alloc",
+            "slice_from_buffer",
+            "slice_free",
+            "volatile_ptr",
+            "volatile_read8",
+            "volatile_read16",
+            "volatile_read32",
+            "volatile_read64",
+            "volatile_write8",
+            "volatile_write16",
+            "volatile_write32",
+            "volatile_write64",
+            "atomic_fence_acquire",
+            "atomic_fence_release",
+            "atomic_fence_acq_rel",
+            "atomic_fence_seq_cst",
+            "atomic_fence",
+            "typed_zero_init",
         ];
         for b in &builtins {
             global_scope.define(
@@ -489,49 +530,66 @@ impl Resolver {
             );
         }
 
-        // v1.4.0: StrBuf prelude class so `StrBuf { }` initializations and
-        // `sb.push(...)` method calls resolve before the type checker's
-        // prelude tables take over typing.
-        let strbuf_methods: HashMap<String, Symbol> = ["new", "push", "push_int", "join", "len"]
-            .iter()
-            .map(|m| {
-                (
-                    m.to_string(),
-                    Symbol {
-                        name: m.to_string(),
-                        kind: SymbolKind::Method,
-                        is_mut: false,
-                        is_export: true,
-                        span: SourceSpan::default(),
-                        fields: HashMap::new(),
-                        methods: HashMap::new(),
-                        base_type: None,
-                        compositions: Vec::new(),
-                        generic_params: Vec::new(),
-                        type_node: None,
-                        return_type: None,
-                    },
-                )
-            })
-            .collect();
-        let strbuf_sym = Symbol {
-            name: "StrBuf".to_string(),
-            kind: SymbolKind::Class,
-            is_mut: false,
-            is_export: true,
-            span: SourceSpan::default(),
-            fields: HashMap::new(),
-            methods: strbuf_methods,
-            base_type: None,
-            compositions: Vec::new(),
-            generic_params: Vec::new(),
-            type_node: None,
-            return_type: None,
+        let make_cls_sym = |cname: &str, m_names: &[&str]| -> Symbol {
+            let methods = m_names.iter().map(|m| (m.to_string(), Symbol {
+                name: m.to_string(),
+                kind: SymbolKind::Method,
+                is_mut: false,
+                is_export: true,
+                span: SourceSpan::default(),
+                fields: HashMap::new(),
+                methods: HashMap::new(),
+                base_type: None,
+                compositions: Vec::new(),
+                generic_params: Vec::new(),
+                type_node: None,
+                return_type: None,
+            })).collect();
+            Symbol {
+                name: cname.to_string(),
+                kind: SymbolKind::Class,
+                is_mut: false,
+                is_export: true,
+                span: SourceSpan::default(),
+                fields: HashMap::new(),
+                methods,
+                base_type: None,
+                compositions: Vec::new(),
+                generic_params: Vec::new(),
+                type_node: None,
+                return_type: None,
+            }
         };
+
+        let strbuf_sym = make_cls_sym("StrBuf", &["new", "push", "push_int", "join", "len"]);
         global_scope.define("StrBuf".to_string(), strbuf_sym.clone());
+
+        let th_sym = make_cls_sym("ThreadHandle", &["join", "join_timeout", "is_alive", "free"]);
+        global_scope.define("ThreadHandle".to_string(), th_sym.clone());
+
+        let ch_sym = make_cls_sym("Channel", &["send", "recv", "try_recv", "close", "len", "free"]);
+        global_scope.define("Channel".to_string(), ch_sym.clone());
+
+        let slice_sym = make_cls_sym("SliceView", &[
+            "len", "get_byte", "set_byte",
+            "read_u16_be", "read_u16_le", "read_u32_be", "read_u32_le", "read_u64_be", "read_u64_le",
+            "write_u16_be", "write_u16_le", "write_u32_be", "write_u32_le", "write_u64_be", "write_u64_le",
+            "subslice", "free",
+        ]);
+        global_scope.define("SliceView".to_string(), slice_sym.clone());
+
+        let volatile_sym = make_cls_sym("VolatilePtr", &[
+            "read8", "read16", "read32", "read64",
+            "write8", "write16", "write32", "write64",
+        ]);
+        global_scope.define("VolatilePtr".to_string(), volatile_sym.clone());
 
         let mut classes: HashMap<String, Symbol> = HashMap::new();
         classes.insert("StrBuf".to_string(), strbuf_sym);
+        classes.insert("ThreadHandle".to_string(), th_sym);
+        classes.insert("Channel".to_string(), ch_sym);
+        classes.insert("SliceView".to_string(), slice_sym);
+        classes.insert("VolatilePtr".to_string(), volatile_sym);
 
         Self {
             scopes: vec![global_scope],

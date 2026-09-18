@@ -36,6 +36,9 @@ impl<'a> LlvmEmitter<'a> {
         {
             value_classes.insert(*dest, rc);
         }
+        if func == "slice_alloc" || func == "slice_from_ptr" || func == "slice_subslice" {
+            value_classes.insert(*dest, "SliceView".to_string());
+        }
 
         if (func == "math_ctz" || func == "ctz") && args.len() == 1 {
             value_types.insert(*dest, "i64");
@@ -197,6 +200,21 @@ impl<'a> LlvmEmitter<'a> {
             "num_workers" => "datara_rt_num_workers",
             "schedule_run" => "datara_rt_schedule_run",
             "schedule_cancel" => "datara_rt_schedule_cancel",
+            "spawn" => "spawn",
+            "join" => "join",
+            "join_timeout" => "join_timeout",
+            "channel_create" => "channel_create",
+            "channel_new" => "channel_new",
+            "channel_send" => "channel_send",
+            "channel_recv" => "channel_recv",
+            "channel_try_recv" => "channel_try_recv",
+            "channel_close" => "channel_close",
+            "channel_len" => "channel_len",
+            "scratch_enter" => "scratch_enter",
+            "scratch_alloc" => "scratch_alloc",
+            "scratch_exit" => "scratch_exit",
+            "scratch_promote" => "scratch_promote",
+            "parallel_for" => "parallel_for",
             other => other,
         };
 
@@ -342,6 +360,54 @@ impl<'a> LlvmEmitter<'a> {
             }
             return Ok(());
         }
+        if value_classes.get(object).map(|c| c == "SliceView").unwrap_or(false) {
+            let fn_name = format!("SliceView_{}", method);
+            let mut args_val = vec![format!("ptr %v{}", object.0)];
+            for a in args {
+                let aty = value_types.get(a).copied().unwrap_or("i64");
+                args_val.push(format!("{} %v{}", aty, a.0));
+            }
+            let call_ret_ty = if method == "subslice" {
+                value_classes.insert(*dest, "SliceView".to_string());
+                value_types.insert(*dest, "ptr");
+                "ptr"
+            } else if method.starts_with("write_") || method == "set_byte" || method == "free" {
+                value_types.insert(*dest, "void");
+                "void"
+            } else {
+                value_types.insert(*dest, "i64");
+                "i64"
+            };
+            if call_ret_ty == "void" {
+                out.push_str(&format!("  call void @{}({})\n", fn_name, args_val.join(", ")));
+            } else {
+                out.push_str(&format!("  %v{} = call {} @{}({})\n", dest.0, call_ret_ty, fn_name, args_val.join(", ")));
+            }
+            return Ok(());
+        }
+
+        if value_classes.get(object).map(|c| c == "VolatilePtr").unwrap_or(false) {
+            let fn_name = format!("VolatilePtr_{}", method);
+            let mut args_val = vec![format!("ptr %v{}", object.0)];
+            for a in args {
+                let aty = value_types.get(a).copied().unwrap_or("i64");
+                args_val.push(format!("{} %v{}", aty, a.0));
+            }
+            let call_ret_ty = if method.starts_with("write") {
+                value_types.insert(*dest, "void");
+                "void"
+            } else {
+                value_types.insert(*dest, "i64");
+                "i64"
+            };
+            if call_ret_ty == "void" {
+                out.push_str(&format!("  call void @{}({})\n", fn_name, args_val.join(", ")));
+            } else {
+                out.push_str(&format!("  %v{} = call {} @{}({})\n", dest.0, call_ret_ty, fn_name, args_val.join(", ")));
+            }
+            return Ok(());
+        }
+
         let mut ret_ty = self.dmir_type_to_llvm(ty);
 
         let actual_func = match method {

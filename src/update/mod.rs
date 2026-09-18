@@ -164,17 +164,15 @@ pub fn check_for_update_cached() -> Option<(String, String)> {
         }
     }
 
-    // Fetch fresh version
-    if let Some(latest) = fetch_latest_release_github() {
-        save_cache(&UpdateCache {
-            last_checked_epoch_secs: now,
-            latest_version: latest.clone(),
-        });
-
-        if is_newer_version(&latest, current) {
-            return Some((current.to_string(), latest));
+    // Refresh cache in the background without blocking CLI execution
+    std::thread::spawn(move || {
+        if let Some(latest) = fetch_latest_release_github() {
+            save_cache(&UpdateCache {
+                last_checked_epoch_secs: now,
+                latest_version: latest,
+            });
         }
-    }
+    });
 
     None
 }

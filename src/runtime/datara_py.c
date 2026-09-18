@@ -60,6 +60,7 @@ typedef struct {
     void        (*Py_Finalize)(void);
     int32_t     (*PyGILState_Ensure)(void);
     void        (*PyGILState_Release)(int32_t);
+    void*       (*PyEval_SaveThread)(void);
 
     // Reference Counting
     void        (*Py_IncRef)(PyObject*);
@@ -372,6 +373,7 @@ int32_t datara_py_init(void) {
     BIND_OPT(Py_Finalize);
     BIND_SYM(PyGILState_Ensure);
     BIND_SYM(PyGILState_Release);
+    BIND_OPT(PyEval_SaveThread);
 
     // Reference Counting
     BIND_SYM(Py_IncRef);
@@ -429,6 +431,9 @@ int32_t datara_py_init(void) {
     // Initialize Python runtime if not already initialized
     if (!g_py.Py_IsInitialized()) {
         g_py.Py_Initialize();
+        if (g_py.PyEval_SaveThread) {
+            g_py.PyEval_SaveThread();
+        }
     }
 
     g_py_loaded = 1;
@@ -1211,4 +1216,96 @@ int64_t     py_call_1_int(const char* fn_name, int64_t a) { return datara_py_cal
 int64_t     py_call_2_int(const char* fn_name, int64_t a, int64_t b) { return datara_py_call_2_int(fn_name, a, b); }
 int64_t*    py_call_list_f64(const char* fn_name, int64_t* in_list) { return datara_py_call_list_f64(fn_name, in_list); }
 const char* py_eval_batch(const char* json_exprs) { return datara_py_eval_batch(json_exprs); }
+
+// ============================================================================
+// Shadow Heap Pinning (v1.4.4 Track 2)
+// Provides sub-500ns repeat buffer binding by caching Python memoryview handles
+// and skipping Python dictionary lookup overhead when pointer/generation match.
+// ============================================================================
+
+#define SHADOW_PIN_MAX 1024
+static DataraShadowPin g_shadow_pins[SHADOW_PIN_MAX];
+static uint32_t g_shadow_pin_count = 0;
+
+int32_t datara_py_shadow_pin(const char* var_name, void* ptr, size_t length, uint32_t elem_size) {
+    if (!datara_py_is_available() || !ptr || !var_name) return 0;
+
+    for (uint32_t i = 0; i < g_shadow_pin_count; i++) {
+        if (g_shadow_pins[i].ptr == ptr) {
+            return 1;
+        }
+    }
+
+    if (g_shadow_pin_count >= SHADOW_PIN_MAX) {
+        return 0;
+    }
+
+    int32_t gstate = g_py.PyGILState_Ensure();
+    PyObject* main_mod = g_py.PyImport_ImportModule("__main__");
+    if (!main_mod) {
+        g_py.PyGILState_Release(gstate);
+        return 0;
+    }
+    PyObject* main_dict = g_py.PyObject_GetAttrString(main_mod, "__dict__");
+    if (!main_dict) {
+        g_py.Py_DecRef(main_mod);
+        g_py.PyGILState_Release(gstate);
+        return 0;
+    }
+
+    int64_t total_bytes = (int64_t)(length * (elem_size > 0 ? elem_size : 1));
+    PyObject* memview = g_py.PyMemoryView_FromMemory((char*)ptr, total_bytes, 0x200);
+    if (!memview) {
+        g_py.Py_DecRef(main_dict);
+        g_py.Py_DecRef(main_mod);
+        g_py.PyGILState_Release(gstate);
+        return 0;
+    }
+
+    g_py.PyDict_SetItemString(main_dict, var_name, memview);
+
+    uint32_t slot = g_shadow_pin_count++;
+    g_shadow_pins[slot].ptr = ptr;
+    g_shadow_pins[slot].length = length;
+    g_shadow_pins[slot].generation = 1;
+    g_shadow_pins[slot].py_buffer_obj = memview;
+
+    g_py.Py_DecRef(main_dict);
+    g_py.Py_DecRef(main_mod);
+    g_py.PyGILState_Release(gstate);
+    return 1;
+}
+
+void datara_py_shadow_unpin(void* ptr) {
+    if (!ptr || g_shadow_pin_count == 0) return;
+    for (uint32_t i = 0; i < g_shadow_pin_count; i++) {
+        if (g_shadow_pins[i].ptr == ptr) {
+            int32_t gstate = g_py.PyGILState_Ensure();
+            if (g_shadow_pins[i].py_buffer_obj) {
+                g_py.Py_DecRef((PyObject*)g_shadow_pins[i].py_buffer_obj);
+            }
+            g_py.PyGILState_Release(gstate);
+
+            g_shadow_pins[i] = g_shadow_pins[g_shadow_pin_count - 1];
+            g_shadow_pin_count--;
+            return;
+        }
+    }
+}
+
+void datara_py_shadow_invalidate_all(void) {
+    if (g_shadow_pin_count == 0) return;
+    int32_t gstate = g_py.PyGILState_Ensure();
+    for (uint32_t i = 0; i < g_shadow_pin_count; i++) {
+        if (g_shadow_pins[i].py_buffer_obj) {
+            g_py.Py_DecRef((PyObject*)g_shadow_pins[i].py_buffer_obj);
+        }
+    }
+    g_py.PyGILState_Release(gstate);
+    g_shadow_pin_count = 0;
+}
+
+uint32_t datara_py_shadow_pin_count(void) {
+    return g_shadow_pin_count;
+}
 

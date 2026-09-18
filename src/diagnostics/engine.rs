@@ -96,6 +96,8 @@ pub struct Diagnostic {
     pub message: String,
     pub span: Option<SourceSpan>,
     pub help: Option<String>,
+    #[serde(default)]
+    pub reason: Option<String>,
 }
 
 impl Diagnostic {
@@ -106,7 +108,18 @@ impl Diagnostic {
             message: message.into(),
             span,
             help: None,
+            reason: None,
         }
+    }
+
+    pub fn with_reason(mut self, reason: impl Into<String>) -> Self {
+        self.reason = Some(reason.into());
+        self
+    }
+
+    pub fn with_help(mut self, help: impl Into<String>) -> Self {
+        self.help = Some(help.into());
+        self
     }
 }
 
@@ -150,7 +163,14 @@ impl DiagnosticEngine {
             message,
             span,
             help,
+            reason: None,
         });
+    }
+
+    /// Push a pre-built diagnostic (already ERROR-severity) into the engine.
+    pub fn error_raw(&mut self, d: crate::diagnostics::Diagnostic) {
+        self.error_count += 1;
+        self.diagnostics.push(d);
     }
 
     /// Push a pre-built diagnostic (already WARNING-severity) into the engine.
@@ -165,6 +185,7 @@ impl DiagnosticEngine {
             message,
             span,
             help: None,
+            reason: None,
         });
     }
 
@@ -273,6 +294,12 @@ impl DiagnosticEngine {
                 }
                 out.push_str(&format!("     {}|{reset}\n", blue_bold));
 
+                if let Some(reason) = &diag.reason {
+                    out.push_str(&format!(
+                        "     {}={reset} {}note:{reset} {}\n",
+                        blue_bold, dim, reason
+                    ));
+                }
                 if let Some(help) = &diag.help {
                     out.push_str(&format!(
                         "     {}={reset} {}help:{reset} {}\n",
@@ -284,6 +311,9 @@ impl DiagnosticEngine {
                     blue_bold, dim, diag.code
                 ));
             } else {
+                if let Some(reason) = &diag.reason {
+                    out.push_str(&format!("  {}note:{reset} {}\n", dim, reason));
+                }
                 if let Some(help) = &diag.help {
                     out.push_str(&format!("  {}help:{reset} {}\n", cyan_bold, help));
                 }
@@ -294,5 +324,10 @@ impl DiagnosticEngine {
             }
         }
         out
+    }
+
+    /// Machine-readable JSON diagnostic format for IDEs, CI, and tools.
+    pub fn format_json(&self) -> String {
+        serde_json::to_string_pretty(&self.diagnostics).unwrap_or_else(|_| "[]".to_string())
     }
 }

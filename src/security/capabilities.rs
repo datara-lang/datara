@@ -129,29 +129,30 @@ pub(crate) fn stmt_always_returns(stmt: &Stmt) -> bool {
 
 pub(crate) fn required_capability_for_op(callee: &str) -> Option<&'static str> {
     match callee {
-        // file_read_checked/dir_list/path_exists gate exactly like
-        // file_read: compile-time E0940 without unsafe(justification:) or a
-        // granted Capability<FileRead>, plus the runtime DATARA_CAP_FS_READ
-        // trap. env_get/env_get_checked stay runtime-gated only (see the
-        // env_get handling in src/security/verify_expr.rs and
-        // datara_rt_cap_require in the C runtime).
         "fs_open" | "fs_read" | "read_file" | "file_read" | "file_read_bytes"
-        | "file_read_checked" | "dir_list" | "path_exists" => Some("Capability<FileRead>"),
-        "fs_write" | "file_write" | "write_file" | "file_append" | "file_write_bytes" => {
+        | "file_read_checked" | "dir_list" | "path_exists"
+        | "fopen" | "fread" | "open" | "read" => Some("Capability<FileRead>"),
+        "fs_write" | "file_write" | "write_file" | "file_append" | "file_write_bytes"
+        | "fwrite" | "write" | "unlink" | "remove" => {
             Some("Capability<FileWrite>")
         }
-        "net_connect" | "socket_connect" => Some("Capability<NetworkConnect>"),
-        "net_listen" | "socket_listen" | "socket_bind" => Some("Capability<NetworkListen>"),
-        // exec_utf8 gates exactly like exec: compile-time E0940 without
-        // unsafe(justification:) or a granted Capability<ProcessExec>, plus
-        // the runtime DATARA_CAP_SYS_EXEC trap.
+        "net_connect" | "socket_connect" | "connect" | "send" | "sendto" => {
+            Some("Capability<NetworkConnect>")
+        }
+        "net_listen" | "socket_listen" | "socket_bind" | "bind" | "listen" | "recv" | "recvfrom" => {
+            Some("Capability<NetworkListen>")
+        }
         "proc_spawn"
         | "process_run"
         | "system"
         | "exec"
         | "process_output"
         | "exec_utf8"
-        | "datara_rt_exec_utf8" => Some("Capability<ProcessExec>"),
+        | "datara_rt_exec_utf8"
+        | "popen"
+        | "fork"
+        | "execve"
+        | "posix_spawn" => Some("Capability<ProcessExec>"),
         _ => None,
     }
 }
@@ -160,15 +161,21 @@ pub(crate) fn capability_kind_for_op(callee: &str) -> Option<crate::project::Cap
     use crate::project::CapabilityKind;
     match callee {
         "fs_open" | "fs_read" | "read_file" | "file_read" | "file_read_bytes"
-        | "file_read_checked" | "dir_list" | "path_exists" => Some(CapabilityKind::FsRead),
+        | "file_read_checked" | "dir_list" | "path_exists"
+        | "fopen" | "fread" | "open" | "read" => Some(CapabilityKind::FsRead),
 
-        "fs_write" | "file_write" | "write_file" | "file_append" | "file_write_bytes" => {
+        "fs_write" | "file_write" | "write_file" | "file_append" | "file_write_bytes"
+        | "fwrite" | "write" | "unlink" | "remove" => {
             Some(CapabilityKind::FsWrite)
         }
 
-        "net_listen" | "socket_listen" | "socket_bind" => Some(CapabilityKind::NetListen),
+        "net_listen" | "socket_listen" | "socket_bind" | "bind" | "listen" | "recv" | "recvfrom" => {
+            Some(CapabilityKind::NetListen)
+        }
 
-        "net_connect" | "socket_connect" => Some(CapabilityKind::NetConnect),
+        "net_connect" | "socket_connect" | "connect" | "send" | "sendto" => {
+            Some(CapabilityKind::NetConnect)
+        }
 
         "env_get" | "env_get_checked" | "env_set" => Some(CapabilityKind::Env),
 
@@ -178,10 +185,13 @@ pub(crate) fn capability_kind_for_op(callee: &str) -> Option<crate::project::Cap
         | "exec"
         | "process_output"
         | "exec_utf8"
-        | "datara_rt_exec_utf8" => Some(CapabilityKind::Exec),
+        | "datara_rt_exec_utf8"
+        | "popen"
+        | "fork"
+        | "execve"
+        | "posix_spawn" => Some(CapabilityKind::Exec),
 
         _ if callee.starts_with("socket_") => Some(CapabilityKind::NetConnect),
-
         _ => None,
     }
 }

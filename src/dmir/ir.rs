@@ -1,6 +1,6 @@
 use crate::ast::{ContractClause, Refinement};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Default,
@@ -752,6 +752,10 @@ pub struct Module {
     pub link_libraries: Vec<String>,
     #[serde(default)]
     pub globals: HashMap<String, (String, bool)>,
+    #[serde(default)]
+    pub packed_classes: HashSet<String>,
+    #[serde(default)]
+    pub endian_classes: HashMap<String, String>,
 }
 
 impl Module {
@@ -768,6 +772,8 @@ impl Module {
             function_line_spans: HashMap::new(),
             link_libraries: Vec::new(),
             globals: HashMap::new(),
+            packed_classes: HashSet::new(),
+            endian_classes: HashMap::new(),
         }
     }
 }

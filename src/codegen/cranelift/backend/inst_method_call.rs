@@ -116,6 +116,93 @@ pub fn compile_method_call<M: ClifModule>(
             return Ok(());
         }
     }
+    // v1.4.4: SliceView methods dispatched before the general list protocol
+    if ctx
+        .val_to_class
+        .get(object)
+        .map(|c| c == "SliceView")
+        .unwrap_or(false)
+    {
+        let slice_method_name = format!("SliceView_{}", method);
+        if let Some(&(special_id, _)) = ctx.func_ids.get(&slice_method_name) {
+            let mut call_args: Vec<ClifValue> = Vec::new();
+            if let Some(&obj_v) = ctx.val_map.get(object) {
+                call_args.push(obj_v);
+            }
+            for a in args {
+                let mut av = ctx
+                    .val_map
+                    .get(a)
+                    .copied()
+                    .unwrap_or_else(|| ctx.builder.ins().iconst(clif_types::I64, 0));
+                if ctx.builder.func.dfg.value_type(av) == clif_types::F64 {
+                    av = ctx.builder.ins().bitcast(
+                        clif_types::I64,
+                        cranelift_codegen::ir::MemFlagsData::new(),
+                        av,
+                    );
+                }
+                call_args.push(av);
+            }
+            let callee_ref = ctx
+                .module
+                .declare_func_in_func(special_id, ctx.builder.func);
+            let call_inst = ctx.builder.ins().call(callee_ref, &call_args);
+            let results = ctx.builder.inst_results(call_inst);
+            if let Some(&r) = results.first() {
+                ctx.val_map.insert(*dest, r);
+                if method == "subslice" {
+                    ctx.val_to_class.insert(*dest, "SliceView".to_string());
+                }
+            } else {
+                let zero = ctx.builder.ins().iconst(clif_types::I64, 0);
+                ctx.val_map.insert(*dest, zero);
+            }
+            return Ok(());
+        }
+    }
+    // v1.4.4: VolatilePtr methods dispatched for Level 4 MMIO
+    if ctx
+        .val_to_class
+        .get(object)
+        .map(|c| c == "VolatilePtr")
+        .unwrap_or(false)
+    {
+        let vptr_method_name = format!("VolatilePtr_{}", method);
+        if let Some(&(special_id, _)) = ctx.func_ids.get(&vptr_method_name) {
+            let mut call_args: Vec<ClifValue> = Vec::new();
+            if let Some(&obj_v) = ctx.val_map.get(object) {
+                call_args.push(obj_v);
+            }
+            for a in args {
+                let mut av = ctx
+                    .val_map
+                    .get(a)
+                    .copied()
+                    .unwrap_or_else(|| ctx.builder.ins().iconst(clif_types::I64, 0));
+                if ctx.builder.func.dfg.value_type(av) == clif_types::F64 {
+                    av = ctx.builder.ins().bitcast(
+                        clif_types::I64,
+                        cranelift_codegen::ir::MemFlagsData::new(),
+                        av,
+                    );
+                }
+                call_args.push(av);
+            }
+            let callee_ref = ctx
+                .module
+                .declare_func_in_func(special_id, ctx.builder.func);
+            let call_inst = ctx.builder.ins().call(callee_ref, &call_args);
+            let results = ctx.builder.inst_results(call_inst);
+            if let Some(&r) = results.first() {
+                ctx.val_map.insert(*dest, r);
+            } else {
+                let zero = ctx.builder.ins().iconst(clif_types::I64, 0);
+                ctx.val_map.insert(*dest, zero);
+            }
+            return Ok(());
+        }
+    }
     // List and String protocol methods: dispatch on the object's
     // runtime shape, not the class method table.
     let list_special = if ctx.map_vids.contains(object) {

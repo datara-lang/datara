@@ -1310,7 +1310,13 @@ impl<'a> Lowering<'a> {
         }
 
         let dest = self.next_val();
-        let ret_ty = self.infer_fn_ret_ty(&func_name);
+        let ret_ty = if (func_name == "join" || func_name == "thread_join" || func_name == "ThreadHandle_join") && arg_vals.len() == 1 {
+            "Int".to_string()
+        } else if func_name == "join" && arg_vals.len() >= 2 {
+            "String".to_string()
+        } else {
+            self.infer_fn_ret_ty(&func_name)
+        };
         self.get_block_mut(*cur_block)
             .instructions
             .push(Inst::Call {

@@ -164,6 +164,14 @@ impl SraOptimizer {
                         new_instructions.push(inst);
                     }
 
+                    Inst::UnOp { dest, ref op, operand, .. } if op == "copy" => {
+                        if let Some(&root) = vid_to_root.get(&operand) {
+                            vid_to_root.insert(dest, root);
+                            continue;
+                        }
+                        new_instructions.push(inst);
+                    }
+
                     _ => {
                         new_instructions.push(inst);
                     }

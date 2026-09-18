@@ -37,6 +37,11 @@ pub fn try_emit_simd_call(
     value_types: &mut HashMap<ValueId, &'static str>,
     out: &mut String,
 ) -> bool {
+    let is_strict_fp = std::env::var("DATARA_STRICT_FP")
+        .map(|v| v == "1" || v == "true")
+        .unwrap_or(false);
+    let fast_qual = if is_strict_fp { "" } else { "fast " };
+
     // f32x4 constructor
     if (func == "f32x4"
         || func == "datara_rt_f32x4"
@@ -138,8 +143,8 @@ pub fn try_emit_simd_call(
             ));
             let red_val = format!("%vred_{}", dest.0);
             out.push_str(&format!(
-                "  {} = call fast float @llvm.vector.reduce.fadd.v4f32(float -0.0, <4 x float> {})\n",
-                red_val, mul_vec
+                "  {} = call {}float @llvm.vector.reduce.fadd.v4f32(float -0.0, <4 x float> {})\n",
+                red_val, fast_qual, mul_vec
             ));
             out.push_str(&format!(
                 "  %v{} = fpext float {} to double\n",
@@ -157,8 +162,8 @@ pub fn try_emit_simd_call(
         value_types.insert(*dest, "double");
         let red_val = format!("%vhadd_{}", dest.0);
         out.push_str(&format!(
-            "  {} = call fast float @llvm.vector.reduce.fadd.v4f32(float -0.0, <4 x float> %v{})\n",
-            red_val, args[0].0
+            "  {} = call {}float @llvm.vector.reduce.fadd.v4f32(float -0.0, <4 x float> %v{})\n",
+            red_val, fast_qual, args[0].0
         ));
         out.push_str(&format!(
             "  %v{} = fpext float {} to double\n",
@@ -253,8 +258,8 @@ pub fn try_emit_simd_call(
         ));
         let red_v = format!("%dist_red_{}", dest.0);
         out.push_str(&format!(
-            "  {} = call fast float @llvm.vector.reduce.fadd.v4f32(float -0.0, <4 x float> {})\n",
-            red_v, mul_v
+            "  {} = call {}float @llvm.vector.reduce.fadd.v4f32(float -0.0, <4 x float> {})\n",
+            red_v, fast_qual, mul_v
         ));
         let red_d = format!("%dist_d_{}", dest.0);
         out.push_str(&format!("  {} = fpext float {} to double\n", red_d, red_v));

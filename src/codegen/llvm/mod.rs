@@ -1125,6 +1125,30 @@ impl<'a> LlvmEmitter<'a> {
                 .get(cls)
                 .or_else(|| module.class_fields.get(base_c))
             {
+                if module.packed_classes.contains(cls) || module.packed_classes.contains(base_c) {
+                    let mut cur_offset = 0usize;
+                    for f in fields {
+                        if f == field {
+                            return Ok(cur_offset);
+                        }
+                        let fkey = format!("{}.{}", cls, f);
+                        let fty = module
+                            .class_field_types
+                            .get(&fkey)
+                            .map(|s| s.as_str())
+                            .unwrap_or("Int");
+                        cur_offset += match fty {
+                            "Byte" | "U8" | "I8" | "Bool" | "Char" => 1,
+                            "U16" | "I16" => 2,
+                            "U32" | "I32" | "F32" => 4,
+                            _ => 8,
+                        };
+                    }
+                    return Err(format!(
+                        "LLVM codegen failed: [E0944] field '{}' does not exist in the layout of class '{}' in function '{}': refusing cross-class offset fallback",
+                        field, cls, fn_name
+                    ));
+                }
                 return fields.iter().position(|f| f == field)
                     .map(|pos| pos.saturating_mul(8))
                     .ok_or_else(|| {

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "datara_rt_scheduler.h"
+#include "datara_thread.h"
 
 #ifdef __cplusplus
 extern "C" {

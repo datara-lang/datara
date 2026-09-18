@@ -32,6 +32,12 @@ fn main() {
     println!("cargo:rerun-if-changed=src/runtime/datara_rt_scheduler.h");
     println!("cargo:rerun-if-changed=src/runtime/datara_polyglot.c");
     println!("cargo:rerun-if-changed=src/runtime/datara_polyglot.h");
+    println!("cargo:rerun-if-changed=src/runtime/datara_thread.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_thread.h");
+    println!("cargo:rerun-if-changed=src/runtime/datara_systems.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_systems.h");
+    println!("cargo:rerun-if-changed=src/runtime/datara_memprofile.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_memprofile.h");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()));
     let runtime_dir = manifest_dir.join("src").join("runtime");
@@ -44,14 +50,21 @@ fn main() {
         .file(runtime_dir.join("datara_js.c"))
         .file(runtime_dir.join("datara_napi.c"))
         .file(runtime_dir.join("datara_polyglot.c"))
+        .file(runtime_dir.join("datara_thread.c"))
+        .file(runtime_dir.join("datara_systems.c"))
+        .file(runtime_dir.join("datara_memprofile.c"))
         .include(&runtime_dir)
         .opt_level(3)
         .cargo_metadata(true);
 
     if cfg!(target_env = "msvc") {
         build.static_crt(true);
+        build.flag("/Gy"); // Enable function-level linking (COMDAT) for /OPT:REF
+        build.flag("/Gw"); // Enable whole-program data elimination for /OPT:REF
     } else {
         build.pic(true);
+        build.flag("-ffunction-sections");
+        build.flag("-fdata-sections");
     }
 
     if cfg!(target_os = "windows") {

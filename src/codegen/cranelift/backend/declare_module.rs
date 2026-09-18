@@ -467,9 +467,30 @@ pub fn declare_module_symbols<M: ClifModule>(
     sorted_cls_names.sort();
     for cls_name in sorted_cls_names {
         let fields = &dmir_module.class_fields[cls_name];
+        let is_packed = dmir_module.packed_classes.contains(cls_name);
         let m = class_field_offsets.entry(cls_name.clone()).or_default();
-        for (idx, fname) in fields.iter().enumerate() {
-            m.insert(fname.clone(), (idx * 8) as i32);
+        if is_packed {
+            let mut cur_offset = 0i32;
+            for fname in fields {
+                m.insert(fname.clone(), cur_offset);
+                let fkey = format!("{}.{}", cls_name, fname);
+                let fty = dmir_module
+                    .class_field_types
+                    .get(&fkey)
+                    .map(|s| s.as_str())
+                    .unwrap_or("Int");
+                let fsize = match fty {
+                    "Byte" | "U8" | "I8" | "Bool" | "Char" => 1,
+                    "U16" | "I16" => 2,
+                    "U32" | "I32" | "F32" => 4,
+                    _ => 8,
+                };
+                cur_offset += fsize;
+            }
+        } else {
+            for (idx, fname) in fields.iter().enumerate() {
+                m.insert(fname.clone(), (idx * 8) as i32);
+            }
         }
     }
 

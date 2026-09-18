@@ -1,8 +1,11 @@
 pub mod discovery;
+pub mod dpm;
 pub mod init;
 pub mod manifest;
 pub mod pm;
 pub mod runner;
+
+pub use dpm::{DpmDepValue, DpmManifest, InstallSummary};
 
 pub use discovery::{ProjectDiscovery, ProjectKind, ProjectLayout};
 pub use init::ProjectInitializer;

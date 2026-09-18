@@ -892,8 +892,14 @@ pub fn compile_with_clang(
         let run_clang = |use_lto: bool| -> Result<std::process::Output, String> {
             let mut cmd = Command::new(&clang);
             cmd.arg(opt_flag);
-            if !is_tiny {
+            let is_strict_fp = std::env::var("DATARA_STRICT_FP")
+                .map(|v| v == "1" || v == "true")
+                .unwrap_or(false);
+            if !is_tiny && !is_strict_fp {
                 cmd.arg("-ffast-math");
+            } else if is_strict_fp {
+                cmd.arg("-ffp-contract=off");
+                cmd.arg("-fno-fast-math");
             }
             cmd.arg("-ffunction-sections");
             cmd.arg("-fdata-sections");

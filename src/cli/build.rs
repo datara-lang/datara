@@ -1058,6 +1058,14 @@ pub(crate) fn cmd_profile(args: &[String]) -> bool {
     let _ = fs::create_dir_all(&prof_dir);
     let prof_file = prof_dir.join(format!("{}.json", layout.binary_name()));
 
+    let is_mem_profile = args.iter().any(|a| a == "--mem" || a == "--memory");
+    let mem_prof_file = prof_dir.join(format!("{}_mem.json", layout.binary_name()));
+    if is_mem_profile {
+        unsafe {
+            std::env::set_var("DATARA_MEMPROFILE_OUT", &mem_prof_file);
+        }
+    }
+
     let compiler = ForgenCompiler::new("release").with_profile_generate(Some(prof_file.clone()));
     let res = if layout.source_files.len() == 1 {
         compiler.compile_file(&layout.source_files[0], None)
@@ -1066,6 +1074,11 @@ pub(crate) fn cmd_profile(args: &[String]) -> bool {
     };
 
     if !res.success {
+        if is_mem_profile {
+            unsafe {
+                std::env::remove_var("DATARA_MEMPROFILE_OUT");
+            }
+        }
         eprintln!("Profile build failed: {}", res.error.unwrap_or_default());
         std::process::exit(1);
     }
@@ -1074,11 +1087,22 @@ pub(crate) fn cmd_profile(args: &[String]) -> bool {
     let exe = match res.exe_path.clone() {
         Some(p) => p,
         None => {
+            if is_mem_profile {
+                unsafe {
+                    std::env::remove_var("DATARA_MEMPROFILE_OUT");
+                }
+            }
             eprintln!("Profile build produced no executable");
             std::process::exit(1);
         }
     };
     let run = compiler.codegen.run_executable(&exe, &[]);
+
+    if is_mem_profile {
+        unsafe {
+            std::env::remove_var("DATARA_MEMPROFILE_OUT");
+        }
+    }
 
     match run {
         Ok((stdout, stderr, code, elapsed_ns)) => {
@@ -1097,6 +1121,39 @@ pub(crate) fn cmd_profile(args: &[String]) -> bool {
         }
         Err(e) => {
             eprintln!("[Forgen Profile] Program failed to run: {}", e);
+        }
+    }
+
+    if is_mem_profile {
+        if let Ok(mem_json) = fs::read_to_string(&mem_prof_file) {
+            println!("============================================================");
+            println!("       DATARA RUNTIME MEMORY PROFILE REPORT                 ");
+            println!("============================================================");
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&mem_json) {
+                let alloc_cnt = v.get("total_alloc_count").and_then(|x| x.as_u64()).unwrap_or(0);
+                let free_cnt = v.get("total_free_count").and_then(|x| x.as_u64()).unwrap_or(0);
+                let alloc_b = v.get("total_allocated_bytes").and_then(|x| x.as_u64()).unwrap_or(0);
+                let freed_b = v.get("total_freed_bytes").and_then(|x| x.as_u64()).unwrap_or(0);
+                let peak_b = v.get("peak_live_bytes").and_then(|x| x.as_u64()).unwrap_or(0);
+                let cur_b = v.get("current_live_bytes").and_then(|x| x.as_u64()).unwrap_or(0);
+                let arena_b = v.get("arena_bytes").and_then(|x| x.as_u64()).unwrap_or(0);
+                let promo_cnt = v.get("promotions_count").and_then(|x| x.as_u64()).unwrap_or(0);
+                let promo_b = v.get("promoted_bytes").and_then(|x| x.as_u64()).unwrap_or(0);
+                let slab_h = v.get("slab_hits").and_then(|x| x.as_u64()).unwrap_or(0);
+                let slab_m = v.get("slab_misses").and_then(|x| x.as_u64()).unwrap_or(0);
+
+                println!("  Allocations:            {} (peak live: {} B)", alloc_cnt, peak_b);
+                println!("  Frees:                  {} (live at exit: {} B)", free_cnt, cur_b);
+                println!("  Cumulative Allocated:   {} B", alloc_b);
+                println!("  Cumulative Freed:       {} B", freed_b);
+                println!("  Generational Arena:     {} B active", arena_b);
+                println!("  Promotions (zero-copy): {} promotions ({} B moved)", promo_cnt, promo_b);
+                let total_slab = slab_h + slab_m;
+                let slab_ratio = if total_slab > 0 { (slab_h as f64 / total_slab as f64) * 100.0 } else { 0.0 };
+                println!("  Slab Cache Hits:        {} / {} ({:.1}%)", slab_h, total_slab, slab_ratio);
+            }
+            println!("  Memory JSON dump:       {}", mem_prof_file.display());
+            println!("============================================================");
         }
     }
 

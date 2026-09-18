@@ -226,23 +226,38 @@ impl<'a> SecurityVerifier<'a> {
                             }
                         }
                     } else if let Some(req_cap) = required_capability_for_op(callee_name) {
+                        let is_foreign_or_ffi = matches!(
+                            callee_name.as_str(),
+                            "fopen" | "fread" | "fwrite" | "open" | "read" | "write"
+                                | "connect" | "bind" | "listen" | "send" | "sendto"
+                                | "recv" | "recvfrom" | "popen" | "fork" | "execve" | "posix_spawn"
+                        );
                         let justified = match &ctx.unsafe_justification {
                             Some(j) => !j.trim().is_empty(),
                             None => false,
                         };
-                        let is_stdlib = span.file.contains("stdlib");
+                        let is_stdlib = is_genuine_stdlib_path(&span.file);
+                        let strict_zt = is_foreign_or_ffi
+                            || std::env::var("FORGEN_STRICT_ZERO_TRUST")
+                                .map(|v| v == "1" || v == "true")
+                                .unwrap_or(false);
                         let has_cap = is_stdlib
-                            || justified
+                            || (!strict_zt && justified)
                             || has_capability(&ctx.symbols, req_cap)
                             || args
                                 .iter()
                                 .any(|arg| self.expr_has_capability(arg, req_cap, ctx));
                         if !has_cap {
+                            let note = if is_foreign_or_ffi && justified {
+                                " (Zero-Trust: foreign FFI operations require capabilities even inside unsafe blocks)"
+                            } else {
+                                ""
+                            };
                             diag.error(
                                 ErrorCode::SecurityViolation,
                                 format!(
-                                    "Security Violation: Operation '{}' requires '{}'",
-                                    callee_name, req_cap
+                                    "Security Violation: Operation '{}' requires '{}'{}",
+                                    callee_name, req_cap, note
                                 ),
                                 Some(span.clone()),
                             );
@@ -605,4 +620,26 @@ impl<'a> SecurityVerifier<'a> {
             }
         }
     }
+}
+
+/// Returns true only if the given path corresponds to a genuine Datara standard library file,
+/// preventing user directory substring collisions (e.g. `my_stdlib/payload.dtr`).
+fn is_genuine_stdlib_path(path: &str) -> bool {
+    let p = std::path::Path::new(path);
+    if let Some(first) = p.components().next() {
+        let s = first.as_os_str().to_string_lossy();
+        if s == "stdlib" {
+            return true;
+        }
+    }
+    path.starts_with("stdlib/")
+        || path.starts_with("stdlib\\")
+        || path.contains("datara_embedded_stdlib")
+        || path.contains(".datara/stdlib")
+        || path.contains(".datara\\stdlib")
+        || path.starts_with("/usr/share/datara/stdlib")
+        || path.starts_with("/usr/local/share/datara/stdlib")
+        || path.starts_with("/opt/datara/stdlib")
+        || path.contains("Programs\\Datara\\stdlib")
+        || path.contains("Programs/Datara/stdlib")
 }

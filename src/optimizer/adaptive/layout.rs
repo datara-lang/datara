@@ -175,6 +175,7 @@ impl LayoutAdapter {
                         "Field order is preserved as written; the optimizer will not silently change memory layout that C code or serialization may depend on"
                             .to_string(),
                     ),
+                    reason: None,
                 });
             } else {
                 reordered_applied = sorted_fields != fields;

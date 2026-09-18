@@ -155,6 +155,17 @@ impl EscapeAnalyzer {
                                 }
                             }
                         }
+                        Inst::UnOp { dest, op, operand, .. } if op == "copy" => {
+                            if let Some(&root) = val_to_alloc_root.get(operand) {
+                                if val_to_alloc_root.get(dest) != Some(&root) {
+                                    val_to_alloc_root.insert(*dest, root);
+                                    if let Some(alloc) = result.allocations.get_mut(&root) {
+                                        alloc.aliases.insert(*dest);
+                                    }
+                                    changed = true;
+                                }
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -235,6 +246,35 @@ impl EscapeAnalyzer {
                                             method
                                         ));
                                     }
+                                }
+                            }
+                        }
+                    }
+                    Inst::GetField { object, field, .. } => {
+                        if let Some(&root) = val_to_alloc_root.get(object) {
+                            if let Some(alloc) = result.allocations.get_mut(&root) {
+                                if !alloc.initial_fields.contains_key(field) && alloc.state == EscapeState::NonEscaping {
+                                    alloc.state = EscapeState::EscapedExternalCall(format!("unknown_field:{}", field));
+                                }
+                            }
+                        }
+                    }
+                    Inst::BinOp { left, right, .. } => {
+                        for v in [left, right] {
+                            if let Some(&root) = val_to_alloc_root.get(v) {
+                                if let Some(alloc) = result.allocations.get_mut(&root) {
+                                    if alloc.state == EscapeState::NonEscaping {
+                                        alloc.state = EscapeState::EscapedExternalCall("binop".into());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Inst::UnOp { operand, op, .. } if op != "copy" => {
+                        if let Some(&root) = val_to_alloc_root.get(operand) {
+                            if let Some(alloc) = result.allocations.get_mut(&root) {
+                                if alloc.state == EscapeState::NonEscaping {
+                                    alloc.state = EscapeState::EscapedExternalCall("unop".into());
                                 }
                             }
                         }

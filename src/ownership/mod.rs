@@ -782,13 +782,17 @@ impl<'a> OwnershipTracker<'a> {
                         if let Expr::Identifier(arg_name, arg_span) = a {
                             match self.states.get(arg_name) {
                                 Some(ValueState::Moved { at_span, reason }) => {
-                                    diag.error(
+                                    diag.error_with_help(
                                         ErrorCode::BorrowUseAfterMove,
                                         format!(
                                             "Cannot move '{}' because it was already moved at {} ({})",
                                             arg_name, at_span, reason
                                         ),
                                         Some(arg_span.clone()),
+                                        Some(format!(
+                                            "function '{}' consumes ownership of '{}'; pass a borrowed view '&{}' if ownership is not needed, or clone the value before the call",
+                                            fn_name, arg_name, arg_name
+                                        )),
                                     );
                                     moved_by_call.push(i);
                                 }
@@ -803,10 +807,11 @@ impl<'a> OwnershipTracker<'a> {
                                         .is_some_and(|bs| !bs.is_empty());
                                     if is_borrowed {
                                         let b = &self.active_borrows[arg_name][0];
-                                        diag.error(
+                                        diag.error_with_help(
                                             ErrorCode::BorrowConflictActiveView,
                                             format!("Cannot move '{}' because it is actively borrowed by '{}' at {}", arg_name, b.borrower, b.span),
                                             Some(arg_span.clone()),
+                                            Some(format!("ensure borrow '{}' has finished its lifecycle before moving '{}'", b.borrower, arg_name)),
                                         );
                                         moved_by_call.push(i);
                                     } else if !is_active_borrower {

@@ -11,37 +11,10 @@ use std::collections::HashMap;
 use super::alloc_tier::{self, TierFrame};
 use super::inst_binop::{compile_binop, compile_unop};
 use super::inst_call::{compile_call, compile_method_call};
+use super::field_access::{
+    emit_field_load, emit_field_store, get_field_type_size, resolve_field_offset,
+};
 use super::types::{FunctionCompileCtx, ModuleDecls, RuntimeIds, clif_type};
-
-/// Resolves the byte offset of `field` on a receiver of class `cls`,
-/// falling back to the generic template name only (never to another
-/// class's layout). Missing field is E0944, not a guessed offset: the
-/// removed bare-name fallback table let two structs sharing a field
-/// name silently read the wrong slot.
-fn resolve_field_offset(
-    class_field_offsets: &HashMap<String, HashMap<String, i32>>,
-    cls: &str,
-    field: &str,
-    fn_name: &str,
-) -> Result<i32, String> {
-    let base_c = cls
-        .split('<')
-        .next()
-        .unwrap_or(cls)
-        .split('_')
-        .next()
-        .unwrap_or(cls);
-    class_field_offsets
-        .get(cls)
-        .or_else(|| class_field_offsets.get(base_c))
-        .and_then(|m| m.get(field).copied())
-        .ok_or_else(|| {
-            format!(
-                "Code generation failed: [E0944] field '{}' does not exist in the layout of class '{}' in function '{}': refusing cross-class offset fallback",
-                field, cls, fn_name
-            )
-        })
-}
 
 pub fn compile_all_functions<M: ClifModule>(
     module: &mut M,
@@ -524,7 +497,22 @@ pub fn compile_all_functions<M: ClifModule>(
                                         _ => false,
                                     })
                             });
-                        let byte_size = fields.len().saturating_mul(8).max(16) as u32;
+                        let is_packed = dmir_module.packed_classes.contains(class_name);
+                        let byte_size = if is_packed {
+                            let mut total = 0u32;
+                            for (fname, _) in fields {
+                                let fkey = format!("{}.{}", class_name, fname);
+                                let fty = dmir_module
+                                    .class_field_types
+                                    .get(&fkey)
+                                    .map(|s| s.as_str())
+                                    .unwrap_or("Int");
+                                total += get_field_type_size(fty);
+                            }
+                            total.max(8)
+                        } else {
+                            fields.len().saturating_mul(8).max(16) as u32
+                        };
                         // v1.4.0 allocation decision tree (see alloc_tier):
                         // StrBuf -> runtime builder; @pool -> slab slot with
                         // the capacity trap (it takes priority over stack
@@ -566,11 +554,6 @@ pub fn compile_all_functions<M: ClifModule>(
                         let flags = cranelift_codegen::ir::MachMemFlags::new();
                         for (idx, (fname, fval)) in fields.iter().enumerate() {
                             if let Some(&v) = val_map.get(fval) {
-                                // Store at the DECLARED layout offset for this
-                                // class/field pair; the literal's field order
-                                // can differ from the resolved class layout
-                                // (composition merges fields), and GetField
-                                // always reads by declared offset.
                                 let base_c = class_name
                                     .split('<')
                                     .next()
@@ -583,14 +566,21 @@ pub fn compile_all_functions<M: ClifModule>(
                                     .or_else(|| class_field_offsets.get(base_c))
                                     .and_then(|m| m.get(fname).copied())
                                     .unwrap_or((idx * 8) as i32);
-                                let v_ty = builder.func.dfg.value_type(v);
-                                let val_to_store =
-                                    if v_ty == clif_types::I8 || v_ty == clif_types::I32 {
-                                        builder.ins().sextend(clif_types::I64, v)
-                                    } else {
-                                        v
-                                    };
-                                builder.ins().store(flags, val_to_store, slot_addr, off);
+                                let fkey = format!("{}.{}", class_name, fname);
+                                let fty = dmir_module
+                                    .class_field_types
+                                    .get(&fkey)
+                                    .map(|s| s.as_str())
+                                    .unwrap_or("Int");
+                                emit_field_store(
+                                    &mut builder,
+                                    flags,
+                                    slot_addr,
+                                    off,
+                                    v,
+                                    fty,
+                                    is_packed,
+                                );
                             }
                         }
                         val_map.insert(*dest, slot_addr);
@@ -657,14 +647,17 @@ pub fn compile_all_functions<M: ClifModule>(
                                     || current_class_name.ends_with("_Float")
                                     || current_class_name.ends_with("_Float64")));
                         let flags = cranelift_codegen::ir::MachMemFlags::new();
-                        if is_float {
-                            let loaded =
-                                builder.ins().load(clif_types::F64, flags, obj_val, offset);
-                            val_map.insert(*dest, loaded);
-                        } else {
-                            let loaded =
-                                builder.ins().load(clif_types::I64, flags, obj_val, offset);
-                            val_map.insert(*dest, loaded);
+                        let is_packed = dmir_module.packed_classes.contains(current_class_name);
+                        let loaded = emit_field_load(
+                            &mut builder,
+                            flags,
+                            obj_val,
+                            offset,
+                            field_type_declared,
+                            is_float,
+                            is_packed,
+                        );
+                        val_map.insert(*dest, loaded);
                             if field_type_declared.contains("Str")
                                 || ty.contains("Str")
                                 || string_fields.contains(field)
@@ -711,7 +704,6 @@ pub fn compile_all_functions<M: ClifModule>(
                             {
                                 val_to_class.insert(*dest, stripped_field_type.to_string());
                             }
-                        }
                     }
                     Inst::SetField {
                         object,
@@ -744,14 +736,16 @@ pub fn compile_all_functions<M: ClifModule>(
                             }
                         };
                         let flags = cranelift_codegen::ir::MachMemFlags::new();
-                        let val_ty = builder.func.dfg.value_type(val);
-                        let val_to_store = if val_ty == clif_types::I8 || val_ty == clif_types::I32
-                        {
-                            builder.ins().sextend(clif_types::I64, val)
-                        } else {
-                            val
-                        };
-                        builder.ins().store(flags, val_to_store, obj_val, offset);
+                        let fkey = format!("{}.{}", current_class_name.unwrap_or(""), field);
+                        let fty = dmir_module
+                            .class_field_types
+                            .get(&fkey)
+                            .map(|s| s.as_str())
+                            .unwrap_or("Int");
+                        let is_packed = current_class_name
+                            .map(|c| dmir_module.packed_classes.contains(c))
+                            .unwrap_or(false);
+                        emit_field_store(&mut builder, flags, obj_val, offset, val, fty, is_packed);
                     }
                     Inst::Out { value } => {
                         let v = val_map.get(value).copied().ok_or_else(|| {

@@ -16,6 +16,22 @@ pub fn compile_call<M: ClifModule>(
             .insert(*dest, ctx.builder.ins().iconst(clif_types::I64, 0));
         return Ok(());
     }
+    if (func == "join" || func == "thread_join") && args.len() == 1 {
+        if let Some((th_join_id, _)) = ctx.func_ids.get("ThreadHandle_join") {
+            let callee_ref = ctx.module.declare_func_in_func(*th_join_id, ctx.builder.func);
+            let arg_val = ctx
+                .val_map
+                .get(&args[0])
+                .copied()
+                .unwrap_or_else(|| ctx.builder.ins().iconst(clif_types::I64, 0));
+            let call_inst = ctx.builder.ins().call(callee_ref, &[arg_val]);
+            let results = ctx.builder.inst_results(call_inst);
+            if let Some(&r) = results.first() {
+                ctx.val_map.insert(*dest, r);
+            }
+            return Ok(());
+        }
+    }
     // Hidden sret return-slot ABI (Microsoft x64): a C function returning a
     // by-value struct larger than one machine word takes a caller-allocated
     // buffer whose pointer is passed as the first argument. Allocate the

@@ -12,7 +12,10 @@
 mod modules;
 mod namespace;
 mod pipeline;
+pub mod check_cache;
 pub mod polyglot;
+
+pub use check_cache::CheckCache;
 
 use self::pipeline::{
     AnalysisOutput, parse_multi_sources, parse_single_source, run_analysis_and_lower,
@@ -41,6 +44,7 @@ pub struct ForgenCompiler {
     pub debug_info: bool,
     pub target_triple: Option<String>,
     pub native: bool,
+    pub strict_fp: bool,
 }
 
 impl ForgenCompiler {
@@ -59,6 +63,7 @@ impl ForgenCompiler {
             debug_info,
             target_triple: None,
             native: false,
+            strict_fp: false,
         }
     }
 
@@ -66,6 +71,16 @@ impl ForgenCompiler {
     /// pre-1.3.4 pipeline behavior exactly.
     pub fn with_opt_tier(mut self, tier: crate::optimizer::OptTier) -> Self {
         self.opt_tier = tier;
+        self
+    }
+
+    pub fn with_strict_fp(mut self, strict_fp: bool) -> Self {
+        self.strict_fp = strict_fp;
+        if strict_fp {
+            unsafe {
+                std::env::set_var("DATARA_STRICT_FP", "1");
+            }
+        }
         self
     }
 
@@ -167,6 +182,10 @@ impl ForgenCompiler {
     }
 
     pub fn check_source(&self, source: &str, file: &str) -> CompilationResult {
+        if let Some(cached) = CheckCache::get(source, file, self.struct_return_abi()) {
+            return cached;
+        }
+
         let total_start = Instant::now();
         let mut diag = DiagnosticEngine::new(&self.locale);
         diag.set_source(file, source);
@@ -189,13 +208,16 @@ impl ForgenCompiler {
         let base_dirs = self.module_base_dirs(Path::new(file));
         self.resolve_modules(&mut program, &mut diag, &[], base_dirs);
 
-        run_check_pipeline(
+        let res = run_check_pipeline(
             program,
             &mut diag,
             timings,
             total_start,
             self.struct_return_abi(),
-        )
+        );
+
+        CheckCache::put(source, file, self.struct_return_abi(), &res);
+        res
     }
 
     pub fn check_file(&self, path: &Path) -> CompilationResult {

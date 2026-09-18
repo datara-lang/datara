@@ -18,6 +18,10 @@ impl<'a> Parser<'a> {
                             let literal = n.to_string();
                             self.advance();
                             args.push((literal, String::new()));
+                        } else if let TokenType::StringLiteral(s) = &self.peek().token_type {
+                            let literal = s.clone();
+                            self.advance();
+                            args.push((literal, String::new()));
                         } else if let Some(arg_name) =
                             self.consume_ident_or_keyword("Expected argument name")
                         {
@@ -74,7 +78,8 @@ impl<'a> Parser<'a> {
 
     pub(crate) fn parse_c_import_decl(&mut self) -> Option<CImportDecl> {
         let start_span = self.previous().span.clone();
-        self.advance(); // consume 'c'
+        let is_cpp = self.check_ident_lexeme("cpp");
+        self.advance(); // consume 'c' or 'cpp'
         let header_token = self.peek().clone();
         let header_path = match &header_token.token_type {
             TokenType::StringLiteral(s) => {
@@ -82,7 +87,11 @@ impl<'a> Parser<'a> {
                 s.clone()
             }
             _ => {
-                self.error("Expected header file string after 'import c'");
+                self.error(if is_cpp {
+                    "Expected header file string after 'import cpp'"
+                } else {
+                    "Expected header file string after 'import c'"
+                });
                 return None;
             }
         };
@@ -130,7 +139,7 @@ impl<'a> Parser<'a> {
         let is_export = self.match_token(&TokenType::Export) || self.match_token(&TokenType::Pub);
 
         if self.match_token(&TokenType::Import) {
-            if self.check_ident_lexeme("c") {
+            if self.check_ident_lexeme("c") || self.check_ident_lexeme("cpp") {
                 return self.parse_c_import_decl().map(Decl::CImport);
             }
             return self.parse_use_decl().map(Decl::Use);

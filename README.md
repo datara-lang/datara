@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://github.com/datara-lang/datara"><img src="https://img.shields.io/badge/language-Datara-%23E3B341.svg" alt="Language" /></a>
   <a href="LICENSE-APACHE"><img src="https://img.shields.io/badge/License-Apache_2.0_OR_MIT-blue.svg" alt="License" /></a>
-  <img src="https://img.shields.io/badge/version-1.4.3-blue.svg" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.4.4-blue.svg" alt="Version" />
   <a href="https://github.com/datara-lang/datara/actions/workflows/ci.yml"><img src="https://github.com/datara-lang/datara/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <img src="https://img.shields.io/badge/tests-247%20suites%20%7C%201100%2B%20passing-brightgreen.svg" alt="Tests" />
   <a href="docs/CONFORMANCE_MATRIX.md"><img src="https://img.shields.io/badge/Spec_V1_Conformance-84%2F84_Gates_PASS-brightgreen.svg" alt="Conformance" /></a>
@@ -37,6 +37,19 @@ Datara completely eliminates garbage collection pauses and reference-counting cy
 
 > [!NOTE]
 > **Русскоязычная документация**: [Полная документация по языку Datara на русском языке](README_RU.md) — исчерпывающий перевод со всеми главами, синтаксисом, архитектурными схемами, стандартной библиотекой и тестами производительности.
+
+### v1.4.4 Highlights
+- **The 4 Abstraction Levels Architecture**: Clear architectural separation across 4 levels with 100% unified ABI backwards compatibility:
+  - **Level 1 (Scripting & Prototyping)**: Rapid high-level programming with dynamic inference, string interpolation `fmt"..."`, high-level collections (`List`, `Map`), and automatic resource management compiling to native Rust/C speed.
+  - **Level 2 (Application & Enterprise)**: Design-by-contract (`require`/`ensure`), affine ownership without lifetime annotations (`<'a, 'b>`), typed error handling with `?` and `or`, and capability sandboxing (`[Net]`, `[FS]`).
+  - **Level 3 (Systems & Network Wire)**: Zero-copy `SliceView`, `RawPtr`, memory arenas (`@arena`), `@packed struct`, and network endianness primitives (`hton16/32/64`, `ntoh16/32/64`, `bswap16/32/64`).
+  - **Level 4 (Kernel, MMIO & Direct Hardware Control)**: `VolatilePtr` hardware register manipulation, hardware memory ordering barriers (`atomic_fence_acquire/release/acq_rel/seq_cst`), zeroed memory buffer initialization (`typed_zero_init`), and bidirectional inline assembly (`asm { ... }`).
+- **Hardware Control Without Mandatory Assembly**: Kernel drivers, MMIO registers, and memory barriers compile directly to 1:1 hardware instructions without forcing developers into non-portable raw assembly strings. Inline assembly is strictly optional.
+- **Zero-Trust FFI Capability Sandboxing**: `unsafe(justification: "...")` blocks no longer bypass `[Net]`, `[FS]`, or `[Env]` capability requirements. Foreign C/POSIX functions are statically checked against caller capabilities with zero-bypass path verification.
+- **Universal Multi-Language Package Orchestrator (`dpm.toml`)**: Single unified manifest coordinating dependencies across C (CMake/clang), C++, Rust (Cargo), Python (pip), Node.js (npm), Go, C# (.NET NativeAOT), Zig (`zig build-lib`), JVM (GraalVM `native-image --shared`), and Lua/Luau via `forgen install`.
+- **Bidirectional Inline Assembly Register Bridging**: Local Datara variables can be loaded into assembly registers (`mov rax, x`) and written back (`mov y, rax`), guaranteed by SSA stack slot assignment and affine invariant verification.
+- **Strict IEEE-754 Math Parity (`--strict-fp`)**: Compiler flag and environment parity preventing associative reordering in vector SIMD reductions between Cranelift and LLVM backends.
+- **Rust & C Parity / Victory**: Standard compute workloads (`matmul_96`, `vec_axpy`, `sum_reduce`) demonstrate direct parity or superiority over `rustc -O3` (e.g. `matmul_96` executes in 255 us vs Rust's 406 us, 1.59x faster).
 
 ### v1.4.3 Highlights
 - **Full Rust -O3 Performance Parity & Victory**: Across all standard compute benchmarks (`vec_axpy`, `vec_add`, `sum_reduce`, `vec_mul`, `matmul_96`), Datara achieves direct parity or victory over `rustc -O3` (e.g. `vec_axpy` at 275 us vs Rust's 300 us, `vec_add` at 1498 us vs Rust's 1523 us).
