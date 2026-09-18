@@ -481,7 +481,9 @@ pub fn link_args(
             args.push("/DEBUG:NONE".into());
             args.push("/OPT:REF".into());
             args.push("/OPT:ICF".into());
-            let is_release = extra_libs.iter().any(|l| l == "--release" || l == "-O3" || l == "--ltcg")
+            let is_release = extra_libs
+                .iter()
+                .any(|l| l == "--release" || l == "-O3" || l == "--ltcg")
                 || std::env::var("FORGEN_RELEASE").is_ok()
                 || std::env::var("DATARA_RELEASE").is_ok()
                 || std::env::var("FORGEN_LTCG").is_ok();

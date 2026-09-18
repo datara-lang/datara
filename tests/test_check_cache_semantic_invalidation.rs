@@ -1,5 +1,5 @@
-﻿use forgen::driver::check_cache::{CachedCheckRecord, CheckCache, CHECKER_SEMANTIC_VERSION};
 use forgen::driver::ForgenCompiler;
+use forgen::driver::check_cache::{CHECKER_SEMANTIC_VERSION, CachedCheckRecord, CheckCache};
 use std::fs;
 
 #[test]
@@ -31,7 +31,10 @@ fn test_cache_invalidated_on_semantic_version_mismatch() {
 
     // 4. Cache hit with matching semantic version
     let hit = CheckCache::get(source, file, abi);
-    assert!(hit.is_some(), "Cache get must hit when semantic version matches");
+    assert!(
+        hit.is_some(),
+        "Cache get must hit when semantic version matches"
+    );
 
     // 5. Mutate cache record to simulate older compiler version / altered checker semantics
     let mut stale_record = record;
@@ -52,11 +55,18 @@ fn test_cache_invalidated_on_semantic_version_mismatch() {
 
     // 7. Recheck must succeed and write fresh record with current semantic version
     let fresh_res = compiler.check_source(source, file);
-    assert!(fresh_res.success, "Fresh check after cache invalidation must succeed");
+    assert!(
+        fresh_res.success,
+        "Fresh check after cache invalidation must succeed"
+    );
     assert!(cache_path.exists(), "Cache file must be regenerated");
     let fresh_content = fs::read_to_string(&cache_path).expect("read fresh cache file");
-    let fresh_record: CachedCheckRecord = serde_json::from_str(&fresh_content).expect("parse fresh cache");
-    assert_eq!(fresh_record.checker_semantic_version, CHECKER_SEMANTIC_VERSION);
+    let fresh_record: CachedCheckRecord =
+        serde_json::from_str(&fresh_content).expect("parse fresh cache");
+    assert_eq!(
+        fresh_record.checker_semantic_version,
+        CHECKER_SEMANTIC_VERSION
+    );
 
     // Cleanup
     let _ = fs::remove_file(&cache_path);

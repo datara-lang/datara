@@ -1,7 +1,7 @@
-use forgen::codegen::cranelift::backend::opts::JitCompilationTier;
-use forgen::codegen::cranelift::backend::RealCraneliftBackend;
-use forgen::codegen::cranelift::jit::JitSession;
 use forgen::codegen::TargetInfo;
+use forgen::codegen::cranelift::backend::RealCraneliftBackend;
+use forgen::codegen::cranelift::backend::opts::JitCompilationTier;
+use forgen::codegen::cranelift::jit::JitSession;
 use forgen::diagnostics::{DiagnosticEngine, ErrorCode};
 use forgen::driver::ForgenCompiler;
 
@@ -143,7 +143,10 @@ fn main() -> Int {
 }
 "#;
     let res_struct = compiler.check_source(src_struct, "test_out_struct_no_display.dtr");
-    assert!(!res_struct.success, "out struct without Display must be rejected");
+    assert!(
+        !res_struct.success,
+        "out struct without Display must be rejected"
+    );
     assert!(
         res_struct.diagnostics.contains("E-OUT-001"),
         "expected E-OUT-001 for struct, got: {}",
@@ -199,7 +202,9 @@ fn main() -> Int {
     assert!(res.success, "Compilation failed: {:?}", res.diagnostics);
     let dmir_mod = res.dmir_module.expect("DMIR module");
 
-    session.load_module(&dmir_mod).expect("load module into JIT");
+    session
+        .load_module(&dmir_mod)
+        .expect("load module into JIT");
     let (stdout, _, code, _) = session.run_entry(None, &[], true).expect("run entry");
     assert_eq!(code, 0);
     assert!(
@@ -239,9 +244,14 @@ fn main() -> Int {
             }
         }
     }
-    assert!(!has_format_str, "out fmt'...' must be fused; found Inst::FormatStr");
+    assert!(
+        !has_format_str,
+        "out fmt'...' must be fused; found Inst::FormatStr"
+    );
 
-    session.load_module(&dmir_mod).expect("load module into JIT");
+    session
+        .load_module(&dmir_mod)
+        .expect("load module into JIT");
     let (stdout, _, code, _) = session.run_entry(None, &[], true).expect("run entry");
     assert_eq!(code, 0);
     assert_eq!(stdout.trim(), "Language: Datara v144 OK");
@@ -258,7 +268,10 @@ fn main() -> Int {
 }
 "#;
     let res = compiler.check_source(src, "test_out_fusion_err.dtr");
-    assert!(!res.success, "unprintable type in format str must be rejected");
+    assert!(
+        !res.success,
+        "unprintable type in format str must be rejected"
+    );
     assert!(
         res.diagnostics.contains("E-OUT-001"),
         "expected E-OUT-001, got: {}",
@@ -348,7 +361,9 @@ fn main() -> Int {
     assert!(res.success, "Compilation failed: {:?}", res.diagnostics);
     let dmir_mod = res.dmir_module.expect("DMIR module");
 
-    session.load_module(&dmir_mod).expect("load module into JIT");
+    session
+        .load_module(&dmir_mod)
+        .expect("load module into JIT");
     let (stdout, _, code, _) = session.run_entry(None, &[], true).expect("run entry");
     assert_eq!(code, 0);
     assert_eq!(stdout, "Loading... Done!\n");
@@ -372,8 +387,3 @@ fn main() -> Int {
         res.diagnostics
     );
 }
-
-
-
-
-

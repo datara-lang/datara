@@ -447,7 +447,12 @@ impl Optimizer {
                     .unwrap_or(false);
 
                 let is_pure = !has_side_effects && is_inst_pure;
-                let multiplier = if (is_pure && lattice_pure) || (is_pure && name.starts_with("B_")) { 2 } else { 1 };
+                let multiplier = if (is_pure && lattice_pure) || (is_pure && name.starts_with("B_"))
+                {
+                    2
+                } else {
+                    1
+                };
 
                 let is_recursive = f.blocks[0].instructions.iter().any(|i| match i {
                     Inst::Call { func, .. } => func == name,

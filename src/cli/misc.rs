@@ -604,18 +604,14 @@ fn explain_code(code: &str) {
             println!(
                 "================================================================================"
             );
-            println!(
-                "Datara enforces static printability guarantees. Only primitive scalar types"
-            );
+            println!("Datara enforces static printability guarantees. Only primitive scalar types");
             println!(
                 "(Int, Float, Bool, Char, Str), structs deriving Display (@derive(Display)), or"
             );
             println!(
                 "types defining a 'to_string()' or 'to_str()' method may be printed via 'out',"
             );
-            println!(
-                "'err', 'print', or string interpolation (fmt\"...\")."
-            );
+            println!("'err', 'print', or string interpolation (fmt\"...\").");
             println!();
             println!("[INVALID] Bad Code:");
             println!("   struct Naked {{ id: Int }}");
@@ -633,9 +629,7 @@ fn explain_code(code: &str) {
             println!("       out item");
             println!("   }}");
             println!();
-            println!(
-                "Rationale: Eliminates accidental raw pointer leaking, memory dumps, and"
-            );
+            println!("Rationale: Eliminates accidental raw pointer leaking, memory dumps, and");
             println!("ensures fail-closed type safety across all output statements.");
             println!(
                 "================================================================================"
@@ -652,9 +646,7 @@ fn explain_code(code: &str) {
             println!(
                 "The legacy functions 'println' and 'eprintln' are deprecated in Datara 1.4.4."
             );
-            println!(
-                "Canonical output is achieved via first-class language statements:"
-            );
+            println!("Canonical output is achieved via first-class language statements:");
             println!("   - 'out <expr>'  : standard output with trailing newline");
             println!("   - 'err <expr>'  : standard error with trailing newline");
             println!("   - 'print(expr)' : unbuffered streaming output without newline");

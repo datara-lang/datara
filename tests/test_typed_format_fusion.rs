@@ -1,7 +1,7 @@
-use forgen::codegen::cranelift::backend::opts::JitCompilationTier;
-use forgen::codegen::cranelift::backend::RealCraneliftBackend;
-use forgen::codegen::cranelift::jit::JitSession;
 use forgen::codegen::TargetInfo;
+use forgen::codegen::cranelift::backend::RealCraneliftBackend;
+use forgen::codegen::cranelift::backend::opts::JitCompilationTier;
+use forgen::codegen::cranelift::jit::JitSession;
 use forgen::driver::ForgenCompiler;
 
 #[test]
@@ -25,10 +25,15 @@ fn main() -> Int {
     assert!(res.success, "Compilation failed: {:?}", res.diagnostics);
     let dmir_mod = res.dmir_module.expect("DMIR module");
 
-    session.load_module(&dmir_mod).expect("load module into JIT");
+    session
+        .load_module(&dmir_mod)
+        .expect("load module into JIT");
     let (stdout, _, code, _) = session.run_entry(None, &[], true).expect("run entry");
     assert_eq!(code, 0);
-    assert_eq!(stdout.trim(), "Lang: Datara, Ver: 144, Score: 99.5, Active: true!");
+    assert_eq!(
+        stdout.trim(),
+        "Lang: Datara, Ver: 144, Score: 99.5, Active: true!"
+    );
 }
 
 #[test]
@@ -66,7 +71,9 @@ fn main() -> Int {
         }
     }
 
-    session.load_module(&dmir_mod).expect("load module into JIT");
+    session
+        .load_module(&dmir_mod)
+        .expect("load module into JIT");
     let (stdout, _, code, _) = session.run_entry(None, &[], true).expect("run entry");
     assert_eq!(code, 0);
     assert_eq!(stdout.trim(), "p1:1|p2:2|p3:3|p4:4|p5:5|p6:6|end");
@@ -97,7 +104,9 @@ fn main() -> Int {
     assert!(res.success, "Compilation failed: {:?}", res.diagnostics);
     let dmir_mod = res.dmir_module.expect("DMIR module");
 
-    session.load_module(&dmir_mod).expect("load module into JIT");
+    session
+        .load_module(&dmir_mod)
+        .expect("load module into JIT");
     let (stdout, _, code, _) = session.run_entry(None, &[], true).expect("run entry");
     assert_eq!(code, 0);
     assert!(
@@ -138,7 +147,9 @@ fn main() -> Int {
         }
     }
 
-    session.load_module(&dmir_mod).expect("load module into JIT");
+    session
+        .load_module(&dmir_mod)
+        .expect("load module into JIT");
     let (_, stderr, code, _) = session.run_entry(None, &[], true).expect("run entry");
     assert_eq!(code, 0);
     assert!(
@@ -147,4 +158,3 @@ fn main() -> Int {
         stderr
     );
 }
-

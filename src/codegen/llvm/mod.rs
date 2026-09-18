@@ -899,19 +899,13 @@ impl<'a> LlvmEmitter<'a> {
                     llvm_pty, pval.0, pname
                 ));
                 if pname == "this" {
-                    out.push_str(&format!(
-                        "  %var_self = alloca {}, align 8\n",
-                        llvm_pty
-                    ));
+                    out.push_str(&format!("  %var_self = alloca {}, align 8\n", llvm_pty));
                     out.push_str(&format!(
                         "  store {} %v{}, ptr %var_self, align 8\n",
                         llvm_pty, pval.0
                     ));
                 } else if pname == "self" {
-                    out.push_str(&format!(
-                        "  %var_this = alloca {}, align 8\n",
-                        llvm_pty
-                    ));
+                    out.push_str(&format!("  %var_this = alloca {}, align 8\n", llvm_pty));
                     out.push_str(&format!(
                         "  store {} %v{}, ptr %var_this, align 8\n",
                         llvm_pty, pval.0

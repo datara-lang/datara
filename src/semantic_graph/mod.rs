@@ -463,7 +463,11 @@ impl SemanticGraph {
             let class_id = format!("class:{}", name);
             for comp in &sym.compositions {
                 if resolver.components.contains_key(comp) {
-                    graph.add_edge(&class_id, &format!("component:{}", comp), EdgeKind::Composes);
+                    graph.add_edge(
+                        &class_id,
+                        &format!("component:{}", comp),
+                        EdgeKind::Composes,
+                    );
                 } else if resolver.roles.contains_key(comp) {
                     graph.add_edge(&class_id, &format!("role:{}", comp), EdgeKind::Implements);
                 }

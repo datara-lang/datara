@@ -29,7 +29,8 @@ class OldModel {
         res.diagnostics
     );
     assert!(
-        res.diagnostics.contains("The 'class' keyword does not exist in Datara"),
+        res.diagnostics
+            .contains("The 'class' keyword does not exist in Datara"),
         "expected explanation, got: {}",
         res.diagnostics
     );
@@ -129,7 +130,10 @@ behavior Logger {
 }
 "#;
     let res = compiler.check_source(src, "test_beh_impure.dtr");
-    assert!(!res.success, "behavior must reject unannotated impure methods");
+    assert!(
+        !res.success,
+        "behavior must reject unannotated impure methods"
+    );
     assert!(
         res.diagnostics.contains("E-BEH-002"),
         "expected E-BEH-002, got: {}",
@@ -156,7 +160,11 @@ fn main() -> Int {
 }
 "#;
     let res = compiler.check_source(src, "test_beh_annotated_io.dtr");
-    assert!(res.success, "behavior with / IO must pass: {}", res.diagnostics);
+    assert!(
+        res.success,
+        "behavior with / IO must pass: {}",
+        res.diagnostics
+    );
 }
 
 #[test]
@@ -284,7 +292,9 @@ fn main() -> Int {
     assert!(res.success, "Compilation failed: {:?}", res.diagnostics);
     let dmir_mod = res.dmir_module.expect("DMIR module");
 
-    session.load_module(&dmir_mod).expect("load module into JIT");
+    session
+        .load_module(&dmir_mod)
+        .expect("load module into JIT");
     let (stdout, _, code, _) = session.run_entry(None, &[], true).expect("run entry");
     assert_eq!(code, 0);
     assert_eq!(stdout.trim(), "42");

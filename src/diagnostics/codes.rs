@@ -132,7 +132,6 @@ pub enum ErrorCode {
     DeprecatedPrintFunction,
 }
 
-
 impl ErrorCode {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -230,7 +229,6 @@ impl ErrorCode {
             ErrorCode::UnprintableType => "E-OUT-001",
             ErrorCode::DeprecatedPrintFunction => "W0102",
         }
-
     }
 
     pub fn description(&self, locale: &str) -> &'static str {
@@ -445,7 +443,6 @@ impl ErrorCode {
                     "Использование функций печати устарело: используйте оператор 'out' или 'err'"
                 }
             }
-
         } else {
             match self {
                 ErrorCode::SyntaxUnexpectedToken => "Unexpected token in source",
@@ -651,7 +648,6 @@ impl ErrorCode {
                     "Print function is deprecated: use 'out' or 'err' statement instead"
                 }
             }
-
         }
     }
 }

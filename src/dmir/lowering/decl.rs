@@ -242,7 +242,9 @@ impl<'a> Lowering<'a> {
                             let lowered = self.lower_method(m, &c.name);
                             let fn_name = format!("{}_{}", c.name, m.name);
                             module.functions.insert(fn_name.clone(), lowered);
-                            module.function_spans.insert(fn_name.clone(), m.span.clone());
+                            module
+                                .function_spans
+                                .insert(fn_name.clone(), m.span.clone());
                             module
                                 .function_line_spans
                                 .insert(fn_name, self.current_line_spans.clone());
@@ -264,9 +266,7 @@ impl<'a> Lowering<'a> {
                 module
                     .function_spans
                     .insert(fn_name.clone(), m.span.clone());
-                module
-                    .function_spans
-                    .insert(b_name.clone(), m.span.clone());
+                module.function_spans.insert(b_name.clone(), m.span.clone());
                 module
                     .function_line_spans
                     .insert(fn_name, self.current_line_spans.clone());

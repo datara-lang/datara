@@ -154,7 +154,10 @@ fn main() {
         "test_class_deprecated_diag.dtr",
         None,
     );
-    assert!(!res.success, "class keyword must be rejected with hard error E0100");
+    assert!(
+        !res.success,
+        "class keyword must be rejected with hard error E0100"
+    );
     assert!(
         res.diagnostics.contains("E0100") || res.diagnostics.contains("class"),
         "Compiler must emit E0100 error diagnostic for 'class'"

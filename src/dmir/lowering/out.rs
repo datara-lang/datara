@@ -11,9 +11,7 @@ impl<'a> Lowering<'a> {
         mut cur_block: BasicBlockId,
     ) -> (BasicBlockId, Option<ValueId>) {
         if let Expr::InterpolatedString {
-            parts,
-            expressions,
-            ..
+            parts, expressions, ..
         } = e
         {
             // Format Fusion: zero-allocation streaming direct to stdout buffer
@@ -27,14 +25,12 @@ impl<'a> Lowering<'a> {
                             value: part.clone(),
                         });
                     let call_dest = self.next_val();
-                    self.get_block_mut(cur_block)
-                        .instructions
-                        .push(Inst::Call {
-                            dest: call_dest,
-                            func: "datara_rt_print_str".into(),
-                            args: vec![str_val],
-                            ty: "Unit".into(),
-                        });
+                    self.get_block_mut(cur_block).instructions.push(Inst::Call {
+                        dest: call_dest,
+                        func: "datara_rt_print_str".into(),
+                        args: vec![str_val],
+                        ty: "Unit".into(),
+                    });
                 }
                 if idx < expressions.len() {
                     let sub_expr = &expressions[idx];
@@ -78,26 +74,22 @@ impl<'a> Lowering<'a> {
                             "datara_rt_print_int"
                         };
                         let call_dest = self.next_val();
-                        self.get_block_mut(cur_block)
-                            .instructions
-                            .push(Inst::Call {
-                                dest: call_dest,
-                                func: print_func.into(),
-                                args: vec![arg_val],
-                                ty: "Unit".into(),
-                            });
+                        self.get_block_mut(cur_block).instructions.push(Inst::Call {
+                            dest: call_dest,
+                            func: print_func.into(),
+                            args: vec![arg_val],
+                            ty: "Unit".into(),
+                        });
                     }
                 }
             }
             let nl_dest = self.next_val();
-            self.get_block_mut(cur_block)
-                .instructions
-                .push(Inst::Call {
-                    dest: nl_dest,
-                    func: "datara_rt_print_newline".into(),
-                    args: vec![],
-                    ty: "Unit".into(),
-                });
+            self.get_block_mut(cur_block).instructions.push(Inst::Call {
+                dest: nl_dest,
+                func: "datara_rt_print_newline".into(),
+                args: vec![],
+                ty: "Unit".into(),
+            });
             return (cur_block, None);
         }
 
@@ -142,9 +134,7 @@ impl<'a> Lowering<'a> {
         mut cur_block: BasicBlockId,
     ) -> (BasicBlockId, Option<ValueId>) {
         if let Expr::InterpolatedString {
-            parts,
-            expressions,
-            ..
+            parts, expressions, ..
         } = e
         {
             // Format Fusion for err: zero-allocation streaming direct to stderr
@@ -158,14 +148,12 @@ impl<'a> Lowering<'a> {
                             value: part.clone(),
                         });
                     let call_dest = self.next_val();
-                    self.get_block_mut(cur_block)
-                        .instructions
-                        .push(Inst::Call {
-                            dest: call_dest,
-                            func: "datara_rt_err_print_str".into(),
-                            args: vec![str_val],
-                            ty: "Unit".into(),
-                        });
+                    self.get_block_mut(cur_block).instructions.push(Inst::Call {
+                        dest: call_dest,
+                        func: "datara_rt_err_print_str".into(),
+                        args: vec![str_val],
+                        ty: "Unit".into(),
+                    });
                 }
                 if idx < expressions.len() {
                     let sub_expr = &expressions[idx];
@@ -209,26 +197,22 @@ impl<'a> Lowering<'a> {
                             "datara_rt_err_print_int"
                         };
                         let call_dest = self.next_val();
-                        self.get_block_mut(cur_block)
-                            .instructions
-                            .push(Inst::Call {
-                                dest: call_dest,
-                                func: print_func.into(),
-                                args: vec![arg_val],
-                                ty: "Unit".into(),
-                            });
+                        self.get_block_mut(cur_block).instructions.push(Inst::Call {
+                            dest: call_dest,
+                            func: print_func.into(),
+                            args: vec![arg_val],
+                            ty: "Unit".into(),
+                        });
                     }
                 }
             }
             let nl_dest = self.next_val();
-            self.get_block_mut(cur_block)
-                .instructions
-                .push(Inst::Call {
-                    dest: nl_dest,
-                    func: "datara_rt_err_print_newline".into(),
-                    args: vec![],
-                    ty: "Unit".into(),
-                });
+            self.get_block_mut(cur_block).instructions.push(Inst::Call {
+                dest: nl_dest,
+                func: "datara_rt_err_print_newline".into(),
+                args: vec![],
+                ty: "Unit".into(),
+            });
             return (cur_block, None);
         }
 

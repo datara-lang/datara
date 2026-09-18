@@ -775,7 +775,10 @@ pub fn compile_all_functions<M: ClifModule>(
                             let fn_ref = module.declare_func_in_func(rt_out_bool_id, builder.func);
                             builder.ins().call(fn_ref, &[v]);
                         } else if list_vids.contains(value) || map_vids.contains(value) {
-                            return Err(format!("Cannot output unprintable composite %{} in '{}'", value, f.name));
+                            return Err(format!(
+                                "Cannot output unprintable composite %{} in '{}'",
+                                value, f.name
+                            ));
                         } else {
                             let fn_ref = module.declare_func_in_func(rt_out_int_id, builder.func);
                             builder.ins().call(fn_ref, &[v]);

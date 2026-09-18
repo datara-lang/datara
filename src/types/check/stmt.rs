@@ -23,12 +23,17 @@ impl<'a> TypeChecker<'a> {
             | DataraType::Dec64
             | DataraType::Dec128
             | DataraType::TypeParam(_) => true,
-            DataraType::Range { base, .. } | DataraType::Measure { base, .. } => self.is_printable_type(base),
+            DataraType::Range { base, .. } | DataraType::Measure { base, .. } => {
+                self.is_printable_type(base)
+            }
             DataraType::Class(class_name) => {
                 if class_name == "Range" {
                     return true;
                 }
-                if self.impls.contains_key(&("Display".to_string(), class_name.clone())) {
+                if self
+                    .impls
+                    .contains_key(&("Display".to_string(), class_name.clone()))
+                {
                     return true;
                 }
                 if let Some(cls) = self.resolver.classes.get(class_name) {
@@ -42,7 +47,10 @@ impl<'a> TypeChecker<'a> {
                 if name == "Range" {
                     return true;
                 }
-                if self.impls.contains_key(&("Display".to_string(), name.clone())) {
+                if self
+                    .impls
+                    .contains_key(&("Display".to_string(), name.clone()))
+                {
                     return true;
                 }
                 if let Some(cls) = self.resolver.classes.get(name) {

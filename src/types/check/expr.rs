@@ -132,7 +132,10 @@ impl<'a> TypeChecker<'a> {
                         };
                         diag.error_with_help(
                             ErrorCode::UnprintableType,
-                            format!("Cannot interpolate value of unprintable type '{}' into string", ty),
+                            format!(
+                                "Cannot interpolate value of unprintable type '{}' into string",
+                                ty
+                            ),
                             Some(e.span().clone()),
                             Some(help),
                         );
@@ -468,9 +471,11 @@ impl<'a> TypeChecker<'a> {
                         }
                         Expr::Call { callee, .. } => {
                             if let Expr::Identifier(fn_name, _) = &**callee {
-                                if let Some((_, ret_ty, _)) = self.function_signatures.get(fn_name) {
+                                if let Some((_, ret_ty, _)) = self.function_signatures.get(fn_name)
+                                {
                                     current = ret_ty.clone();
-                                } else if let Some(func_sym) = self.resolver.functions.get(fn_name) {
+                                } else if let Some(func_sym) = self.resolver.functions.get(fn_name)
+                                {
                                     current = func_sym
                                         .return_type
                                         .as_ref()

@@ -668,28 +668,47 @@ pub fn declare_runtime_core<M: ClifModule>(
     let rt_err_str_id = module
         .declare_function("datara_rt_err_print_str", Linkage::Import, &void_1_i64_sig)
         .map_err(|e| e.to_string())?;
-    func_ids.insert("datara_rt_err_print_str".into(), (rt_err_str_id, void_1_i64_sig.clone()));
+    func_ids.insert(
+        "datara_rt_err_print_str".into(),
+        (rt_err_str_id, void_1_i64_sig.clone()),
+    );
 
     let rt_err_int_id = module
         .declare_function("datara_rt_err_print_int", Linkage::Import, &void_1_i64_sig)
         .map_err(|e| e.to_string())?;
-    func_ids.insert("datara_rt_err_print_int".into(), (rt_err_int_id, void_1_i64_sig.clone()));
+    func_ids.insert(
+        "datara_rt_err_print_int".into(),
+        (rt_err_int_id, void_1_i64_sig.clone()),
+    );
 
     let rt_err_flt_id = module
-        .declare_function("datara_rt_err_print_float", Linkage::Import, &void_1_f64_sig)
+        .declare_function(
+            "datara_rt_err_print_float",
+            Linkage::Import,
+            &void_1_f64_sig,
+        )
         .map_err(|e| e.to_string())?;
-    func_ids.insert("datara_rt_err_print_float".into(), (rt_err_flt_id, void_1_f64_sig));
+    func_ids.insert(
+        "datara_rt_err_print_float".into(),
+        (rt_err_flt_id, void_1_f64_sig),
+    );
 
     let rt_err_bool_id = module
         .declare_function("datara_rt_err_print_bool", Linkage::Import, &void_1_i64_sig)
         .map_err(|e| e.to_string())?;
-    func_ids.insert("datara_rt_err_print_bool".into(), (rt_err_bool_id, void_1_i64_sig));
+    func_ids.insert(
+        "datara_rt_err_print_bool".into(),
+        (rt_err_bool_id, void_1_i64_sig),
+    );
 
     let void_0_sig = Signature::new(call_conv);
     let rt_err_nl_id = module
         .declare_function("datara_rt_err_print_newline", Linkage::Import, &void_0_sig)
         .map_err(|e| e.to_string())?;
-    func_ids.insert("datara_rt_err_print_newline".into(), (rt_err_nl_id, void_0_sig.clone()));
+    func_ids.insert(
+        "datara_rt_err_print_newline".into(),
+        (rt_err_nl_id, void_0_sig.clone()),
+    );
 
     let rt_print_sp_id = module
         .declare_function("datara_rt_print_space", Linkage::Import, &void_0_sig)

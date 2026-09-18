@@ -431,7 +431,8 @@ pub(super) fn run_check_pipeline(
                 });
                 if !has_inline_asm {
                     let backend = crate::codegen::cranelift::CraneliftBackend::for_host();
-                    if let Err(codegen_err) = backend.real_backend.compile_to_object_bytes(&dmir_module)
+                    if let Err(codegen_err) =
+                        backend.real_backend.compile_to_object_bytes(&dmir_module)
                     {
                         diag.error(
                             crate::diagnostics::ErrorCode::CodegenBackendFailed,

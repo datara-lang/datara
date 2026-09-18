@@ -161,17 +161,35 @@ pub fn register_system_and_concurrency_symbols(builder: &mut JITBuilder) {
     reg!("SliceView_read_u64_le", datara_sys_slice_read_u64_le);
     reg!("datara_sys_slice_read_u64_le", datara_sys_slice_read_u64_le);
     reg!("SliceView_write_u16_be", datara_sys_slice_write_u16_be);
-    reg!("datara_sys_slice_write_u16_be", datara_sys_slice_write_u16_be);
+    reg!(
+        "datara_sys_slice_write_u16_be",
+        datara_sys_slice_write_u16_be
+    );
     reg!("SliceView_write_u16_le", datara_sys_slice_write_u16_le);
-    reg!("datara_sys_slice_write_u16_le", datara_sys_slice_write_u16_le);
+    reg!(
+        "datara_sys_slice_write_u16_le",
+        datara_sys_slice_write_u16_le
+    );
     reg!("SliceView_write_u32_be", datara_sys_slice_write_u32_be);
-    reg!("datara_sys_slice_write_u32_be", datara_sys_slice_write_u32_be);
+    reg!(
+        "datara_sys_slice_write_u32_be",
+        datara_sys_slice_write_u32_be
+    );
     reg!("SliceView_write_u32_le", datara_sys_slice_write_u32_le);
-    reg!("datara_sys_slice_write_u32_le", datara_sys_slice_write_u32_le);
+    reg!(
+        "datara_sys_slice_write_u32_le",
+        datara_sys_slice_write_u32_le
+    );
     reg!("SliceView_write_u64_be", datara_sys_slice_write_u64_be);
-    reg!("datara_sys_slice_write_u64_be", datara_sys_slice_write_u64_be);
+    reg!(
+        "datara_sys_slice_write_u64_be",
+        datara_sys_slice_write_u64_be
+    );
     reg!("SliceView_write_u64_le", datara_sys_slice_write_u64_le);
-    reg!("datara_sys_slice_write_u64_le", datara_sys_slice_write_u64_le);
+    reg!(
+        "datara_sys_slice_write_u64_le",
+        datara_sys_slice_write_u64_le
+    );
     reg!("SliceView_subslice", datara_sys_slice_subslice);
     reg!("datara_sys_slice_subslice", datara_sys_slice_subslice);
 
@@ -207,13 +225,25 @@ pub fn register_system_and_concurrency_symbols(builder: &mut JITBuilder) {
 
     // Hardware Fences
     reg!("atomic_fence_acquire", datara_hw_atomic_fence_acquire);
-    reg!("datara_hw_atomic_fence_acquire", datara_hw_atomic_fence_acquire);
+    reg!(
+        "datara_hw_atomic_fence_acquire",
+        datara_hw_atomic_fence_acquire
+    );
     reg!("atomic_fence_release", datara_hw_atomic_fence_release);
-    reg!("datara_hw_atomic_fence_release", datara_hw_atomic_fence_release);
+    reg!(
+        "datara_hw_atomic_fence_release",
+        datara_hw_atomic_fence_release
+    );
     reg!("atomic_fence_acq_rel", datara_hw_atomic_fence_acq_rel);
-    reg!("datara_hw_atomic_fence_acq_rel", datara_hw_atomic_fence_acq_rel);
+    reg!(
+        "datara_hw_atomic_fence_acq_rel",
+        datara_hw_atomic_fence_acq_rel
+    );
     reg!("atomic_fence_seq_cst", datara_hw_atomic_fence_seq_cst);
-    reg!("datara_hw_atomic_fence_seq_cst", datara_hw_atomic_fence_seq_cst);
+    reg!(
+        "datara_hw_atomic_fence_seq_cst",
+        datara_hw_atomic_fence_seq_cst
+    );
     reg!("atomic_fence", datara_hw_atomic_fence);
     reg!("datara_hw_atomic_fence", datara_hw_atomic_fence);
 

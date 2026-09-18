@@ -766,7 +766,9 @@ impl<'a> Parser<'a> {
         if self.match_token(&TokenType::Slash) {
             let mut effects = Vec::new();
             loop {
-                if let Some(eff) = self.consume_ident("Expected effect name (e.g. Pure, IO, Network)") {
+                if let Some(eff) =
+                    self.consume_ident("Expected effect name (e.g. Pure, IO, Network)")
+                {
                     effects.push((eff, String::new()));
                 }
                 if !self.match_token(&TokenType::Comma) {

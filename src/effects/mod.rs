@@ -320,9 +320,9 @@ impl EffectAnalyzer {
                         let has_declared_effect = m.attributes.iter().any(|a| {
                             (a.name == "effect"
                                 && !a.args.is_empty()
-                                && a.args.iter().any(|(eff, _)| {
-                                    !eff.eq_ignore_ascii_case("pure")
-                                }))
+                                && a.args
+                                    .iter()
+                                    .any(|(eff, _)| !eff.eq_ignore_ascii_case("pure")))
                                 || a.name == "interrupt_handler"
                                 || a.name == "naked"
                         });

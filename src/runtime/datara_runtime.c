@@ -283,7 +283,7 @@ int64_t datara_rt_str_is_sso(const char* s) {
 static DATARA_TLS char* tls_scratch_ring = NULL;
 static DATARA_TLS size_t tls_scratch_offset = 0;
 
-static inline char* datara_scratch_alloc(size_t len) {
+static inline char* datara_str_scratch_alloc(size_t len) {
     if (!tls_scratch_ring) {
         tls_scratch_ring = (char*)malloc(DATARA_SCRATCH_RING_SIZE);
         if (!tls_scratch_ring) return (char*)malloc(len + 1);
@@ -336,7 +336,7 @@ const char* datara_rt_str_concat(const char* a, const char* b) {
         slot[total] = '\0';
         return slot;
     }
-    char* buf = datara_scratch_alloc(total);
+    char* buf = datara_str_scratch_alloc(total);
     if (!buf) return "";
     datara_fast_copy(buf, a, la);
     datara_fast_copy(buf + la, b, lb);
@@ -456,7 +456,7 @@ const char* datara_rt_str_concat_3(const char* a, const char* b, const char* c) 
     size_t lb = datara_fast_strlen(b);
     size_t lc = datara_fast_strlen(c);
     size_t total = la + lb + lc;
-    char* buf = datara_scratch_alloc(total);
+    char* buf = datara_str_scratch_alloc(total);
     if (!buf) return "";
     char* p = buf;
     if (la) { datara_fast_copy(p, a, la); p += la; }
@@ -472,7 +472,7 @@ const char* datara_rt_str_concat_4(const char* a, const char* b, const char* c, 
     size_t lc = datara_fast_strlen(c);
     size_t ld = datara_fast_strlen(d);
     size_t total = la + lb + lc + ld;
-    char* buf = datara_scratch_alloc(total);
+    char* buf = datara_str_scratch_alloc(total);
     if (!buf) return "";
     char* p = buf;
     if (la) { datara_fast_copy(p, a, la); p += la; }
@@ -490,7 +490,7 @@ const char* datara_rt_str_concat_5(const char* a, const char* b, const char* c, 
     size_t ld = datara_fast_strlen(d);
     size_t le = datara_fast_strlen(e);
     size_t total = la + lb + lc + ld + le;
-    char* buf = datara_scratch_alloc(total);
+    char* buf = datara_str_scratch_alloc(total);
     if (!buf) return "";
     char* p = buf;
     if (la) { datara_fast_copy(p, a, la); p += la; }
@@ -506,7 +506,7 @@ const char* datara_rt_format_str_i64_str_i64(const char* s1, int64_t n1, const c
     size_t l1 = s1 ? datara_fast_strlen(s1) : 0;
     size_t l2 = s2 ? datara_fast_strlen(s2) : 0;
     size_t max_needed = l1 + l2 + 50;
-    char* buf = datara_scratch_alloc(max_needed);
+    char* buf = datara_str_scratch_alloc(max_needed);
     if (!buf) return "";
     char* p = buf;
     if (l1) {
@@ -1640,7 +1640,7 @@ const char* datara_rt_input(const char* prompt) {
         buf[len++] = (char)c;
     }
     buf[len] = '\0';
-    char* ret = datara_scratch_alloc(len + 1);
+    char* ret = datara_str_scratch_alloc(len + 1);
     if (ret) {
         memcpy(ret, buf, len + 1);
         free(buf);
@@ -2749,7 +2749,7 @@ void* datara_rt_file_read_checked(const char* path) {
     if (!f) {
         char stack_msg[512];
         snprintf(stack_msg, sizeof(stack_msg), "file read failed: cannot open '%s'", path);
-        char* msg = datara_scratch_alloc(strlen(stack_msg) + 1);
+        char* msg = datara_str_scratch_alloc(strlen(stack_msg) + 1);
         if (msg) memcpy(msg, stack_msg, strlen(stack_msg) + 1);
         return datara_rt_outcome_build(0, "", msg ? msg : "file read failed: cannot open file");
     }
@@ -2848,7 +2848,7 @@ void* datara_rt_env_get_checked(const char* name) {
     if (!val) {
         char stack_msg[512];
         snprintf(stack_msg, sizeof(stack_msg), "env get failed: '%s' is not set", name);
-        char* msg = datara_scratch_alloc(strlen(stack_msg) + 1);
+        char* msg = datara_str_scratch_alloc(strlen(stack_msg) + 1);
         if (msg) memcpy(msg, stack_msg, strlen(stack_msg) + 1);
         return datara_rt_outcome_build(0, "", msg ? msg : "env get failed: variable is not set");
     }
@@ -2989,7 +2989,7 @@ const char* datara_rt_path_join(const char* a, const char* b) {
     size_t lb = strlen(b);
     int needs_sep = (a[la - 1] != '/' && a[la - 1] != '\\' && b[0] != '/' && b[0] != '\\');
     size_t total = la + (needs_sep ? 1 : 0) + lb + 1;
-    char* buf = datara_scratch_alloc(total);
+    char* buf = datara_str_scratch_alloc(total);
     if (!buf) return "";
     memcpy(buf, a, la);
     size_t pos = la;
@@ -3088,7 +3088,7 @@ const char* datara_rt_str_substring(const char* s, int64_t start, int64_t len) {
     if (start + len > total_len) {
         len = total_len - start;
     }
-    char* buf = datara_scratch_alloc((size_t)len);
+    char* buf = datara_str_scratch_alloc((size_t)len);
     if (!buf) return "";
     memcpy(buf, s + start, (size_t)len);
     buf[len] = '\0';
@@ -3182,7 +3182,7 @@ const char* datara_rt_str_sanitize_utf8(const char* s) {
     if (!s) return "";
     if (datara_rt_validate_utf8(s)) return s;
     size_t len = strlen(s);
-    char* buf = datara_scratch_alloc(len * 3 + 1);
+    char* buf = datara_str_scratch_alloc(len * 3 + 1);
     if (!buf) return "";
     size_t out_idx = 0;
     const unsigned char* p = (const unsigned char*)s;
@@ -3232,7 +3232,7 @@ const char* datara_rt_str_next_scalar(const char* s, int64_t* inout_offset) {
         char_len = slen - (size_t)*inout_offset;
     }
 
-    char* buf = datara_scratch_alloc(char_len);
+    char* buf = datara_str_scratch_alloc(char_len);
     if (!buf) return "";
     memcpy(buf, p, char_len);
     buf[char_len] = '\0';
@@ -3256,7 +3256,7 @@ const char* datara_rt_str_scalar_at(const char* s, int64_t offset) {
         char_len = slen - (size_t)offset;
     }
 
-    char* buf = datara_scratch_alloc(char_len);
+    char* buf = datara_str_scratch_alloc(char_len);
     if (!buf) return "";
     memcpy(buf, p, char_len);
     buf[char_len] = '\0';
@@ -3308,7 +3308,7 @@ const char* datara_rt_str_char_at(const char* s, int64_t idx) {
         }
 
         if (cur_char == idx) {
-            char* buf = datara_scratch_alloc(char_len);
+            char* buf = datara_str_scratch_alloc(char_len);
             if (!buf) return "";
             memcpy(buf, s + byte_pos, char_len);
             buf[char_len] = '\0';
@@ -3327,7 +3327,7 @@ const char* datara_rt_str_repeat(const char* s, int64_t count) {
     if (slen == 0) return "";
     if (count != 0 && slen > SIZE_MAX / (size_t)count) return NULL;
     size_t total = slen * (size_t)count;
-    char* buf = datara_scratch_alloc(total);
+    char* buf = datara_str_scratch_alloc(total);
     if (!buf) return "";
     char* p = buf;
     for (int64_t i = 0; i < count; i++) {
@@ -3345,7 +3345,7 @@ const char* datara_rt_str_pad_left(const char* s, int64_t total_len, const char*
     if (slen >= total_len) return s;
     int64_t pad_needed = total_len - slen;
     size_t pad_len = strlen(pad);
-    char* buf = datara_scratch_alloc((size_t)total_len);
+    char* buf = datara_str_scratch_alloc((size_t)total_len);
     if (!buf) return s;
     char* p = buf;
     int64_t rem = pad_needed;
@@ -3368,7 +3368,7 @@ const char* datara_rt_str_pad_right(const char* s, int64_t total_len, const char
     if (slen >= total_len) return s;
     int64_t pad_needed = total_len - slen;
     size_t pad_len = strlen(pad);
-    char* buf = datara_scratch_alloc((size_t)total_len);
+    char* buf = datara_str_scratch_alloc((size_t)total_len);
     if (!buf) return s;
     char* p = buf;
     memcpy(p, s, (size_t)slen);
@@ -3401,7 +3401,7 @@ const char* datara_rt_str_replace(const char* s, const char* target, const char*
     if (count == 0) return s;
 
     size_t new_len = slen + count * (rlen > tlen ? (rlen - tlen) : 0);
-    char* buf = datara_scratch_alloc(new_len);
+    char* buf = datara_str_scratch_alloc(new_len);
     if (!buf) return s;
 
     char* dst = buf;
@@ -3424,7 +3424,7 @@ const char* datara_rt_str_replace(const char* s, const char* target, const char*
 const char* datara_rt_str_to_upper(const char* s) {
     if (!s) return "";
     size_t len = strlen(s);
-    char* buf = datara_scratch_alloc(len);
+    char* buf = datara_str_scratch_alloc(len);
     if (!buf) return "";
     for (size_t i = 0; i < len; i++) {
         char c = s[i];
@@ -3438,7 +3438,7 @@ const char* datara_rt_str_to_upper(const char* s) {
 const char* datara_rt_str_to_lower(const char* s) {
     if (!s) return "";
     size_t len = strlen(s);
-    char* buf = datara_scratch_alloc(len);
+    char* buf = datara_str_scratch_alloc(len);
     if (!buf) return "";
     for (size_t i = 0; i < len; i++) {
         char c = s[i];
@@ -3462,7 +3462,7 @@ int64_t* datara_rt_str_split(const char* s, const char* delim) {
     const char* found;
     while ((found = strstr(cur, delim)) != NULL) {
         size_t part_len = (size_t)(found - cur);
-        char* part = datara_scratch_alloc(part_len);
+        char* part = datara_str_scratch_alloc(part_len);
         if (part) {
             memcpy(part, cur, part_len);
             part[part_len] = '\0';
@@ -3471,7 +3471,7 @@ int64_t* datara_rt_str_split(const char* s, const char* delim) {
         cur = found + delim_len;
     }
     size_t rem_len = strlen(cur);
-    char* rem = datara_scratch_alloc(rem_len);
+    char* rem = datara_str_scratch_alloc(rem_len);
     if (rem) {
         memcpy(rem, cur, rem_len);
         rem[rem_len] = '\0';
@@ -3498,7 +3498,7 @@ const char* datara_rt_str_join(const int64_t* list, const char* delim) {
         }
     }
 
-    char* res = datara_scratch_alloc(total_len);
+    char* res = datara_str_scratch_alloc(total_len);
     if (!res) return "";
     char* p = res;
     for (int64_t i = 0; i < count; i++) {
@@ -3520,7 +3520,7 @@ const char* datara_rt_str_join(const int64_t* list, const char* delim) {
 const char* datara_rt_format_percent(double val, int64_t decimals) {
     if (decimals < 0) decimals = 0;
     if (decimals > 10) decimals = 10;
-    char* buf = datara_scratch_alloc(32);
+    char* buf = datara_str_scratch_alloc(32);
     if (!buf) return "";
     snprintf(buf, 32, "%.*f%%", (int)decimals, val * 100.0);
     return buf;
@@ -3534,7 +3534,7 @@ const char* datara_rt_format_int_with_commas(int64_t n) {
     size_t num_digits = len - digits_start;
     size_t commas = (num_digits > 0) ? (num_digits - 1) / 3 : 0;
 
-    char* buf = datara_scratch_alloc(len + commas);
+    char* buf = datara_str_scratch_alloc(len + commas);
     if (!buf) return "";
 
     char* dst = buf;
@@ -3702,7 +3702,7 @@ const char* datara_rt_socket_recv(int64_t sock, int64_t max_bytes) {
         free(buf);
         return "";
     }
-    char* scratch = datara_scratch_alloc((size_t)n);
+    char* scratch = datara_str_scratch_alloc((size_t)n);
     if (scratch) {
         memcpy(scratch, buf, n);
         scratch[n] = '\0';
@@ -3813,7 +3813,7 @@ void* datara_rt_socket_recv_outcome(int64_t sock, int64_t max_bytes) {
 static const char* datara_http_error(const char* msg) {
     size_t prefix_len = strlen("HTTP_ERROR: ");
     size_t msg_len = msg ? strlen(msg) : 0;
-    char* buf = datara_scratch_alloc(prefix_len + msg_len);
+    char* buf = datara_str_scratch_alloc(prefix_len + msg_len);
     if (!buf) return "HTTP_ERROR: out of memory";
     memcpy(buf, "HTTP_ERROR: ", prefix_len);
     memcpy(buf + prefix_len, msg, msg_len);
@@ -4079,7 +4079,7 @@ const char* datara_rt_http_get(const char* url) {
         }
     }
 
-    char* out = datara_scratch_alloc(body_len);
+    char* out = datara_str_scratch_alloc(body_len);
     if (!out) {
         free(raw);
         return datara_http_error("out of memory");
@@ -7142,7 +7142,7 @@ void* datara_rt_strbuf_push_int(void* sb_ptr, int64_t v) {
 const char* datara_rt_strbuf_join(void* sb_ptr) {
     DataraStrBuf* sb = (DataraStrBuf*)sb_ptr;
     if (!sb) return "";
-    char* out = datara_scratch_alloc(sb->len + 1);
+    char* out = datara_str_scratch_alloc(sb->len + 1);
     if (!out) return "";
     datara_fast_copy(out, sb->data, sb->len);
     out[sb->len] = '\0';

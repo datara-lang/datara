@@ -14,8 +14,8 @@ pub mod expr_composite;
 pub mod higher_order;
 pub mod infer;
 pub mod match_arm;
-pub mod stmt;
 pub mod out;
+pub mod stmt;
 
 /// An inlineable function body for lambda-argument static dispatch: the
 /// declared parameters, the statements before the single trailing return,
@@ -827,17 +827,6 @@ impl<'a> Lowering<'a> {
                     module.extern_sysv.insert(ef.name.clone(), classes);
                 }
                 self.function_return_types.insert(ef.name.clone(), ret);
-            } else if let Decl::Impl(i) = decl {
-                for m in &i.methods {
-                    let ret = m
-                        .return_type
-                        .as_ref()
-                        .map(Self::repr_type_string)
-                        .unwrap_or_else(|| "Unit".into());
-                    self.function_return_types
-                        .insert(format!("{}_{}", i.target_type, m.name), ret.clone());
-                    self.function_return_types.insert(m.name.clone(), ret);
-                }
             }
         }
 

@@ -272,7 +272,8 @@ impl LayoutAdapter {
                 || is_canonical_nbody;
 
             let is_component = module.component_classes.contains(&class_name);
-            let should_soa = is_component || is_explicit_soa || (total_fields >= 4 && selectivity <= 0.60);
+            let should_soa =
+                is_component || is_explicit_soa || (total_fields >= 4 && selectivity <= 0.60);
 
             if should_soa {
                 let soa_record = AdaptationRecord::new(

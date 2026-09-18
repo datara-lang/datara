@@ -157,21 +157,30 @@ impl<'a> SecurityVerifier<'a> {
                                 .collect();
 
                             if !req_caps.is_empty() {
-                                let target_method = program.declarations.iter().find_map(|d| match d {
-                                    Decl::Behavior(b) if b.target_type == c.name => {
-                                        b.body_items.iter().find_map(|item| match item {
-                                            ClassItem::Method(m) if m.name == role_method.name => Some(m),
-                                            _ => None,
-                                        })
-                                    }
-                                    Decl::Class(cls) if cls.name == c.name => {
-                                        cls.body_items.iter().find_map(|item| match item {
-                                            ClassItem::Method(m) if m.name == role_method.name => Some(m),
-                                            _ => None,
-                                        })
-                                    }
-                                    _ => None,
-                                });
+                                let target_method =
+                                    program.declarations.iter().find_map(|d| match d {
+                                        Decl::Behavior(b) if b.target_type == c.name => {
+                                            b.body_items.iter().find_map(|item| match item {
+                                                ClassItem::Method(m)
+                                                    if m.name == role_method.name =>
+                                                {
+                                                    Some(m)
+                                                }
+                                                _ => None,
+                                            })
+                                        }
+                                        Decl::Class(cls) if cls.name == c.name => {
+                                            cls.body_items.iter().find_map(|item| match item {
+                                                ClassItem::Method(m)
+                                                    if m.name == role_method.name =>
+                                                {
+                                                    Some(m)
+                                                }
+                                                _ => None,
+                                            })
+                                        }
+                                        _ => None,
+                                    });
 
                                 let method_caps: HashSet<String> = target_method
                                     .map(|m| {

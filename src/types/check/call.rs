@@ -786,7 +786,9 @@ impl<'a> TypeChecker<'a> {
                 }
                 if let Some(cls_sym) = self.resolver.classes.get(cls) {
                     for comp in &cls_sym.compositions {
-                        if let Some(m_type) = self.class_methods.get(comp).and_then(|m| m.get(member)) {
+                        if let Some(m_type) =
+                            self.class_methods.get(comp).and_then(|m| m.get(member))
+                        {
                             return m_type.clone();
                         }
                         let specialized = format!("{}_{}", comp, member);

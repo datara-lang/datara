@@ -26,7 +26,9 @@ fn main() -> Int {
     assert!(res.success, "Compilation failed: {:?}", res.diagnostics);
     let dmir_mod = res.dmir_module.expect("DMIR module");
 
-    session.load_module(&dmir_mod).expect("load module into JIT");
+    session
+        .load_module(&dmir_mod)
+        .expect("load module into JIT");
     let (stdout, _, code, _) = session.run_entry(None, &[], true).expect("run entry");
     assert_eq!(code, 0);
     // 0x12345678 bytes swapped in 32-bit = 0x78563412 = 2018915346
@@ -52,10 +54,16 @@ fn main() -> Int {
 "#;
     let compiler = ForgenCompiler::new("release");
     let res = compiler.compile_source(src, "test_channel_jit.dtr", None);
-    assert!(res.success, "Compilation failed: error={:?} diag={:?}", res.error, res.diagnostics);
+    assert!(
+        res.success,
+        "Compilation failed: error={:?} diag={:?}",
+        res.error, res.diagnostics
+    );
     let dmir_mod = res.dmir_module.expect("DMIR module");
 
-    session.load_module(&dmir_mod).expect("load module into JIT");
+    session
+        .load_module(&dmir_mod)
+        .expect("load module into JIT");
     let (stdout, _, code, _) = session.run_entry(None, &[], true).expect("run entry");
     assert_eq!(code, 0);
     assert!(stdout.contains("LEN:1 VAL:42"), "Output was: {}", stdout);

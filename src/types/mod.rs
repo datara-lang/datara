@@ -107,12 +107,10 @@ impl DataraType {
             | DataraType::Dec128 => true,
             DataraType::Range { base, .. } | DataraType::Measure { base, .. } => base.is_pod(),
             DataraType::Tuple(elems) => elems.iter().all(|e| e.is_pod()),
-            DataraType::Class(name) => {
-                !matches!(
-                    name.as_str(),
-                    "Str" | "String" | "List" | "Map" | "Outcome" | "Maybe"
-                )
-            }
+            DataraType::Class(name) => !matches!(
+                name.as_str(),
+                "Str" | "String" | "List" | "Map" | "Outcome" | "Maybe"
+            ),
             _ => false,
         }
     }

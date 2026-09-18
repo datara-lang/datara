@@ -227,7 +227,10 @@ fn main() {
     // Calculate compiler semantic hash over all compiler Rust sources in src/
     // so any semantic change automatically invalidates incremental check cache.
     let semantic_hash = compute_semantic_hash(&manifest_dir);
-    println!("cargo:rustc-env=FORGEN_BUILD_SEMANTIC_HASH={:016x}", semantic_hash);
+    println!(
+        "cargo:rustc-env=FORGEN_BUILD_SEMANTIC_HASH={:016x}",
+        semantic_hash
+    );
     println!("cargo:rerun-if-changed=src");
 }
 
