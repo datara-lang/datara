@@ -764,7 +764,12 @@ impl<'a> Lowering<'a> {
                     });
                 return Some(dest);
             }
-            if let Expr::Identifier(class_name, _) = &**object {
+            let is_receiver_var = if let Expr::Identifier(id_name, _) = &**object {
+                self.symbol_values.contains_key(id_name) || self.lookup_var_type(id_name).is_some()
+            } else {
+                false
+            };
+            if !is_receiver_var && let Expr::Identifier(class_name, _) = &**object {
                 let enum_key = format!("{}.{}", class_name, member);
                 if let Some(&tag) = self.enum_variant_tags.get(&enum_key) {
                     let tag_val = self.next_val();
@@ -823,7 +828,21 @@ impl<'a> Lowering<'a> {
                     }
                     None => true,
                 };
-                if static_arity_ok && self.function_return_types.contains_key(&static_func_name) {
+                let is_known_class = self.types.class_fields.contains_key(class_name)
+                    || self.types.class_methods.contains_key(class_name)
+                    || self.types.generic_templates.contains_key(class_name)
+                    || self
+                        .enum_slots
+                        .keys()
+                        .any(|k| k.starts_with(&format!("{}.", class_name)))
+                    || self
+                        .class_field_types
+                        .keys()
+                        .any(|k| k.starts_with(&format!("{}.", class_name)));
+                if is_known_class
+                    && static_arity_ok
+                    && self.function_return_types.contains_key(&static_func_name)
+                {
                     let dummy_this = self.next_val();
                     self.get_block_mut(*cur_block)
                         .instructions
@@ -1011,8 +1030,24 @@ impl<'a> Lowering<'a> {
                     "Int".to_string()
                 }
             } else {
-                self.function_return_types
-                    .get(member)
+                let receiver_class = match &**object {
+                    Expr::Identifier(var_name, _) => match self.lookup_var_type(var_name) {
+                        Some(DataraType::Class(c)) => Some(c),
+                        Some(DataraType::GenericInstance { name, .. }) => Some(name),
+                        _ => None,
+                    },
+                    _ => match self.infer_expr_datara_type(object) {
+                        Some(DataraType::Class(c)) => Some(c),
+                        Some(DataraType::GenericInstance { name, .. }) => Some(name),
+                        _ => None,
+                    },
+                };
+                let class_method_key = receiver_class.as_ref().map(|c| format!("{}_{}", c, member));
+
+                class_method_key
+                    .as_ref()
+                    .and_then(|k| self.function_return_types.get(k))
+                    .or_else(|| self.function_return_types.get(member))
                     .or_else(|| self.class_field_types.get(member))
                     .cloned()
                     .unwrap_or_else(|| {

@@ -498,6 +498,11 @@ impl<'a> LlvmEmitter<'a> {
             "clear" => "datara_rt_list_clear".to_string(),
             "slice" => "datara_rt_list_slice".to_string(),
             "is_empty" => "datara_rt_list_is_empty".to_string(),
+            _ if let Some(c) = value_classes.get(object)
+                && module.functions.contains_key(&format!("{}_{}", c, method)) =>
+            {
+                format!("{}_{}", c, method)
+            }
             _ if module.functions.contains_key(method) => method.to_string(),
             _ => {
                 // Collect suffix matches and pick the smallest name
