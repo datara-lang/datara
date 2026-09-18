@@ -1,6 +1,6 @@
-module ai.tensor
+﻿module ai.tensor
 
-class Tensor {
+struct Tensor {
     shape: [Int]
     size: Int
 }

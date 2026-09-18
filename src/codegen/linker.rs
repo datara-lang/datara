@@ -481,6 +481,14 @@ pub fn link_args(
             args.push("/DEBUG:NONE".into());
             args.push("/OPT:REF".into());
             args.push("/OPT:ICF".into());
+            let is_release = extra_libs.iter().any(|l| l == "--release" || l == "-O3" || l == "--ltcg")
+                || std::env::var("FORGEN_RELEASE").is_ok()
+                || std::env::var("DATARA_RELEASE").is_ok()
+                || std::env::var("FORGEN_LTCG").is_ok();
+            if is_release {
+                args.push("/LTCG".into());
+                args.push("/CGTHREADS:8".into());
+            }
             if is_tiny {
                 args.push("/NODEFAULTLIB:libcmt.lib".into());
                 args.push("/FILEALIGN:512".into());
@@ -525,6 +533,10 @@ pub fn link_args(
                     continue;
                 }
                 let p = Path::new(lib);
+                if p.is_absolute() && p.exists() {
+                    args.push(lib.clone());
+                    continue;
+                }
                 if let Some(parent) = p.parent() {
                     if !parent.as_os_str().is_empty() {
                         args.push(format!("/LIBPATH:{}", parent.display()));

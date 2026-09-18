@@ -1,6 +1,6 @@
-use examples.datara_find.src.parser.LogEntry
+﻿use examples.datara_find.src.parser.LogEntry
 
-class AnalysisStats {
+struct AnalysisStats {
     total_scanned: Int
     error_count: Int
     warning_count: Int
@@ -12,7 +12,7 @@ behavior AnalysisStats {
     }
 }
 
-class ContentAnalyzer {
+struct ContentAnalyzer {
     filter_pattern: Str
 }
 

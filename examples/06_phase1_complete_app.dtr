@@ -1,4 +1,4 @@
-component Audited {
+struct Audited {
     audit_id: Str
 }
 
@@ -6,24 +6,24 @@ role Serializable {
     serialize() -> Str
 }
 
-class Entity {
+struct Entity {
     id: Int
     name: Str
 }
 
-class User with Serializable {
+struct User with Serializable {
     using Entity
     using Audited
     email: Str
     role: Str
-    serialize() -> Str => "User(id=" + this.name + ", audit=" + this.audit_id + ")"
 }
 
 behavior User {
+    serialize() -> Str => "User(id=" + this.name + ", audit=" + this.audit_id + ")"
     describe() -> Str => "User: " + this.name + " <" + this.email + ">"
 }
 
-class Admin {
+struct Admin {
     using User
     level: Int
 }

@@ -1,4 +1,4 @@
-class FileInfo {
+﻿struct FileInfo {
     filename: Str
     line_count: Int
 }
@@ -7,7 +7,7 @@ behavior FileInfo {
     format() -> Str => this.filename + ": " + this.line_count + " lines"
 }
 
-class FileScanner {
+struct FileScanner {
     root_path: Str
 }
 

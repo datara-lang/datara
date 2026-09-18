@@ -1,6 +1,6 @@
-module web.webgl
+﻿module web.webgl
 
-class WebGLContext {
+struct WebGLContext {
     canvas_id: Str
     version: Int
 }

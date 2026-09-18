@@ -38,7 +38,7 @@ fn test_incremental_cache_serialization() {
     let temp_dir = std::env::temp_dir().join("forgen_test_cache");
     let mut cache = IncrementalCache::new();
     let mod_b = Path::new("src/module_b.dtr");
-    let content = "class User { id Int }\n";
+    let content = "struct User { id Int }\n";
 
     cache.update_module(mod_b, content, vec!["src/core.dtr".into()]);
     assert!(cache.save_to_dir(&temp_dir).is_ok());

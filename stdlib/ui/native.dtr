@@ -1,33 +1,33 @@
-﻿extern "C" fn datara_rt_dialog_info(title: Str, msg: Str) -> Int
+extern "C" fn datara_rt_dialog_info(title: Str, msg: Str) -> Int
 extern "C" fn datara_rt_dialog_alert(title: Str, msg: Str) -> Int
 extern "C" fn datara_rt_dialog_confirm(title: Str, msg: Str) -> Int
 
-class NativeDialog {
+struct NativeDialog {
     title: Str
     message: Str
 }
 
 behavior NativeDialog {
-    show_info() -> Int {
+    show_info() -> Int / IO {
         unsafe(justification: "Calling native OS message box dialog") {
             return datara_rt_dialog_info(this.title, this.message)
         }
     }
 
-    show_alert() -> Int {
+    show_alert() -> Int / IO {
         unsafe(justification: "Calling native OS alert box dialog") {
             return datara_rt_dialog_alert(this.title, this.message)
         }
     }
 
-    show_confirm() -> Int {
+    show_confirm() -> Int / IO {
         unsafe(justification: "Calling native OS confirmation dialog") {
             return datara_rt_dialog_confirm(this.title, this.message)
         }
     }
 }
 
-class NativeCanvas {
+struct NativeCanvas {
     width: Int
     height: Int
     buffer: Str
@@ -65,7 +65,7 @@ behavior NativeCanvas {
     }
 }
 
-class NativeWindow {
+struct NativeWindow {
     title: Str
     width: Int
     height: Int

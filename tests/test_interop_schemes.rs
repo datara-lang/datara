@@ -25,7 +25,7 @@ fn run_datara(code: &str, tag: &str) -> String {
 #[test]
 fn test_react_compat_component_render() {
     let code = r##"
-class ReactComponent {
+struct ReactComponent {
     name: Str
     title: Str
     state_val: Str
@@ -68,7 +68,7 @@ fn main() {
 #[test]
 fn test_python_bridge_spec_generation() {
     let code = r##"
-class PythonBridge {
+struct PythonBridge {
     runtime_name: Str
 }
 
@@ -96,7 +96,7 @@ fn main() {
 #[test]
 fn test_rust_bridge_ffi_spec() {
     let code = r##"
-class RustBridge {
+struct RustBridge {
     crate_name: Str
 }
 
@@ -195,7 +195,7 @@ fn test_smart_foreign_imports_diagnostics() {
 #[test]
 fn test_web_html_css_library() {
     let code = r##"
-class HtmlTag {
+struct HtmlTag {
     name: Str
     class_name: Str
     content: Str
@@ -207,7 +207,7 @@ behavior HtmlTag {
     }
 }
 
-class WebApp {
+struct WebApp {
     title: Str
 }
 

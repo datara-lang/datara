@@ -144,7 +144,7 @@ fn test_sret_struct_return_native_roundtrip() {
     let out_lib = manifest_dir
         .join("tests")
         .join("fixtures")
-        .join("test_sret_abi.lib");
+        .join("test_sret_fixture.lib");
 
     assert!(fixture_h.exists(), "test_sret_lib.h must exist");
     assert!(fixture_c.exists(), "test_sret_lib.c must exist");

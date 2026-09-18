@@ -1,6 +1,4 @@
-use cranelift_codegen::ir::{
-    types as clif_types, InstBuilder, MachMemFlags, Value as ClifValue,
-};
+use cranelift_codegen::ir::{InstBuilder, MachMemFlags, Value as ClifValue, types as clif_types};
 use cranelift_frontend::FunctionBuilder;
 use std::collections::HashMap;
 
@@ -86,11 +84,13 @@ pub fn emit_field_store(
                 builder.ins().store(flags, v_f32, base_addr, offset);
             }
             _ => {
-                let val_to_store = if v_ty == clif_types::I8 || v_ty == clif_types::I32 || v_ty == clif_types::I16 {
-                    builder.ins().sextend(clif_types::I64, val)
-                } else {
-                    val
-                };
+                let val_to_store =
+                    if v_ty == clif_types::I8 || v_ty == clif_types::I32 || v_ty == clif_types::I16
+                    {
+                        builder.ins().sextend(clif_types::I64, val)
+                    } else {
+                        val
+                    };
                 builder.ins().store(flags, val_to_store, base_addr, offset);
             }
         }
@@ -115,10 +115,14 @@ pub fn emit_field_load(
 ) -> ClifValue {
     if is_float {
         if is_packed && field_type == "F32" {
-            let raw = builder.ins().load(clif_types::F32, flags, base_addr, offset);
+            let raw = builder
+                .ins()
+                .load(clif_types::F32, flags, base_addr, offset);
             builder.ins().fpromote(clif_types::F64, raw)
         } else {
-            builder.ins().load(clif_types::F64, flags, base_addr, offset)
+            builder
+                .ins()
+                .load(clif_types::F64, flags, base_addr, offset)
         }
     } else if is_packed {
         match field_type {
@@ -131,24 +135,36 @@ pub fn emit_field_load(
                 builder.ins().sextend(clif_types::I64, raw)
             }
             "U16" => {
-                let raw = builder.ins().load(clif_types::I16, flags, base_addr, offset);
+                let raw = builder
+                    .ins()
+                    .load(clif_types::I16, flags, base_addr, offset);
                 builder.ins().uextend(clif_types::I64, raw)
             }
             "I16" => {
-                let raw = builder.ins().load(clif_types::I16, flags, base_addr, offset);
+                let raw = builder
+                    .ins()
+                    .load(clif_types::I16, flags, base_addr, offset);
                 builder.ins().sextend(clif_types::I64, raw)
             }
             "U32" => {
-                let raw = builder.ins().load(clif_types::I32, flags, base_addr, offset);
+                let raw = builder
+                    .ins()
+                    .load(clif_types::I32, flags, base_addr, offset);
                 builder.ins().uextend(clif_types::I64, raw)
             }
             "I32" => {
-                let raw = builder.ins().load(clif_types::I32, flags, base_addr, offset);
+                let raw = builder
+                    .ins()
+                    .load(clif_types::I32, flags, base_addr, offset);
                 builder.ins().sextend(clif_types::I64, raw)
             }
-            _ => builder.ins().load(clif_types::I64, flags, base_addr, offset),
+            _ => builder
+                .ins()
+                .load(clif_types::I64, flags, base_addr, offset),
         }
     } else {
-        builder.ins().load(clif_types::I64, flags, base_addr, offset)
+        builder
+            .ins()
+            .load(clif_types::I64, flags, base_addr, offset)
     }
 }

@@ -7,8 +7,8 @@ use std::collections::{HashMap, HashSet};
 mod check;
 mod match_check;
 mod prelude;
-mod prelude_strbuf;
 mod prelude_concurrency;
+mod prelude_strbuf;
 mod prelude_systems;
 mod refine;
 mod resolve;
@@ -92,6 +92,29 @@ impl DataraType {
 
     pub fn is_outcome(&self) -> bool {
         matches!(self, DataraType::Result(_, _))
+    }
+
+    /// Returns true if this type is plain old data (Copy and memcpy safe).
+    pub fn is_pod(&self) -> bool {
+        match self {
+            DataraType::Int
+            | DataraType::Float
+            | DataraType::Bool
+            | DataraType::Char
+            | DataraType::Unit
+            | DataraType::RawPtr
+            | DataraType::Dec64
+            | DataraType::Dec128 => true,
+            DataraType::Range { base, .. } | DataraType::Measure { base, .. } => base.is_pod(),
+            DataraType::Tuple(elems) => elems.iter().all(|e| e.is_pod()),
+            DataraType::Class(name) => {
+                !matches!(
+                    name.as_str(),
+                    "Str" | "String" | "List" | "Map" | "Outcome" | "Maybe"
+                )
+            }
+            _ => false,
+        }
     }
 
     pub fn is_compatible(&self, other: &DataraType) -> bool {
@@ -486,6 +509,7 @@ pub struct TypeChecker<'a> {
     pub function_param_nodes: HashMap<String, Vec<Option<TypeNode>>>,
     pub var_array_lengths: HashMap<String, usize>,
     pub traits: HashMap<String, TraitDef>,
+    pub roles: HashMap<String, crate::ast::RoleDecl>,
     pub impls: HashMap<(String, String), ImplBlock>,
     pub trait_bounds: HashMap<String, Vec<String>>,
     pub current_target_type: Option<String>,
@@ -498,7 +522,7 @@ pub struct TypeChecker<'a> {
     pub bridge_functions: HashSet<String>,
     /// Current expression recursion depth. Incremented on every `check_expr`
     /// entry, decremented on exit. When it exceeds `MAX_EXPR_DEPTH` the
-    /// checker emits E0999 and returns immediately to prevent stack overflow.
+    /// checker emits E0105 and returns immediately to prevent stack overflow.
     pub expr_depth: usize,
     /// Nesting depth of `while` / `for` / `loop` bodies currently being
     /// checked. `break` / `continue` outside any loop (E0312) are rejected;
@@ -507,7 +531,7 @@ pub struct TypeChecker<'a> {
 }
 
 /// Maximum nesting depth for expression type-checking. Expressions nested
-/// deeper than this produce E0999 (RecursionLimitExceeded) instead of a
+/// deeper than this produce E0105 (RecursionLimitExceeded) instead of a
 /// stack overflow. 256 covers all realistic programs; pathological inputs
 /// (e.g. 300+ levels of parentheses) are rejected cleanly.
 pub const MAX_EXPR_DEPTH: usize = 256;

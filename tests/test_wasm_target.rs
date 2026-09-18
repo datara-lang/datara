@@ -5,7 +5,7 @@ use std::fs;
 #[test]
 fn test_wasm_binary_generation_and_validation() {
     let source = r#"
-class Calculator {
+struct Calculator {
     base: Int
 }
 

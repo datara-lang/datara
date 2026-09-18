@@ -36,7 +36,10 @@ impl<'a> TypeChecker<'a> {
         slice_methods.insert("write_u32_le".to_string(), DataraType::Unit);
         slice_methods.insert("write_u64_be".to_string(), DataraType::Unit);
         slice_methods.insert("write_u64_le".to_string(), DataraType::Unit);
-        slice_methods.insert("subslice".to_string(), DataraType::Class("SliceView".into()));
+        slice_methods.insert(
+            "subslice".to_string(),
+            DataraType::Class("SliceView".into()),
+        );
         slice_methods.insert("free".to_string(), DataraType::Unit);
         class_methods.insert("SliceView".to_string(), slice_methods);
 

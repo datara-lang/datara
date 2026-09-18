@@ -1,6 +1,6 @@
-module web.webgpu
+﻿module web.webgpu
 
-class WebGPUBuffer {
+struct WebGPUBuffer {
     buffer_id: Int
     size_bytes: Int
     usage: Str
@@ -16,7 +16,7 @@ behavior WebGPUBuffer {
     }
 }
 
-class WebGPUContext {
+struct WebGPUContext {
     device_name: Str
     is_ready: Bool
     active_buffers: Int

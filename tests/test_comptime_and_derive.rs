@@ -1,4 +1,4 @@
-﻿use forgen::ForgenCompiler;
+use forgen::ForgenCompiler;
 
 #[test]
 fn test_comptime_expression_folding() {
@@ -18,7 +18,7 @@ fn test_structural_derive_display_and_json() {
     let compiler = ForgenCompiler::new("jit");
     let src = r#"
 @derive(Display, Json, Hash, Clone, Deserialize)
-class UserProfile {
+struct UserProfile {
     id: Int
     name: Str
     active: Bool
@@ -43,7 +43,7 @@ fn test_derive_methods_execution() {
     let compiler = ForgenCompiler::new("jit");
     let src = r#"
 @derive(Display, Json, Hash, Clone)
-class Point {
+struct Point {
     x: Int
     y: Int
 }

@@ -23,9 +23,44 @@ impl<'a> TypeChecker<'a> {
             if fn_name == "destroy" || fn_name == "unsafe_op" {
                 return DataraType::Unit;
             }
-            if fn_name == "println" || fn_name == "print" || fn_name == "eprintln" {
+            if fn_name == "println" || fn_name == "eprintln" {
+                let replacement = if fn_name == "eprintln" { "err" } else { "out" };
+                diag.warning(
+                    ErrorCode::DeprecatedPrintFunction,
+                    format!(
+                        "Function '{}' is deprecated: use '{}' statement instead (e.g. '{} \"text\"' or '{} fmt\"a {{x}}\"')",
+                        fn_name, replacement, replacement, replacement
+                    ),
+                    Some(span.clone()),
+                );
                 return DataraType::Unit;
             }
+            if fn_name == "print" {
+                if let Some(arg_ty) = arg_types.first() {
+                    if !self.is_printable_type(arg_ty) {
+                        let help = match arg_ty {
+                            DataraType::Class(c) => {
+                                format!("add '@derive(Display)' to '{}' or use 'to_str(...)'", c)
+                            }
+                            DataraType::List(_) => {
+                                "format list elements via a loop, e.g. 'for x in xs { out x }', or serialize with a custom formatter".to_string()
+                            }
+                            DataraType::Map { .. } => {
+                                "format entries via a loop, or convert keys/values to Str".to_string()
+                            }
+                            _ => "provide an explicit conversion to Str".to_string(),
+                        };
+                        diag.error_with_help(
+                            ErrorCode::UnprintableType,
+                            format!("Cannot print value of unprintable type '{}'", arg_ty),
+                            Some(span.clone()),
+                            Some(help),
+                        );
+                    }
+                }
+                return DataraType::Unit;
+            }
+
             if fn_name == "input_int" || fn_name == "read_int" || fn_name == "fast_read_int" {
                 return DataraType::Int;
             }
@@ -748,6 +783,17 @@ impl<'a> TypeChecker<'a> {
                         }
                     }
                     return ret_ty.clone();
+                }
+                if let Some(cls_sym) = self.resolver.classes.get(cls) {
+                    for comp in &cls_sym.compositions {
+                        if let Some(m_type) = self.class_methods.get(comp).and_then(|m| m.get(member)) {
+                            return m_type.clone();
+                        }
+                        let specialized = format!("{}_{}", comp, member);
+                        if let Some((_, ret_ty, _)) = self.function_signatures.get(&specialized) {
+                            return ret_ty.clone();
+                        }
+                    }
                 }
             }
             if let DataraType::TypeParam(p) = &obj_type {

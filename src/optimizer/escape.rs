@@ -155,7 +155,9 @@ impl EscapeAnalyzer {
                                 }
                             }
                         }
-                        Inst::UnOp { dest, op, operand, .. } if op == "copy" => {
+                        Inst::UnOp {
+                            dest, op, operand, ..
+                        } if op == "copy" => {
                             if let Some(&root) = val_to_alloc_root.get(operand) {
                                 if val_to_alloc_root.get(dest) != Some(&root) {
                                     val_to_alloc_root.insert(*dest, root);
@@ -253,8 +255,13 @@ impl EscapeAnalyzer {
                     Inst::GetField { object, field, .. } => {
                         if let Some(&root) = val_to_alloc_root.get(object) {
                             if let Some(alloc) = result.allocations.get_mut(&root) {
-                                if !alloc.initial_fields.contains_key(field) && alloc.state == EscapeState::NonEscaping {
-                                    alloc.state = EscapeState::EscapedExternalCall(format!("unknown_field:{}", field));
+                                if !alloc.initial_fields.contains_key(field)
+                                    && alloc.state == EscapeState::NonEscaping
+                                {
+                                    alloc.state = EscapeState::EscapedExternalCall(format!(
+                                        "unknown_field:{}",
+                                        field
+                                    ));
                                 }
                             }
                         }
@@ -264,7 +271,8 @@ impl EscapeAnalyzer {
                             if let Some(&root) = val_to_alloc_root.get(v) {
                                 if let Some(alloc) = result.allocations.get_mut(&root) {
                                     if alloc.state == EscapeState::NonEscaping {
-                                        alloc.state = EscapeState::EscapedExternalCall("binop".into());
+                                        alloc.state =
+                                            EscapeState::EscapedExternalCall("binop".into());
                                     }
                                 }
                             }

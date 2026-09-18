@@ -326,7 +326,7 @@ fn test_schedule_proof_runtime_execution_determinism_and_waves() {
 fn test_schedule_proof_class_method_task_deduplication() {
     let compiler = ForgenCompiler::new("debug");
     let src = r#"
-class Vector2 {
+struct Vector2 {
     x: Int
     y: Int
 }

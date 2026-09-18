@@ -271,7 +271,8 @@ impl LayoutAdapter {
                 || class_name.to_lowercase().contains("layout")
                 || is_canonical_nbody;
 
-            let should_soa = is_explicit_soa || (total_fields >= 4 && selectivity <= 0.60);
+            let is_component = module.component_classes.contains(&class_name);
+            let should_soa = is_component || is_explicit_soa || (total_fields >= 4 && selectivity <= 0.60);
 
             if should_soa {
                 let soa_record = AdaptationRecord::new(
@@ -286,7 +287,9 @@ impl LayoutAdapter {
                         selectivity,
                         accessed_count,
                         total_fields,
-                        if is_explicit_soa {
+                        if is_component {
+                            " [component POD layout contract]"
+                        } else if is_explicit_soa {
                             " [explicit @layout(soa)/@soa/canonical n-body]"
                         } else {
                             ""

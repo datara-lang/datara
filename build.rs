@@ -57,7 +57,24 @@ fn main() {
         .opt_level(3)
         .cargo_metadata(true);
 
-    if cfg!(target_env = "msvc") {
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_else(|_| {
+        if cfg!(target_os = "windows") {
+            "windows".into()
+        } else if cfg!(target_os = "macos") {
+            "macos".into()
+        } else {
+            "linux".into()
+        }
+    });
+    let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_else(|_| {
+        if cfg!(target_env = "msvc") {
+            "msvc".into()
+        } else {
+            "".into()
+        }
+    });
+
+    if target_env == "msvc" {
         build.static_crt(true);
         build.flag("/Gy"); // Enable function-level linking (COMDAT) for /OPT:REF
         build.flag("/Gw"); // Enable whole-program data elimination for /OPT:REF
@@ -67,7 +84,7 @@ fn main() {
         build.flag("-fdata-sections");
     }
 
-    if cfg!(target_os = "windows") {
+    if target_os == "windows" {
         println!("cargo:rustc-link-lib=ws2_32");
         println!("cargo:rustc-link-lib=user32");
         println!("cargo:rustc-link-lib=advapi32");
@@ -107,16 +124,22 @@ fn main() {
                 }
             }
         }
+    } else {
+        println!("cargo:rustc-link-lib=pthread");
+        println!("cargo:rustc-link-lib=m");
+        if target_os != "macos" {
+            println!("cargo:rustc-link-lib=dl");
+        }
     }
 
-    if cfg!(target_env = "msvc") {
+    if target_env == "msvc" {
         build
             .flag_if_supported("/Os")
             .flag_if_supported("/Gy")
             .flag_if_supported("/Gw")
             .flag_if_supported("/W3");
     } else {
-        if cfg!(target_os = "macos") {
+        if target_os == "macos" {
             build.define("_DARWIN_C_SOURCE", None);
         } else {
             build
@@ -151,7 +174,7 @@ fn main() {
         lib_msvc
     } else if lib_unix.exists() {
         lib_unix
-    } else if cfg!(target_env = "msvc") {
+    } else if target_env == "msvc" {
         lib_msvc
     } else {
         lib_unix
@@ -200,4 +223,47 @@ fn main() {
     }
 
     println!("cargo:rustc-env=DATARA_RUNTIME_LIB={}", archive.display());
+
+    // Calculate compiler semantic hash over all compiler Rust sources in src/
+    // so any semantic change automatically invalidates incremental check cache.
+    let semantic_hash = compute_semantic_hash(&manifest_dir);
+    println!("cargo:rustc-env=FORGEN_BUILD_SEMANTIC_HASH={:016x}", semantic_hash);
+    println!("cargo:rerun-if-changed=src");
+}
+
+fn compute_semantic_hash(manifest_dir: &PathBuf) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    let src_dir = manifest_dir.join("src");
+    let mut files = Vec::new();
+    collect_rs_files(&src_dir, &mut files);
+    files.sort();
+    for path in files {
+        if let Ok(content) = std::fs::read(&path) {
+            let rel = path.strip_prefix(manifest_dir).unwrap_or(&path);
+            for &b in rel.to_string_lossy().as_bytes() {
+                hash ^= b as u64;
+                hash = hash.wrapping_mul(0x100000001b3u64);
+            }
+            hash ^= 0xff;
+            hash = hash.wrapping_mul(0x100000001b3u64);
+            for &b in &content {
+                hash ^= b as u64;
+                hash = hash.wrapping_mul(0x100000001b3u64);
+            }
+        }
+    }
+    hash
+}
+
+fn collect_rs_files(dir: &PathBuf, out: &mut Vec<PathBuf>) {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                collect_rs_files(&p, out);
+            } else if p.extension().map_or(false, |ext| ext == "rs") {
+                out.push(p);
+            }
+        }
+    }
 }

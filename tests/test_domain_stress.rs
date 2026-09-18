@@ -20,7 +20,7 @@ fn main() {
 
     // 2. Generate 100 modules with 10 symbols each = 1,000+ symbols
     for i in 1..=100 {
-        let mut mod_content = format!("class Module{}_Class {{\n    id: Int\n}}\n\n", i);
+        let mut mod_content = format!("struct Module{}_Class {{\n    id: Int\n}}\n\n", i);
 
         for s in 1..=10 {
             mod_content.push_str(&format!(

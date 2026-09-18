@@ -157,13 +157,13 @@ fn test_lsp_server_protocol_lifecycle() {
 #[test]
 fn test_reactive_aot_component_state() {
     let code = r#"
-class Signal {
+struct Signal {
     id: Int
     value: Str
     is_dirty: Bool
 }
 
-class ReactiveComponent {
+struct ReactiveComponent {
     name: Str
     state_value: Str
     dirty_mask: Int
@@ -280,7 +280,7 @@ fn test_package_add_and_formatter() {
     );
 
     // 2. Test Formatter logic
-    let unformatted = "class Demo {\nmut x: Int\n}\nfn main() {\nout 42\n}\n";
+    let unformatted = "struct Demo {\nmut x: Int\n}\nfn main() {\nout 42\n}\n";
     let mut formatted = String::new();
     let mut indent_level: usize = 0;
     for line in unformatted.lines() {
@@ -299,7 +299,7 @@ fn test_package_add_and_formatter() {
 
     assert_eq!(
         formatted,
-        "class Demo {\n    mut x: Int\n}\nfn main() {\n    out 42\n}\n"
+        "struct Demo {\n    mut x: Int\n}\nfn main() {\n    out 42\n}\n"
     );
     let _ = fs::remove_dir_all(test_dir);
 }

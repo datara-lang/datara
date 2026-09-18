@@ -1,4 +1,4 @@
-class JS {
+﻿struct JS {
     version: Str
 }
 

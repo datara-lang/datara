@@ -1,4 +1,4 @@
-class File {
+﻿struct File {
     path: Str
 }
 
@@ -23,7 +23,7 @@ behavior File {
     }
 }
 
-class FileSystem {
+struct FileSystem {
     base_dir: Str
 }
 

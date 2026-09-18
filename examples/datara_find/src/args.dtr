@@ -1,4 +1,4 @@
-class CliConfig {
+﻿struct CliConfig {
     target_path: Str
     query: Str
     max_count: Int
@@ -12,7 +12,7 @@ behavior CliConfig {
     }
 }
 
-class ArgParser {
+struct ArgParser {
     program_name: Str
 }
 

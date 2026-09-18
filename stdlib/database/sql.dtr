@@ -1,4 +1,4 @@
-class Row {
+﻿struct Row {
     columns: Str
     values: Str
 }
@@ -9,7 +9,7 @@ behavior Row {
     }
 }
 
-class ResultSet {
+struct ResultSet {
     row_count: Int
     raw_data: Str
 }

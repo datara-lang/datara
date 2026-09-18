@@ -112,6 +112,19 @@ impl RealCraneliftBackend {
         if output.status.success() && abs_out.exists() {
             let _ = fs::remove_file(&obj_path);
             let _ = fs::remove_file(abs_out.with_extension("ilk"));
+            let is_shared = abs_out
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| {
+                    e.eq_ignore_ascii_case("dll")
+                        || e.eq_ignore_ascii_case("so")
+                        || e.eq_ignore_ascii_case("dylib")
+                })
+                .unwrap_or(false);
+            if !is_shared {
+                let _ = fs::remove_file(abs_out.with_extension("lib"));
+                let _ = fs::remove_file(abs_out.with_extension("exp"));
+            }
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;

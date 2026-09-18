@@ -1,7 +1,7 @@
-@kernel_mode
+﻿@kernel_mode
 module kernel.arch.x86_64.ports
 
-class Port8 {
+struct Port8 {
     port: UInt16
 }
 
@@ -28,7 +28,7 @@ behavior Port8 {
     }
 }
 
-class Port16 {
+struct Port16 {
     port: UInt16
 }
 

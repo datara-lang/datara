@@ -22,7 +22,6 @@ void        datara_rt_err(const char* s);
 void        datara_rt_exit(int32_t code);
 void        datara_rt_panic(const char* s);
 void        datara_rt_print_backtrace(void);
-void        datara_rt_println(const char* s);
 void        datara_rt_print(const char* s);
 void        datara_rt_eprintln(const char* s);
 void        datara_rt_assert(int64_t cond, const char* msg);
@@ -151,9 +150,16 @@ void        datara_rt_print_bool(int64_t v);
 void        datara_rt_print_space(void);
 void        datara_rt_print_newline(void);
 void        datara_rt_flush(void);
+void        datara_rt_flush_if_tty(void);
 void        datara_rt_print_list(void* list);
+void        datara_rt_err_print_str(const char* s);
+void        datara_rt_err_print_int(int64_t v);
+void        datara_rt_err_print_float(double v);
+void        datara_rt_err_print_bool(int64_t v);
+void        datara_rt_err_print_newline(void);
 void        datara_rt_set_capture(int32_t enable);
 const char* datara_rt_get_capture(void);
+const char* datara_rt_get_err_capture(void);
 void        datara_rt_clear_capture(void);
 
 // String Operations

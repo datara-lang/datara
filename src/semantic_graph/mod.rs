@@ -361,6 +361,115 @@ impl SemanticGraph {
             );
         }
 
+        // 3. Add components in deterministic order
+        let mut sorted_components: Vec<(&String, &crate::resolver::Symbol)> =
+            resolver.components.iter().collect();
+        sorted_components.sort_by_key(|(name, _)| *name);
+        for (name, sym) in sorted_components {
+            let comp_id = format!("component:{}", name);
+            graph.nodes.insert(
+                comp_id.clone(),
+                GraphNode {
+                    id: comp_id.clone(),
+                    kind: NodeKind::Component,
+                    label: name.clone(),
+                    is_reachable: true,
+                    effects: "Pure".to_string(),
+                    ownership: "POD Value Layout".to_string(),
+                    metadata: serde_json::json!({
+                        "span": sym.span.to_string(),
+                        "pod": true,
+                    }),
+                    callers: Vec::new(),
+                    callees: Vec::new(),
+                    compositions: sym.compositions.clone(),
+                    optimization: OptimizationFacts {
+                        inlining: InliningFact {
+                            applied: false,
+                            inlined_calls: Vec::new(),
+                            reason: "Component POD type".into(),
+                        },
+                        allocation: AllocationFact {
+                            eliminated_allocations: 0,
+                            reason: "Auto SoA candidate".into(),
+                        },
+                        vectorization: VectorizationFact {
+                            enabled: true,
+                            reason: "Contiguous SIMD layout".into(),
+                        },
+                        parallelization: ParallelizationFact {
+                            applied: false,
+                            reason: "Copy POD data".into(),
+                        },
+                        generic_specializations: Vec::new(),
+                        runtime_modules_linked: vec!["core".into()],
+                        runtime_modules_stripped: vec![],
+                        ownership: None,
+                    },
+                },
+            );
+        }
+
+        // 4. Add roles in deterministic order
+        let mut sorted_roles: Vec<(&String, &crate::resolver::Symbol)> =
+            resolver.roles.iter().collect();
+        sorted_roles.sort_by_key(|(name, _)| *name);
+        for (name, sym) in sorted_roles {
+            let role_id = format!("role:{}", name);
+            graph.nodes.insert(
+                role_id.clone(),
+                GraphNode {
+                    id: role_id.clone(),
+                    kind: NodeKind::Role,
+                    label: name.clone(),
+                    is_reachable: true,
+                    effects: "Contract".to_string(),
+                    ownership: "Behavioral Contract".to_string(),
+                    metadata: serde_json::json!({
+                        "span": sym.span.to_string(),
+                    }),
+                    callers: Vec::new(),
+                    callees: Vec::new(),
+                    compositions: Vec::new(),
+                    optimization: OptimizationFacts {
+                        inlining: InliningFact {
+                            applied: false,
+                            inlined_calls: Vec::new(),
+                            reason: "Role boundary contract".into(),
+                        },
+                        allocation: AllocationFact {
+                            eliminated_allocations: 0,
+                            reason: "Zero-cost role abstraction".into(),
+                        },
+                        vectorization: VectorizationFact {
+                            enabled: false,
+                            reason: "Contract interface".into(),
+                        },
+                        parallelization: ParallelizationFact {
+                            applied: false,
+                            reason: "Contract interface".into(),
+                        },
+                        generic_specializations: Vec::new(),
+                        runtime_modules_linked: vec!["core".into()],
+                        runtime_modules_stripped: vec![],
+                        ownership: None,
+                    },
+                },
+            );
+        }
+
+        // 5. Connect composition and role edges
+        for (name, sym) in &resolver.classes {
+            let class_id = format!("class:{}", name);
+            for comp in &sym.compositions {
+                if resolver.components.contains_key(comp) {
+                    graph.add_edge(&class_id, &format!("component:{}", comp), EdgeKind::Composes);
+                } else if resolver.roles.contains_key(comp) {
+                    graph.add_edge(&class_id, &format!("role:{}", comp), EdgeKind::Implements);
+                }
+            }
+        }
+
         graph
     }
 

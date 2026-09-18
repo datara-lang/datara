@@ -74,7 +74,7 @@ impl ProjectInitializer {
             .map_err(|e| format!("Failed to create examples dir: {}", e))?;
         let example_path = examples_dir.join("demo.dtr");
         if !example_path.exists() {
-            let example_content = "// Example usage demo\nclass Greeter {\n    name String\n}\n\nbehavior Greeter {\n    fn greet() {\n        out \"Welcome to \" + self.name\n    }\n}\n\nfn main() {\n    let app = Greeter { name: \"Datara\" }\n    app.greet()\n}\n";
+            let example_content = "// Example usage demo\nstruct Greeter {\n    name: Str\n}\n\nbehavior Greeter {\n    fn greet() {\n        out \"Welcome to \" + self.name\n    }\n}\n\nfn main() {\n    let app = Greeter { name: \"Datara\" }\n    app.greet()\n}\n";
             fs::write(&example_path, example_content)
                 .map_err(|e| format!("Failed to write examples/demo.dtr: {}", e))?;
         }
@@ -143,7 +143,7 @@ impl ProjectInitializer {
         let lib_path = src_dir.join("lib.dtr");
         if !lib_path.exists() {
             let lib_content = format!(
-                "// Datara Library: {}\nclass Helper {{\n    scale_factor: Int\n}}\n\nbehavior Helper {{\n    multiply(val: Int) -> Int => val * this.scale_factor\n}}\n\nfn create_helper(scale: Int) -> Helper {{\n    return Helper {{ scale_factor: scale }}\n}}\n",
+                "// Datara Library: {}\nstruct Helper {{\n    scale_factor: Int\n}}\n\nbehavior Helper {{\n    multiply(val: Int) -> Int => val * this.scale_factor\n}}\n\nfn create_helper(scale: Int) -> Helper {{\n    return Helper {{ scale_factor: scale }}\n}}\n",
                 dir_name
             );
             fs::write(&lib_path, lib_content)

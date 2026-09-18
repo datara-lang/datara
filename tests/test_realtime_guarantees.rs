@@ -3,7 +3,7 @@ use forgen::driver::ForgenCompiler;
 #[test]
 fn test_no_alloc_static_gate_rejects_heap_allocation() {
     let source = r#"
-class Task {
+struct Task {
     id: Int
 }
 
@@ -35,7 +35,7 @@ fn main() -> Int {
 #[test]
 fn test_no_alloc_static_gate_accepts_zero_alloc_code() {
     let source = r#"
-class Sensor {
+struct Sensor {
     pin: Int
     last_value: Int
 }
@@ -65,7 +65,7 @@ fn main() -> Int {
 #[test]
 fn test_no_panic_static_gate_rejects_unproven_panic() {
     let source = r#"
-class Controller {
+struct Controller {
     mode: Int
 }
 
@@ -93,7 +93,7 @@ fn main() -> Int {
 #[test]
 fn test_no_panic_static_gate_accepts_safe_code() {
     let source = r#"
-class SafeMath {
+struct SafeMath {
     offset: Int
 }
 

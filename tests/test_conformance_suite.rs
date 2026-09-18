@@ -22,6 +22,9 @@ use forgen::driver::ForgenCompiler;
 fn check_code(code: &str) -> bool {
     let compiler = ForgenCompiler::new("check");
     let res = compiler.check_source(code, "conformance_check.dtr");
+    if !res.success {
+        eprintln!("DIAGNOSTICS: {}", res.diagnostics);
+    }
     res.success
 }
 
@@ -160,7 +163,8 @@ fn test_gate02_06_export_modifier_accepted() {
 #[test]
 fn test_gate02_07_qualified_symbol_access() {
     let code = r#"
-class MathUtils {
+struct MathUtils {}
+behavior MathUtils {
     fn add(a: Int, b: Int) -> Int => a + b
 }
 fn main() {
@@ -181,13 +185,15 @@ fn main() {
 #[test]
 fn test_gate03_01_class_with_composition() {
     let code = r#"
-class Logger {
+struct Logger {}
+behavior Logger {
     fn log(msg: String) {}
 }
-class Metrics {
+struct Metrics {}
+behavior Metrics {
     fn track(val: Int) {}
 }
-class Service with Logger, Metrics {
+struct Service with Logger, Metrics {
     name: String
 }
 fn main() {}
@@ -237,10 +243,11 @@ fn main() {}
 #[test]
 fn test_gate03_04_composition_combines_methods() {
     let code = r#"
-class Greeter {
+struct Greeter {}
+behavior Greeter {
     fn greet() -> String => "Hello"
 }
-class Bot with Greeter {}
+struct Bot with Greeter {}
 fn main() {
     let b = Bot {}
     let g = b.greet()
@@ -492,6 +499,17 @@ fn test_gate05_06_reject_integer_in_logical_and() {
     assert!(!ok, "String operand in '&&' must be rejected");
 }
 
+#[test]
+fn test_gate05_07_reject_integer_in_logical_operators() {
+    let code1 = "fn main() { let b = 1 && 2 }";
+    let (ok1, _) = check_code_error(code1);
+    assert!(!ok1, "Int in '&&' must be rejected per Gate 5");
+
+    let code2 = "fn main() { let b = true || 1 }";
+    let (ok2, _) = check_code_error(code2);
+    assert!(!ok2, "Int in '||' must be rejected per Gate 5");
+}
+
 // =========================================================================
 // GATE 6: Integer Overflow Semantics (Checked by default, explicit wrapping)
 // =========================================================================
@@ -609,6 +627,17 @@ fn main() {
     assert!(
         !ok,
         "Passing Float to Int parameter without cast must fail: {}",
+        diag
+    );
+}
+
+#[test]
+fn test_gate07_07_reject_untyped_int_plus_float_arithmetic() {
+    let code = "fn main() { let x = 10 + 2.5 }";
+    let (ok, diag) = check_code_error(code);
+    assert!(
+        !ok,
+        "Untyped 10 + 2.5 must be rejected per Gate 7: {}",
         diag
     );
 }
@@ -734,13 +763,15 @@ fn main() {}
 #[test]
 fn test_gate09_01_disjoint_role_methods_compile() {
     let code = r#"
-class WorkerA {
+struct WorkerA {}
+behavior WorkerA {
     fn work_a() -> Int => 1
 }
-class WorkerB {
+struct WorkerB {}
+behavior WorkerB {
     fn work_b() -> Int => 2
 }
-class Combined with WorkerA, WorkerB {}
+struct Combined with WorkerA, WorkerB {}
 fn main() {
     let c = Combined {}
     let a = c.work_a()
@@ -756,13 +787,16 @@ fn main() {
 #[test]
 fn test_gate09_02_explicit_override_resolves_method_conflict() {
     let code = r#"
-class Alpha {
+struct Alpha {}
+behavior Alpha {
     fn identify() -> String => "Alpha"
 }
-class Beta {
+struct Beta {}
+behavior Beta {
     fn identify() -> String => "Beta"
 }
-class Gamma with Alpha, Beta {
+struct Gamma with Alpha, Beta {}
+behavior Gamma {
     fn identify() -> String => "GammaOverride"
 }
 fn main() {
@@ -779,10 +813,10 @@ fn main() {
 #[test]
 fn test_gate09_03_role_field_inheritance() {
     let code = r#"
-class Position {
+struct Position {
     x: Int
 }
-class Actor with Position {
+struct Actor with Position {
     name: String
 }
 fn main() {}
@@ -796,13 +830,13 @@ fn main() {}
 #[test]
 fn test_gate09_04_multiple_roles_with_state() {
     let code = r#"
-class Timestamped {
+struct Timestamped {
     created_at: Int
 }
-class Versioned {
+struct Versioned {
     version: Int
 }
-class Document with Timestamped, Versioned {
+struct Document with Timestamped, Versioned {
     title: String
 }
 fn main() {}
@@ -816,10 +850,10 @@ fn main() {}
 #[test]
 fn test_gate09_05_composed_class_constructor() {
     let code = r#"
-class Identifiable {
+struct Identifiable {
     id: Int
 }
-class User with Identifiable {
+struct User with Identifiable {
     name: String
 }
 fn main() {
@@ -835,10 +869,11 @@ fn main() {
 #[test]
 fn test_gate09_06_method_dispatch_on_composed_type() {
     let code = r#"
-class Serializable {
+struct Serializable {}
+behavior Serializable {
     fn serialize() -> String => "{}"
 }
-class Config with Serializable {}
+struct Config with Serializable {}
 fn main() {
     let c = Config {}
     let json = c.serialize()

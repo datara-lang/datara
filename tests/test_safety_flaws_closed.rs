@@ -289,10 +289,12 @@ fn main() {
 #[test]
 fn test_class_invariant_violation_on_mutation() {
     let code = r#"
-class BankAccount {
+struct BankAccount {
     balance: Int
     invariant this.balance >= 0;
+}
 
+behavior BankAccount {
     fn withdraw_bad(amount: Int) {
         this.balance = -100
     }
@@ -309,10 +311,12 @@ fn main() {
 #[test]
 fn test_class_invariant_valid_execution() {
     let code = r#"
-class BankAccount {
+struct BankAccount {
     balance: Int
     invariant this.balance >= 0;
+}
 
+behavior BankAccount {
     fn deposit(amount: Int) {
         this.balance = this.balance + amount
     }

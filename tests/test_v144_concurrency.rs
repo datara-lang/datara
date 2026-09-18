@@ -16,7 +16,7 @@ fn run_datara(source: &str, name: &str) -> (String, i32) {
         .cranelift
         .run_executable(&exe, &[])
         .expect("must run native exe");
-    
+
     let _ = std::fs::remove_file(&exe);
     let _ = std::fs::remove_file(exe.with_extension("obj"));
     if code != 0 {
@@ -123,5 +123,3 @@ fn main() -> Int {
     assert_eq!(code, 0);
     assert!(stdout.contains("12345"));
 }
-
-

@@ -1,4 +1,4 @@
-class UIElement {
+﻿struct UIElement {
     tag: Str
     classes: Str
     style_str: Str

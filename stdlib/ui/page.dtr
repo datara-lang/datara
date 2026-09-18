@@ -1,4 +1,4 @@
-class Page {
+﻿struct Page {
     title: Str
     head_extra: Str
     body_html: Str

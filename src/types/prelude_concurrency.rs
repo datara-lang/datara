@@ -26,27 +26,9 @@ impl<'a> TypeChecker<'a> {
         class_fields.insert("Channel".to_string(), HashMap::new());
         let mut ch_methods = HashMap::new();
         ch_methods.insert("send".to_string(), DataraType::Bool);
-        ch_methods.insert(
-            "recv".to_string(),
-            DataraType::GenericInstance {
-                name: "Outcome".into(),
-                args: vec![DataraType::Int],
-            },
-        );
-        ch_methods.insert(
-            "try_recv".to_string(),
-            DataraType::GenericInstance {
-                name: "Maybe".into(),
-                args: vec![DataraType::Int],
-            },
-        );
-        ch_methods.insert(
-            "recv_timeout".to_string(),
-            DataraType::GenericInstance {
-                name: "Outcome".into(),
-                args: vec![DataraType::Int],
-            },
-        );
+        ch_methods.insert("recv".to_string(), DataraType::Int);
+        ch_methods.insert("try_recv".to_string(), DataraType::Int);
+        ch_methods.insert("recv_timeout".to_string(), DataraType::Int);
         ch_methods.insert("close".to_string(), DataraType::Unit);
         ch_methods.insert("len".to_string(), DataraType::Int);
         ch_methods.insert("is_closed".to_string(), DataraType::Bool);
@@ -88,11 +70,7 @@ impl<'a> TypeChecker<'a> {
         );
         function_signatures.insert(
             "channel_new".to_string(),
-            (
-                Vec::new(),
-                DataraType::Class("Channel".into()),
-                Vec::new(),
-            ),
+            (Vec::new(), DataraType::Class("Channel".into()), Vec::new()),
         );
         function_signatures.insert(
             "channel_send".to_string(),
@@ -106,10 +84,7 @@ impl<'a> TypeChecker<'a> {
             "channel_recv".to_string(),
             (
                 vec![DataraType::Class("Channel".into())],
-                DataraType::GenericInstance {
-                    name: "Outcome".into(),
-                    args: vec![DataraType::Int],
-                },
+                DataraType::Int,
                 Vec::new(),
             ),
         );
@@ -117,10 +92,7 @@ impl<'a> TypeChecker<'a> {
             "channel_try_recv".to_string(),
             (
                 vec![DataraType::Class("Channel".into())],
-                DataraType::GenericInstance {
-                    name: "Maybe".into(),
-                    args: vec![DataraType::Int],
-                },
+                DataraType::Int,
                 Vec::new(),
             ),
         );

@@ -1,7 +1,7 @@
-use stdlib.net.socket
+﻿use stdlib.net.socket
 use stdlib.http.types
 
-class HttpServer {
+struct HttpServer {
     host: Str
     port: Int
     is_running: Bool

@@ -13,13 +13,9 @@ fn test_datara_find_full_application() {
         res.diagnostics, res.error
     );
 
-    let (stdout, stderr, code, _) = compiler
-        .codegen
-        .run_executable(&res.exe_path.unwrap(), &[])
-        .unwrap();
+    let exe = res.exe_path.unwrap();
+    let (stdout, stderr, code, _) = compiler.codegen.run_executable(&exe, &[]).unwrap();
     assert_eq!(code, 0, "Execution failed with stderr: {}", stderr);
-
-    println!("[DATARA_FIND OUTPUT]:\n{}", stdout);
 
     assert!(stdout.contains("Datara Find Utility v2.0.0"));
     assert!(stdout.contains("Query: 'ERROR' in './logs'"));

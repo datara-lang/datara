@@ -1,4 +1,4 @@
-class KeyValueStore<K, V> {
+﻿struct KeyValueStore<K, V> {
     entry_count: Int
     sample_key: K
     sample_val: V

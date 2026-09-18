@@ -291,7 +291,7 @@ fn test_logical_operators_unchanged() {
 fn main() {
     out true && false
     out true || false
-    out 1 && 1
+    out true && true
 }
 "#;
     let stdout = compile_and_run(src, "test_logical_unchanged.dtr");

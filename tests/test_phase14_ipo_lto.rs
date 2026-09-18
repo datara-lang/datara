@@ -360,7 +360,7 @@ fn multiply_by_constant(val: Int, factor: Int) -> Int {
     return val * factor
 }
 
-class Calculator {
+struct Calculator {
     base: Int
 }
 

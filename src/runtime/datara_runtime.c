@@ -113,12 +113,18 @@ const char* datara_rt_float_to_str(double v) {
 }
 
 void datara_rt_out_str(const char* s) {
-    datara_rt_print_str(s != NULL ? s : "None");
+    if (!s) {
+        datara_rt_panic("invariant violation: null string pointer passed to 'out' statement");
+    }
+    datara_rt_print_str(s);
     datara_rt_print_newline();
 }
 
 void datara_rt_err(const char* s) {
-    fprintf(stderr, "%s\n", s != NULL ? s : "None");
+    if (!s) {
+        datara_rt_panic("invariant violation: null string pointer passed to 'err' statement");
+    }
+    fprintf(stderr, "%s\n", s);
 }
 
 static void datara_rt_pgo_auto_flush(void);
@@ -1079,10 +1085,43 @@ void datara_rt_flush(void) {
     }
 }
 
+static int g_flush_atexit_registered = 0;
+
+#ifdef _WIN32
+static inline int datara_rt_is_tty(void) {
+    static int cached_is_tty = -1;
+    if (cached_is_tty == -1) {
+        HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+        DWORD mode;
+        cached_is_tty = (hOut != INVALID_HANDLE_VALUE && hOut != NULL && GetConsoleMode(hOut, &mode)) ? 1 : 0;
+    }
+    return cached_is_tty;
+}
+#else
+#include <unistd.h>
+static inline int datara_rt_is_tty(void) {
+    static int cached_is_tty = -1;
+    if (cached_is_tty == -1) {
+        cached_is_tty = isatty(1) ? 1 : 0;
+    }
+    return cached_is_tty;
+}
+#endif
+
+void datara_rt_flush_if_tty(void) {
+    if (datara_rt_is_tty()) {
+        datara_rt_flush();
+    }
+}
+
 static DATARA_TLS int g_capture_enabled = 0;
+
 static DATARA_TLS char* g_capture_buf = NULL;
 static DATARA_TLS size_t g_capture_len = 0;
 static DATARA_TLS size_t g_capture_cap = 0;
+static DATARA_TLS char* g_capture_err_buf = NULL;
+static DATARA_TLS size_t g_capture_err_len = 0;
+static DATARA_TLS size_t g_capture_err_cap = 0;
 
 void datara_rt_set_capture(int32_t enable) {
     g_capture_enabled = enable;
@@ -1096,11 +1135,19 @@ void datara_rt_clear_capture(void) {
         g_capture_buf[0] = '\0';
     }
     g_capture_len = 0;
+    if (g_capture_err_buf) {
+        g_capture_err_buf[0] = '\0';
+    }
+    g_capture_err_len = 0;
 }
 
 const char* datara_rt_get_capture(void) {
     datara_rt_flush();
     return g_capture_buf ? g_capture_buf : "";
+}
+
+const char* datara_rt_get_err_capture(void) {
+    return g_capture_err_buf ? g_capture_err_buf : "";
 }
 
 static void datara_capture_append(const char* s, size_t len) {
@@ -1117,8 +1164,35 @@ static void datara_capture_append(const char* s, size_t len) {
     g_capture_buf[g_capture_len] = '\0';
 }
 
+static void datara_capture_err_append(const char* s, size_t len) {
+    if (!s || len == 0) return;
+    if (g_capture_err_len + len + 1 > g_capture_err_cap) {
+        size_t new_cap = (g_capture_err_cap == 0) ? 4096 : (g_capture_err_cap * 2 + len + 1);
+        char* new_buf = (char*)realloc(g_capture_err_buf, new_cap);
+        if (!new_buf) return;
+        g_capture_err_buf = new_buf;
+        g_capture_err_cap = new_cap;
+    }
+    memcpy(g_capture_err_buf + g_capture_err_len, s, len);
+    g_capture_err_len += len;
+    g_capture_err_buf[g_capture_err_len] = '\0';
+}
+
+static inline void datara_rt_err_buf_write(const char* s, size_t len) {
+    if (!s || len == 0) return;
+    if (g_capture_enabled) {
+        datara_capture_err_append(s, len);
+        return;
+    }
+    fwrite(s, 1, len, stderr);
+}
+
 static inline void datara_rt_buf_write(const char* s, size_t len) {
     if (!s || len == 0) return;
+    if (!g_flush_atexit_registered) {
+        atexit(datara_rt_flush);
+        g_flush_atexit_registered = 1;
+    }
     if (g_capture_enabled) {
         datara_capture_append(s, len);
         return;
@@ -1150,7 +1224,7 @@ static inline void datara_rt_buf_write(const char* s, size_t len) {
 
 void datara_rt_print_str(const char* s) {
     if (!s) {
-        datara_rt_buf_write("None", 4);
+        datara_rt_panic("invariant violation: null string pointer passed to 'print' statement");
     } else {
         datara_rt_buf_write(s, strlen(s));
     }
@@ -1202,7 +1276,7 @@ void datara_rt_print_space(void) {
 
 void datara_rt_print_newline(void) {
     datara_rt_buf_write("\n", 1);
-    datara_rt_flush();
+    datara_rt_flush_if_tty();
 }
 
 void datara_rt_print_list(void* list) {
@@ -1222,12 +1296,56 @@ void datara_rt_print_list(void* list) {
     datara_rt_buf_write("]", 1);
 }
 
-// Prelude built-in functions
-void datara_rt_println(const char* s) {
-    datara_rt_print_str(s);
-    datara_rt_print_newline();
+void datara_rt_err_print_str(const char* s) {
+    if (!s) {
+        datara_rt_panic("invariant violation: null string pointer passed to 'err' statement");
+    }
+    datara_rt_err_buf_write(s, strlen(s));
 }
 
+void datara_rt_err_print_int(int64_t v) {
+    char buf[32];
+    size_t len = datara_fast_i64toa(v, buf);
+    datara_rt_err_buf_write(buf, len);
+}
+
+void datara_rt_err_print_float(double v) {
+    char buf[64];
+    if (isnan(v)) {
+        const char* nan_str = signbit(v) ? "-NaN" : "NaN";
+        datara_rt_err_buf_write(nan_str, strlen(nan_str));
+        return;
+    }
+    if (isinf(v)) {
+        const char* inf_str = v < 0 ? "-Infinity" : "Infinity";
+        datara_rt_err_buf_write(inf_str, strlen(inf_str));
+        return;
+    }
+    if (v == floor(v) && fabs(v) < 1e15) {
+        int len = snprintf(buf, sizeof(buf), "%.0f", v);
+        datara_rt_err_buf_write(buf, len);
+    } else {
+        int len = snprintf(buf, sizeof(buf), "%.17g", v);
+        datara_rt_err_buf_write(buf, len);
+    }
+}
+
+void datara_rt_err_print_bool(int64_t v) {
+    if (v) {
+        datara_rt_err_buf_write("true", 4);
+    } else {
+        datara_rt_err_buf_write("false", 5);
+    }
+}
+
+void datara_rt_err_print_newline(void) {
+    datara_rt_err_buf_write("\n", 1);
+    if (!g_capture_enabled) {
+        fflush(stderr);
+    }
+}
+
+// Prelude built-in functions
 void datara_rt_print(const char* s) {
     datara_rt_print_str(s);
     datara_rt_flush();
@@ -4755,6 +4873,7 @@ static DWORD WINAPI datara_worker_proc(LPVOID arg) {
             t->is_done = 1;
         }
 
+        datara_rt_flush();
         SetEvent(g_done_events[worker_idx]);
     }
     return 0;
@@ -4796,6 +4915,7 @@ static void* datara_worker_proc(void* arg) {
             t->is_done = 1;
         }
 
+        datara_rt_flush();
         pthread_mutex_lock(&g_worker_mutexes[worker_idx]);
         g_worker_done[worker_idx] = 1;
         pthread_cond_signal(&g_worker_conds[worker_idx]);

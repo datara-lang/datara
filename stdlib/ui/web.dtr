@@ -1,4 +1,4 @@
-class HtmlTag {
+﻿struct HtmlTag {
     name: Str
     class_name: Str
     content: Str
@@ -14,7 +14,7 @@ behavior HtmlTag {
     }
 }
 
-class WebApp {
+struct WebApp {
     title: Str
     theme_color: Str
 }

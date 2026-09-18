@@ -15,6 +15,7 @@ pub mod higher_order;
 pub mod infer;
 pub mod match_arm;
 pub mod stmt;
+pub mod out;
 
 /// An inlineable function body for lambda-argument static dispatch: the
 /// declared parameters, the statements before the single trailing return,
@@ -692,6 +693,7 @@ impl<'a> Lowering<'a> {
                     }
                 }
             } else if let Decl::Component(c) = decl {
+                module.component_classes.insert(c.name.clone());
                 for item in &c.body_items {
                     if let ClassItem::Field(f) = item
                         && let Some(t) = &f.type_node
@@ -723,6 +725,17 @@ impl<'a> Lowering<'a> {
                             .insert(format!("{}_{}", b.target_type, m.name), ret.clone());
                         self.function_return_types.insert(m.name.clone(), ret);
                     }
+                }
+            } else if let Decl::Impl(i) = decl {
+                for m in &i.methods {
+                    let ret = m
+                        .return_type
+                        .as_ref()
+                        .map(Self::repr_type_string)
+                        .unwrap_or_else(|| "Unit".into());
+                    self.function_return_types
+                        .insert(format!("{}_{}", i.target_type, m.name), ret.clone());
+                    self.function_return_types.insert(m.name.clone(), ret);
                 }
             } else if let Decl::Enum(e) = decl {
                 let max_fields = e.variants.iter().map(|v| v.fields.len()).max().unwrap_or(0);
@@ -941,7 +954,8 @@ impl<'a> Lowering<'a> {
             out.insert(name.to_string(), merged);
             seen.pop();
         }
-        let class_keys: Vec<String> = own_fields.keys().cloned().collect();
+        let mut class_keys: Vec<String> = own_fields.keys().cloned().collect();
+        class_keys.sort();
         for name in &class_keys {
             let mut seen: Vec<String> = Vec::new();
             compose_order(
@@ -953,13 +967,51 @@ impl<'a> Lowering<'a> {
                 &mut seen,
             );
         }
-        for (cls_name, cls_sym) in &self.resolver.classes {
+        let mut sorted_classes: Vec<_> = self.resolver.classes.iter().collect();
+        sorted_classes.sort_by_key(|(name, _)| (*name).clone());
+        for (cls_name, cls_sym) in sorted_classes {
             let f_names = decl_field_order.get(cls_name).cloned().unwrap_or_else(|| {
                 let mut names: Vec<String> = cls_sym.fields.keys().cloned().collect();
                 names.sort();
                 names
             });
             module.class_fields.insert(cls_name.clone(), f_names);
+        }
+
+        // Pre-register generic specialization return types so earlier functions (like main)
+        // can resolve calls to specialized functions (e.g. format_entity_Admin).
+        for decl in &program.declarations {
+            if let Decl::Function(f) | Decl::Flow(f) | Decl::Task(f) = decl
+                && !f.generic_params.is_empty()
+            {
+                if let Some(specs) = self.types.generic_specializations.get(&f.name) {
+                    for spec_args in specs {
+                        let mut type_substs: HashMap<String, String> = HashMap::new();
+                        let mut mangled_suffixes = Vec::new();
+                        for (gp, concrete_ty) in f.generic_params.iter().zip(spec_args.iter()) {
+                            let c_name = match concrete_ty {
+                                DataraType::Class(c) => c.clone(),
+                                DataraType::Int => "Int".to_string(),
+                                DataraType::Float => "Float".to_string(),
+                                DataraType::String => "String".to_string(),
+                                DataraType::Bool => "Bool".to_string(),
+                                other => other.to_string(),
+                            };
+                            type_substs.insert(gp.clone(), c_name.clone());
+                            mangled_suffixes.push(c_name);
+                        }
+                        let mangled_name = format!("{}_{}", f.name, mangled_suffixes.join("_"));
+                        let specialized_f =
+                            self.specialize_function_decl(f, &mangled_name, &type_substs);
+                        let ret = specialized_f
+                            .return_type
+                            .as_ref()
+                            .map(Self::repr_type_string)
+                            .unwrap_or_else(|| "Unit".into());
+                        self.function_return_types.insert(mangled_name, ret);
+                    }
+                }
+            }
         }
 
         for decl in &program.declarations {
@@ -996,7 +1048,9 @@ impl<'a> Lowering<'a> {
                     }
                     if let Some(a) = c.attributes.iter().find(|a| a.name == "endian") {
                         let order = a.args.first().map(|(arg, _)| arg.as_str()).unwrap_or("big");
-                        module.endian_classes.insert(c.name.clone(), order.to_string());
+                        module
+                            .endian_classes
+                            .insert(c.name.clone(), order.to_string());
                     }
                     self.lower_class(c, program, &mut module);
                 }

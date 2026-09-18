@@ -1,6 +1,6 @@
-use examples.real_cli.config.Config
+﻿use examples.real_cli.config.Config
 
-class CliParser {
+struct CliParser {
     appName: Str
 }
 

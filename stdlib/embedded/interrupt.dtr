@@ -1,7 +1,7 @@
-@bare_metal
+﻿@bare_metal
 module embedded.interrupt
 
-class InterruptVector {
+struct InterruptVector {
     vector: UInt16
 }
 

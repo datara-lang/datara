@@ -307,6 +307,56 @@ impl EffectAnalyzer {
         }
     }
 
+    pub fn verify_behavior_purity(
+        &self,
+        program: &Program,
+        diag: &mut crate::diagnostics::DiagnosticEngine,
+    ) {
+        for decl in &program.declarations {
+            if let Decl::Behavior(b) = decl {
+                for item in &b.body_items {
+                    if let ClassItem::Method(m) = item {
+                        let key = format!("{}.{}", b.target_type, m.name);
+                        let has_declared_effect = m.attributes.iter().any(|a| {
+                            (a.name == "effect"
+                                && !a.args.is_empty()
+                                && a.args.iter().any(|(eff, _)| {
+                                    !eff.eq_ignore_ascii_case("pure")
+                                }))
+                                || a.name == "interrupt_handler"
+                                || a.name == "naked"
+                        });
+
+                        if !has_declared_effect {
+                            if let Some(eff_set) = self.function_effects.get(&key) {
+                                let impure = eff_set.effects.iter().any(|e| {
+                                    matches!(
+                                        e,
+                                        Effect::IO
+                                            | Effect::Network
+                                            | Effect::Database
+                                            | Effect::Foreign
+                                            | Effect::Unsafe
+                                    )
+                                });
+                                if impure {
+                                    diag.error(
+                                        crate::diagnostics::ErrorCode::BehaviorImpure,
+                                        format!(
+                                            "Method '{}' in behavior for '{}' performs side effects ({}) without declared effect. Methods in 'behavior' are pure by default; add '/ IO' or #[effect(IO)] to method signature.",
+                                            m.name, b.target_type, eff_set
+                                        ),
+                                        Some(m.span.clone()),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fn analyze_stmt(&self, stmt: &Stmt, effects: &mut EffectSet, local_vars: &mut HashSet<String>) {
         match stmt {
             Stmt::Block(stmts, _) => {
@@ -448,6 +498,8 @@ impl EffectAnalyzer {
                 if let Expr::Identifier(name, _) = &**callee {
                     if let Some(eff) = self.function_effects.get(name) {
                         effects.union(eff);
+                    } else if name == "println" || name == "print" {
+                        effects.add(Effect::IO);
                     } else if name.starts_with("http_") || name.starts_with("net_") {
                         effects.add(Effect::Network);
                         effects.add(Effect::IO);

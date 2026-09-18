@@ -25,7 +25,7 @@ fn run_datara(code: &str, tag: &str) -> String {
 #[test]
 fn test_ui_element_and_component_composition() {
     let code = r#"
-class UIElement {
+struct UIElement {
     tag: Str
     classes: Str
     content: Str
@@ -37,7 +37,7 @@ behavior UIElement {
     }
 }
 
-class MetricCard {
+struct MetricCard {
     label: Str
     value: Str
 }
@@ -85,7 +85,7 @@ fn test_ui_page_file_generation() {
 
     let code = format!(
         r#"
-class Page {{
+struct Page {{
     title: Str
     content: Str
 }}

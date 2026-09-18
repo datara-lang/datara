@@ -596,10 +596,82 @@ fn explain_code(code: &str) {
                 "================================================================================"
             );
         }
+        "E-OUT-001" | "unprintable_type" => {
+            println!(
+                "================================================================================"
+            );
+            println!(" EXPLANATION: E-OUT-001 (Unprintable Type)");
+            println!(
+                "================================================================================"
+            );
+            println!(
+                "Datara enforces static printability guarantees. Only primitive scalar types"
+            );
+            println!(
+                "(Int, Float, Bool, Char, Str), structs deriving Display (@derive(Display)), or"
+            );
+            println!(
+                "types defining a 'to_string()' or 'to_str()' method may be printed via 'out',"
+            );
+            println!(
+                "'err', 'print', or string interpolation (fmt\"...\")."
+            );
+            println!();
+            println!("[INVALID] Bad Code:");
+            println!("   struct Naked {{ id: Int }}");
+            println!("   let n = Naked {{ id: 1 }}");
+            println!("   out n               // error: unprintable type 'Naked'");
+            println!("   out [1, 2, 3]       // error: unprintable type 'List<Int>'");
+            println!();
+            println!("[VALID] Good Code:");
+            println!("   @derive(Display)");
+            println!("   struct User {{ id: Int }}");
+            println!("   out u               // OK: Display derived");
+            println!();
+            println!("   // For collections (List, Map), format via loop:");
+            println!("   for item in xs {{");
+            println!("       out item");
+            println!("   }}");
+            println!();
+            println!(
+                "Rationale: Eliminates accidental raw pointer leaking, memory dumps, and"
+            );
+            println!("ensures fail-closed type safety across all output statements.");
+            println!(
+                "================================================================================"
+            );
+        }
+        "W0102" | "deprecated_print" => {
+            println!(
+                "================================================================================"
+            );
+            println!(" EXPLANATION: W0102 (Deprecated Print Function)");
+            println!(
+                "================================================================================"
+            );
+            println!(
+                "The legacy functions 'println' and 'eprintln' are deprecated in Datara 1.4.4."
+            );
+            println!(
+                "Canonical output is achieved via first-class language statements:"
+            );
+            println!("   - 'out <expr>'  : standard output with trailing newline");
+            println!("   - 'err <expr>'  : standard error with trailing newline");
+            println!("   - 'print(expr)' : unbuffered streaming output without newline");
+            println!();
+            println!("[MIGRATION GUIDE]:");
+            println!("   println(\"hello\")             --> out \"hello\"");
+            println!("   println(\"result: \", val)     --> out fmt\"result: {{val}}\"");
+            println!("   eprintln(\"error code \", err) --> err fmt\"error code {{err}}\"");
+            println!("   print(\"loading...\")          --> print(\"loading...\")  (unchanged)");
+            println!(
+                "================================================================================"
+            );
+        }
         _ => {
             println!("Code `{}`: No extended documentation entry found.", code);
             println!(
-                "Try: `forgen explain E-TYPE-001`, `forgen explain E-BORROW-001`, or `forgen explain style::non_snake_case`."
+                "Try: `forgen explain E-OUT-001`, `forgen explain W0102`, or `forgen explain E-TYPE-001`."
             );
         }
     }

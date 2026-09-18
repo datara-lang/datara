@@ -40,7 +40,6 @@ Name: "assocDtr"; Description: "Associate .dtr files with Datara and show offici
 Source: "..\target\release\forgen.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "..\target\release\datara.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "..\target\release\dpm.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
-Source: "..\target\release\sparks.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "..\target\release\datara-fmt.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "..\target\release\datara-clippy.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "..\target\release\datara-lsp.exe"; DestDir: "{app}\bin"; Flags: ignoreversion

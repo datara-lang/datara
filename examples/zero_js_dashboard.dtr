@@ -1,4 +1,4 @@
-class MetricCard {
+﻿struct MetricCard {
     label: Str
     value: Str
     delta: Str
@@ -10,7 +10,7 @@ behavior MetricCard {
     }
 }
 
-class Card {
+struct Card {
     title: Str
     badge: Str
     body_html: Str
@@ -30,7 +30,7 @@ behavior Card {
     }
 }
 
-class Page {
+struct Page {
     title: Str
     brand_name: Str
     body_html: Str
@@ -75,5 +75,5 @@ fn main() {
 
     let ok = page.save("dashboard.html")
     assert(ok, "Failed to save dashboard.html")
-    println(">>> SUCCESS: Datara Zero-JS Dashboard generated to dashboard.html <<<")
+    out ">>> SUCCESS: Datara Zero-JS Dashboard generated to dashboard.html <<<"
 }

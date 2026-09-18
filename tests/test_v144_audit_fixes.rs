@@ -4,8 +4,14 @@ use forgen::resolver::Resolver;
 #[test]
 fn test_resolver_has_atomic_fence() {
     let r = Resolver::new();
-    assert!(r.resolve_symbol("atomic_fence_seq_cst").is_some(), "atomic_fence_seq_cst must be in resolver");
-    assert!(r.resolve_symbol("volatile_ptr").is_some(), "volatile_ptr must be in resolver");
+    assert!(
+        r.resolve_symbol("atomic_fence_seq_cst").is_some(),
+        "atomic_fence_seq_cst must be in resolver"
+    );
+    assert!(
+        r.resolve_symbol("volatile_ptr").is_some(),
+        "volatile_ptr must be in resolver"
+    );
 }
 
 #[test]
@@ -51,7 +57,11 @@ fn main() {
         || res.diagnostics.contains("express")
         || res.diagnostics.contains("node")
         || res.diagnostics.contains("npm");
-    assert!(handled, "Node import must be routed to JS/NPM handler: {:?}", res.diagnostics);
+    assert!(
+        handled,
+        "Node import must be routed to JS/NPM handler: {:?}",
+        res.diagnostics
+    );
 }
 
 #[test]

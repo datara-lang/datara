@@ -248,7 +248,9 @@ pub fn compile_method_call<M: ClifModule>(
             "length" | "count" | "len" => Some(ctx.runtime.rt_list_len_id),
             "get" | "at" => Some(ctx.runtime.rt_list_get_id),
             "set" => Some(ctx.runtime.rt_list_set_id),
-            "push" | "append" | "add" => Some(ctx.runtime.rt_list_append_id),
+            "push" | "append" | "add" | "push_unchecked" | "append_unchecked" => {
+                Some(ctx.runtime.rt_list_append_id)
+            }
             // v1.4.1: pop/first/last return Outcome<T> objects.
             "pop" => Some(ctx.runtime.rt_list_pop_outcome_id),
             "first" => Some(ctx.runtime.rt_list_first_id),
@@ -327,7 +329,10 @@ pub fn compile_method_call<M: ClifModule>(
             // Only set/push/append return the (possibly
             // reallocated) list itself; length/get
             // return plain ints.
-            if matches!(method, "set" | "push" | "append" | "add") {
+            if matches!(
+                method,
+                "set" | "push" | "append" | "add" | "push_unchecked" | "append_unchecked"
+            ) {
                 ctx.list_vids.insert(*dest);
             }
             // v1.4.1: first/last/pop always yield an Outcome<T> object and
@@ -379,9 +384,28 @@ pub fn compile_method_call<M: ClifModule>(
                 None
             };
 
+            let has_known_class = ctx
+                .val_to_class
+                .get(object)
+                .map(|c| {
+                    if c.len() == 1 && c.chars().all(|ch| ch.is_ascii_uppercase()) {
+                        return false;
+                    }
+                    let base = c.split('<').next().unwrap_or(c);
+                    ctx.func_ids
+                        .keys()
+                        .any(|k| k.starts_with(&format!("{}_", base)))
+                })
+                .unwrap_or(false);
             let dbg_obj_class = ctx.val_to_class.get(object).cloned();
             class_matched
                 .or_else(|| {
+                    if method == "close" || has_known_class {
+                        // The object's concrete class is known, but it doesn't have this method,
+                        // or this is `close` cleanup for `with` on a type without close().
+                        // Do not dispatch to an unrelated class's method!
+                        return None;
+                    }
                     let cands: Vec<String> = ctx
                         .func_ids
                         .keys()
@@ -412,6 +436,10 @@ pub fn compile_method_call<M: ClifModule>(
                 })
         };
         if callee_name.is_empty() {
+            if method == "close" {
+                // Safe no-op cleanup for `with` on types without a close() method
+                return Ok(());
+            }
             return Err(format!(
                 "Code generation failed: unresolved method call '{}' on object with class '{:?}' in function '{}'",
                 method,

@@ -675,7 +675,12 @@ impl<'a> LlvmEmitter<'a> {
         for (p_name, p_ty, p_val) in &f.params {
             if let Some(c) = class_type_name(p_ty) {
                 value_classes.insert(*p_val, c.clone());
-                var_classes.insert(p_name.clone(), c);
+                var_classes.insert(p_name.clone(), c.clone());
+                if p_name == "this" {
+                    var_classes.insert("self".to_string(), c.clone());
+                } else if p_name == "self" {
+                    var_classes.insert("this".to_string(), c);
+                }
             }
         }
         for b in &f.blocks {
@@ -893,6 +898,25 @@ impl<'a> LlvmEmitter<'a> {
                     "  store {} %v{}, ptr %var_{}, align 8\n",
                     llvm_pty, pval.0, pname
                 ));
+                if pname == "this" {
+                    out.push_str(&format!(
+                        "  %var_self = alloca {}, align 8\n",
+                        llvm_pty
+                    ));
+                    out.push_str(&format!(
+                        "  store {} %v{}, ptr %var_self, align 8\n",
+                        llvm_pty, pval.0
+                    ));
+                } else if pname == "self" {
+                    out.push_str(&format!(
+                        "  %var_this = alloca {}, align 8\n",
+                        llvm_pty
+                    ));
+                    out.push_str(&format!(
+                        "  store {} %v{}, ptr %var_this, align 8\n",
+                        llvm_pty, pval.0
+                    ));
+                }
                 if let Some((min, max)) = get_range_for_var(&f.name, pname, Some(pty), types) {
                     out.push_str(&format!(
                         "  %fvrp_pmin_{} = icmp sge i64 %v{}, {}\n",

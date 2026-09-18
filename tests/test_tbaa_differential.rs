@@ -9,12 +9,12 @@ use forgen::driver::ForgenCompiler;
 use std::path::PathBuf;
 
 const SOURCE: &str = r#"
-class Reading {
+struct Reading {
     raw: Int
     gain: Float
 }
 
-class WideFrame {
+struct WideFrame {
     f0: Int
     f1: Int
     f2: Int

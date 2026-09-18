@@ -746,13 +746,22 @@ pub fn expand_trait_defaults(program: &mut Program) {
                                 }
                             });
                     if !already_exists {
-                        synth_impls.push(Decl::Impl(ImplBlock {
-                            trait_name: Some(st),
-                            target_type: i.target_type.clone(),
-                            target_type_args: i.target_type_args.clone(),
-                            methods: Vec::new(),
-                            span: i.span.clone(),
-                        }));
+                        let all_have_default = traits
+                            .get(&st)
+                            .map(|tdef| {
+                                !tdef.methods.is_empty()
+                                    && tdef.methods.iter().all(|m| m.default_body.is_some())
+                            })
+                            .unwrap_or(false);
+                        if all_have_default {
+                            synth_impls.push(Decl::Impl(ImplBlock {
+                                trait_name: Some(st),
+                                target_type: i.target_type.clone(),
+                                target_type_args: i.target_type_args.clone(),
+                                methods: Vec::new(),
+                                span: i.span.clone(),
+                            }));
+                        }
                     }
                 }
             }

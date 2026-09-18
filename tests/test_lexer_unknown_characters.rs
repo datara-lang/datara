@@ -72,13 +72,13 @@ fn test_lone_ampersand_and_pipe_are_now_bitwise_operators() {
 #[test]
 fn test_double_ampersand_and_pipe_still_parse() {
     let res = compile(
-        "fn main() {\n    out 1 && 1\n}\n",
+        "fn main() {\n    out true && true\n}\n",
         "test_lexer_double_amp.dtr",
     );
     assert!(res.success, "'&&' must still parse: {:?}", res.error);
 
     let res = compile(
-        "fn main() {\n    out 1 || 0\n}\n",
+        "fn main() {\n    out true || false\n}\n",
         "test_lexer_double_pipe.dtr",
     );
     assert!(res.success, "'||' must still parse: {:?}", res.error);

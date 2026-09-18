@@ -3,12 +3,12 @@ use forgen::driver::ForgenCompiler;
 #[test]
 fn test_explainability_context_api() {
     let source = r#"
-class Cart {
+struct Cart {
     id: Int
     total: Int
 }
 
-class User {
+struct User {
     id: Int
 }
 

@@ -1,4 +1,4 @@
-﻿class f32x4 {
+﻿struct f32x4 {
     x: Float
     y: Float
     z: Float
@@ -44,7 +44,7 @@ behavior f32x4 {
     }
 }
 
-class f32x8 {
+struct f32x8 {
     v0: Float
     v1: Float
     v2: Float
@@ -91,7 +91,7 @@ behavior f32x8 {
     }
 }
 
-class f32x16 {
+struct f32x16 {
     v0: Float
     v1: Float
     v2: Float
@@ -146,7 +146,7 @@ behavior f32x16 {
     }
 }
 
-class i32x4 {
+struct i32x4 {
     x: Int
     y: Int
     z: Int
@@ -180,7 +180,7 @@ behavior i32x4 {
     }
 }
 
-class i32x8 {
+struct i32x8 {
     v0: Int
     v1: Int
     v2: Int
@@ -218,7 +218,7 @@ behavior i32x8 {
     }
 }
 
-class f64x2 {
+struct f64x2 {
     x: Float
     y: Float
 }
@@ -259,7 +259,7 @@ behavior f64x2 {
     }
 }
 
-class f64x4 {
+struct f64x4 {
     x: Float
     y: Float
     z: Float

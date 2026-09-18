@@ -1208,7 +1208,10 @@ impl Optimizer {
                         operand,
                         ..
                     } if op == "copy"
-                        && val_to_struct.get(operand).map(|s| struct_inits.contains_key(s)).unwrap_or(false) =>
+                        && val_to_struct
+                            .get(operand)
+                            .map(|s| struct_inits.contains_key(s))
+                            .unwrap_or(false) =>
                     {
                         changed = true;
                         continue;

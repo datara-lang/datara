@@ -1,4 +1,4 @@
-class RustBridge {
+﻿struct RustBridge {
     crate_name: Str
 }
 

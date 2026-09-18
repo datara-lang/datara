@@ -227,9 +227,9 @@ fn simulate(count: Int, dt: Float) -> Float {
     mut sum: Float = 0.0
     mut i = 0
     while i < count {
-        let px = 1.0 + (i * 1.0) * 0.1
-        let py = 2.0 + (i * 1.0) * 0.1
-        let pz = 3.0 + (i * 1.0) * 0.1
+        let px = 1.0 + i.to_float() * 0.1
+        let py = 2.0 + i.to_float() * 0.1
+        let pz = 3.0 + i.to_float() * 0.1
         let vx = 0.5
         let vy = 0.5
         let vz = 0.5
@@ -248,7 +248,7 @@ fn main() {
     let count = 1000000
     let res = simulate(count, 0.016)
     let elapsed_ns = now_ns() - t0
-    let elapsed_ms = (elapsed_ns * 1.0) / 1000000.0
+    let elapsed_ms = elapsed_ns.to_float() / 1000000.0
     out "INTERNAL_MS:" + elapsed_ms
     out res
 }
@@ -300,7 +300,7 @@ fn main() {
         i = i + 1
     }
     let elapsed_ns = now_ns() - t0
-    let elapsed_ms = (elapsed_ns * 1.0) / 1000000.0
+    let elapsed_ms = elapsed_ns.to_float() / 1000000.0
     out "INTERNAL_MS:" + elapsed_ms
     out sum
 }

@@ -1,4 +1,4 @@
-class Style {
+﻿struct Style {
     bg: Str
     color: Str
     padding: Str

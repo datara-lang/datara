@@ -1,7 +1,7 @@
-//! StringBuilder — Standard Library Dynamic String Construction
+﻿//! StringBuilder — Standard Library Dynamic String Construction
 //! Preallocated buffer expansion for high-throughput string assembly.
 
-class StringBuilder {
+struct StringBuilder {
     buffer: Str
     count: Int
 }

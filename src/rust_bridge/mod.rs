@@ -162,7 +162,10 @@ pub fn expand_rust_dependencies(
         return;
     }
 
-    let lto = false;
+    let lto = std::env::var("FORGEN_RELEASE").is_ok()
+        || std::env::var("DATARA_RELEASE").is_ok()
+        || std::env::var("CARGO_PROFILE_RELEASE_LTO").is_ok()
+        || cfg!(not(debug_assertions));
     let artifacts = process_rust_dependencies(&rust_deps, &project_root, lto, diag);
 
     // Inject extern declarations into program AST

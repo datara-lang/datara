@@ -8,12 +8,12 @@ use examples.datara_find.src.analyzer.AnalysisStats
 use examples.datara_find.src.analyzer.ContentAnalyzer
 use examples.datara_find.src.output.TableFormatter
 
-class AppSession {
+struct AppSession {
     app_version: Str
 }
 
 behavior AppSession {
-    run_cli_search() {
+    run_cli_search() / IO {
         let parser = ArgParser { program_name: "datara_find" }
         let cfg = parser.parse_defaults()
 

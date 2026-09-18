@@ -1,4 +1,4 @@
-﻿//! v1.4.4: 4th Level Structured Inline Assembly under LLVM AOT tests.
+//! v1.4.4: 4th Level Structured Inline Assembly under LLVM AOT tests.
 
 use forgen::driver::ForgenCompiler;
 
@@ -54,9 +54,13 @@ fn main() {
 }
 "#;
 
-    let compiler = ForgenCompiler::new("release").with_target(Some("wasm32-unknown-unknown".into()));
+    let compiler =
+        ForgenCompiler::new("release").with_target(Some("wasm32-unknown-unknown".into()));
     let res = compiler.compile_source(source, "v144_asm_wasm.dtr", None);
-    assert!(!res.success, "Structured asm on wasm must still be rejected");
+    assert!(
+        !res.success,
+        "Structured asm on wasm must still be rejected"
+    );
     assert!(
         res.diagnostics.contains("E1405"),
         "Diagnostics on wasm must contain E1405: {}",

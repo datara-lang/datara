@@ -1,4 +1,4 @@
-// stdlib.collections.list
+﻿// stdlib.collections.list
 //
 // The builtin List<T> methods are implemented by the compiler and the C
 // runtime (datara_rt_list_*); this module only carries the wrapper class
@@ -17,7 +17,7 @@
 //   contains(v) / is_empty() -> Bool; index_of(v) -> Int (-1 when absent).
 //   slice(a, b) -> fresh List<T> with clamped bounds.
 
-class ListWrapper<T> {
+struct ListWrapper<T> {
     length: Int
     head: T
 }

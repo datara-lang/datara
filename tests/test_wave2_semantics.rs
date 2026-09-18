@@ -187,7 +187,7 @@ trait Greetable {
     }
 }
 
-class User {
+struct User {
     id: Int,
 }
 

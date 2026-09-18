@@ -1,4 +1,4 @@
-﻿# Universal Polyglot Interoperability Guide — Datara & Forgen v1.4.4
+# Universal Polyglot Interoperability Guide — Datara & Forgen v1.4.4
 
 ## 1. Overview & Architecture
 
@@ -90,7 +90,77 @@ mean_val = float(np.mean(data))
 std_val = float(np.std(data))
 "#)
     let mean = py.eval_float("mean_val")
-    println(fmt"Mean: {mean.value}")
+    out fmt"Mean: {mean.value}"
+}
+```
+
+### 3.4 Go Interoperability (`use go.<package>`)
+Datara interfaces with Go packages compiled as C-shared libraries (`-buildmode=c-shared`):
+```datara
+use go.cryptoutil as crypto
+
+fn hash_payload(data: Str) -> Str {
+    mut result: Str = ""
+    unsafe(justification: "Call Go c-shared crypto archive") {
+        result = crypto.Sha256Hex(data)
+    }
+    return result
+}
+```
+
+### 3.5 C# / .NET NativeAOT (`use csharp.<assembly>`)
+Direct zero-overhead calls into .NET 8+ assemblies compiled with `PublishAot=true`:
+```datara
+use csharp.FastMath as math
+
+fn calculate(x: Float) -> Float {
+    return math.EvaluateSpline(x)
+}
+```
+
+### 3.6 Zig Interoperability (`use zig.<module>`)
+Seamless interop with Zig via standard C ABI exports:
+```datara
+use zig.simd_math as zmath
+
+fn run_kernel(buf: SliceView<Float>) {
+    unsafe(justification: "Invoke Zig SIMD kernel") {
+        zmath.vector_add(buf.as_ptr(), buf.len())
+    }
+}
+```
+
+### 3.7 JavaScript / TypeScript / Node.js (`use npm.<package>`)
+Fast asynchronous communication and IPC with Node.js modules:
+```datara
+use npm.express as express
+
+fn start_server() {
+    let app = express.create()
+    app.get("/health", fn(req, res) {
+        res.send("OK")
+    })
+    app.listen(8080)
+}
+```
+
+### 3.8 Java / Kotlin via GraalVM Native Image (`use java.<package>`)
+Call into enterprise Java or Kotlin libraries compiled into native shared objects:
+```datara
+use java.EnterpriseRules as rules
+
+fn validate_record(id: Int) -> Bool {
+    return rules.check_compliance(id)
+}
+```
+
+### 3.9 Lua and Luau Scripting (`use lua.<module>` / `use luau.<module>`)
+Embedded high-performance scripting:
+```datara
+use lua.ai_logic as ai
+
+fn tick_ai(entity_id: Int) {
+    ai.update_behavior(entity_id)
 }
 ```
 
@@ -144,3 +214,37 @@ In Datara v1.4.4, `unsafe(justification: "...")` only allows:
 3. Structured inline assembly (`asm { ... }`).
 
 It **never** grants system capabilities. If an external C/C++ function performs network I/O (`connect`, `send`, `socket`) or filesystem writes (`fwrite`, `unlink`), the caller function **must** declare and hold `Capability<NetworkConnect>` or `Capability<FileWrite>`. Otherwise, compilation halts with a `SecurityViolation` error (`E-CAP-001`).
+
+---
+
+## 6. Standard Output and Printing Policy in Datara v1.4.4
+
+> **Golden Rule**: «Перевод строки — оператор (`out` / `err`), без перевода — функция `print`. Всё.»
+
+| Форма | Куда | Перевод строки (`\n`) | Статус | Назначение |
+|:---|:---|:---|:---|:---|
+| `out e` | stdout | **Да** | Канон, оператор | Полнострочный вывод с автоматическим переводом строки |
+| `err e` | stderr | **Да** | Канон, оператор | Вывод ошибок в stderr с переводом строки |
+| `print(x)` | stdout | **Нет** | Канон, функция | Посимвольный вывод, прогресс-бары, streaming без `\n` |
+| `println(x)` | stdout | Да | **Deprecated (`W0102`)** | Устаревший синоним; используйте оператор `out` |
+| `eprintln(x)` | stderr | Да | **Deprecated (`W0102`)** | Устаревший синоним; используйте оператор `err` |
+
+### Typed Format Streaming Fusion
+Datara v1.4.4 compiles `out fmt"..."` directly to unrolled streaming I/O calls without heap string allocation or temporary buffer concatenation:
+```datara
+let name = "Datara"
+let count = 42
+
+// Zero-allocation streamed directly to stdout with newline
+out fmt"Processing {name}: {count} items"
+
+// Partial-line progress output without newline
+print("Loading: [")
+mut i = 0
+while i < 10 {
+    print("=")
+    i = i + 1
+}
+out "] 100%"
+```
+

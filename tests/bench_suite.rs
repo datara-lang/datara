@@ -47,7 +47,7 @@ fn main() {
 #[test]
 fn benchmark_zero_cost_oop_point() {
     let point_source = r#"
-class Point {
+struct Point {
     x: Int
     y: Int
 }

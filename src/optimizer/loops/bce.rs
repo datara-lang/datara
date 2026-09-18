@@ -469,6 +469,7 @@ impl LoopOptimizer {
         }
 
         // Automatic List Preallocation: rewrite `datara_rt_list_create(0)` to `bound`
+        let mut preallocated_lists: HashSet<String> = HashSet::new();
         let mut defined_vids: HashSet<ValueId> = f.params.iter().map(|(_, _, pv)| *pv).collect();
         for blk in &mut f.blocks {
             for inst in &mut blk.instructions {
@@ -476,51 +477,61 @@ impl LoopOptimizer {
                     func, args, dest, ..
                 } = inst
                 {
-                    if func == "datara_rt_list_create" && args.len() == 1 {
-                        if consts.get(&args[0]) == Some(&0) {
-                            if let Some(an) = resolve_name_deep(*dest) {
-                                if let Some(&vl) = var_len.get(&an) {
-                                    match vl {
-                                        LenVal::Const(c) if c > 0 => {
-                                            if let Some(&c_vid) = consts
-                                                .iter()
-                                                .find(|(_, v)| **v == c)
-                                                .map(|(k, _)| k)
-                                            {
-                                                args[0] = c_vid;
-                                            }
+                    if func == "datara_rt_list_create"
+                        && args.len() == 1
+                        && consts.get(&args[0]) == Some(&0)
+                    {
+                        if let Some(an) = resolve_name_deep(*dest) {
+                            if let Some(&vl) = var_len.get(&an) {
+                                let find_c_vid = |c: i64| -> Option<ValueId> {
+                                    consts
+                                        .iter()
+                                        .find(|(k, v)| {
+                                            **v == c
+                                                && (defined_vids.contains(k)
+                                                    || f.params.iter().any(|(_, _, pv)| pv == *k))
+                                        })
+                                        .map(|(k, _)| *k)
+                                };
+                                match vl {
+                                    LenVal::Const(c) if c > 0 => {
+                                        if let Some(c_vid) = find_c_vid(c) {
+                                            args[0] = c_vid;
+                                            preallocated_lists.insert(an);
                                         }
-                                        LenVal::Vid(b_vid) => {
-                                            let target_vid = resolve_vid(b_vid, &copy_of);
-                                            let is_param = f.params.iter().any(|(_, _, pv)| {
-                                                *pv == target_vid || *pv == b_vid
-                                            });
-                                            let is_const = consts.contains_key(&target_vid)
-                                                || consts.contains_key(&b_vid);
-                                            let is_def = defined_vids.contains(&target_vid)
-                                                || defined_vids.contains(&b_vid);
-                                            if is_param || is_const || is_def {
-                                                args[0] = if is_def
-                                                    && defined_vids.contains(&target_vid)
-                                                {
-                                                    target_vid
-                                                } else if is_param
-                                                    && f.params
-                                                        .iter()
-                                                        .any(|(_, _, pv)| *pv == target_vid)
-                                                {
-                                                    target_vid
-                                                } else if is_const
-                                                    && consts.contains_key(&target_vid)
-                                                {
-                                                    target_vid
-                                                } else {
-                                                    b_vid
-                                                };
-                                            }
-                                        }
-                                        _ => {}
                                     }
+                                    LenVal::Vid(b_vid) => {
+                                        let mut q = vec![b_vid];
+                                        let mut vis = HashSet::new();
+                                        let mut chosen = None;
+                                        while let Some(cur) = q.pop() {
+                                            let r = resolve_vid(cur, &copy_of);
+                                            if defined_vids.contains(&r)
+                                                || f.params.iter().any(|(_, _, pv)| *pv == r)
+                                            {
+                                                chosen = Some(r);
+                                                break;
+                                            }
+                                            if let Some(&c) = consts.get(&r) {
+                                                if c > 0 {
+                                                    if let Some(c_vid) = find_c_vid(c) {
+                                                        chosen = Some(c_vid);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            if vis.insert(r) {
+                                                if let Some(incs) = block_param_incoming.get(&r) {
+                                                    q.extend(incs);
+                                                }
+                                            }
+                                        }
+                                        if let Some(ch) = chosen {
+                                            args[0] = ch;
+                                            preallocated_lists.insert(an);
+                                        }
+                                    }
+                                    _ => {}
                                 }
                             }
                         }
@@ -540,6 +551,39 @@ impl LoopOptimizer {
                         defined_vids.insert(*dest);
                     }
                     _ => {}
+                }
+            }
+        }
+
+        // Rewrite append/push inside preallocated population loops to unchecked variants
+        if !preallocated_lists.is_empty() {
+            for lp in &cfg.loops {
+                for &bid in &lp.blocks {
+                    if let Some(blk) = f.get_block_mut(bid) {
+                        for inst in &mut blk.instructions {
+                            match inst {
+                                Inst::Call { func, args, .. }
+                                    if func == "datara_rt_list_append" && !args.is_empty() =>
+                                {
+                                    if let Some(an) = resolve_name_deep(args[0]) {
+                                        if preallocated_lists.contains(&an) {
+                                            *func = "datara_rt_list_append_unchecked".to_string();
+                                        }
+                                    }
+                                }
+                                Inst::MethodCall { method, object, .. }
+                                    if method == "push" || method == "append" =>
+                                {
+                                    if let Some(an) = resolve_name_deep(*object) {
+                                        if preallocated_lists.contains(&an) {
+                                            *method = "push_unchecked".to_string();
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1189,13 +1233,15 @@ impl LoopOptimizer {
                                                                 let mr_name = resolve_name_deep(mr);
                                                                 let n_name =
                                                                     resolve_name_deep(n_val);
-                                                                let l_ok = ml_res == n_res
-                                                                    || (ml_name.is_some()
-                                                                        && ml_name == n_name);
-                                                                let r_ok = mr_res == n_res
-                                                                    || (mr_name.is_some()
-                                                                        && mr_name == n_name);
-                                                                if l_ok && r_ok {
+                                                                let m_ok =
+                                                                    |r, n: &Option<String>| {
+                                                                        r == n_res
+                                                                            || (n.is_some()
+                                                                                && n == &n_name)
+                                                                    };
+                                                                if m_ok(ml_res, &ml_name)
+                                                                    && m_ok(mr_res, &mr_name)
+                                                                {
                                                                     return true;
                                                                 }
                                                             }
@@ -1209,19 +1255,14 @@ impl LoopOptimizer {
                                                         }
                                                         false
                                                     };
-                                                    if let Some(&l) = list_len.get(&arr_vid) {
-                                                        if let LenVal::Vid(v) = l {
-                                                            ok = check_len_vid(v);
-                                                        }
-                                                    }
-                                                    if !ok {
-                                                        if let Some(an) = &arr_name {
-                                                            if let Some(&l) = var_len.get(an) {
-                                                                if let LenVal::Vid(v) = l {
-                                                                    ok = check_len_vid(v);
-                                                                }
-                                                            }
-                                                        }
+                                                    let len_cand =
+                                                        list_len.get(&arr_vid).or_else(|| {
+                                                            arr_name
+                                                                .as_ref()
+                                                                .and_then(|an| var_len.get(an))
+                                                        });
+                                                    if let Some(&LenVal::Vid(v)) = len_cand {
+                                                        ok = check_len_vid(v);
                                                     }
                                                     ok
                                                 };

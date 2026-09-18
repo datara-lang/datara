@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // Proof-Carrying Scheduler (PCS) Task Model
 //
 // In Datara, asynchronous execution is built on the Proof-Carrying Scheduler:
@@ -12,7 +12,7 @@
 
 use stdlib.async.future
 
-class Task {
+struct Task {
     id: Int
     name: Str
     status: Int
@@ -79,7 +79,7 @@ behavior Task {
     }
 }
 
-class TaskGroup {
+struct TaskGroup {
     group_id: Int
     total_count: Int
     completed_count: Int

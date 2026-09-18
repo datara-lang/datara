@@ -11,7 +11,7 @@ let CAP_RAW_MMIO: Int = 64
 let CAP_RAW_PORT: Int = 128
 let CAP_RING0_OS: Int = 256
 
-class CapabilityLattice {
+struct CapabilityLattice {
 }
 
 behavior CapabilityLattice {

@@ -1,4 +1,4 @@
-﻿use forgen::driver::ForgenCompiler;
+use forgen::driver::ForgenCompiler;
 use forgen::schedule::ScheduleEffectClass;
 
 #[test]
@@ -39,7 +39,7 @@ fn main() -> Int {
 fn test_async_method_in_class_and_behavior() {
     let compiler = ForgenCompiler::new("jit");
     let src = r#"
-class AsyncWorker {
+struct AsyncWorker {
     tag: Int
 }
 

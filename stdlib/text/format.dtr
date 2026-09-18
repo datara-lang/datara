@@ -1,4 +1,4 @@
-class Formatter {
+﻿struct Formatter {
     indent_size: Int
 }
 

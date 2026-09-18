@@ -1,6 +1,6 @@
 use stdlib.json.types
 
-class JsonParser {
+struct JsonParser {
     source: Str
 }
 

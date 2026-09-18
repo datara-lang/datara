@@ -106,7 +106,7 @@ fn main() {
 #[test]
 fn test_golden_sroa_stack_scalarization() {
     let source = r#"
-class Point {
+struct Point {
     x: Int
     y: Int
 }

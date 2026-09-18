@@ -1,4 +1,4 @@
-class Card {
+﻿struct Card {
     title: Str
     badge: Str
     body_html: Str
@@ -18,7 +18,7 @@ behavior Card {
     }
 }
 
-class Button {
+struct Button {
     text: Str
     url: Str
     variant: Str
@@ -34,7 +34,7 @@ behavior Button {
     }
 }
 
-class MetricBadge {
+struct MetricBadge {
     label: Str
     value: Str
     delta: Str
@@ -46,7 +46,7 @@ behavior MetricBadge {
     }
 }
 
-class Column {
+struct Column {
     gap: Str
     inner_html: Str
 }
@@ -61,7 +61,7 @@ behavior Column {
     }
 }
 
-class Row {
+struct Row {
     gap: Str
     inner_html: Str
 }
@@ -76,7 +76,7 @@ behavior Row {
     }
 }
 
-class InteractiveTab {
+struct InteractiveTab {
     tab_id: Str
     label: Str
     is_checked: Bool

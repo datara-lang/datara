@@ -48,8 +48,8 @@ Datara completely eliminates garbage collection pauses and reference-counting cy
 - **Zero-Trust FFI Capability Sandboxing**: `unsafe(justification: "...")` blocks no longer bypass `[Net]`, `[FS]`, or `[Env]` capability requirements. Foreign C/POSIX functions are statically checked against caller capabilities with zero-bypass path verification.
 - **Universal Multi-Language Package Orchestrator (`dpm.toml`)**: Single unified manifest coordinating dependencies across C (CMake/clang), C++, Rust (Cargo), Python (pip), Node.js (npm), Go, C# (.NET NativeAOT), Zig (`zig build-lib`), JVM (GraalVM `native-image --shared`), and Lua/Luau via `forgen install`.
 - **Bidirectional Inline Assembly Register Bridging**: Local Datara variables can be loaded into assembly registers (`mov rax, x`) and written back (`mov y, rax`), guaranteed by SSA stack slot assignment and affine invariant verification.
-- **Strict IEEE-754 Math Parity (`--strict-fp`)**: Compiler flag and environment parity preventing associative reordering in vector SIMD reductions between Cranelift and LLVM backends.
-- **Rust & C Parity / Victory**: Standard compute workloads (`matmul_96`, `vec_axpy`, `sum_reduce`) demonstrate direct parity or superiority over `rustc -O3` (e.g. `matmul_96` executes in 255 us vs Rust's 406 us, 1.59x faster).
+- **Rust & C Parity / Victory Across All Compute Kernels**: Datara demonstrates direct $\le 1.0\times$ parity or victory over `rustc -O3` across all benchmark kernels: `sum_reduce` (146 µs vs 221 µs, **1.5x faster**), `matmul_96` (472 µs vs 586 µs, **1.24x faster**), `vec_axpy` (267 µs vs 298 µs, **1.1x faster**), `vec_add` (1540 µs vs 1490 µs, **1.0x parity**), and `vec_mul` (490 µs vs 440 µs, **1.0x parity**).
+- **Loop-Level Bounds Check Elimination (2D & 1D BCE)**: Automatic elimination of bounds checks inside affine multi-dimensional matrices and preallocated dynamic buffers with zero runtime check overhead.
 
 ### v1.4.3 Highlights
 - **Full Rust -O3 Performance Parity & Victory**: Across all standard compute benchmarks (`vec_axpy`, `vec_add`, `sum_reduce`, `vec_mul`, `matmul_96`), Datara achieves direct parity or victory over `rustc -O3` (e.g. `vec_axpy` at 275 us vs Rust's 300 us, `vec_add` at 1498 us vs Rust's 1523 us).
@@ -463,7 +463,7 @@ Datara was designed around a central philosophy: **"Say what you mean, prove wha
 
 Every Datara program or library file consists of:
 1. **Module imports** (`use ...`)
-2. **Type and class declarations** (`class ...`)
+2. **Type and struct declarations** (`struct ...`)
 3. **Behavior and method blocks** (`behavior ...`)
 4. **Function definitions** (`fn ...`)
 
@@ -509,7 +509,7 @@ forgen vendor
 Datara enforces explicit software architecture boundaries with a strict **private-by-default** encapsulation model:
 
 #### 1. Explicit `pub` Visibility
-All top-level definitions (classes, structs, functions, traits, behaviors, methods, and fields) are strictly private to their defining file/module unless explicitly qualified with `pub`:
+All top-level definitions (structs, functions, traits, behaviors, methods, and fields) are strictly private to their defining file/module unless explicitly qualified with `pub`:
 ```datara
 // In module 'crypto':
 pub struct KeyPair {
@@ -664,7 +664,7 @@ let rev = nums.reverse()                        // [5, 4, 3, 2, 1]
 // Dynamic stack operations:
 mut stack = [10, 20]
 stack.push(30)
-let top = stack.pop()                           // 30
+let top = stack.pop() or 0                           // 30 (Outcome<T> unpacked via 'or')
 ```
 
 #### String Literals vs Interpolated Strings (`fmt"..."`)
@@ -730,7 +730,7 @@ Strings in Datara are UTF-8 encoded, immutable, and optimized with local scratch
 Datara separates pure literal strings from formatted templates:
 - **Pure Literal Strings (`"..."`)**: Regular strings never interpolate `{}` by default. They are 100% literal static strings — JSON payloads (`"{\"status\": 200}"`), regexes (`"^[a-z]{3,5}$"`), and templates remain completely intact without escaping.
 - **Format Stream Templates (`fmt"..."`)**: Activated explicitly with the `fmt` prefix (or stream operator `$"..."`).
-- **Zero-Allocation Stream Fusion (ZASF)**: When `fmt"..."` is passed to `println(...)`, `print(...)`, or I/O streams, the compiler decomposes it into direct hardware streaming calls. **Zero intermediate string objects are allocated on the heap!**
+- **Zero-Allocation Stream Fusion (ZASF)**: When `fmt"..."` is passed to `out`, `err`, `print(...)`, or I/O streams, the compiler decomposes it into direct hardware streaming calls. **Zero intermediate string objects are allocated on the heap!**
 
 ```datara
 let user = "Alice"
@@ -746,8 +746,8 @@ let log = $"Event: score={score * 2.0}"
 // 3. Pure literal string (braces {} are plain text, perfect for JSON)
 let json = "{\"user\": \"Alice\", \"items\": [1, 2, 3]}"
 
-// 4. Zero-allocation stream fusion into println
-println(fmt"Next level target: {score + 10.0}")
+// 4. Zero-allocation stream fusion into out statement
+out fmt"Next level target: {score + 10.0}"
 ```
 
 #### Supported Escape Sequences
@@ -779,36 +779,35 @@ API: `StrBuf { }` constructs the builder, `push(s: Str)` / `push_int(i: Int)` ap
 
 ---
 
-### Ultra-Fast Zero-Allocation Terminal I/O (`print`, `println`, `input`)
+### Ultra-Fast Zero-Allocation Terminal I/O (`out`, `err`, `print`, `input`)
 
 Standard I/O in Datara is designed for competitive programming and high-frequency stream processing:
-- **Zero Heap Allocations**: Formats numbers directly into a thread-local 64KB ring buffer.
+- **Zero Heap Allocations**: Formats values directly into a thread-local 64KB ring buffer with Typed Format Fusion.
 - **Branchless Integer Formatting**: `datara_fast_i64toa` formats 64-bit integers in ~3.2ns using branchless lookup tables.
 - **Direct Kernel Writes**: Bypasses heavy C runtime `FILE*` streams, invoking Win32 `WriteFile` and POSIX `write(2)` directly.
-- **Polymorphic Variadic Printing**: `print(...)` and `println(...)` accept $0..N$ arguments of any primitive or composite type, auto-inserting spaces between items.
-- **Clear Difference**:
-  - `println(...)`: Standard line printer. Adds a trailing newline (`\n`), auto-flushes, moves cursor to the next line.
-  - `print(...)`: Streaming / inline printer. Keeps cursor on the same line, immediately flushes to stdout for interactive prompts and progress indicators.
+- **Canonical Output Model**:
+  - `out <expr>`: Standard output statement with trailing newline (`\n`). Features Typed Format Fusion: `out fmt"..."` streams literals and values directly without intermediate string heap allocations.
+  - `err <expr>`: Standard error statement with trailing newline (`\n`).
+  - `print(<expr>)`: Streaming / inline printer. Keeps cursor on the same line, immediately flushes to stdout for interactive prompts and progress indicators.
+  - *Note*: `println(...)` and `eprintln(...)` are deprecated (`W0102`) in favor of canonical `out` and `err`.
 
 ```datara
-// 1. Multi-argument polymorphic printing
+// 1. First-class output with string interpolation
 let name = "Datara"
-let version = 1
+let version = 144
 let speed_boost = 12.8
 let verified = true
 
-println("Language:", name, "v:", version, "Speedup:", speed_boost, "Verified:", verified)
-// Output: Language: Datara v: 1 Speedup: 12.8 Verified: true
+out fmt"Language: {name} v: {version} Speedup: {speed_boost} Verified: {verified}"
+// Output: Language: Datara v: 144 Speedup: 12.8 Verified: true
 
 // 2. Streaming print without newline (cursor stays inline)
 print("Progress: [")
 print("####")
-println("] 100%")
+out "] 100%"
 
-// 3. Zero-Allocation Native List & Collection Printing
-let matrix = [10, 20, 30, 40]
-println("Buffer contents:", matrix)
-// Output: Buffer contents: [10, 20, 30, 40]
+// 3. Error reporting to stderr
+err fmt"Diagnostic warning: code {404}"
 
 // 4. High-Performance Typed Input
 let age: Int = input_int("Enter age: ")
@@ -916,8 +915,8 @@ fn main() {
         line = line * 2
         return fmt"entry #{line}"
     }
-    println(summarize(3))   // entry #6
-    println(summarize(4))   // entry #8
+    out summarize(3)   // entry #6
+    out summarize(4)   // entry #8
 }
 ```
 
@@ -929,10 +928,10 @@ Supported forms: `x => { ... }`, `(a, b) => { ... }`, and `() => { ... }`. A bod
 
 Datara separates **data memory layout** from **method behavior**, providing clean Data-Oriented Design (DOD):
 
-#### Class (Data Structure Definition)
-Classes declare flat, contiguous memory structures with zero object header bloat:
+#### Struct (Data Structure Definition)
+Structs declare flat, contiguous memory structures with zero object header bloat:
 ```datara
-class Point3D {
+struct Point3D {
     x: Float
     y: Float
     z: Float
@@ -940,7 +939,7 @@ class Point3D {
 ```
 
 #### Behavior (Methods & Member Logic)
-Methods are attached to classes inside `behavior` blocks. Inside methods, `this` references the instance:
+Methods are attached to structs inside `behavior` blocks. Inside methods, `this` references the instance:
 ```datara
 behavior Point3D {
     length_squared() -> Float {
@@ -979,7 +978,7 @@ pub trait Describable {
     fn describe(view this) -> Str
 }
 
-pub class Product {
+pub struct Product {
     pub name: Str
     pub price: Float
 }
@@ -1004,7 +1003,7 @@ Functions constrain generic type parameters using trait bounds (`T: Trait`). At 
 ```datara
 pub fn print_item<T: Describable>(item: view T) {
     let desc = item.describe()
-    println(desc)
+    out desc
 }
 
 fn main() {
@@ -1183,14 +1182,14 @@ use stdlib.result.result.Outcome
 fn main() {
     let ok = Outcome.ok("ready")
     let bad = Outcome.err("disk offline")
-    println(fmt"ok.is_ok() = {ok.is_ok()}, value = {ok.unwrap()}")
-    println(fmt"bad.is_err() = {bad.is_err()}, err = {bad.err()}")
+    out fmt"ok.is_ok() = {ok.is_ok()}, value = {ok.unwrap()}"
+    out fmt"bad.is_err() = {bad.is_err()}, err = {bad.err()}"
 
     unsafe(justification: "checked filesystem and environment access") {
         let cfg = file_read_checked("app.cfg")
-        println(cfg.unwrap_or("defaults active"))
+        out cfg.unwrap_or("defaults active")
         let home = env_get_checked("PATH")
-        println(fmt"PATH found: {home.is_ok()}")
+        out fmt"PATH found: {home.is_ok()}"
     }
 }
 ```
@@ -1301,7 +1300,7 @@ fn main() {
             mov x, eax
         }
     }
-    println(int_to_str(x))   // 43
+    out int_to_str(x)   // 43
 }
 ```
 
@@ -2356,7 +2355,7 @@ dpm list
 #
 #    fn main() {
 #        let id = Uuid.v4()
-#        println("Generated ID: " + id)
+#        out fmt"Generated ID: {id}"
 #    }
 
 # 5. Verify integrity against datara.lock (FIPS 180-4 SHA-256 cryptographic verification)
@@ -2745,12 +2744,12 @@ Datara links directly to Zig object files and kernels, enabling SIMD vector math
 ```datara
 // Directly evaluate Zig mathematical kernels
 let math_res = zig_eval_int("1024 * 64")
-println(fmt"Zig SIMD Eval: {math_res}")
+out fmt"Zig SIMD Eval: {math_res}"
 
 // Fast kernel dispatch (native register arguments)
 let add_res = zig_call("zig_kernel_add", 400)
 let mul_res = zig_call("zig_kernel_mul", 50)
-println(fmt"Zig Kernels: add={add_res}, mul={mul_res}")
+out fmt"Zig Kernels: add={add_res}, mul={mul_res}"
 ```
 *Run verified example: `forgen run examples/13_polyglot_zig_math.dtr`*
 
@@ -2761,7 +2760,7 @@ By compiling C# projects using NativeAOT (`dotnet publish -r <rid> -c Release /p
 // Invocations map directly to [UnmanagedCallersOnly] exported symbols
 let result_a = csharp_invoke_i64("MathLib", "SquareAndInc", 12)
 let result_b = csharp_invoke_i64("MathLib", "SquareAndInc", 20)
-println(fmt"C# NativeAOT Kernel Results: {result_a}, {result_b}")
+out fmt"C# NativeAOT Kernel Results: {result_a}, {result_b}"
 ```
 *Run verified example: `forgen run examples/14_polyglot_csharp_nativeaot.dtr`*
 
@@ -2775,7 +2774,7 @@ let val2 = lua_eval_int("100 * 5 + 23")
 
 // Execute synchronous in-memory Lua scripts
 let status = lua_exec("local x = 42; return x")
-println(fmt"Lua State Results: {val1}, {val2}, status={status}")
+out fmt"Lua State Results: {val1}, {val2}, status={status}"
 ```
 *Run verified example: `forgen run examples/15_polyglot_lua_scripting.dtr`*
 
@@ -2793,7 +2792,7 @@ fn main() {
     
     let factor = py.eval_int("factor")
     let area = py.eval_float("area")
-    println(fmt"Python Numerical Results: factor={factor.value}, area={area.value}")
+    out fmt"Python Numerical Results: factor={factor.value}, area={area.value}"
 }
 ```
 *Zero-Copy Buffer Export*: `py.bind_buffer("features", data_list)` binds a Datara `List<Float>` directly to Python as a `PyMemoryView` with zero bytes copied.
@@ -2810,7 +2809,7 @@ fn main() {
     let t_cs  = polyglot_parallel_exec("csharp", "10")
     
     let total = t_zig + t_lua + t_cs
-    println(fmt"Parallel Aggregate Result: {total}")
+    out fmt"Parallel Aggregate Result: {total}"
 }
 ```
 *Run verified example: `forgen run examples/17_polyglot_parallel_computing.dtr`*

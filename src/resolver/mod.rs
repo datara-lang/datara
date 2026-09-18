@@ -531,20 +531,28 @@ impl Resolver {
         }
 
         let make_cls_sym = |cname: &str, m_names: &[&str]| -> Symbol {
-            let methods = m_names.iter().map(|m| (m.to_string(), Symbol {
-                name: m.to_string(),
-                kind: SymbolKind::Method,
-                is_mut: false,
-                is_export: true,
-                span: SourceSpan::default(),
-                fields: HashMap::new(),
-                methods: HashMap::new(),
-                base_type: None,
-                compositions: Vec::new(),
-                generic_params: Vec::new(),
-                type_node: None,
-                return_type: None,
-            })).collect();
+            let methods = m_names
+                .iter()
+                .map(|m| {
+                    (
+                        m.to_string(),
+                        Symbol {
+                            name: m.to_string(),
+                            kind: SymbolKind::Method,
+                            is_mut: false,
+                            is_export: true,
+                            span: SourceSpan::default(),
+                            fields: HashMap::new(),
+                            methods: HashMap::new(),
+                            base_type: None,
+                            compositions: Vec::new(),
+                            generic_params: Vec::new(),
+                            type_node: None,
+                            return_type: None,
+                        },
+                    )
+                })
+                .collect();
             Symbol {
                 name: cname.to_string(),
                 kind: SymbolKind::Class,
@@ -564,24 +572,48 @@ impl Resolver {
         let strbuf_sym = make_cls_sym("StrBuf", &["new", "push", "push_int", "join", "len"]);
         global_scope.define("StrBuf".to_string(), strbuf_sym.clone());
 
-        let th_sym = make_cls_sym("ThreadHandle", &["join", "join_timeout", "is_alive", "free"]);
+        let th_sym = make_cls_sym(
+            "ThreadHandle",
+            &["join", "join_timeout", "is_alive", "free"],
+        );
         global_scope.define("ThreadHandle".to_string(), th_sym.clone());
 
-        let ch_sym = make_cls_sym("Channel", &["send", "recv", "try_recv", "close", "len", "free"]);
+        let ch_sym = make_cls_sym(
+            "Channel",
+            &["send", "recv", "try_recv", "close", "len", "free"],
+        );
         global_scope.define("Channel".to_string(), ch_sym.clone());
 
-        let slice_sym = make_cls_sym("SliceView", &[
-            "len", "get_byte", "set_byte",
-            "read_u16_be", "read_u16_le", "read_u32_be", "read_u32_le", "read_u64_be", "read_u64_le",
-            "write_u16_be", "write_u16_le", "write_u32_be", "write_u32_le", "write_u64_be", "write_u64_le",
-            "subslice", "free",
-        ]);
+        let slice_sym = make_cls_sym(
+            "SliceView",
+            &[
+                "len",
+                "get_byte",
+                "set_byte",
+                "read_u16_be",
+                "read_u16_le",
+                "read_u32_be",
+                "read_u32_le",
+                "read_u64_be",
+                "read_u64_le",
+                "write_u16_be",
+                "write_u16_le",
+                "write_u32_be",
+                "write_u32_le",
+                "write_u64_be",
+                "write_u64_le",
+                "subslice",
+                "free",
+            ],
+        );
         global_scope.define("SliceView".to_string(), slice_sym.clone());
 
-        let volatile_sym = make_cls_sym("VolatilePtr", &[
-            "read8", "read16", "read32", "read64",
-            "write8", "write16", "write32", "write64",
-        ]);
+        let volatile_sym = make_cls_sym(
+            "VolatilePtr",
+            &[
+                "read8", "read16", "read32", "read64", "write8", "write16", "write32", "write64",
+            ],
+        );
         global_scope.define("VolatilePtr".to_string(), volatile_sym.clone());
 
         let mut classes: HashMap<String, Symbol> = HashMap::new();
@@ -1232,20 +1264,7 @@ impl Resolver {
             }
         }
 
-        // Pass 2a: Merge base class inheritance (from) and component compositions (+) into classes.
-        // Deterministic: classes are processed in sorted name order and each
-        // class's parent/component chain is merged recursively (parent-first)
-        // with cycle detection, replacing the old 10-iteration fixpoint over
-        // HashMap-ordered names.
-        let mut class_names: Vec<String> = self.classes.keys().cloned().collect();
-        class_names.sort();
-        let mut visiting: HashSet<String> = HashSet::new();
-        let mut resolved: HashSet<String> = HashSet::new();
-        for cls_name in &class_names {
-            self.merge_class_hierarchy(cls_name, &mut visiting, &mut resolved, diag);
-        }
-
-        // Pass 2b: Merge Split Behavior blocks into target classes and check replaces
+        // Pass 2a: Merge Split Behavior blocks into target classes and check replaces
         for beh in behaviors {
             if let Some(target_class) = self.classes.get_mut(&beh.target_type) {
                 for item in beh.body_items {
@@ -1283,6 +1302,15 @@ impl Resolver {
                     Some(beh.span.clone()),
                 );
             }
+        }
+
+        // Pass 2b: Merge base class inheritance (from) and component compositions (+) into classes.
+        let mut class_names: Vec<String> = self.classes.keys().cloned().collect();
+        class_names.sort();
+        let mut visiting: HashSet<String> = HashSet::new();
+        let mut resolved: HashSet<String> = HashSet::new();
+        for cls_name in &class_names {
+            self.merge_class_hierarchy(cls_name, &mut visiting, &mut resolved, diag);
         }
 
         // Pass 2c: Verify Role capability contracts

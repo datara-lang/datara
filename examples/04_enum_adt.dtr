@@ -1,4 +1,4 @@
-enum Shape {
+﻿enum Shape {
     Circle(Float),
     Rect(Float, Float),
     Point,
@@ -18,7 +18,7 @@ fn main() {
     let r = Shape.Rect(20.0, 30.0)
     let p = Shape.Point
 
-    println(fmt"Shape 1: {describe(c)}")
-    println(fmt"Shape 2: {describe(r)}")
-    println(fmt"Shape 3: {describe(p)}")
+    out fmt"Shape 1: {describe(c)}"
+    out fmt"Shape 2: {describe(r)}"
+    out fmt"Shape 3: {describe(p)}"
 }

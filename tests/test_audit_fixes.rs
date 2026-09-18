@@ -177,7 +177,7 @@ fn main() {
 #[test]
 fn test_mutable_sroa_scalarization() {
     let code = r#"
-class Point {
+struct Point {
     x: Int
     y: Int
 }

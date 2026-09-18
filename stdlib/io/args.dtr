@@ -1,4 +1,4 @@
-class CommandLineArgs {
+﻿struct CommandLineArgs {
     command: Str
     flags: Str
 }

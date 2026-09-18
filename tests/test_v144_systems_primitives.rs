@@ -136,11 +136,12 @@ fn main() -> Int {
 fn test_packed_struct_layout_and_isolation() {
     let src = r#"
 @packed
-class WireFrame {
+struct WireFrame {
     magic: Byte
     flag: Bool
     id: Int
 }
+
 
 fn main() -> Int {
     let frame = WireFrame { magic: 0x42, flag: true, id: 0x0102030405060708 }
@@ -155,4 +156,3 @@ fn main() -> Int {
     assert_eq!(code, 0);
     assert_eq!(stdout, "packed struct ok");
 }
-

@@ -1130,27 +1130,67 @@ pub(crate) fn cmd_profile(args: &[String]) -> bool {
             println!("       DATARA RUNTIME MEMORY PROFILE REPORT                 ");
             println!("============================================================");
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&mem_json) {
-                let alloc_cnt = v.get("total_alloc_count").and_then(|x| x.as_u64()).unwrap_or(0);
-                let free_cnt = v.get("total_free_count").and_then(|x| x.as_u64()).unwrap_or(0);
-                let alloc_b = v.get("total_allocated_bytes").and_then(|x| x.as_u64()).unwrap_or(0);
-                let freed_b = v.get("total_freed_bytes").and_then(|x| x.as_u64()).unwrap_or(0);
-                let peak_b = v.get("peak_live_bytes").and_then(|x| x.as_u64()).unwrap_or(0);
-                let cur_b = v.get("current_live_bytes").and_then(|x| x.as_u64()).unwrap_or(0);
+                let alloc_cnt = v
+                    .get("total_alloc_count")
+                    .and_then(|x| x.as_u64())
+                    .unwrap_or(0);
+                let free_cnt = v
+                    .get("total_free_count")
+                    .and_then(|x| x.as_u64())
+                    .unwrap_or(0);
+                let alloc_b = v
+                    .get("total_allocated_bytes")
+                    .and_then(|x| x.as_u64())
+                    .unwrap_or(0);
+                let freed_b = v
+                    .get("total_freed_bytes")
+                    .and_then(|x| x.as_u64())
+                    .unwrap_or(0);
+                let peak_b = v
+                    .get("peak_live_bytes")
+                    .and_then(|x| x.as_u64())
+                    .unwrap_or(0);
+                let cur_b = v
+                    .get("current_live_bytes")
+                    .and_then(|x| x.as_u64())
+                    .unwrap_or(0);
                 let arena_b = v.get("arena_bytes").and_then(|x| x.as_u64()).unwrap_or(0);
-                let promo_cnt = v.get("promotions_count").and_then(|x| x.as_u64()).unwrap_or(0);
-                let promo_b = v.get("promoted_bytes").and_then(|x| x.as_u64()).unwrap_or(0);
+                let promo_cnt = v
+                    .get("promotions_count")
+                    .and_then(|x| x.as_u64())
+                    .unwrap_or(0);
+                let promo_b = v
+                    .get("promoted_bytes")
+                    .and_then(|x| x.as_u64())
+                    .unwrap_or(0);
                 let slab_h = v.get("slab_hits").and_then(|x| x.as_u64()).unwrap_or(0);
                 let slab_m = v.get("slab_misses").and_then(|x| x.as_u64()).unwrap_or(0);
 
-                println!("  Allocations:            {} (peak live: {} B)", alloc_cnt, peak_b);
-                println!("  Frees:                  {} (live at exit: {} B)", free_cnt, cur_b);
+                println!(
+                    "  Allocations:            {} (peak live: {} B)",
+                    alloc_cnt, peak_b
+                );
+                println!(
+                    "  Frees:                  {} (live at exit: {} B)",
+                    free_cnt, cur_b
+                );
                 println!("  Cumulative Allocated:   {} B", alloc_b);
                 println!("  Cumulative Freed:       {} B", freed_b);
                 println!("  Generational Arena:     {} B active", arena_b);
-                println!("  Promotions (zero-copy): {} promotions ({} B moved)", promo_cnt, promo_b);
+                println!(
+                    "  Promotions (zero-copy): {} promotions ({} B moved)",
+                    promo_cnt, promo_b
+                );
                 let total_slab = slab_h + slab_m;
-                let slab_ratio = if total_slab > 0 { (slab_h as f64 / total_slab as f64) * 100.0 } else { 0.0 };
-                println!("  Slab Cache Hits:        {} / {} ({:.1}%)", slab_h, total_slab, slab_ratio);
+                let slab_ratio = if total_slab > 0 {
+                    (slab_h as f64 / total_slab as f64) * 100.0
+                } else {
+                    0.0
+                };
+                println!(
+                    "  Slab Cache Hits:        {} / {} ({:.1}%)",
+                    slab_h, total_slab, slab_ratio
+                );
             }
             println!("  Memory JSON dump:       {}", mem_prof_file.display());
             println!("============================================================");

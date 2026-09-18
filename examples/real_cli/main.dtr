@@ -4,13 +4,13 @@ use examples.real_cli.files.FileInfo
 use examples.real_cli.files.FileScanner
 use examples.real_cli.output.Reporter
 
-class SearchApp {
+struct SearchApp {
     name: Str
     version: Str
 }
 
 behavior SearchApp {
-    run_search() -> Str {
+    run_search() -> Str / IO {
         let parser = CliParser { appName: "DataraFind" }
         let cfg = parser.parse_default()
         

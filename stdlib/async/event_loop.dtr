@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // Proof-Carrying Scheduler (PCS) Event Loop & Executor Bridge
 //
 // The event loop interfaces with the native Proof-Carrying Scheduler runtime.
@@ -6,7 +6,7 @@
 // synchronization queues. Dynamic tasks are processed through the scheduler ready-queue.
 // ============================================================================
 
-class EventLoop {
+struct EventLoop {
     is_running: Bool
     queue_len: Int
     tick_count: Int

@@ -557,7 +557,7 @@ fn main() {
             "sroa_point",
             "3. Struct Point 2D (10M)",
             r#"
-class Point {
+struct Point {
     x: Int
     y: Int
 }
@@ -585,7 +585,7 @@ fn main() {
             "class_method",
             "4. Class Method OOP (10M)",
             r#"
-class Counter {
+struct Counter {
     val: Int
 }
 behavior Counter {
@@ -617,7 +617,7 @@ fn main() {
             "generic_box",
             "5. Generic Box (10M)",
             r#"
-class Box<T> {
+struct Box<T> {
     val: T
 }
 fn compute_boxes(n: Int) -> Int {

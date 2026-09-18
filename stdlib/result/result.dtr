@@ -1,4 +1,4 @@
-class Outcome<T> {
+﻿struct Outcome<T> {
     is_success: Bool
     value: T
     error_msg: Str

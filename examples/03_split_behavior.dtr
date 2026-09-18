@@ -16,7 +16,7 @@ behavior Account {
 
 fn main() {
     let acc = Account { username: "Maria", balance: 500 }
-    println(acc.display())
+    out acc.display()
     let new_balance = acc.deposit(250)
-    println(fmt"Projected balance after deposit: {new_balance}")
+    out fmt"Projected balance after deposit: {new_balance}"
 }

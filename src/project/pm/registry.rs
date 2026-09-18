@@ -112,7 +112,7 @@ impl HyperGridRegistry {
             files: HashMap::from([
                 ("redis.dtr".into(), r#"use stdlib.net.socket
 
-class Redis {
+struct Redis {
     host: Str
     port: Int
     stream: TcpStream
@@ -171,7 +171,7 @@ behavior Redis {
                 "postgres.dtr".into(),
                 r#"use stdlib.net.socket
 
-class PostgresClient {
+struct PostgresClient {
     conn_str: Str
     is_ready: Bool
 }
@@ -206,7 +206,7 @@ behavior PostgresClient {
                 "sqlite.dtr".into(),
                 r#"use stdlib.io.fs
 
-class SqliteDatabase {
+struct SqliteDatabase {
     path: Str
     is_open: Bool
 }
@@ -245,7 +245,7 @@ behavior SqliteDatabase {
                 "uuid.dtr".into(),
                 r#"use stdlib.crypto.hash
 
-class Uuid {
+struct Uuid {
     raw: Str
 }
 
@@ -275,7 +275,7 @@ behavior Uuid {
                 "jwt.dtr".into(),
                 r#"use stdlib.crypto.hash
 
-class Jwt {
+struct Jwt {
     secret: Str
 }
 
@@ -313,7 +313,7 @@ behavior Jwt {
                 "dotenv.dtr".into(),
                 r#"use stdlib.io.fs
 
-class DotEnv {
+struct DotEnv {
     loaded: Int
 }
 
@@ -342,7 +342,7 @@ behavior DotEnv {
             entry: "logger.dtr".into(),
             files: HashMap::from([(
                 "logger.dtr".into(),
-                r#"class Logger {
+                r#"struct Logger {
     prefix: Str
 }
 
@@ -374,7 +374,7 @@ behavior Logger {
             entry: "color.dtr".into(),
             files: HashMap::from([(
                 "color.dtr".into(),
-                r#"class Color {
+                r#"struct Color {
     code: Str
 }
 
@@ -414,12 +414,12 @@ behavior Color {
             entry: "router.dtr".into(),
             files: HashMap::from([(
                 "router.dtr".into(),
-                r#"class RouteMatch {
+                r#"struct RouteMatch {
     matched: Bool
     handler: Str
 }
 
-class HttpRouter {
+struct HttpRouter {
     prefix: Str
 }
 
@@ -451,7 +451,7 @@ behavior HttpRouter {
             entry: "matrix.dtr".into(),
             files: HashMap::from([(
                 "matrix.dtr".into(),
-                r#"class Matrix2x2 {
+                r#"struct Matrix2x2 {
     m00: Float
     m01: Float
     m10: Float

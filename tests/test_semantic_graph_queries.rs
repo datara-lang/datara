@@ -4,7 +4,7 @@ use forgen::semantic_graph::NodeKind;
 #[test]
 fn test_semantic_graph_2_query_api() {
     let source = r#"
-class Point {
+struct Point {
     x: Int
     y: Int
 }

@@ -130,18 +130,15 @@ pub(crate) fn stmt_always_returns(stmt: &Stmt) -> bool {
 pub(crate) fn required_capability_for_op(callee: &str) -> Option<&'static str> {
     match callee {
         "fs_open" | "fs_read" | "read_file" | "file_read" | "file_read_bytes"
-        | "file_read_checked" | "dir_list" | "path_exists"
-        | "fopen" | "fread" | "open" | "read" => Some("Capability<FileRead>"),
+        | "file_read_checked" | "dir_list" | "path_exists" | "fopen" | "fread" | "open"
+        | "read" => Some("Capability<FileRead>"),
         "fs_write" | "file_write" | "write_file" | "file_append" | "file_write_bytes"
-        | "fwrite" | "write" | "unlink" | "remove" => {
-            Some("Capability<FileWrite>")
-        }
+        | "fwrite" | "write" | "unlink" | "remove" => Some("Capability<FileWrite>"),
         "net_connect" | "socket_connect" | "connect" | "send" | "sendto" => {
             Some("Capability<NetworkConnect>")
         }
-        "net_listen" | "socket_listen" | "socket_bind" | "bind" | "listen" | "recv" | "recvfrom" => {
-            Some("Capability<NetworkListen>")
-        }
+        "net_listen" | "socket_listen" | "socket_bind" | "bind" | "listen" | "recv"
+        | "recvfrom" => Some("Capability<NetworkListen>"),
         "proc_spawn"
         | "process_run"
         | "system"
@@ -161,17 +158,14 @@ pub(crate) fn capability_kind_for_op(callee: &str) -> Option<crate::project::Cap
     use crate::project::CapabilityKind;
     match callee {
         "fs_open" | "fs_read" | "read_file" | "file_read" | "file_read_bytes"
-        | "file_read_checked" | "dir_list" | "path_exists"
-        | "fopen" | "fread" | "open" | "read" => Some(CapabilityKind::FsRead),
+        | "file_read_checked" | "dir_list" | "path_exists" | "fopen" | "fread" | "open"
+        | "read" => Some(CapabilityKind::FsRead),
 
         "fs_write" | "file_write" | "write_file" | "file_append" | "file_write_bytes"
-        | "fwrite" | "write" | "unlink" | "remove" => {
-            Some(CapabilityKind::FsWrite)
-        }
+        | "fwrite" | "write" | "unlink" | "remove" => Some(CapabilityKind::FsWrite),
 
-        "net_listen" | "socket_listen" | "socket_bind" | "bind" | "listen" | "recv" | "recvfrom" => {
-            Some(CapabilityKind::NetListen)
-        }
+        "net_listen" | "socket_listen" | "socket_bind" | "bind" | "listen" | "recv"
+        | "recvfrom" => Some(CapabilityKind::NetListen),
 
         "net_connect" | "socket_connect" | "connect" | "send" | "sendto" => {
             Some(CapabilityKind::NetConnect)

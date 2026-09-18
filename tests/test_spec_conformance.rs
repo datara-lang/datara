@@ -30,7 +30,7 @@ fn check_diag(code: &str) -> (bool, String) {
 #[test]
 fn test_spec_sec1_grammar_positive_full_declarations() {
     let code = r#"
-class Entity {
+struct Entity {
     uid: Int
 }
 
@@ -83,7 +83,7 @@ fn main() {
 #[test]
 fn test_spec_sec2_ownership_positive_multiple_immutable_views() {
     let code = r#"
-class Dataset {
+struct Dataset {
     name: String
     size: Int
 }
@@ -111,7 +111,7 @@ fn main() {
 #[test]
 fn test_spec_sec2_ownership_negative_use_after_move() {
     let code = r#"
-class Buffer {
+struct Buffer {
     size: Int
 }
 
@@ -361,7 +361,7 @@ fn main() {
 #[test]
 fn test_spec_sec7_effects_positive_pure_computation() {
     let code = r#"
-class Calculator {
+struct Calculator {
     base: Int
 }
 
@@ -386,7 +386,7 @@ fn main() -> Int {
 #[test]
 fn test_spec_sec7_effects_negative_pure_cannot_allocate() {
     let code = r#"
-class Task {
+struct Task {
     id: Int
 }
 

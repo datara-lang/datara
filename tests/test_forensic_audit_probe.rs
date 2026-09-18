@@ -49,7 +49,7 @@ fn main() {
         (
             "Point 2D SROA 10M",
             r#"
-class Point {
+struct Point {
     x: Int
     y: Int
 }
@@ -75,7 +75,7 @@ fn main() {
         (
             "Generic Box 10M",
             r#"
-class Box<T> {
+struct Box<T> {
     val: T
 }
 fn compute_boxes(n: Int) -> Int {

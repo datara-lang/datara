@@ -67,7 +67,7 @@ fn main() {
 }
 
 #[test]
-fn test_class_deprecation_warning_emitted() {
+fn test_class_rejection_error_emitted() {
     let compiler = ForgenCompiler::new("release");
     let res = compiler.compile_source(
         r#"
@@ -84,12 +84,13 @@ fn main() {
         None,
     );
     assert!(
-        res.success,
-        "Class compilation must remain backwards-compatible"
+        !res.success,
+        "Class keyword must be rejected with E0100 in Datara: {:?}",
+        res.error
     );
     assert!(
-        res.diagnostics.contains("W0100") || res.diagnostics.contains("deprecated"),
-        "Compiler must emit W0100 deprecation note for 'class': {}",
+        res.diagnostics.contains("E0100") || res.diagnostics.contains("Use 'struct'"),
+        "Compiler must emit E0100 error for 'class': {}",
         res.diagnostics
     );
 }

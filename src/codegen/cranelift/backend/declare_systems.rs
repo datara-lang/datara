@@ -51,7 +51,13 @@ pub fn declare_runtime_systems<M: ClifModule>(
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_sys_slice_alloc", &["slice_alloc"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_sys_slice_alloc",
+            &["slice_alloc"],
+            sig,
+        )?;
     }
 
     // slice_from_buffer: (i64, i64) -> i64
@@ -60,14 +66,26 @@ pub fn declare_runtime_systems<M: ClifModule>(
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_sys_slice_from_buffer", &["slice_from_buffer"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_sys_slice_from_buffer",
+            &["slice_from_buffer"],
+            sig,
+        )?;
     }
 
     // slice_free: (i64) -> void
     {
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_sys_slice_free", &["slice_free", "SliceView_free"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_sys_slice_free",
+            &["slice_free", "SliceView_free"],
+            sig,
+        )?;
     }
 
     // SliceView_len: (i64) -> i64
@@ -75,7 +93,13 @@ pub fn declare_runtime_systems<M: ClifModule>(
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_sys_slice_len", &["SliceView_len"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_sys_slice_len",
+            &["SliceView_len"],
+            sig,
+        )?;
     }
 
     // SliceView_get_byte: (i64, i64) -> i64
@@ -84,7 +108,13 @@ pub fn declare_runtime_systems<M: ClifModule>(
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_sys_slice_get_byte", &["SliceView_get_byte"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_sys_slice_get_byte",
+            &["SliceView_get_byte"],
+            sig,
+        )?;
     }
 
     // SliceView_set_byte: (i64, i64, i64) -> void
@@ -93,7 +123,13 @@ pub fn declare_runtime_systems<M: ClifModule>(
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_sys_slice_set_byte", &["SliceView_set_byte"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_sys_slice_set_byte",
+            &["SliceView_set_byte"],
+            sig,
+        )?;
     }
 
     // SliceView read operations: (i64, i64) -> i64
@@ -137,15 +173,37 @@ pub fn declare_runtime_systems<M: ClifModule>(
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_sys_slice_subslice", &["SliceView_subslice"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_sys_slice_subslice",
+            &["SliceView_subslice"],
+            sig,
+        )?;
     }
 
     // 3. Level 4: Hardware MMIO & Volatile Access
     let volatile_read_ops = [
-        ("volatile_read8", "datara_hw_volatile_read8", "VolatilePtr_read8"),
-        ("volatile_read16", "datara_hw_volatile_read16", "VolatilePtr_read16"),
-        ("volatile_read32", "datara_hw_volatile_read32", "VolatilePtr_read32"),
-        ("volatile_read64", "datara_hw_volatile_read64", "VolatilePtr_read64"),
+        (
+            "volatile_read8",
+            "datara_hw_volatile_read8",
+            "VolatilePtr_read8",
+        ),
+        (
+            "volatile_read16",
+            "datara_hw_volatile_read16",
+            "VolatilePtr_read16",
+        ),
+        (
+            "volatile_read32",
+            "datara_hw_volatile_read32",
+            "VolatilePtr_read32",
+        ),
+        (
+            "volatile_read64",
+            "datara_hw_volatile_read64",
+            "VolatilePtr_read64",
+        ),
     ];
     for (dtr_name, c_name, vptr_name) in volatile_read_ops {
         let mut sig = Signature::new(call_conv);
@@ -155,10 +213,26 @@ pub fn declare_runtime_systems<M: ClifModule>(
     }
 
     let volatile_write_ops = [
-        ("volatile_write8", "datara_hw_volatile_write8", "VolatilePtr_write8"),
-        ("volatile_write16", "datara_hw_volatile_write16", "VolatilePtr_write16"),
-        ("volatile_write32", "datara_hw_volatile_write32", "VolatilePtr_write32"),
-        ("volatile_write64", "datara_hw_volatile_write64", "VolatilePtr_write64"),
+        (
+            "volatile_write8",
+            "datara_hw_volatile_write8",
+            "VolatilePtr_write8",
+        ),
+        (
+            "volatile_write16",
+            "datara_hw_volatile_write16",
+            "VolatilePtr_write16",
+        ),
+        (
+            "volatile_write32",
+            "datara_hw_volatile_write32",
+            "VolatilePtr_write32",
+        ),
+        (
+            "volatile_write64",
+            "datara_hw_volatile_write64",
+            "VolatilePtr_write64",
+        ),
     ];
     for (dtr_name, c_name, vptr_name) in volatile_write_ops {
         let mut sig = Signature::new(call_conv);
@@ -172,7 +246,13 @@ pub fn declare_runtime_systems<M: ClifModule>(
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_hw_volatile_ptr", &["volatile_ptr"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_hw_volatile_ptr",
+            &["volatile_ptr"],
+            sig,
+        )?;
     }
 
     // typed_zero_init: (i64) -> i64
@@ -180,7 +260,13 @@ pub fn declare_runtime_systems<M: ClifModule>(
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_hw_typed_zero_init", &["typed_zero_init"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_hw_typed_zero_init",
+            &["typed_zero_init"],
+            sig,
+        )?;
     }
 
     // 4. Level 4: Hardware Memory Fences
@@ -199,7 +285,13 @@ pub fn declare_runtime_systems<M: ClifModule>(
     {
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "datara_hw_atomic_fence", &["atomic_fence"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "datara_hw_atomic_fence",
+            &["atomic_fence"],
+            sig,
+        )?;
     }
 
     Ok(())

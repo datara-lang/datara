@@ -4,7 +4,7 @@ use forgen::driver::ForgenCompiler;
 fn test_with_resource_block_execution() {
     let compiler = ForgenCompiler::new("release");
     let code = r#"
-class TempResource {
+struct TempResource {
     handle: Str
 }
 

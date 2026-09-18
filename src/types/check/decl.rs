@@ -64,31 +64,23 @@ impl<'a> TypeChecker<'a> {
                     self.traits.insert(t.name.clone(), t.clone());
                 }
                 Decl::Role(r) => {
-                    let trait_def = crate::ast::TraitDef {
-                        name: r.name.clone(),
-                        generic_params: Vec::new(),
-                        super_traits: Vec::new(),
-                        methods: r
-                            .methods
-                            .iter()
-                            .map(|m| crate::ast::TraitMethodSignature {
-                                name: m.name.clone(),
-                                generic_params: m.generic_params.clone(),
-                                params: m.params.clone(),
-                                return_type: m.return_type.clone(),
-                                default_body: m.body.clone(),
-                                span: m.span.clone(),
-                            })
-                            .collect(),
-                        is_export: r.is_export,
-                        span: r.span.clone(),
-                    };
-                    self.traits.insert(r.name.clone(), trait_def);
+                    self.roles.insert(r.name.clone(), r.clone());
                 }
                 Decl::Impl(i) => {
                     if let Some(tr) = &i.trait_name {
-                        self.impls
-                            .insert((tr.clone(), i.target_type.clone()), i.clone());
+                        let key = (tr.clone(), i.target_type.clone());
+                        if self.impls.contains_key(&key) {
+                            diag.error(
+                                ErrorCode::ImplCoherenceViolation,
+                                format!(
+                                    "Coherence violation: duplicate implementation of trait '{}' for type '{}'",
+                                    tr, i.target_type
+                                ),
+                                Some(i.span.clone()),
+                            );
+                        } else {
+                            self.impls.insert(key, i.clone());
+                        }
                     }
                 }
                 _ => {}
@@ -264,6 +256,43 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
                 self.current_target_type = None;
+            } else if let Decl::Behavior(b) = decl {
+                for item in &b.body_items {
+                    if let ClassItem::Method(m) = item {
+                        let p_types: Vec<DataraType> = m
+                            .params
+                            .iter()
+                            .map(|p| {
+                                if p.name == "self"
+                                    || p.name == "&self"
+                                    || p.name == "mut self"
+                                    || p.name == "this"
+                                {
+                                    DataraType::Class(b.target_type.clone())
+                                } else {
+                                    p.type_node
+                                        .as_ref()
+                                        .map(|t| self.resolve_type_node(t, diag))
+                                        .unwrap_or(DataraType::Int)
+                                }
+                            })
+                            .collect();
+                        let ret = m
+                            .return_type
+                            .as_ref()
+                            .map(|t| self.resolve_type_node(t, diag))
+                            .unwrap_or(DataraType::Unit);
+                        let m_fn_name = format!("{}_{}", b.target_type, m.name);
+                        self.function_signatures.insert(
+                            m_fn_name.clone(),
+                            (p_types.clone(), ret.clone(), m.generic_params.clone()),
+                        );
+                        self.class_methods
+                            .entry(b.target_type.clone())
+                            .or_default()
+                            .insert(m.name.clone(), ret);
+                    }
+                }
             }
         }
 
@@ -633,7 +662,7 @@ impl<'a> TypeChecker<'a> {
                                 .contains_key(&(st.clone(), i.target_type.clone()))
                             {
                                 diag.error(
-                                    ErrorCode::TypeMismatch,
+                                    ErrorCode::ImplMissingSuperTrait,
                                     format!(
                                         "Type '{}' implements '{}' but does not implement super-trait '{}'",
                                         i.target_type, tr_name, st
@@ -790,6 +819,27 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
                 self.current_target_type = None;
+            }
+            Decl::Component(c) => {
+                for item in &c.body_items {
+                    if let ClassItem::Field(f) = item {
+                        let f_ty = f
+                            .type_node
+                            .as_ref()
+                            .map(|t| self.resolve_type_node(t, diag))
+                            .unwrap_or(DataraType::Int);
+                        if !f_ty.is_pod() {
+                            diag.error(
+                                ErrorCode::ComponentNonPodField,
+                                format!(
+                                    "Component '{}' field '{}' has non-POD type '{}'. Components only permit POD types (Int, Float, Bool, Char or nested components). Heap types (Str, List, Map, Outcome) are forbidden.",
+                                    c.name, f.name, f_ty
+                                ),
+                                Some(f.span.clone()),
+                            );
+                        }
+                    }
+                }
             }
             _ => {}
         }

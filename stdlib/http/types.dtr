@@ -1,4 +1,4 @@
-class HttpRequest {
+﻿struct HttpRequest {
     method: Str
     path: Str
     headers: Str
@@ -41,7 +41,7 @@ behavior HttpRequest {
     }
 }
 
-class HttpResponse {
+struct HttpResponse {
     status: Int
     headers: Str
     body: Str

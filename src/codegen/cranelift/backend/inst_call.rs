@@ -18,7 +18,9 @@ pub fn compile_call<M: ClifModule>(
     }
     if (func == "join" || func == "thread_join") && args.len() == 1 {
         if let Some((th_join_id, _)) = ctx.func_ids.get("ThreadHandle_join") {
-            let callee_ref = ctx.module.declare_func_in_func(*th_join_id, ctx.builder.func);
+            let callee_ref = ctx
+                .module
+                .declare_func_in_func(*th_join_id, ctx.builder.func);
             let arg_val = ctx
                 .val_map
                 .get(&args[0])

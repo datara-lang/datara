@@ -259,6 +259,78 @@ fn parse_file_doc_items(content: &str, file_path: &str) -> Vec<DocItem> {
                 file: file_path.to_string(),
                 effects,
             });
+        } else if trimmed.starts_with("struct ") || trimmed.starts_with("pub struct ") {
+            let doc_text = pending_doc.join("\n");
+            pending_doc.clear();
+
+            let sig_end = trimmed.find('{').unwrap_or(trimmed.len());
+            let sig = trimmed[..sig_end].trim().to_string();
+            let name = sig
+                .strip_prefix("pub ")
+                .unwrap_or(&sig)
+                .strip_prefix("struct ")
+                .and_then(|s| s.split('<').next())
+                .unwrap_or("unknown")
+                .trim()
+                .to_string();
+
+            items.push(DocItem {
+                name,
+                kind: "struct".to_string(),
+                signature: sig,
+                doc_comment: doc_text,
+                file: file_path.to_string(),
+                effects: vec!["pure".to_string()],
+            });
+        } else if trimmed.starts_with("behavior ") || trimmed.starts_with("pub behavior ") {
+            let doc_text = pending_doc.join("\n");
+            pending_doc.clear();
+
+            let sig_end = trimmed.find('{').unwrap_or(trimmed.len());
+            let sig = trimmed[..sig_end].trim().to_string();
+            let name = sig
+                .strip_prefix("pub ")
+                .unwrap_or(&sig)
+                .strip_prefix("behavior ")
+                .and_then(|s| s.split('<').next())
+                .unwrap_or("unknown")
+                .trim()
+                .to_string();
+
+            items.push(DocItem {
+                name,
+                kind: "behavior".to_string(),
+                signature: sig,
+                doc_comment: doc_text,
+                file: file_path.to_string(),
+                effects: vec!["pure".to_string()],
+            });
+        } else if trimmed.starts_with("component ") || trimmed.starts_with("packet ") {
+            let doc_text = pending_doc.join("\n");
+            pending_doc.clear();
+
+            let sig_end = trimmed.find('{').unwrap_or(trimmed.len());
+            let sig = trimmed[..sig_end].trim().to_string();
+            let (kind, prefix) = if trimmed.starts_with("component ") {
+                ("component", "component ")
+            } else {
+                ("packet", "packet ")
+            };
+            let name = sig
+                .strip_prefix(prefix)
+                .and_then(|s| s.split('<').next())
+                .unwrap_or("unknown")
+                .trim()
+                .to_string();
+
+            items.push(DocItem {
+                name,
+                kind: kind.to_string(),
+                signature: sig,
+                doc_comment: doc_text,
+                file: file_path.to_string(),
+                effects: vec!["pure".to_string()],
+            });
         } else if trimmed.starts_with("class ") {
             let doc_text = pending_doc.join("\n");
             pending_doc.clear();

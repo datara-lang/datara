@@ -1,4 +1,4 @@
-class Crypto {
+﻿struct Crypto {
     algorithm: Str
 }
 

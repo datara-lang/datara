@@ -109,6 +109,22 @@ impl CapabilitiesConfig {
         !self.patterns(kind).is_empty()
     }
 
+    pub fn has_named_capability(&self, cap_name: &str) -> bool {
+        match cap_name.to_lowercase().as_str() {
+            "net" | "network" => {
+                self.has_category(CapabilityKind::NetConnect)
+                    || self.has_category(CapabilityKind::NetListen)
+            }
+            "fs" | "filesystem" | "file" | "fileread" | "filewrite" => {
+                self.has_category(CapabilityKind::FsRead)
+                    || self.has_category(CapabilityKind::FsWrite)
+            }
+            "env" => self.has_category(CapabilityKind::Env),
+            "exec" => self.has_category(CapabilityKind::Exec),
+            _ => !self.fs_read.is_empty() || !self.net_connect.is_empty(),
+        }
+    }
+
     pub fn patterns(&self, kind: CapabilityKind) -> &[String] {
         match kind {
             CapabilityKind::FsRead => &self.fs_read,

@@ -27,8 +27,10 @@ fn run_datara(source: &str, name: &str) -> String {
 fn test_method_inside_class_declaration() {
     let out = run_datara(
         r#"
-class Counter {
+struct Counter {
     val: Int
+}
+behavior Counter {
     fn get_val() -> Int {
         return this.val
     }
@@ -85,14 +87,16 @@ fn main() {
 fn test_using_flat_composition() {
     let out = run_datara(
         r#"
-class User {
+struct User {
     id: Int
+}
+behavior User {
     fn get_id() -> Int {
         return this.id
     }
 }
 
-class Admin {
+struct Admin {
     using User
     level: Int
 }

@@ -13,6 +13,49 @@ impl<'a> TypeChecker<'a> {
         self.symbol_types.insert(name.to_string(), ty);
     }
 
+    pub fn is_printable_type(&self, ty: &DataraType) -> bool {
+        match ty {
+            DataraType::Int
+            | DataraType::Float
+            | DataraType::Bool
+            | DataraType::Char
+            | DataraType::String
+            | DataraType::Dec64
+            | DataraType::Dec128
+            | DataraType::TypeParam(_) => true,
+            DataraType::Range { base, .. } | DataraType::Measure { base, .. } => self.is_printable_type(base),
+            DataraType::Class(class_name) => {
+                if class_name == "Range" {
+                    return true;
+                }
+                if self.impls.contains_key(&("Display".to_string(), class_name.clone())) {
+                    return true;
+                }
+                if let Some(cls) = self.resolver.classes.get(class_name) {
+                    if cls.methods.contains_key("to_string") || cls.methods.contains_key("to_str") {
+                        return true;
+                    }
+                }
+                false
+            }
+            DataraType::GenericInstance { name, .. } => {
+                if name == "Range" {
+                    return true;
+                }
+                if self.impls.contains_key(&("Display".to_string(), name.clone())) {
+                    return true;
+                }
+                if let Some(cls) = self.resolver.classes.get(name) {
+                    if cls.methods.contains_key("to_string") || cls.methods.contains_key("to_str") {
+                        return true;
+                    }
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+
     pub fn check_stmt(&mut self, stmt: &Stmt, diag: &mut DiagnosticEngine) -> DataraType {
         match stmt {
             Stmt::Block(stmts, _) => {
@@ -413,8 +456,28 @@ impl<'a> TypeChecker<'a> {
                 val_type
             }
             Stmt::Expr(e, _) => self.check_expr(e, diag),
-            Stmt::Out(e, _) | Stmt::Err(e, _) => {
-                self.check_expr(e, diag);
+            Stmt::Out(e, span) | Stmt::Err(e, span) => {
+                let ty = self.check_expr(e, diag);
+                if !self.is_printable_type(&ty) {
+                    let help = match &ty {
+                        DataraType::Class(c) => {
+                            format!("add '@derive(Display)' to '{}' or use 'to_str(...)'", c)
+                        }
+                        DataraType::List(_) => {
+                            "format list elements via a loop, e.g. 'for x in xs { out x }', or serialize with a custom formatter".to_string()
+                        }
+                        DataraType::Map { .. } => {
+                            "format entries via a loop, or convert keys/values to Str".to_string()
+                        }
+                        _ => "provide an explicit conversion to Str".to_string(),
+                    };
+                    diag.error_with_help(
+                        ErrorCode::UnprintableType,
+                        format!("Cannot print value of unprintable type '{}'", ty),
+                        Some(span.clone()),
+                        Some(help),
+                    );
+                }
                 DataraType::Unit
             }
             Stmt::Return(opt_e, span) => {
@@ -880,13 +943,15 @@ impl<'a> TypeChecker<'a> {
         let elem_type = match &iter_type {
             DataraType::List(elem) => (**elem).clone(),
             DataraType::Map(..) => DataraType::Val,
-            DataraType::GenericInstance { name, args } if name == "List" && !args.is_empty() => {
+            DataraType::GenericInstance { name, args }
+                if (name == "List" || name == "Array") && !args.is_empty() =>
+            {
                 args[0].clone()
             }
             DataraType::Range { base, .. } => (**base).clone(),
             DataraType::Class(c) if c == "Range" => DataraType::Int,
             DataraType::String => DataraType::Char,
-            DataraType::Class(c) if c == "List" => {
+            DataraType::Class(c) if c == "List" || c == "Array" => {
                 // Erased collections: fall back to the recorded element
                 // type, else the dynamic type — never a silent Int.
                 if let Expr::Identifier(n, _) = iterable {

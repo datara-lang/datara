@@ -4,27 +4,30 @@ use forgen::driver::ForgenCompiler;
 fn test_modern_oop_composition_execution() {
     let source = r#"
 component Audited {
-    audit_id: Str
+    audit_id: Int
 }
 
 role Serializable {
     serialize() -> Str
 }
 
-class User {
+struct User {
     id: Int
     name: Str
+}
+
+behavior User {
     greet() -> Str => "Hello " + this.name
 }
 
-class Admin with Serializable {
+struct Admin with Serializable {
     using User
     using Audited
     role_level: Int
-    serialize() -> Str => "Admin:" + this.name
 }
 
 behavior Admin {
+    serialize() -> Str => "Admin:" + this.name
     replaces User.greet() -> Str => "Admin Hello " + this.name
 }
 
@@ -32,7 +35,7 @@ fn main() {
     let admin = Admin {
         id: 1,
         name: "Alice",
-        audit_id: "AUDIT-99",
+        audit_id: 99,
         role_level: 10
     }
     out admin.greet()
@@ -56,14 +59,14 @@ fn main() {
     assert_eq!(code, 0);
     assert!(stdout.contains("Admin Hello Alice"));
     assert!(stdout.contains("Admin:Alice"));
-    assert!(stdout.contains("AUDIT-99"));
+    assert!(stdout.contains("99"));
 }
 
 #[test]
 fn test_class_inheritance_from_rejected() {
     let source = r#"
-class Base { id: Int }
-class Child from Base { extra: Int }
+struct Base { id: Int }
+struct Child from Base { extra: Int }
 fn main() { out "hi" }
 "#;
     let compiler = ForgenCompiler::new("release");
@@ -76,8 +79,11 @@ fn main() { out "hi" }
 #[test]
 fn test_modern_oop_negative_ambiguous_override() {
     let source = r#"
-class Service {
+struct Service {
     name: Str
+}
+
+behavior Service {
     start() -> Str => "Starting service"
 }
 
@@ -108,7 +114,7 @@ role Printable {
     format() -> Str
 }
 
-class Invoice with Printable {
+struct Invoice with Printable {
     amount: Int
 }
 

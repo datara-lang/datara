@@ -34,9 +34,10 @@ fn main() -> Int {
 #[test]
 fn test_dead_class_method_elimination_with_intrinsic_name() {
     let src = r#"
-class DeadClass {
+struct DeadClass {
     id: Int
 }
+
 
 behavior DeadClass {
     len() -> Int {
@@ -72,9 +73,10 @@ fn main() -> Int {
 #[test]
 fn test_used_class_method_retained_unused_pruned() {
     let src = r#"
-class Packet {
+struct Packet {
     size: Int
 }
+
 
 behavior Packet {
     @inline(never)
@@ -154,33 +156,50 @@ fn test_unused_extern_functions_pruned() {
     use forgen::optimizer::Optimizer;
 
     let mut module = Module::new("test_mod");
-    let mut main_fn = Function::default();
-    main_fn.name = "main".to_string();
+    let mut main_fn = Function {
+        name: "main".to_string(),
+        ..Default::default()
+    };
     main_fn.blocks.push(BasicBlock {
         id: BasicBlockId(0),
         label: "entry".to_string(),
         params: vec![],
-        instructions: vec![
-            Inst::Call {
-                dest: ValueId(1),
-                func: "c_used_func".to_string(),
-                args: vec![],
-                ty: "Int".to_string(),
-            },
-        ],
-        terminator: Terminator::Return { value: Some(ValueId(1)) },
+        instructions: vec![Inst::Call {
+            dest: ValueId(1),
+            func: "c_used_func".to_string(),
+            args: vec![],
+            ty: "Int".to_string(),
+        }],
+        terminator: Terminator::Return {
+            value: Some(ValueId(1)),
+        },
     });
     module.functions.insert("main".to_string(), main_fn);
-    module.extern_functions.insert("c_used_func".to_string(), (vec![], "Int".to_string()));
-    module.extern_functions.insert("c_unused_func".to_string(), (vec![], "Int".to_string()));
+    module
+        .extern_functions
+        .insert("c_used_func".to_string(), (vec![], "Int".to_string()));
+    module
+        .extern_functions
+        .insert("c_unused_func".to_string(), (vec![], "Int".to_string()));
     module.extern_sret.insert("c_unused_func".to_string(), 32);
 
     let mut optimizer = Optimizer::new("release");
-    optimizer.optimize_module(&mut module).expect("must optimize");
+    optimizer
+        .optimize_module(&mut module)
+        .expect("must optimize");
 
-    assert!(module.extern_functions.contains_key("c_used_func"), "used extern must be retained");
-    assert!(!module.extern_functions.contains_key("c_unused_func"), "unused extern must be pruned");
-    assert!(!module.extern_sret.contains_key("c_unused_func"), "unused sret must be pruned");
+    assert!(
+        module.extern_functions.contains_key("c_used_func"),
+        "used extern must be retained"
+    );
+    assert!(
+        !module.extern_functions.contains_key("c_unused_func"),
+        "unused extern must be pruned"
+    );
+    assert!(
+        !module.extern_sret.contains_key("c_unused_func"),
+        "unused sret must be pruned"
+    );
 }
 
 #[test]
@@ -197,7 +216,11 @@ fn main() -> Int {
     let exe = res.exe_path.unwrap();
     let metadata = std::fs::metadata(&exe).unwrap();
     let size = metadata.len();
-    println!("Compiled minimal release binary size: {} bytes ({:.2} KB)", size, size as f64 / 1024.0);
+    println!(
+        "Compiled minimal release binary size: {} bytes ({:.2} KB)",
+        size,
+        size as f64 / 1024.0
+    );
     let _ = std::fs::remove_file(&exe);
     let _ = std::fs::remove_file(exe.with_extension("obj"));
 }
@@ -216,10 +239,11 @@ fn main() -> Int {
     let exe = res.exe_path.unwrap();
     let metadata = std::fs::metadata(&exe).unwrap();
     let size = metadata.len();
-    println!("Compiled tiny mode binary size: {} bytes ({:.2} KB)", size, size as f64 / 1024.0);
+    println!(
+        "Compiled tiny mode binary size: {} bytes ({:.2} KB)",
+        size,
+        size as f64 / 1024.0
+    );
     let _ = std::fs::remove_file(&exe);
     let _ = std::fs::remove_file(exe.with_extension("obj"));
 }
-
-
-

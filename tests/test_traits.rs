@@ -7,7 +7,7 @@ trait Printable {
     fn print_val(&self) -> Int;
 }
 
-class Point {
+struct Point {
     x: Int,
     y: Int,
 }
@@ -47,11 +47,11 @@ trait Area {
     fn calculate_area(&self) -> Int;
 }
 
-class Square {
+struct Square {
     side: Int,
 }
 
-class Rectangle {
+struct Rectangle {
     w: Int,
     h: Int,
 }
@@ -99,7 +99,7 @@ trait Printable {
     fn print_val(&self) -> Int;
 }
 
-class Point {
+struct Point {
     x: Int,
     y: Int,
 }
@@ -140,7 +140,7 @@ fn main() {
 #[test]
 fn test_inherent_impl_block() {
     let source = r#"
-class Vector2 {
+struct Vector2 {
     x: Int,
     y: Int,
 }
@@ -180,7 +180,7 @@ trait Greet {
     fn goodbye(&self) -> Int;
 }
 
-class Person {
+struct Person {
     age: Int,
 }
 
@@ -213,7 +213,7 @@ trait Serializable {
     fn serialize(&self) -> Int;
 }
 
-class Secret {
+struct Secret {
     value: Int,
 }
 
@@ -250,7 +250,7 @@ trait Greet {
     }
 }
 
-class User {
+struct User {
     id: Int,
 }
 
@@ -291,7 +291,7 @@ trait Greet {
     }
 }
 
-class SpecialUser {
+struct SpecialUser {
     val: Int,
 }
 
@@ -337,7 +337,7 @@ trait Sub : Base {
     fn sub_action(&self) -> Int;
 }
 
-class Robot {
+struct Robot {
     code: Int,
 }
 
@@ -476,7 +476,7 @@ trait Builder {
     }
 }
 
-class Widget {
+struct Widget {
     val: Int,
 }
 

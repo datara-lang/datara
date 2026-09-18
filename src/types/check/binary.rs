@@ -369,8 +369,20 @@ impl<'a> TypeChecker<'a> {
                     // language feature and stays permissive.
                     let concat =
                         op == "+" && (lt == DataraType::String || rt == DataraType::String);
-                    if !concat && (!is_numeric(&lt) || !is_numeric(&rt)) {
-                        report_bad_operands(diag);
+                    if !concat {
+                        if !is_numeric(&lt) || !is_numeric(&rt) {
+                            report_bad_operands(diag);
+                        } else if lt != rt {
+                            diag.error_with_help(
+                                ErrorCode::TypeIncomparableOperands,
+                                format!(
+                                    "Arithmetic operator '{}' cannot combine operands of different numeric types '{}' and '{}'",
+                                    op, lt, rt
+                                ),
+                                Some(span.clone()),
+                                Some("Datara never widens numeric types implicitly (SPEC_V1 Gate 7): use explicit cast 'as Float' or 'as Int'.".to_string()),
+                            );
+                        }
                     }
                 }
                 "==" | "!=" => {
@@ -427,11 +439,9 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
                 "&&" | "||" => {
-                    // Ints participate in logical ops as truthy
-                    // values (C-style); that is intended behavior.
-                    let is_logical =
-                        |t: &DataraType| matches!(t, DataraType::Bool | DataraType::Int);
-                    if !is_logical(&lt) || !is_logical(&rt) {
+                    // Strict Bool logical operators (SPEC_V1 Gate 5):
+                    // operands must be Bool, no truthy integer coercion.
+                    if lt != DataraType::Bool || rt != DataraType::Bool {
                         report_bad_operands(diag);
                     }
                 }

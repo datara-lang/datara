@@ -1,9 +1,9 @@
-// stdlib/optimizer/optimize.dtr
+﻿// stdlib/optimizer/optimize.dtr
 // Declarative optimizations, symbolic mathematics, and zero-allocation memory primitives.
 
 use stdlib.result.result.Outcome
 
-class LoopTerm {
+struct LoopTerm {
     variable: Str
     lower_bound: Int
     upper_bound: Int
@@ -11,7 +11,7 @@ class LoopTerm {
     degree: Int
 }
 
-class SymbolicLoopReducer {
+struct SymbolicLoopReducer {
     term: LoopTerm
 }
 
@@ -64,7 +64,7 @@ behavior SymbolicLoopReducer {
     }
 }
 
-class StrView {
+struct StrView {
     content: Str
     start: Int
     len: Int
@@ -92,7 +92,7 @@ behavior StrView {
     }
 }
 
-class RecurrenceSolver {
+struct RecurrenceSolver {
     a: Int
     b: Int
 }

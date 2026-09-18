@@ -1,4 +1,4 @@
-class LogEntry {
+﻿struct LogEntry {
     timestamp: Str
     level: Str
     message: Str
@@ -15,7 +15,7 @@ behavior LogEntry {
     }
 }
 
-class LogParser {
+struct LogParser {
     strict_mode: Bool
 }
 

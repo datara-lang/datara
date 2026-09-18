@@ -36,14 +36,14 @@ fn test_logical_operators_truth_table() {
     let out = run_datara(
         r#"
 fn main() {
-    out 5 && 3
-    out 5 && 0
-    out 0 && 3
-    out 0 && 0
-    out 5 || 3
-    out 5 || 0
-    out 0 || 3
-    out 0 || 0
+    out true && true
+    out true && false
+    out false && true
+    out false && false
+    out true || true
+    out true || false
+    out false || true
+    out false || false
 }
 "#,
         "test_logic_truth_table.dtr",
@@ -61,19 +61,19 @@ fn main() {
 fn test_logical_operators_short_circuit() {
     let out = run_datara(
         r#"
-fn boom() -> Int {
+fn boom() -> Bool {
     out 999
-    return 1
+    return true
 }
 
 fn main() {
-    let a = 0 && boom()
+    let a = false && boom()
     out a
-    let b = 1 || boom()
+    let b = true || boom()
     out b
-    let c = 1 && boom()
+    let c = true && boom()
     out c
-    let d = 0 || boom()
+    let d = false || boom()
     out d
 }
 "#,
@@ -81,7 +81,7 @@ fn main() {
     );
 
     // `999` is printed only when the right operand is actually evaluated:
-    // not for `0 && boom()` and not for `1 || boom()`.
+    // not for `false && boom()` and not for `true || boom()`.
     assert_eq!(
         out, "false\ntrue\n999\ntrue\n999\ntrue",
         "short-circuit evaluation is wrong: the right operand must be skipped \
@@ -137,10 +137,10 @@ fn test_logical_operators_chain() {
     let out = run_datara(
         r#"
 fn main() {
-    out 1 && 1 && 0
-    out 1 && 1 && 1
-    out 0 || 0 || 1
-    out 0 || 0 || 0
+    out true && true && false
+    out true && true && true
+    out false || false || true
+    out false || false || false
 }
 "#,
         "test_logic_chain.dtr",

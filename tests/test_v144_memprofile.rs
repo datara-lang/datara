@@ -27,7 +27,7 @@ fn test_memory_profiler_lifecycle_and_json_report() {
         // 1. Record Allocations
         datara_memprofile_record_alloc(1024, 0); // heap
         datara_memprofile_record_alloc(2048, 1); // arena
-        datara_memprofile_record_alloc(512, 3);  // scratchpad
+        datara_memprofile_record_alloc(512, 3); // scratchpad
 
         // 2. Record Promotions (zero-copy slice promotion into generational arena)
         datara_memprofile_record_promote(4096);
@@ -75,8 +75,11 @@ fn test_memory_profiler_lifecycle_and_json_report() {
 
         datara_memprofile_reset();
         let c_json_cleared = datara_memprofile_summary_json();
-        let json_cleared = CStr::from_ptr(c_json_cleared).to_str().expect("valid utf-8");
-        let parsed_cleared: serde_json::Value = serde_json::from_str(json_cleared).expect("valid json");
+        let json_cleared = CStr::from_ptr(c_json_cleared)
+            .to_str()
+            .expect("valid utf-8");
+        let parsed_cleared: serde_json::Value =
+            serde_json::from_str(json_cleared).expect("valid json");
         assert_eq!(parsed_cleared["total_alloc_count"], 0);
 
         let _ = fs::remove_file(&dump_path);

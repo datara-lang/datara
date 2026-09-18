@@ -348,7 +348,7 @@ fn multiply_by_constant(val: Int, factor: Int) -> Int {
     return val * factor
 }
 
-class Pipeline {
+struct Pipeline {
     multiplier: Int
 }
 

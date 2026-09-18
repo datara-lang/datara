@@ -13,6 +13,7 @@
   #include <pthread.h>
   #include <unistd.h>
   #include <sys/time.h>
+  #include <time.h>
   #include <errno.h>
 #endif
 
@@ -623,6 +624,12 @@ void Channel_free(DataraChannel* ch) {
 int64_t ThreadHandle_join(DataraThreadHandle* th) {
     int64_t out_res = 0;
     int32_t rc = datara_thread_join(th, -1, &out_res);
+    return (rc == 0) ? out_res : -1;
+}
+
+int64_t ThreadHandle_join_timeout(DataraThreadHandle* th, int64_t timeout_ms) {
+    int64_t out_res = 0;
+    int32_t rc = datara_thread_join(th, timeout_ms, &out_res);
     return (rc == 0) ? out_res : -1;
 }
 

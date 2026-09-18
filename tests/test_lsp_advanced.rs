@@ -116,7 +116,7 @@ fn test_lsp_semantic_tokens_full() {
     let server = LspServer::new();
     let mut buf = Vec::new();
     let doc_uri = "file:///workspace/semantic.dtr";
-    let doc_code = "class Point {\n    x: Int\n}\n\nfn main() -> Int {\n    let p = Point { x: 10 }\n    return p.x\n}\n";
+    let doc_code = "struct Point {\n    x: Int\n}\n\nfn main() -> Int {\n    let p = Point { x: 10 }\n    return p.x\n}\n";
 
     // 1. Open document
     let open_req = JsonRpcRequest {

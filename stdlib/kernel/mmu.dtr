@@ -1,7 +1,7 @@
-@kernel_mode
+﻿@kernel_mode
 module kernel.arch.x86_64.mmu
 
-class PageTableEntry {
+struct PageTableEntry {
     present: Bool in bit 0
     writable: Bool in bit 1
     user_accessible: Bool in bit 2

@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // Datara Supervised Actor & Channel Concurrency Model (v1.2.7)
 //
 // Features:
@@ -12,7 +12,7 @@ struct ChannelConfig {
     drop_on_full: Bool
 }
 
-class Channel {
+struct Channel {
     id: Int
     capacity: Int
     is_closed: Bool
@@ -40,7 +40,7 @@ behavior Channel {
     }
 }
 
-class Actor {
+struct Actor {
     id: Int
     policy_code: Int // 0: Isolate, 1: FailFast, 2: Restart
     status_code: Int // 0: Pending, 1: Running, 2: Completed, 3: Crashed, 4: Cancelled

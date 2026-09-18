@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[test]
 fn test_ledger_and_semantic_graph_two_artifact_generation() {
     let source = r#"
-class Point {
+struct Point {
     x: Int
     y: Int
 }

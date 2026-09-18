@@ -155,7 +155,7 @@ fn test_whole_program_domain_specialization_on_project() {
     fs::write(
         &main_dtr,
         r#"
-class Point {
+struct Point {
     x: Int
     y: Int
 }

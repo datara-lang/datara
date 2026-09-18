@@ -1,4 +1,4 @@
-class Config {
+﻿struct Config {
     path: Str
     query: Str
     max_results: Int

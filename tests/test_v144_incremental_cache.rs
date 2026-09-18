@@ -23,7 +23,11 @@ fn main() {
     let t0 = Instant::now();
     let res1 = compiler.check_source(source1, "test_cache.dtr");
     let cold_duration = t0.elapsed();
-    assert!(res1.success, "Cold check must succeed: {}", res1.diagnostics);
+    assert!(
+        res1.success,
+        "Cold check must succeed: {}",
+        res1.diagnostics
+    );
 
     // 3. Warm check (cache hit)
     let t1 = Instant::now();
@@ -32,8 +36,14 @@ fn main() {
     assert!(res2.success, "Warm check must succeed");
 
     // The warm check must be dramatically faster (cache hit reading JSON vs full lex/parse/typecheck/borrow)
-    println!("Cold check: {:?}, Warm check: {:?}", cold_duration, warm_duration);
-    assert!(warm_duration < cold_duration, "Warm check must be faster than cold check");
+    println!(
+        "Cold check: {:?}, Warm check: {:?}",
+        cold_duration, warm_duration
+    );
+    assert!(
+        warm_duration < cold_duration,
+        "Warm check must be faster than cold check"
+    );
 
     // 4. Content modification invalidates cache
     let source2 = r#"
@@ -58,8 +68,14 @@ fn bad() -> Int {
     assert!(!res_bad1.success, "Initial bad check must fail");
 
     let res_bad2 = compiler.check_source(bad_source, "test_bad.dtr");
-    assert!(!res_bad2.success, "Cached bad check must also report failure");
-    assert_eq!(res_bad1.diagnostics, res_bad2.diagnostics, "Cached error output must match");
+    assert!(
+        !res_bad2.success,
+        "Cached bad check must also report failure"
+    );
+    assert_eq!(
+        res_bad1.diagnostics, res_bad2.diagnostics,
+        "Cached error output must match"
+    );
 
     // 6. Cache bypass with FORGEN_NO_CACHE=1
     unsafe {

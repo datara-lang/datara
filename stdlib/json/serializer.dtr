@@ -1,6 +1,6 @@
 use stdlib.json.types
 
-class JsonSerializer {
+struct JsonSerializer {
     indent: Int
 }
 

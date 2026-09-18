@@ -19,7 +19,7 @@ fn compile(mode: &'static str, source: String, file: &'static str) -> Compilatio
 #[test]
 fn test_ownership_interprocedural_view_parameter_preserved() {
     let source = r#"
-class Document {
+struct Document {
     title: String
     content: String
 }
@@ -50,7 +50,7 @@ fn main() {
 #[test]
 fn test_ownership_interprocedural_transfer_return_ownership() {
     let source = r#"
-class Buffer {
+struct Buffer {
     capacity: Int
 }
 
@@ -77,7 +77,7 @@ fn main() {
 #[test]
 fn test_ownership_interprocedural_negative_use_after_move() {
     let source = r#"
-class Connection {
+struct Connection {
     host: String
 }
 
@@ -105,7 +105,7 @@ fn main() {
 #[test]
 fn test_ownership_interprocedural_multiple_functions_pure_pipeline() {
     let source = r#"
-class Payload {
+struct Payload {
     value: Int
 }
 

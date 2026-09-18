@@ -133,6 +133,81 @@ impl<'a> SecurityVerifier<'a> {
                 _ => {}
             }
         }
+
+        // Verify Role Capability Contracts
+        for decl in &program.declarations {
+            if let Decl::Class(c) = decl {
+                let all_compositions: Vec<String> = c
+                    .compositions
+                    .iter()
+                    .cloned()
+                    .chain(c.body_items.iter().filter_map(|item| match item {
+                        ClassItem::Using(u, _) => Some(u.clone()),
+                        _ => None,
+                    }))
+                    .collect();
+                for comp_name in &all_compositions {
+                    if let Some(role_decl) = self.type_checker.roles.get(comp_name) {
+                        for role_method in &role_decl.methods {
+                            let req_caps: Vec<String> = role_method
+                                .attributes
+                                .iter()
+                                .filter(|a| a.name == "needs")
+                                .flat_map(|a| a.args.iter().map(|(cap, _)| cap.clone()))
+                                .collect();
+
+                            if !req_caps.is_empty() {
+                                let target_method = program.declarations.iter().find_map(|d| match d {
+                                    Decl::Behavior(b) if b.target_type == c.name => {
+                                        b.body_items.iter().find_map(|item| match item {
+                                            ClassItem::Method(m) if m.name == role_method.name => Some(m),
+                                            _ => None,
+                                        })
+                                    }
+                                    Decl::Class(cls) if cls.name == c.name => {
+                                        cls.body_items.iter().find_map(|item| match item {
+                                            ClassItem::Method(m) if m.name == role_method.name => Some(m),
+                                            _ => None,
+                                        })
+                                    }
+                                    _ => None,
+                                });
+
+                                let method_caps: HashSet<String> = target_method
+                                    .map(|m| {
+                                        m.attributes
+                                            .iter()
+                                            .filter(|a| a.name == "needs")
+                                            .flat_map(|a| a.args.iter().map(|(cap, _)| cap.clone()))
+                                            .collect()
+                                    })
+                                    .unwrap_or_default();
+
+                                for cap in req_caps {
+                                    let satisfied_by_method = method_caps.contains(&cap);
+                                    let satisfied_by_manifest = self
+                                        .capabilities_manifest
+                                        .as_ref()
+                                        .map(|m| m.has_named_capability(&cap))
+                                        .unwrap_or(false);
+
+                                    if !satisfied_by_method && !satisfied_by_manifest {
+                                        diag.error(
+                                            crate::diagnostics::ErrorCode::RoleCapabilityMissing,
+                                            format!(
+                                                "Role contract violation: method '{}' in role '{}' required by struct '{}' demands capability '{}', but it is not granted",
+                                                role_method.name, comp_name, c.name, cap
+                                            ),
+                                            Some(c.span.clone()),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn verify_fn_decl(&mut self, f: &FunctionDecl, diag: &mut DiagnosticEngine) {

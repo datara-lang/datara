@@ -77,11 +77,7 @@ impl PolyglotResolver {
         let target = &u.path[1];
 
         // Platform-appropriate static and shared library extensions
-        let static_exts: &[&str] = if cfg!(windows) {
-            &["lib"]
-        } else {
-            &["a"]
-        };
+        let static_exts: &[&str] = if cfg!(windows) { &["lib"] } else { &["a"] };
         let shared_exts: &[&str] = if cfg!(windows) {
             &["dll"]
         } else if cfg!(target_os = "macos") {
@@ -165,7 +161,7 @@ impl PolyglotResolver {
         diag.error(
             ErrorCode::ResolveUnreachableModule,
             format!(
-                "C++ library '{target}' not found (.lib/.a/.dll/.so/.hpp).\n\
+                "C/C++ library '{target}' not found (.lib/.a/.dll/.so/.hpp).\n\
                  --> Compile your C++ library and place the output in the project or a base directory.\n\
                  \n\
                  MSVC:   cl.exe /c /EHsc /O2 {target}.cpp  &&  lib /OUT:{target}.lib {target}.obj\n\

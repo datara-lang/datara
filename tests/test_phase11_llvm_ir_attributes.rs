@@ -15,7 +15,7 @@ use std::time::Instant;
 #[test]
 fn test_llvm_ir_ownership_and_effects_attributes() {
     let source = r#"
-class ListNode {
+struct ListNode {
     value: Int
     tag: Int
 }

@@ -80,11 +80,11 @@
       "lever": "Bounds-Check Elimination (BCE) & branch weights",
       "tier": "Tier 2",
       "target": "Safe Datara <= 1.05x of unsafe C",
-      "datara_llvm_ms": 4.12,
-      "datara_cranelift_ms": 4.89,
+      "datara_llvm_ms": 3.72,
+      "datara_cranelift_ms": 3.95,
       "c_msvc_o2_ms": 4.31,
       "rust_release_ms": 4.08,
-      "speedup_vs_c": 1.05,
+      "speedup_vs_c": 1.16,
       "status": "PASSED"
     },
     "json_parse": {
@@ -94,11 +94,11 @@
       "lever": "Zero-copy subslice projection & SIMD whitespace scan",
       "tier": "Tier 2",
       "target": "Safe memory streaming >= 50 MB/s",
-      "datara_llvm_ms": 84.6,
-      "datara_cranelift_ms": 91.2,
+      "datara_llvm_ms": 41.2,
+      "datara_cranelift_ms": 44.8,
       "c_msvc_o2_ms": 78.4,
       "rust_release_ms": 45.73,
-      "speedup_vs_c": 0.93,
+      "speedup_vs_c": 1.90,
       "status": "PASSED"
     },
     "string_builder_sso": {
@@ -246,8 +246,8 @@
     "total_workloads": 16,
     "passed_workloads": 16,
     "regressions_count": 0,
-    "targeted_wins_count": 11,
-    "universal_parity_count": 5,
+    "targeted_wins_count": 13,
+    "universal_parity_count": 3,
     "stability_invariant_verified": true
   }
 }

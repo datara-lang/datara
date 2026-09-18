@@ -68,7 +68,7 @@ fn main() {
 #[test]
 fn audit_ownership_two_live_mut_borrows_rejected() {
     let source = r#"
-class Buffer {
+struct Buffer {
     capacity: Int
 }
 fn main() {
@@ -96,7 +96,7 @@ fn main() {
 #[test]
 fn audit_ownership_mut_borrow_plus_read_conflict() {
     let source = r#"
-class DataBox {
+struct DataBox {
     val: Int
 }
 fn main() {
@@ -293,7 +293,7 @@ fn main() { out branch_consume(0, 77) }
 
     // 5. Linear flow with immutable view -> 100% proven (0% guarded)
     let p5 = r#"
-class Item {
+struct Item {
     num: Int
 }
 fn view_proven(it: Item) -> Int {

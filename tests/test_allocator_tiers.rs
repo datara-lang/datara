@@ -138,7 +138,7 @@ fn main() {
 #[test]
 fn arena_escape_through_local_is_rejected() {
     let source = r#"
-class Box { payload: Int }
+struct Box { payload: Int }
 
 @arena
 fn make_box() -> Int {

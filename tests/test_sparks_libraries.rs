@@ -7,12 +7,12 @@ use std::process::Command;
 
 #[test]
 fn test_sparks_libraries_e2e_execution() {
-    let mathx_src =
-        fs::read_to_string("packages/sparks/mathx/src/lib.dtr").expect("mathx source must exist");
-    let strx_src =
-        fs::read_to_string("packages/sparks/strx/src/lib.dtr").expect("strx source must exist");
-    let jsonx_src =
-        fs::read_to_string("packages/sparks/jsonx/src/lib.dtr").expect("jsonx source must exist");
+    let mathx_src = fs::read_to_string("tests/fixtures/sparks/mathx/src/lib.dtr")
+        .expect("mathx source must exist");
+    let strx_src = fs::read_to_string("tests/fixtures/sparks/strx/src/lib.dtr")
+        .expect("strx source must exist");
+    let jsonx_src = fs::read_to_string("tests/fixtures/sparks/jsonx/src/lib.dtr")
+        .expect("jsonx source must exist");
 
     let combined_src = format!(
         r#"

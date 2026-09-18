@@ -1,4 +1,4 @@
-class JsonValue {
+struct JsonValue {
     kind: Str
     str_val: Str
     int_val: Int

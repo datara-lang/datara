@@ -11,7 +11,7 @@ use forgen::driver::ForgenCompiler;
 use std::path::PathBuf;
 
 const SOURCE: &str = r#"
-class Payload {
+struct Payload {
     a: Int
     b: Int
 }

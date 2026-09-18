@@ -12,7 +12,7 @@ fn build_synthetic_program(num_modules: usize, symbols_per_mod: usize) -> Progra
     full_source.push_str("fn main() { out 42 }\n\n");
 
     for m in 1..=num_modules {
-        full_source.push_str(&format!("class Mod{}_Data {{ id: Int }}\n", m));
+        full_source.push_str(&format!("struct Mod{}_Data {{ id: Int }}\n", m));
         for s in 1..=symbols_per_mod {
             full_source.push_str(&format!(
                 "fn mod{}_fn_{}(x: Int) -> Int => x + {}\n",

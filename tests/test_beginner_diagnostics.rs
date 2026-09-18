@@ -56,7 +56,7 @@ fn main() {
 #[test]
 fn test_diag_03_field_name_typo() {
     let source = r#"
-class PlayerStats {
+struct PlayerStats {
     health: Int,
     mana: Int,
 }
@@ -85,7 +85,7 @@ fn main() {
 #[test]
 fn test_diag_04_class_name_typo() {
     let source = r#"
-class UserProfile {
+struct UserProfile {
     user_id: Int,
 }
 

@@ -205,18 +205,47 @@ impl<'a> Lowering<'a> {
         for item in &c.body_items {
             if let ClassItem::Using(other_name, _) = item {
                 for decl in &program.declarations {
-                    if let Decl::Class(oc) = decl
-                        && oc.name == *other_name
-                    {
-                        for o_item in &oc.body_items {
-                            if let ClassItem::Method(m) = o_item
-                                    && !c.body_items.iter().any(|it| matches!(it, ClassItem::Method(my_m) if my_m.name == m.name)) {
-                                        let lowered = self.lower_method(m, &c.name);
-                                        let fn_name = format!("{}_{}", c.name, m.name);
-                                        module.functions.insert(fn_name.clone(), lowered);
-                                        module.function_spans.insert(fn_name.clone(), m.span.clone());
-                                        module.function_line_spans.insert(fn_name, self.current_line_spans.clone());
-                                    }
+                    let other_methods: Vec<&MethodDecl> = match decl {
+                        Decl::Class(oc) if oc.name == *other_name => oc
+                            .body_items
+                            .iter()
+                            .filter_map(|it| match it {
+                                ClassItem::Method(m) => Some(m),
+                                _ => None,
+                            })
+                            .collect(),
+                        Decl::Behavior(b) if b.target_type == *other_name => b
+                            .body_items
+                            .iter()
+                            .filter_map(|it| match it {
+                                ClassItem::Method(m) => Some(m),
+                                _ => None,
+                            })
+                            .collect(),
+                        _ => Vec::new(),
+                    };
+
+                    for m in other_methods {
+                        let is_overridden = c.body_items.iter().any(|it| {
+                            matches!(it, ClassItem::Method(my_m) if my_m.name == m.name)
+                        }) || program.declarations.iter().any(|d| {
+                            if let Decl::Behavior(my_b) = d && my_b.target_type == c.name {
+                                my_b.body_items.iter().any(
+                                    |it| matches!(it, ClassItem::Method(my_m) if my_m.name == m.name),
+                                )
+                            } else {
+                                false
+                            }
+                        });
+
+                        if !is_overridden {
+                            let lowered = self.lower_method(m, &c.name);
+                            let fn_name = format!("{}_{}", c.name, m.name);
+                            module.functions.insert(fn_name.clone(), lowered);
+                            module.function_spans.insert(fn_name.clone(), m.span.clone());
+                            module
+                                .function_line_spans
+                                .insert(fn_name, self.current_line_spans.clone());
                         }
                     }
                 }
@@ -229,13 +258,21 @@ impl<'a> Lowering<'a> {
             if let ClassItem::Method(m) = item {
                 let lowered = self.lower_method(m, &b.target_type);
                 let fn_name = format!("{}_{}", b.target_type, m.name);
-                module.functions.insert(fn_name.clone(), lowered);
+                let b_name = format!("B_{}_{}", b.target_type, m.name);
+                module.functions.insert(fn_name.clone(), lowered.clone());
+                module.functions.insert(b_name.clone(), lowered);
                 module
                     .function_spans
                     .insert(fn_name.clone(), m.span.clone());
                 module
+                    .function_spans
+                    .insert(b_name.clone(), m.span.clone());
+                module
                     .function_line_spans
                     .insert(fn_name, self.current_line_spans.clone());
+                module
+                    .function_line_spans
+                    .insert(b_name, self.current_line_spans.clone());
             }
         }
     }
@@ -251,6 +288,16 @@ impl<'a> Lowering<'a> {
             module
                 .function_line_spans
                 .insert(fn_name.clone(), self.current_line_spans.clone());
+
+            if let Some(ref tr) = i.trait_name {
+                let i_name = format!("I_{}_{}_{}", tr, i.target_type, m.name);
+                module.functions.insert(i_name.clone(), lowered.clone());
+                module.function_spans.insert(i_name.clone(), m.span.clone());
+                module
+                    .function_line_spans
+                    .insert(i_name, self.current_line_spans.clone());
+            }
+
             if !module.functions.contains_key(&m.name) {
                 module.functions.insert(m.name.clone(), lowered);
                 module.function_spans.insert(m.name.clone(), m.span.clone());
@@ -604,7 +651,10 @@ impl<'a> Lowering<'a> {
         self.symbol_values.insert("this".to_string(), this_val);
         self.symbol_values.insert("self".to_string(), this_val);
 
-        for p in &m.params {
+        for (i, p) in m.params.iter().enumerate() {
+            if i == 0 && (p.name == "self" || p.name == "this") {
+                continue;
+            }
             let p_val = self.next_val();
             let ty_str = p
                 .type_node

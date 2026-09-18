@@ -1,6 +1,6 @@
-module interop.universal
+﻿module interop.universal
 
-class HyperGridRegistryBridge {
+struct HyperGridRegistryBridge {
     registry_url: Str
 }
 

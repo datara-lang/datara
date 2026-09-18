@@ -3,7 +3,7 @@ use forgen::driver::ForgenCompiler;
 #[test]
 fn test_generic_box_specialization() {
     let source = r#"
-class Box<T> {
+struct Box<T> {
     value: T
 }
 

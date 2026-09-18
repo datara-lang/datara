@@ -27,10 +27,11 @@ Datara is designed as a high-performance compiled systems and application progra
 - **Compatibility:** `import` is recognized at the frontend and maps to `Decl::Use`.
 - **Normative Rule:** Circular module dependencies are strictly prohibited and MUST produce a compile-time error detailing the exact dependency cycle chain.
 
-### Gate 3: Object-Oriented Composition (`with` vs `from`)
-- **Canonical Composition:** `with` combines roles, behaviors, and components (`class Service with Logger, Metrics`).
-- **Canonical Inheritance:** `from` specifies single base class inheritance (`class Dog from Animal`).
-- **Normative Rule:** Multiple inheritance is forbidden; composition with behavioral roles via `with` is the sole mechanism for code reuse across hierarchies.
+### Gate 3: Object-Oriented Composition (`struct` / `with` / `using` vs deprecated `from`)
+- **Canonical Representation:** `struct` is canonical for Data-Oriented Design representations (`class` keyword is deprecated since v1.3.0 with warning `W0100`).
+- **Canonical Composition:** `with` and `using Component` combine behaviors, roles, and components (`struct Service with Logger, Metrics`).
+- **Inheritance Deprecation:** `from` / `extends` single inheritance is deprecated (`W0100`) and preserved only for backwards compatibility; composition with behavioral roles via `with` / `behavior` is the canonical mechanism for code reuse across types.
+- **Normative Rule:** Multiple inheritance is forbidden; flat composition with behavioral roles is the canonical standard.
 
 ### Gate 4: Error Handling Model (Result/Outcome vs try/catch)
 - **Canonical Model:** `Outcome<T>` (aliased to `Result<T, String>`) with `?` postfix propagation.
@@ -45,7 +46,7 @@ Datara is designed as a high-performance compiled systems and application progra
 - **Optimization Guard:** Loop optimizations (such as `LoopFold`) statically verify induction variable bounds or use parity-split arithmetic to preserve mathematical equivalence across all ranges.
 
 ### Gate 7: Numeric Widening and Promotion
-- **Normative Rule:** No implicit widening between `Int` and `Float`. Mixing `Int` and `Float` in binary operations without an explicit cast (`.to_float()` / `.to_int()`) is a compile-time type mismatch error.
+- **Normative Rule:** No implicit widening between `Int` and `Float`. Both operands of binary arithmetic (`+`, `-`, `*`, `/`, `%`) and comparisons (`<`, `<=`, `>`, `>=`) must carry the exact same numeric type. Mixing `Int` and `Float` without an explicit cast (`as Float` / `as Int` or `.to_float()` / `.to_int()`) is a compile-time type mismatch error.
 
 ### Gate 8: Pattern Matching and `decide` Exhaustiveness
 - **Normative Rule:** `decide` constructs over tagged unions (`Outcome`, `Maybe`) must either exhaustively match all variant tags (`is_success: true` and `is_success: false`) or supply an unconditional `else` branch. Unhandled variants cause a compile-time error.

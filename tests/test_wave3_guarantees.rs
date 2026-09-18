@@ -10,7 +10,7 @@ fn test_wave3_ownership_borrow_conflict_rejection() {
 
     // 1. Multiple mutable views
     let source_mut_borrow = r#"
-class Data {
+struct Data {
     v: Int,
 }
 
@@ -35,7 +35,7 @@ fn main() {
 
     // 2. Use after move
     let source_move = r#"
-class Item {
+struct Item {
     val: Int,
 }
 
@@ -130,7 +130,7 @@ fn test_wave3_zero_alloc_real_time_mode() {
 
     // 1. @no_alloc violation
     let source_alloc = r#"
-class Task {
+struct Task {
     id: Int
 }
 
@@ -159,7 +159,7 @@ fn main() -> Int {
 
     // 2. @no_panic violation
     let source_panic = r#"
-class Controller {
+struct Controller {
     mode: Int
 }
 

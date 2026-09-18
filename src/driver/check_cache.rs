@@ -12,6 +12,11 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::Instant;
 
+pub const CHECKER_SEMANTIC_VERSION: &str = match option_env!("FORGEN_BUILD_SEMANTIC_HASH") {
+    Some(h) => h,
+    None => "1.4.4-sem-v1",
+};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedCheckRecord {
     pub success: bool,
@@ -21,6 +26,8 @@ pub struct CachedCheckRecord {
     pub source_hash: u64,
     pub abi: String,
     pub compiler_version: String,
+    #[serde(default)]
+    pub checker_semantic_version: String,
 }
 
 pub struct CheckCache;
@@ -37,7 +44,7 @@ impl CheckCache {
     }
 
     pub fn compute_key(source: &str, file: &str, abi: StructReturnAbi) -> (u64, PathBuf) {
-        let mut key_data = Vec::with_capacity(source.len() + file.len() + 64);
+        let mut key_data = Vec::with_capacity(source.len() + file.len() + 128);
         key_data.extend_from_slice(source.as_bytes());
         key_data.push(0);
         key_data.extend_from_slice(file.as_bytes());
@@ -45,6 +52,14 @@ impl CheckCache {
         key_data.extend_from_slice(format!("{:?}", abi).as_bytes());
         key_data.push(0);
         key_data.extend_from_slice(env!("CARGO_PKG_VERSION").as_bytes());
+        key_data.push(0);
+        key_data.extend_from_slice(CHECKER_SEMANTIC_VERSION.as_bytes());
+
+        // Include datara.toml if present in cwd to track dependency changes
+        if let Ok(manifest) = fs::read("datara.toml") {
+            key_data.push(0);
+            key_data.extend_from_slice(&manifest);
+        }
 
         let hash = Self::hash_bytes(&key_data);
         let cache_dir = Self::cache_dir();
@@ -61,11 +76,12 @@ impl CheckCache {
     }
 
     pub fn is_disabled() -> bool {
-        std::env::var("FORGEN_NO_CACHE").map_or(false, |v| v == "1" || v.eq_ignore_ascii_case("true"))
+        std::env::var("FORGEN_NO_CACHE")
+            .map_or(false, |v| v == "1" || v.eq_ignore_ascii_case("true"))
     }
 
     pub fn get(source: &str, file: &str, abi: StructReturnAbi) -> Option<CompilationResult> {
-        if Self::is_disabled() {
+        if Self::is_disabled() || source.contains("import c") || source.contains("import \"") {
             return None;
         }
 
@@ -78,13 +94,31 @@ impl CheckCache {
         let content = fs::read_to_string(&cache_file).ok()?;
         let record: CachedCheckRecord = serde_json::from_str(&content).ok()?;
 
-        if record.compiler_version != env!("CARGO_PKG_VERSION") || record.source_hash != source_hash {
+        if record.compiler_version != env!("CARGO_PKG_VERSION")
+            || record.checker_semantic_version != CHECKER_SEMANTIC_VERSION
+            || record.source_hash != source_hash
+        {
             let _ = fs::remove_file(&cache_file);
             return None;
         }
 
         let mut timings = record.timings;
         timings.total_ms = start.elapsed().as_millis();
+
+        let program = if record.success {
+            let mut dummy_diag = crate::diagnostics::DiagnosticEngine::new("en");
+            crate::driver::pipeline::parse_single_source(
+                source,
+                file,
+                &mut dummy_diag,
+                crate::driver::pipeline::CompilationTimings::default(),
+                start,
+            )
+            .ok()
+            .map(|(p, _)| p)
+        } else {
+            None
+        };
 
         Some(CompilationResult {
             success: record.success,
@@ -94,7 +128,7 @@ impl CheckCache {
             } else {
                 None
             },
-            program: None,
+            program,
             semantic_graph: None,
             dmir_module: None,
             optimization_report: None,
@@ -108,7 +142,7 @@ impl CheckCache {
     }
 
     pub fn put(source: &str, file: &str, abi: StructReturnAbi, result: &CompilationResult) {
-        if Self::is_disabled() {
+        if Self::is_disabled() || source.contains("import c") || source.contains("import \"") {
             return;
         }
 
@@ -125,6 +159,7 @@ impl CheckCache {
             source_hash,
             abi: format!("{:?}", abi),
             compiler_version: env!("CARGO_PKG_VERSION").to_string(),
+            checker_semantic_version: CHECKER_SEMANTIC_VERSION.to_string(),
         };
 
         if let Ok(json) = serde_json::to_string(&record) {

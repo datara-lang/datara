@@ -37,6 +37,11 @@ fn internal_worker(n: Int, acc: Int) -> Int {
 fn main() {
     let t = now_ms()
     let r = internal_worker(t % 100, 0)
+    if t < 0 {
+        unsafe(justification: "Audit FFI standard ABI call") {
+            puts("test")
+        }
+    }
     out r
 }
 "#;

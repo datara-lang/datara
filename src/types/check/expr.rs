@@ -23,6 +23,18 @@ impl<'a> TypeChecker<'a> {
                 }
             }
         }
+        if let Some(r) = self.roles.get(tr_name) {
+            if let Some(rm) = r.methods.iter().find(|m| m.name == method_name) {
+                return Some(TraitMethodSignature {
+                    name: rm.name.clone(),
+                    generic_params: rm.generic_params.clone(),
+                    params: rm.params.clone(),
+                    return_type: rm.return_type.clone(),
+                    default_body: rm.body.clone(),
+                    span: rm.span.clone(),
+                });
+            }
+        }
         None
     }
 
@@ -45,7 +57,7 @@ impl<'a> TypeChecker<'a> {
             diag.error(
                 ErrorCode::RecursionLimitExceeded,
                 format!(
-                    "E0999: expression nesting depth exceeds limit of {} -- \
+                    "expression nesting depth exceeds limit of {} -- \
                      simplify deeply-nested expressions",
                     crate::types::MAX_EXPR_DEPTH
                 ),
@@ -104,7 +116,27 @@ impl<'a> TypeChecker<'a> {
             }
             Expr::InterpolatedString { expressions, .. } => {
                 for e in expressions {
-                    self.check_expr(e, diag);
+                    let ty = self.check_expr(e, diag);
+                    if !self.is_printable_type(&ty) {
+                        let help = match &ty {
+                            DataraType::Class(c) => {
+                                format!("add '@derive(Display)' to '{}' or use 'to_str(...)'", c)
+                            }
+                            DataraType::List(_) => {
+                                "format list elements via a loop, e.g. 'for x in xs { out x }', or serialize with a custom formatter".to_string()
+                            }
+                            DataraType::Map { .. } => {
+                                "format entries via a loop, or convert keys/values to Str".to_string()
+                            }
+                            _ => "provide an explicit conversion to Str".to_string(),
+                        };
+                        diag.error_with_help(
+                            ErrorCode::UnprintableType,
+                            format!("Cannot interpolate value of unprintable type '{}' into string", ty),
+                            Some(e.span().clone()),
+                            Some(help),
+                        );
+                    }
                 }
                 DataraType::String
             }
@@ -257,6 +289,17 @@ impl<'a> TypeChecker<'a> {
                             return f_type.clone();
                         }
                     }
+                    DataraType::Result(ok, err) => match member.as_str() {
+                        "is_success" | "is_ok" | "is_err" => return DataraType::Bool,
+                        "value" | "ok" => return (**ok).clone(),
+                        "error_msg" | "error" | "err" => return (**err).clone(),
+                        _ => {}
+                    },
+                    DataraType::Option(val) => match member.as_str() {
+                        "is_some" | "is_none" => return DataraType::Bool,
+                        "value" | "val" => return (**val).clone(),
+                        _ => {}
+                    },
                     DataraType::TypeParam(p) => {
                         let bounds = self
                             .current_fn_name
@@ -404,9 +447,46 @@ impl<'a> TypeChecker<'a> {
                 DataraType::Class(effective_class_name.to_string())
             }
             Expr::Pipeline { stages, .. } => {
-                let mut current = DataraType::Int;
-                for s in stages {
-                    current = self.check_expr(s, diag);
+                if stages.is_empty() {
+                    return DataraType::Unit;
+                }
+                let mut current = self.check_expr(&stages[0], diag);
+                for stage in &stages[1..] {
+                    match stage {
+                        Expr::Identifier(fn_name, _) => {
+                            if let Some((_, ret_ty, _)) = self.function_signatures.get(fn_name) {
+                                current = ret_ty.clone();
+                            } else if let Some(func_sym) = self.resolver.functions.get(fn_name) {
+                                current = func_sym
+                                    .return_type
+                                    .as_ref()
+                                    .map(|tn| self.resolve_type_node(tn, diag))
+                                    .unwrap_or(DataraType::Unit);
+                            } else {
+                                current = self.check_expr(stage, diag);
+                            }
+                        }
+                        Expr::Call { callee, .. } => {
+                            if let Expr::Identifier(fn_name, _) = &**callee {
+                                if let Some((_, ret_ty, _)) = self.function_signatures.get(fn_name) {
+                                    current = ret_ty.clone();
+                                } else if let Some(func_sym) = self.resolver.functions.get(fn_name) {
+                                    current = func_sym
+                                        .return_type
+                                        .as_ref()
+                                        .map(|tn| self.resolve_type_node(tn, diag))
+                                        .unwrap_or(DataraType::Unit);
+                                } else {
+                                    current = self.check_expr(stage, diag);
+                                }
+                            } else {
+                                current = self.check_expr(stage, diag);
+                            }
+                        }
+                        _ => {
+                            current = self.check_expr(stage, diag);
+                        }
+                    }
                 }
                 current
             }
@@ -795,7 +875,7 @@ impl<'a> TypeChecker<'a> {
                         DataraType::List(elem) => (**elem).clone(),
                         DataraType::Map(_, val) => (**val).clone(),
                         DataraType::GenericInstance { name, args }
-                            if name == "List" && !args.is_empty() =>
+                            if (name == "List" || name == "Array") && !args.is_empty() =>
                         {
                             args[0].clone()
                         }
@@ -807,7 +887,7 @@ impl<'a> TypeChecker<'a> {
                         // Erased collections: fall back to the recorded
                         // element type, else the dynamic type `Val` — never
                         // a silent `Int` default.
-                        DataraType::Class(c) if c == "List" => {
+                        DataraType::Class(c) if c == "List" || c == "Array" => {
                             if let Expr::Identifier(name, _) = &**object
                                 && let Some(elem) = self.var_element_types.get(name)
                             {

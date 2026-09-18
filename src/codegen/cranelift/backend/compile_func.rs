@@ -9,11 +9,11 @@ use cranelift_module::{FuncId, Module as ClifModule};
 use std::collections::HashMap;
 
 use super::alloc_tier::{self, TierFrame};
-use super::inst_binop::{compile_binop, compile_unop};
-use super::inst_call::{compile_call, compile_method_call};
 use super::field_access::{
     emit_field_load, emit_field_store, get_field_type_size, resolve_field_offset,
 };
+use super::inst_binop::{compile_binop, compile_unop};
+use super::inst_call::{compile_call, compile_method_call};
 use super::types::{FunctionCompileCtx, ModuleDecls, RuntimeIds, clif_type};
 
 pub fn compile_all_functions<M: ClifModule>(
@@ -173,11 +173,21 @@ pub fn compile_all_functions<M: ClifModule>(
             {
                 var_to_class.insert(p_name.clone(), p_type.clone());
                 val_to_class.insert(*p_val, p_type.clone());
+                if p_name == "this" {
+                    var_to_class.insert("self".to_string(), p_type.clone());
+                } else if p_name == "self" {
+                    var_to_class.insert("this".to_string(), p_type.clone());
+                }
             }
 
             let var = builder.declare_var(clif_type(p_type));
             builder.def_var(var, p_clif_val);
             var_map.insert(p_name.clone(), var);
+            if p_name == "this" {
+                var_map.insert("self".to_string(), var);
+            } else if p_name == "self" {
+                var_map.insert("this".to_string(), var);
+            }
         }
 
         for (gname, (gty, _)) in &dmir_module.globals {
@@ -258,8 +268,8 @@ pub fn compile_all_functions<M: ClifModule>(
                     }
                     Inst::InlineAsm { .. } => {
                         return Err(
-                                "Code generation failed: [E0902] inline assembly is not supported on Cranelift backend; use --llvm backend instead".to_string()
-                            );
+                            "Code generation failed: [E0902] inline assembly is not supported on Cranelift backend; use --llvm backend instead".to_string(),
+                        );
                     }
                     Inst::LoadVar { dest, name } => {
                         if let Some(data_id) = decls.global_data_map.get(name) {
@@ -658,52 +668,52 @@ pub fn compile_all_functions<M: ClifModule>(
                             is_packed,
                         );
                         val_map.insert(*dest, loaded);
-                            if field_type_declared.contains("Str")
-                                || ty.contains("Str")
-                                || string_fields.contains(field)
-                                || ((ty == "T" || field_type_declared == "T")
-                                    && (current_class_name.contains("<Str>")
-                                        || current_class_name.contains("<String>")
-                                        || current_class_name.ends_with("_Str")
-                                        || current_class_name.ends_with("_String")))
-                            {
-                                string_vids.insert(*dest);
-                            }
-                            if field_type_declared == "Bool"
-                                || ty == "Bool"
-                                || ((ty == "T" || field_type_declared == "T")
-                                    && (current_class_name.contains("<Bool>")
-                                        || current_class_name.ends_with("_Bool")))
-                            {
-                                bool_vids.insert(*dest);
-                            }
-                            if field_type_declared.contains("List")
-                                || ty.contains("List")
-                                || field_type_declared.starts_with('[')
-                                || ty.starts_with('[')
-                            {
-                                list_vids.insert(*dest);
-                            }
-                            if field_type_declared.contains("Map") || ty.contains("Map") {
-                                map_vids.insert(*dest);
-                            }
-                            let stripped_field_type = field_type_declared
-                                .split('<')
-                                .next()
-                                .unwrap_or(field_type_declared);
-                            if !stripped_field_type.is_empty()
-                                && stripped_field_type != "Int"
-                                && stripped_field_type != "Float"
-                                && stripped_field_type != "Bool"
-                                && stripped_field_type != "Str"
-                                && stripped_field_type != "String"
-                                && stripped_field_type != "List"
-                                && stripped_field_type != "Map"
-                                && stripped_field_type != "Unit"
-                                && !stripped_field_type.starts_with('[')
-                            {
-                                val_to_class.insert(*dest, stripped_field_type.to_string());
-                            }
+                        if field_type_declared.contains("Str")
+                            || ty.contains("Str")
+                            || string_fields.contains(field)
+                            || ((ty == "T" || field_type_declared == "T")
+                                && (current_class_name.contains("<Str>")
+                                    || current_class_name.contains("<String>")
+                                    || current_class_name.ends_with("_Str")
+                                    || current_class_name.ends_with("_String")))
+                        {
+                            string_vids.insert(*dest);
+                        }
+                        if field_type_declared == "Bool"
+                            || ty == "Bool"
+                            || ((ty == "T" || field_type_declared == "T")
+                                && (current_class_name.contains("<Bool>")
+                                    || current_class_name.ends_with("_Bool")))
+                        {
+                            bool_vids.insert(*dest);
+                        }
+                        if field_type_declared.contains("List")
+                            || ty.contains("List")
+                            || field_type_declared.starts_with('[')
+                            || ty.starts_with('[')
+                        {
+                            list_vids.insert(*dest);
+                        }
+                        if field_type_declared.contains("Map") || ty.contains("Map") {
+                            map_vids.insert(*dest);
+                        }
+                        let stripped_field_type = field_type_declared
+                            .split('<')
+                            .next()
+                            .unwrap_or(field_type_declared);
+                        if !stripped_field_type.is_empty()
+                            && stripped_field_type != "Int"
+                            && stripped_field_type != "Float"
+                            && stripped_field_type != "Bool"
+                            && stripped_field_type != "Str"
+                            && stripped_field_type != "String"
+                            && stripped_field_type != "List"
+                            && stripped_field_type != "Map"
+                            && stripped_field_type != "Unit"
+                            && !stripped_field_type.starts_with('[')
+                        {
+                            val_to_class.insert(*dest, stripped_field_type.to_string());
+                        }
                     }
                     Inst::SetField {
                         object,
@@ -764,6 +774,8 @@ pub fn compile_all_functions<M: ClifModule>(
                         } else if bool_vids.contains(value) {
                             let fn_ref = module.declare_func_in_func(rt_out_bool_id, builder.func);
                             builder.ins().call(fn_ref, &[v]);
+                        } else if list_vids.contains(value) || map_vids.contains(value) {
+                            return Err(format!("Cannot output unprintable composite %{} in '{}'", value, f.name));
                         } else {
                             let fn_ref = module.declare_func_in_func(rt_out_int_id, builder.func);
                             builder.ins().call(fn_ref, &[v]);

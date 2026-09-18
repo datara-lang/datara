@@ -1,6 +1,6 @@
-use examples.real_cli.files.FileInfo
+﻿use examples.real_cli.files.FileInfo
 
-class Reporter {
+struct Reporter {
     format_name: Str
 }
 

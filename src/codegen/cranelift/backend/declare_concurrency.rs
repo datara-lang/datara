@@ -31,7 +31,13 @@ pub fn declare_runtime_concurrency<M: ClifModule>(
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "spawn", &["datara_thread_spawn_wrap"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "spawn",
+            &["datara_thread_spawn_wrap"],
+            sig,
+        )?;
     }
 
     // 2. Thread join
@@ -46,14 +52,26 @@ pub fn declare_runtime_concurrency<M: ClifModule>(
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "join_timeout", &["ThreadHandle_join_timeout"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "join_timeout",
+            &["ThreadHandle_join_timeout"],
+            sig,
+        )?;
     }
 
     // 3. Thread handle free
     {
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "ThreadHandle_free", &["datara_thread_free"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "ThreadHandle_free",
+            &["datara_thread_free"],
+            sig,
+        )?;
     }
 
     // 4. Channel create & new
@@ -61,7 +79,13 @@ pub fn declare_runtime_concurrency<M: ClifModule>(
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "channel_create", &["datara_channel_create"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "channel_create",
+            &["datara_channel_create"],
+            sig,
+        )?;
     }
     {
         let mut sig = Signature::new(call_conv);
@@ -75,7 +99,13 @@ pub fn declare_runtime_concurrency<M: ClifModule>(
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "channel_send", &["Channel_send", "datara_channel_send_wrap"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "channel_send",
+            &["Channel_send", "datara_channel_send_wrap"],
+            sig,
+        )?;
     }
 
     // 6. Channel recv & try_recv
@@ -83,15 +113,33 @@ pub fn declare_runtime_concurrency<M: ClifModule>(
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "channel_recv", &["Channel_recv"], sig.clone())?;
-        reg_fn(module, func_ids, "channel_try_recv", &["Channel_try_recv"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "channel_recv",
+            &["Channel_recv"],
+            sig.clone(),
+        )?;
+        reg_fn(
+            module,
+            func_ids,
+            "channel_try_recv",
+            &["Channel_try_recv"],
+            sig,
+        )?;
     }
 
     // 7. Channel close
     {
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "channel_close", &["Channel_close", "datara_channel_close"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "channel_close",
+            &["Channel_close", "datara_channel_close"],
+            sig,
+        )?;
     }
 
     // 8. Channel len
@@ -99,14 +147,26 @@ pub fn declare_runtime_concurrency<M: ClifModule>(
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "channel_len", &["Channel_len", "datara_channel_len"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "channel_len",
+            &["Channel_len", "datara_channel_len"],
+            sig,
+        )?;
     }
 
     // 9. Channel free
     {
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "Channel_free", &["datara_channel_free"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "Channel_free",
+            &["datara_channel_free"],
+            sig,
+        )?;
     }
 
     // 10. Parallel For
@@ -116,33 +176,63 @@ pub fn declare_runtime_concurrency<M: ClifModule>(
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "parallel_for", &["datara_parallel_for"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "parallel_for",
+            &["datara_parallel_for"],
+            sig,
+        )?;
     }
 
     // 11. Scratchpad Memory
     {
         let mut sig = Signature::new(call_conv);
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "scratch_enter", &["datara_scratch_enter"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "scratch_enter",
+            &["datara_scratch_enter"],
+            sig,
+        )?;
     }
     {
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "scratch_alloc", &["datara_scratch_alloc"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "scratch_alloc",
+            &["datara_scratch_alloc"],
+            sig,
+        )?;
     }
     {
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "scratch_exit", &["datara_scratch_exit"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "scratch_exit",
+            &["datara_scratch_exit"],
+            sig,
+        )?;
     }
     {
         let mut sig = Signature::new(call_conv);
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.params.push(AbiParam::new(clif_types::I64));
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(module, func_ids, "scratch_promote", &["datara_scratch_promote"], sig)?;
+        reg_fn(
+            module,
+            func_ids,
+            "scratch_promote",
+            &["datara_scratch_promote"],
+            sig,
+        )?;
     }
 
     Ok(())

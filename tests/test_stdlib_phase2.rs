@@ -179,7 +179,7 @@ fn main() {
 fn test_fmt_string_table_str_map_e2e() {
     let out = run_datara(
         r#"
-class Row {
+struct Row {
     id: Int
     name: Str
     score: Float

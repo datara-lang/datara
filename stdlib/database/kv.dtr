@@ -1,6 +1,6 @@
-use stdlib.io.fs
+﻿use stdlib.io.fs
 
-class KeyValueStore {
+struct KeyValueStore {
     wal_path: Str
     is_open: Bool
 }

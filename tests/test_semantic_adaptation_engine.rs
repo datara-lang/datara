@@ -6,7 +6,7 @@ use forgen::optimizer::adaptive::{
 #[test]
 fn test_sae_representation_adaptation() {
     let source = "
-class Point {
+struct Point {
     x: Int
     y: Int
 }
@@ -48,7 +48,7 @@ fn test_sae_execution_strategy_selection() {
 
     // The adapter's contract is to report what the compiler can actually EMIT.
     // The Cranelift backend has no vector lowering, no thread pool wired into
-    // codegen and no async runtime, so every input class must resolve to
+    // codegen and no async runtime, so every input struct must resolve to
     // `SequentialScalar`. An earlier revision returned SIMDVectorized /
     // ParallelThreadPool / AsyncTaskReactor here, which made the SAE report
     // claim optimizations that no pass ever performed. See

@@ -43,7 +43,7 @@ fn audit_traits_dispatch_1_impl_vs_3_impls() {
 trait SingleWorker {
     fn run(&self) -> Int;
 }
-class WorkerA { val: Int }
+struct WorkerA { val: Int }
 impl SingleWorker for WorkerA {
     fn run(&self) -> Int { return self.val * 10 }
 }
@@ -65,9 +65,9 @@ fn main() {
 trait MultiWorker {
     fn run(&self) -> Int;
 }
-class Worker1 { val: Int }
-class Worker2 { val: Int }
-class Worker3 { val: Int }
+struct Worker1 { val: Int }
+struct Worker2 { val: Int }
+struct Worker3 { val: Int }
 impl MultiWorker for Worker1 { fn run(&self) -> Int { return self.val + 1 } }
 impl MultiWorker for Worker2 { fn run(&self) -> Int { return self.val + 2 } }
 impl MultiWorker for Worker3 { fn run(&self) -> Int { return self.val + 3 } }
@@ -110,7 +110,7 @@ trait Greet {
     }
 }
 
-class User {
+struct User {
     user_name: String
 }
 
@@ -148,7 +148,7 @@ trait Printable {
     fn print(&self) -> String;
 }
 
-class NotPrintable {
+struct NotPrintable {
     val: Int
 }
 

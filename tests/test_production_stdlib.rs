@@ -29,7 +29,7 @@ fn test_real_file_io_system() {
 
     let code = format!(
         r#"
-class File {{
+struct File {{
     path: Str
 }}
 
@@ -90,7 +90,7 @@ fn main(sys_caps: SystemCapabilities) {{
 #[test]
 fn test_string_primitives_suite() {
     let code = r#"
-class StringUtils {
+struct StringUtils {
     prefix: Str
 }
 

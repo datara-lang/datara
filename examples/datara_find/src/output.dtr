@@ -1,4 +1,4 @@
-class TableFormatter {
+﻿struct TableFormatter {
     border_char: Str
 }
 

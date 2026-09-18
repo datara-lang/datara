@@ -117,7 +117,21 @@ pub enum ErrorCode {
     // Capability 2.0 Errors (E-CAP-*, v1.4.2)
     CapMissingPermission,
     CapGlobViolation,
+
+    // Entity-Guided Evidence Optimization Errors (Datara v1.5.0)
+    ClassKeywordForbidden,
+    StructMethodForbidden,
+    ComponentMethodForbidden,
+    ComponentNonPodField,
+    BehaviorFieldForbidden,
+    BehaviorImpure,
+    RoleCapabilityMissing,
+    ImplCoherenceViolation,
+    ImplMissingSuperTrait,
+    UnprintableType,
+    DeprecatedPrintFunction,
 }
+
 
 impl ErrorCode {
     pub fn as_str(&self) -> &'static str {
@@ -204,7 +218,19 @@ impl ErrorCode {
             ErrorCode::BridgeUnknownLanguage => "E-BRIDGE-003",
             ErrorCode::CapMissingPermission => "E-CAP-001",
             ErrorCode::CapGlobViolation => "E-CAP-002",
+            ErrorCode::ClassKeywordForbidden => "E0100",
+            ErrorCode::StructMethodForbidden => "E-STRUCT-001",
+            ErrorCode::ComponentMethodForbidden => "E-COMP-001",
+            ErrorCode::ComponentNonPodField => "E-COMP-002",
+            ErrorCode::BehaviorFieldForbidden => "E-BEH-001",
+            ErrorCode::BehaviorImpure => "E-BEH-002",
+            ErrorCode::RoleCapabilityMissing => "E-ROLE-001",
+            ErrorCode::ImplCoherenceViolation => "E-IMPL-001",
+            ErrorCode::ImplMissingSuperTrait => "E-IMPL-002",
+            ErrorCode::UnprintableType => "E-OUT-001",
+            ErrorCode::DeprecatedPrintFunction => "W0102",
         }
+
     }
 
     pub fn description(&self, locale: &str) -> &'static str {
@@ -385,7 +411,41 @@ impl ErrorCode {
                 ErrorCode::CapGlobViolation => {
                     "Путь или адрес нарушает разрешённый glob-шаблон в секции [capabilities] datara.toml"
                 }
+                ErrorCode::ClassKeywordForbidden => {
+                    "Ключевое слово 'class' удалено из языка: используйте 'struct' для данных и 'behavior' или 'impl' для методов"
+                }
+                ErrorCode::StructMethodForbidden => {
+                    "Методы внутри 'struct' запрещены: вынесите их в блок 'behavior <Тип>' или 'impl <Трейт> for <Тип>'"
+                }
+                ErrorCode::ComponentMethodForbidden => {
+                    "Компонент является чистым POD-контейнером данных и не может объявлять методы: используйте 'behavior'"
+                }
+                ErrorCode::ComponentNonPodField => {
+                    "Поля компонента обязаны быть POD-типами (Int, Float, Bool, Char или другой компонент): куча запрещена"
+                }
+                ErrorCode::BehaviorFieldForbidden => {
+                    "Блок 'behavior' не может содержать состояние или поля данных: используйте 'struct' или 'component'"
+                }
+                ErrorCode::BehaviorImpure => {
+                    "Методы в 'behavior' чистые по умолчанию: операции с побочными эффектами требуют атрибута #[effect(IO)]"
+                }
+                ErrorCode::RoleCapabilityMissing => {
+                    "Контракт роли требует разрешения, отсутствующего в окружении или [capabilities]"
+                }
+                ErrorCode::ImplCoherenceViolation => {
+                    "Нарушение когерентности: для типа уже существует реализация данного трейта"
+                }
+                ErrorCode::ImplMissingSuperTrait => {
+                    "Отсутствует обязательная реализация супер-трейта, требуемая определением трейта"
+                }
+                ErrorCode::UnprintableType => {
+                    "Тип выражения не является печатаемым: требуется примитивный тип или реализация Display"
+                }
+                ErrorCode::DeprecatedPrintFunction => {
+                    "Использование функций печати устарело: используйте оператор 'out' или 'err'"
+                }
             }
+
         } else {
             match self {
                 ErrorCode::SyntaxUnexpectedToken => "Unexpected token in source",
@@ -557,7 +617,41 @@ impl ErrorCode {
                 ErrorCode::CapGlobViolation => {
                     "Path or target address violates allowed glob in datara.toml [capabilities]"
                 }
+                ErrorCode::ClassKeywordForbidden => {
+                    "The 'class' keyword does not exist in Datara: use 'struct' for data and 'behavior' or 'impl' for methods"
+                }
+                ErrorCode::StructMethodForbidden => {
+                    "Methods cannot be defined inside 'struct': move methods into 'behavior <Type>' or 'impl <Trait> for <Type>'"
+                }
+                ErrorCode::ComponentMethodForbidden => {
+                    "Components are pure POD data containers and cannot declare methods: move logic to a 'behavior'"
+                }
+                ErrorCode::ComponentNonPodField => {
+                    "Component fields must be POD types (Int, Float, Bool, Char, or nested component): heap types are forbidden"
+                }
+                ErrorCode::BehaviorFieldForbidden => {
+                    "Behaviors cannot declare state or fields: move fields into 'struct' or 'component'"
+                }
+                ErrorCode::BehaviorImpure => {
+                    "Methods in a behavior are pure by default: impure operations (IO, Net) require explicit '#[effect(IO)]'"
+                }
+                ErrorCode::RoleCapabilityMissing => {
+                    "Role capability requirement is not satisfied by the target type or environment"
+                }
+                ErrorCode::ImplCoherenceViolation => {
+                    "Coherence violation: duplicate implementation of trait for this type"
+                }
+                ErrorCode::ImplMissingSuperTrait => {
+                    "Missing super-trait implementation required by trait definition"
+                }
+                ErrorCode::UnprintableType => {
+                    "Type is not printable: primitive type (Int, Float, Bool, Char, Str) or @derive(Display) is required"
+                }
+                ErrorCode::DeprecatedPrintFunction => {
+                    "Print function is deprecated: use 'out' or 'err' statement instead"
+                }
             }
+
         }
     }
 }

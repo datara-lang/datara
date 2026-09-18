@@ -596,9 +596,9 @@ impl<'a> Parser<'a> {
         let is_class_kw = self.previous().token_type == TokenType::Class;
         let start_span = self.previous().span.clone();
         if is_class_kw {
-            self.diag.warning(
-                crate::diagnostics::ErrorCode::DeprecatedFeature,
-                "The 'class' keyword is deprecated since v1.3.0. Use 'struct' for Data-Oriented Design representations.".to_string(),
+            self.diag.error(
+                crate::diagnostics::ErrorCode::ClassKeywordForbidden,
+                "The 'class' keyword does not exist in Datara. Use 'struct' for Data-Oriented Design representations and 'behavior' or 'impl' for methods.".to_string(),
                 Some(start_span.clone()),
             );
         }
@@ -644,6 +644,18 @@ impl<'a> Parser<'a> {
 
         while !self.check(&TokenType::RBrace) && !self.is_at_end() {
             if let Some(item) = self.parse_class_item() {
+                if let ClassItem::Method(ref m) = item {
+                    if !is_class_kw {
+                        self.diag.error(
+                            crate::diagnostics::ErrorCode::StructMethodForbidden,
+                            format!(
+                                "Methods cannot be defined inside 'struct' (found '{}'). Move methods into 'behavior {}' or 'impl <Trait> for {}'.",
+                                m.name, name, name
+                            ),
+                            Some(m.span.clone()),
+                        );
+                    }
+                }
                 body_items.push(item);
             } else {
                 self.synchronize();
@@ -750,6 +762,45 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_effect_and_caps(&mut self, attrs: &mut Vec<Attribute>) {
+        if self.match_token(&TokenType::Slash) {
+            let mut effects = Vec::new();
+            loop {
+                if let Some(eff) = self.consume_ident("Expected effect name (e.g. Pure, IO, Network)") {
+                    effects.push((eff, String::new()));
+                }
+                if !self.match_token(&TokenType::Comma) {
+                    break;
+                }
+            }
+            if !effects.is_empty() {
+                attrs.push(Attribute {
+                    name: "effect".to_string(),
+                    args: effects,
+                    span: self.previous().span.clone(),
+                });
+            }
+            if self.match_ident_str("needs") {
+                let mut caps = Vec::new();
+                loop {
+                    if let Some(cap) = self.consume_ident("Expected capability name") {
+                        caps.push((cap, String::new()));
+                    }
+                    if !self.match_token(&TokenType::Comma) {
+                        break;
+                    }
+                }
+                if !caps.is_empty() {
+                    attrs.push(Attribute {
+                        name: "needs".to_string(),
+                        args: caps,
+                        span: self.previous().span.clone(),
+                    });
+                }
+            }
+        }
+    }
+
     pub(crate) fn parse_behavior_decl(&mut self) -> Option<BehaviorDecl> {
         let start_span = self.previous().span.clone();
         let target_type = self.consume_ident("Expected target type for behavior")?;
@@ -759,6 +810,29 @@ impl<'a> Parser<'a> {
 
         while !self.check(&TokenType::RBrace) && !self.is_at_end() {
             if let Some(item) = self.parse_class_item() {
+                match &item {
+                    ClassItem::Field(f) => {
+                        self.diag.error(
+                            crate::diagnostics::ErrorCode::BehaviorFieldForbidden,
+                            format!(
+                                "Behaviors cannot declare state or fields (found '{}'). Move fields into 'struct' or 'component'.",
+                                f.name
+                            ),
+                            Some(f.span.clone()),
+                        );
+                    }
+                    ClassItem::Using(u, span) => {
+                        self.diag.error(
+                            crate::diagnostics::ErrorCode::BehaviorFieldForbidden,
+                            format!(
+                                "Behaviors cannot use 'using' composition (found 'using {}'). Behaviors are state-free method collections.",
+                                u
+                            ),
+                            Some(span.clone()),
+                        );
+                    }
+                    ClassItem::Method(_) | ClassItem::Invariant(_, _) => {}
+                }
                 body_items.push(item);
             } else {
                 self.synchronize();
@@ -788,6 +862,16 @@ impl<'a> Parser<'a> {
 
         while !self.check(&TokenType::RBrace) && !self.is_at_end() {
             if let Some(item) = self.parse_class_item() {
+                if let ClassItem::Method(m) = &item {
+                    self.diag.error(
+                        crate::diagnostics::ErrorCode::ComponentMethodForbidden,
+                        format!(
+                            "Components are pure POD data containers and cannot declare methods (found '{}'). Move logic to a 'behavior'.",
+                            m.name
+                        ),
+                        Some(m.span.clone()),
+                    );
+                }
                 body_items.push(item);
             } else {
                 self.synchronize();
@@ -1080,6 +1164,7 @@ impl<'a> Parser<'a> {
             if self.match_token(&TokenType::Arrow) {
                 return_type = self.parse_type();
             }
+            self.parse_effect_and_caps(&mut attrs);
 
             let (requires, ensures) = self.parse_contracts();
             let mut decreases = None;
@@ -1187,7 +1272,7 @@ impl<'a> Parser<'a> {
     pub(crate) fn parse_function_decl(
         &mut self,
         is_export: bool,
-        attributes: Vec<Attribute>,
+        mut attributes: Vec<Attribute>,
     ) -> Option<FunctionDecl> {
         let start_span = self.previous().span.clone();
         let name = self.consume_ident("Expected function name")?;
@@ -1229,6 +1314,7 @@ impl<'a> Parser<'a> {
         if self.match_token(&TokenType::Arrow) {
             return_type = self.parse_type();
         }
+        self.parse_effect_and_caps(&mut attributes);
 
         let (requires, ensures) = self.parse_contracts();
         let mut decreases = None;

@@ -360,6 +360,7 @@ pub(super) fn run_check_pipeline(
     let eff_start = Instant::now();
     let mut effects = EffectAnalyzer::new();
     effects.analyze_program(&program);
+    effects.verify_behavior_purity(&program, diag);
     timings.effects_ms = eff_start.elapsed().as_millis();
 
     // 5. Ownership
@@ -416,14 +417,31 @@ pub(super) fn run_check_pipeline(
             let mut optimizer = crate::optimizer::Optimizer::new("release");
             if let Err(err_diag) = optimizer.optimize_module(&mut dmir_module) {
                 diag.error_raw(err_diag);
-            } else if std::env::var("FORGEN_CHECK_VERIFY_BACKEND").map(|v| v != "0").unwrap_or(true) {
-                let backend = crate::codegen::cranelift::CraneliftBackend::for_host();
-                if let Err(codegen_err) = backend.real_backend.compile_to_object_bytes(&dmir_module) {
-                    diag.error(
-                        crate::diagnostics::ErrorCode::CodegenBackendFailed,
-                        format!("[E-CODEGEN-001] Backend compilation verification failed: {}", codegen_err),
-                        None,
-                    );
+            } else if std::env::var("FORGEN_CHECK_VERIFY_BACKEND")
+                .map(|v| v != "0")
+                .unwrap_or(true)
+            {
+                let has_inline_asm = dmir_module.functions.values().any(|f| {
+                    f.has_inline_asm
+                        || f.blocks.iter().any(|b| {
+                            b.instructions
+                                .iter()
+                                .any(|i| matches!(i, crate::dmir::Inst::InlineAsm { .. }))
+                        })
+                });
+                if !has_inline_asm {
+                    let backend = crate::codegen::cranelift::CraneliftBackend::for_host();
+                    if let Err(codegen_err) = backend.real_backend.compile_to_object_bytes(&dmir_module)
+                    {
+                        diag.error(
+                            crate::diagnostics::ErrorCode::CodegenBackendFailed,
+                            format!(
+                                "[E-CODEGEN-001] Backend compilation verification failed: {}",
+                                codegen_err
+                            ),
+                            None,
+                        );
+                    }
                 }
             }
         }
@@ -574,6 +592,7 @@ pub(super) fn run_analysis_and_lower<R>(
     let eff_start = Instant::now();
     let mut effects = EffectAnalyzer::new();
     effects.analyze_program(&program);
+    effects.verify_behavior_purity(&program, diag);
     timings.effects_ms = eff_start.elapsed().as_millis();
 
     // 6. Ownership & Borrow Tracker

@@ -159,7 +159,7 @@ fn main() {
 #[test]
 fn test_stdlib_classes_interop() {
     let code = r#"
-class JS {
+struct JS {
     version: Str
 }
 behavior JS {
@@ -171,7 +171,7 @@ behavior JS {
     }
 }
 
-class StringUtils {
+struct StringUtils {
     prefix: Str
 }
 behavior StringUtils {

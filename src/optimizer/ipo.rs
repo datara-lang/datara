@@ -63,6 +63,9 @@ impl InterproceduralOptimizer {
         fn_names.sort();
 
         for fname in &fn_names {
+            if fname.starts_with("B_") || fname.starts_with("I_") {
+                continue;
+            }
             if let Some(idx) = fname.rfind('_') {
                 let mname = &fname[idx + 1..];
                 if !mname.is_empty() {
@@ -243,6 +246,11 @@ impl InterproceduralOptimizer {
                         // cloning (same reason as the cost-model inliner).
                         if callee.alloc_hint != crate::dmir::ArenaHint::None
                             || callee.has_inline_asm
+                            || callee.blocks.iter().any(|b| {
+                                b.instructions
+                                    .iter()
+                                    .any(|i| matches!(i, Inst::InlineAsm { .. }))
+                            })
                         {
                             continue;
                         }

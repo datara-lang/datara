@@ -26,7 +26,7 @@ return x
     assert_idempotence(sample1, &opts);
 
     let sample2 = r#"
-class Point {
+struct Point {
 x: Int,
 y: Int,
 }

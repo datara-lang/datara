@@ -694,7 +694,13 @@ impl ForgenCompiler {
                             }
                         }
                         if !diag.has_errors() {
-                            self.queue_shim_module("python", &u.span, stdlib_dir.as_deref(), &visited, &mut to_load);
+                            self.queue_shim_module(
+                                "python",
+                                &u.span,
+                                stdlib_dir.as_deref(),
+                                &visited,
+                                &mut to_load,
+                            );
                         }
                         continue;
                     }
@@ -775,16 +781,10 @@ impl ForgenCompiler {
                     }
 
                     // 3b. C++ Library Interop (.lib/.a/.dll/.so/.hpp with full diagnostics)
-                    if (first_seg == Some("cpp") || first_seg == Some("cxx"))
-                        && u.path.len() > 1
-                    {
+                    if (first_seg == Some("cpp") || first_seg == Some("cxx")) && u.path.len() > 1 {
                         let cpp_pkg = u.path.get(1).map(|s| s.as_str()).unwrap_or("");
                         if !cpp_pkg.is_empty() && checked_cpp_pkgs.insert(cpp_pkg.to_string()) {
-                            super::polyglot::PolyglotResolver::resolve_cpp(
-                                u,
-                                &base_dirs,
-                                diag,
-                            );
+                            super::polyglot::PolyglotResolver::resolve_cpp(u, &base_dirs, diag);
                         }
                         continue;
                     }
@@ -823,7 +823,13 @@ impl ForgenCompiler {
                         if !zig_pkg.is_empty() && checked_zig_pkgs.insert(zig_pkg.to_string()) {
                             super::polyglot::PolyglotResolver::resolve_zig(u, &base_dirs, diag);
                         }
-                        self.queue_shim_module("zig", &u.span, stdlib_dir.as_deref(), &visited, &mut to_load);
+                        self.queue_shim_module(
+                            "zig",
+                            &u.span,
+                            stdlib_dir.as_deref(),
+                            &visited,
+                            &mut to_load,
+                        );
                         continue;
                     }
 
@@ -837,7 +843,13 @@ impl ForgenCompiler {
                         if !cs_pkg.is_empty() && checked_csharp_pkgs.insert(cs_pkg.to_string()) {
                             super::polyglot::PolyglotResolver::resolve_csharp(u, &base_dirs, diag);
                         }
-                        self.queue_shim_module("csharp", &u.span, stdlib_dir.as_deref(), &visited, &mut to_load);
+                        self.queue_shim_module(
+                            "csharp",
+                            &u.span,
+                            stdlib_dir.as_deref(),
+                            &visited,
+                            &mut to_load,
+                        );
                         continue;
                     }
 
@@ -848,13 +860,18 @@ impl ForgenCompiler {
                         if !lua_pkg.is_empty() && checked_lua_pkgs.insert(lua_pkg.to_string()) {
                             super::polyglot::PolyglotResolver::resolve_lua(u, &base_dirs, diag);
                         }
-                        self.queue_shim_module("lua", &u.span, stdlib_dir.as_deref(), &visited, &mut to_load);
+                        self.queue_shim_module(
+                            "lua",
+                            &u.span,
+                            stdlib_dir.as_deref(),
+                            &visited,
+                            &mut to_load,
+                        );
                         continue;
                     }
 
                     // 8. Smart Go Interop Detection (c-shared / CGo archives)
-                    if (first_seg == Some("go") || first_seg == Some("golang"))
-                        && u.path.len() > 1
+                    if (first_seg == Some("go") || first_seg == Some("golang")) && u.path.len() > 1
                     {
                         let go_pkg = u.path.get(1).map(|s| s.as_str()).unwrap_or("");
                         if !go_pkg.is_empty() && checked_go_pkgs.insert(go_pkg.to_string()) {

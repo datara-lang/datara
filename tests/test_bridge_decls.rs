@@ -53,7 +53,7 @@ fn main() {
 #[test]
 fn test_bridge_unsupported_param_type_e_bridge_002() {
     let code = r#"
-class ComplexCustomObj {
+struct ComplexCustomObj {
     val: Int
 }
 

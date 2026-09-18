@@ -1,6 +1,6 @@
-module sys.arena
+﻿module sys.arena
 
-class StackArena {
+struct StackArena {
     capacity: Int
     used: Int
 }

@@ -33,7 +33,11 @@ unsafe extern "C" {
     pub fn datara_rt_print_newline();
     pub fn datara_rt_flush();
     pub fn datara_rt_print_list(list: *mut ());
-    pub fn datara_rt_println(s: *const c_char);
+    pub fn datara_rt_err_print_str(s: *const c_char);
+    pub fn datara_rt_err_print_int(v: i64);
+    pub fn datara_rt_err_print_float(v: f64);
+    pub fn datara_rt_err_print_bool(v: i64);
+    pub fn datara_rt_err_print_newline();
     pub fn datara_rt_print(s: *const c_char);
     pub fn datara_rt_eprintln(s: *const c_char);
     pub fn datara_rt_panic(s: *const c_char);
@@ -71,6 +75,7 @@ unsafe extern "C" {
 
     pub fn datara_rt_set_capture(enable: i32);
     pub fn datara_rt_get_capture() -> *const c_char;
+    pub fn datara_rt_get_err_capture() -> *const c_char;
     pub fn datara_rt_clear_capture();
 
     pub fn datara_rt_int_to_str(v: i64) -> *const c_char;
@@ -407,6 +412,8 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("malloc", malloc);
     reg!("free", free);
 
+    crate::codegen::cranelift::jit_systems::register_system_and_concurrency_symbols(builder);
+
     reg!("datara_rt_overflow_panic", datara_rt_overflow_panic);
     reg!("datara_rt_div_zero_panic", datara_rt_div_zero_panic);
     reg!("datara_rt_checked_add", datara_rt_checked_add);
@@ -479,11 +486,14 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_print_newline", datara_rt_print_newline);
     reg!("datara_rt_flush", datara_rt_flush);
     reg!("datara_rt_print_list", datara_rt_print_list);
-    reg!("datara_rt_println", datara_rt_println);
-    reg!("println", datara_rt_println);
     reg!("datara_rt_print", datara_rt_print);
     reg!("print", datara_rt_print);
     reg!("datara_rt_eprintln", datara_rt_eprintln);
+    reg!("datara_rt_err_print_str", datara_rt_err_print_str);
+    reg!("datara_rt_err_print_int", datara_rt_err_print_int);
+    reg!("datara_rt_err_print_float", datara_rt_err_print_float);
+    reg!("datara_rt_err_print_bool", datara_rt_err_print_bool);
+    reg!("datara_rt_err_print_newline", datara_rt_err_print_newline);
     reg!("eprintln", datara_rt_eprintln);
     reg!("datara_rt_panic", datara_rt_panic);
     reg!("panic", datara_rt_panic);
@@ -495,6 +505,7 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
 
     reg!("datara_rt_set_capture", datara_rt_set_capture);
     reg!("datara_rt_get_capture", datara_rt_get_capture);
+    reg!("datara_rt_get_err_capture", datara_rt_get_err_capture);
     reg!("datara_rt_clear_capture", datara_rt_clear_capture);
 
     reg!("datara_rt_int_to_str", datara_rt_int_to_str);
@@ -758,6 +769,7 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     );
     reg!("datara_rt_list_create_repeat", datara_rt_list_create_repeat);
     reg!("datara_rt_list_append", datara_rt_list_append);
+    reg!("datara_rt_list_append_unchecked", datara_rt_list_append);
     reg!("datara_rt_list_len", datara_rt_list_len);
     reg!("datara_rt_list_get", datara_rt_list_get);
     reg!("datara_rt_list_set", datara_rt_list_set);
@@ -1034,7 +1046,7 @@ pub unsafe fn run_jit_entry(
         datara_rt_set_args(0, std::ptr::null());
     }
 
-    let stdout = if capture {
+    let (stdout, stderr) = if capture {
         unsafe {
             datara_rt_flush();
             datara_rt_set_capture(0);
@@ -1044,17 +1056,23 @@ pub unsafe fn run_jit_entry(
             } else {
                 CStr::from_ptr(ptr).to_string_lossy().into_owned()
             };
+            let err_ptr = datara_rt_get_err_capture();
+            let err_out = if err_ptr.is_null() {
+                String::new()
+            } else {
+                CStr::from_ptr(err_ptr).to_string_lossy().into_owned()
+            };
             datara_rt_clear_capture();
-            out
+            (out, err_out)
         }
     } else {
         unsafe {
             datara_rt_flush();
         }
-        String::new()
+        (String::new(), String::new())
     };
 
-    Ok((stdout, String::new(), exit_code, duration))
+    Ok((stdout, stderr, exit_code, duration))
 }
 
 use crate::codegen::cranelift::backend::ModuleCompileArtifacts;

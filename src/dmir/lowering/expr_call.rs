@@ -818,7 +818,9 @@ impl<'a> Lowering<'a> {
                 // compiled into a 2-arg call against a 1-param function and
                 // tripped a Cranelift ABI assertion instead of a diagnostic.
                 let static_arity_ok = match self.types.function_signatures.get(&static_func_name) {
-                    Some((param_types, _, _)) => param_types.len() == args.len() + 1,
+                    Some((param_types, _, _)) => {
+                        param_types.len() == args.len() || param_types.len() == args.len() + 1
+                    }
                     None => true,
                 };
                 if static_arity_ok && self.function_return_types.contains_key(&static_func_name) {
@@ -1310,7 +1312,11 @@ impl<'a> Lowering<'a> {
         }
 
         let dest = self.next_val();
-        let ret_ty = if (func_name == "join" || func_name == "thread_join" || func_name == "ThreadHandle_join") && arg_vals.len() == 1 {
+        let ret_ty = if (func_name == "join"
+            || func_name == "thread_join"
+            || func_name == "ThreadHandle_join")
+            && arg_vals.len() == 1
+        {
             "Int".to_string()
         } else if func_name == "join" && arg_vals.len() >= 2 {
             "String".to_string()

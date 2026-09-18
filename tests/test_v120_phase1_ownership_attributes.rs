@@ -14,7 +14,7 @@ use std::time::Instant;
 #[test]
 fn test_v120_llvm_align64_and_ownership_attributes() {
     let source = r#"
-class SimdBuffer {
+struct SimdBuffer {
     f0: Float
     f1: Float
     f2: Float

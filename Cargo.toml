@@ -25,9 +25,6 @@ path = "src/bin/datara.rs"
 name = "dpm"
 path = "src/bin/dpm.rs"
 
-[[bin]]
-name = "sparks"
-path = "src/bin/sparks.rs"
 
 [[bin]]
 name = "datara-fmt"

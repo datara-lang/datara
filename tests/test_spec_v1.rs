@@ -132,8 +132,11 @@ role Printable {
     label() -> String
 }
 
-class Counter with Printable {
+struct Counter with Printable {
     count: Int
+}
+
+behavior Counter {
     label() -> String {
         return "Count"
     }

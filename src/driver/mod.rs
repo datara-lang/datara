@@ -9,10 +9,10 @@
 
 #![allow(clippy::result_large_err)]
 
+pub mod check_cache;
 mod modules;
 mod namespace;
 mod pipeline;
-pub mod check_cache;
 pub mod polyglot;
 
 pub use check_cache::CheckCache;

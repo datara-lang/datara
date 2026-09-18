@@ -1,7 +1,7 @@
-//! Set<T> — Standard Library Hash/Distinct Collection
+﻿//! Set<T> — Standard Library Hash/Distinct Collection
 //! Zero-dependency implementation backed by dynamic contiguous list.
 
-class Set<T> {
+struct Set<T> {
     items: List<T>
 }
 

@@ -1,7 +1,7 @@
-//! PriorityQueue<T> — Standard Library Binary Heap Priority Queue
+﻿//! PriorityQueue<T> — Standard Library Binary Heap Priority Queue
 //! Elements are ordered according to standard scalar comparison.
 
-class PriorityQueue<T> {
+struct PriorityQueue<T> {
     items: List<T>
 }
 

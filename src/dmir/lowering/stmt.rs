@@ -236,7 +236,7 @@ impl<'a> Lowering<'a> {
                                     args: vec![obj_val, idx_val, v],
                                     ty: ty.into(),
                                 });
-                                if let Expr::Identifier(var_name, _) = &**object {
+                                if is_map && let Expr::Identifier(var_name, _) = &**object {
                                     self.get_block_mut(cur_block).instructions.push(
                                         Inst::AssignVar {
                                             name: var_name.clone(),
@@ -289,22 +289,9 @@ impl<'a> Lowering<'a> {
                 }
                 (cur_block, val)
             }
-            Stmt::Out(e, _) => {
-                if let Some(val) = self.lower_expr(e, &mut cur_block) {
-                    self.get_block_mut(cur_block)
-                        .instructions
-                        .push(Inst::Out { value: val });
-                }
-                (cur_block, None)
-            }
-            Stmt::Err(e, _) => {
-                if let Some(val) = self.lower_expr(e, &mut cur_block) {
-                    self.get_block_mut(cur_block)
-                        .instructions
-                        .push(Inst::Err { value: val });
-                }
-                (cur_block, None)
-            }
+            Stmt::Out(e, _) => self.lower_out_stmt(e, cur_block),
+            Stmt::Err(e, _) => self.lower_err_stmt(e, cur_block),
+
             Stmt::Return(opt_e, _) => {
                 let val = if let Some(e) = opt_e {
                     self.lower_expr(e, &mut cur_block)

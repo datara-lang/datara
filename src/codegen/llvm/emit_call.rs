@@ -229,12 +229,17 @@ impl<'a> LlvmEmitter<'a> {
             || actual_func == "datara_rt_list_set_unchecked")
             && args.len() >= 3
             && value_types.get(&args[2]).copied() == Some("double");
+        let is_append_f64 = actual_func == "datara_rt_list_append_unchecked"
+            && args.len() >= 2
+            && value_types.get(&args[1]).copied() == Some("double");
         let actual_func = if is_set_f64 {
             if actual_func == "datara_rt_list_set_unchecked" {
                 "datara_rt_list_set_f64_unchecked"
             } else {
                 "datara_rt_list_set_f64"
             }
+        } else if is_append_f64 {
+            "datara_rt_list_append_f64_unchecked"
         } else {
             actual_func
         };
@@ -250,7 +255,9 @@ impl<'a> LlvmEmitter<'a> {
             }
             let is_list_slot_f64 = aty == "double"
                 && !is_set_f64
-                && ((actual_func == "datara_rt_list_append" && idx == 1)
+                && (((actual_func == "datara_rt_list_append"
+                    || actual_func == "datara_rt_list_append_unchecked")
+                    && idx == 1)
                     || (actual_func == "datara_rt_list_set" && idx == 2)
                     || (actual_func == "datara_rt_list_create_repeat" && idx == 1)
                     || (actual_func.starts_with("datara_rt_list_create_")
@@ -303,7 +310,10 @@ impl<'a> LlvmEmitter<'a> {
                 dest.0, call_prefix, ret_ty, actual_func, args_str
             ));
         }
-        if actual_func.starts_with("datara_rt_list_get") && args.len() >= 2 {
+        if !actual_func.contains("unchecked")
+            && actual_func.starts_with("datara_rt_list_get")
+            && args.len() >= 2
+        {
             out.push_str(&format!(
                 "  %fvrp_bce_min_{} = icmp sge i64 %v{}, 0\n",
                 dest.0, args[1].0
@@ -360,7 +370,11 @@ impl<'a> LlvmEmitter<'a> {
             }
             return Ok(());
         }
-        if value_classes.get(object).map(|c| c == "SliceView").unwrap_or(false) {
+        if value_classes
+            .get(object)
+            .map(|c| c == "SliceView")
+            .unwrap_or(false)
+        {
             let fn_name = format!("SliceView_{}", method);
             let mut args_val = vec![format!("ptr %v{}", object.0)];
             for a in args {
@@ -379,14 +393,28 @@ impl<'a> LlvmEmitter<'a> {
                 "i64"
             };
             if call_ret_ty == "void" {
-                out.push_str(&format!("  call void @{}({})\n", fn_name, args_val.join(", ")));
+                out.push_str(&format!(
+                    "  call void @{}({})\n",
+                    fn_name,
+                    args_val.join(", ")
+                ));
             } else {
-                out.push_str(&format!("  %v{} = call {} @{}({})\n", dest.0, call_ret_ty, fn_name, args_val.join(", ")));
+                out.push_str(&format!(
+                    "  %v{} = call {} @{}({})\n",
+                    dest.0,
+                    call_ret_ty,
+                    fn_name,
+                    args_val.join(", ")
+                ));
             }
             return Ok(());
         }
 
-        if value_classes.get(object).map(|c| c == "VolatilePtr").unwrap_or(false) {
+        if value_classes
+            .get(object)
+            .map(|c| c == "VolatilePtr")
+            .unwrap_or(false)
+        {
             let fn_name = format!("VolatilePtr_{}", method);
             let mut args_val = vec![format!("ptr %v{}", object.0)];
             for a in args {
@@ -401,9 +429,19 @@ impl<'a> LlvmEmitter<'a> {
                 "i64"
             };
             if call_ret_ty == "void" {
-                out.push_str(&format!("  call void @{}({})\n", fn_name, args_val.join(", ")));
+                out.push_str(&format!(
+                    "  call void @{}({})\n",
+                    fn_name,
+                    args_val.join(", ")
+                ));
             } else {
-                out.push_str(&format!("  %v{} = call {} @{}({})\n", dest.0, call_ret_ty, fn_name, args_val.join(", ")));
+                out.push_str(&format!(
+                    "  %v{} = call {} @{}({})\n",
+                    dest.0,
+                    call_ret_ty,
+                    fn_name,
+                    args_val.join(", ")
+                ));
             }
             return Ok(());
         }
@@ -434,6 +472,10 @@ impl<'a> LlvmEmitter<'a> {
             "append" | "push" => {
                 ret_ty = "ptr";
                 "datara_rt_list_append".to_string()
+            }
+            "append_unchecked" | "push_unchecked" => {
+                ret_ty = "ptr";
+                "datara_rt_list_append_unchecked".to_string()
             }
             "get" | "at" => "datara_rt_list_get".to_string(),
             "set" => "datara_rt_list_set".to_string(),
@@ -502,12 +544,17 @@ impl<'a> LlvmEmitter<'a> {
             || actual_func == "datara_rt_list_set_unchecked")
             && args.len() >= 2
             && value_types.get(&args[1]).copied() == Some("double");
+        let is_append_f64 = actual_func == "datara_rt_list_append_unchecked"
+            && !args.is_empty()
+            && value_types.get(&args[0]).copied() == Some("double");
         let actual_func = if is_set_f64 {
             if actual_func == "datara_rt_list_set_unchecked" {
                 "datara_rt_list_set_f64_unchecked".to_string()
             } else {
                 "datara_rt_list_set_f64".to_string()
             }
+        } else if is_append_f64 {
+            "datara_rt_list_append_f64_unchecked".to_string()
         } else {
             actual_func
         };
@@ -578,7 +625,10 @@ impl<'a> LlvmEmitter<'a> {
                 dest.0, call_prefix, ret_ty, actual_func, args_str
             ));
         }
-        if actual_func.starts_with("datara_rt_list_get") && !args.is_empty() {
+        if !actual_func.contains("unchecked")
+            && actual_func.starts_with("datara_rt_list_get")
+            && !args.is_empty()
+        {
             out.push_str(&format!(
                 "  %fvrp_mbce_min_{} = icmp sge i64 %v{}, 0\n",
                 dest.0, args[0].0

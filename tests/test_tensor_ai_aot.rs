@@ -6,11 +6,11 @@ use forgen::driver::ForgenCompiler;
 #[test]
 fn test_tensor_type_and_fused_kernel() {
     let source = r#"
-class NetworkWeights {
+struct NetworkWeights {
     layers: Int
 }
 
-class TensorModel {
+struct TensorModel {
     weights: NetworkWeights
 }
 
@@ -51,7 +51,7 @@ fn main() -> Int {
 #[test]
 fn test_tensor_aot_compilation_to_dmir() {
     let source = r#"
-class AIInferenceEngine {
+struct AIInferenceEngine {
     batch_size: Int
 }
 

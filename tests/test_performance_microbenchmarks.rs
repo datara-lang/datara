@@ -9,7 +9,7 @@ fn compute_scalar(n: Int, factor: Float) -> Float {
     mut sum = 0.0
     mut i = 0
     while i < n {
-        sum = sum + i * factor
+        sum = sum + i.to_float() * factor
         i = i + 1
     }
     return sum
@@ -71,7 +71,7 @@ fn test_microbenchmark_generic_specialization_box_and_list() {
     let compiler = ForgenCompiler::new("domain");
 
     let source = r#"
-class Box<T> {
+struct Box<T> {
     val: T
 }
 
@@ -106,7 +106,7 @@ fn test_microbenchmark_zero_cost_oop_sroa() {
     let compiler = ForgenCompiler::new("domain");
 
     let source = r#"
-class Point {
+struct Point {
     x: Float
     y: Float
 }

@@ -1,4 +1,4 @@
-@bare_metal
+﻿@bare_metal
 module embedded.mmio
 
 register Timer2 at 0x4000_0000 {
@@ -8,7 +8,7 @@ register Timer2 at 0x4000_0000 {
     reload: UInt32 at 0x0C
 }
 
-class MMIOBlock {
+struct MMIOBlock {
     base_address: UInt64
 }
 

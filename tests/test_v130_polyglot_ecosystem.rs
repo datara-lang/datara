@@ -154,10 +154,10 @@ fn main() {
         "test_class_deprecated_diag.dtr",
         None,
     );
-    assert!(res.success, "Must remain backwards-compatible");
+    assert!(!res.success, "class keyword must be rejected with hard error E0100");
     assert!(
-        res.diagnostics.contains("W0100") || res.diagnostics.contains("deprecated"),
-        "Compiler must emit W0100 deprecation diagnostic for 'class'"
+        res.diagnostics.contains("E0100") || res.diagnostics.contains("class"),
+        "Compiler must emit E0100 error diagnostic for 'class'"
     );
 }
 

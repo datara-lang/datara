@@ -1,7 +1,7 @@
-//! Iterator<T> — Standard Library Lazy Iterator Adaptors
+﻿//! Iterator<T> — Standard Library Lazy Iterator Adaptors
 //! Provides take, skip, zip, chunk, map, filter lazy transformation chains.
 
-class Iterator<T> {
+struct Iterator<T> {
     items: List<T>
     position: Int
     limit: Int

@@ -1,3 +1,14 @@
+#![allow(
+    clippy::collapsible_if,
+    clippy::collapsible_match,
+    clippy::needless_borrow,
+    clippy::missing_safety_doc,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::manual_clamp,
+    clippy::single_match
+)]
+
 pub mod ast;
 pub mod bridge_decl;
 pub mod c_api;

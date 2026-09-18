@@ -39,7 +39,7 @@ fn test_phase4_showcase_cli_app() {
 fn test_phase4_sparks_seed_packages() {
     let pkgs = ["mathx", "strx", "jsonx"];
     for name in pkgs {
-        let base = Path::new("packages/sparks").join(name);
+        let base = Path::new("tests/fixtures/sparks").join(name);
         let toml_path = base.join("datara.toml");
         let caps_path = base.join("capabilities.json");
         let lib_path = base.join("src/lib.dtr");

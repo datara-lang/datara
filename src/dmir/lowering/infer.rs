@@ -84,6 +84,17 @@ impl<'a> Lowering<'a> {
                         }
                         None
                     }
+                    DataraType::Result(ok, err) => match member.as_str() {
+                        "is_success" | "is_ok" | "is_err" => Some(DataraType::Bool),
+                        "value" | "ok" => Some(*ok),
+                        "error_msg" | "error" | "err" => Some(*err),
+                        _ => None,
+                    },
+                    DataraType::Option(val) => match member.as_str() {
+                        "is_some" | "is_none" => Some(DataraType::Bool),
+                        "value" | "val" => Some(*val),
+                        _ => None,
+                    },
                     _ => None,
                 }
             }
@@ -123,7 +134,10 @@ impl<'a> Lowering<'a> {
             }
             Expr::Call { callee, args, .. } => match &**callee {
                 Expr::Identifier(fn_name, _) => {
-                    if fn_name == "join" || fn_name == "thread_join" || fn_name == "ThreadHandle_join" {
+                    if fn_name == "join"
+                        || fn_name == "thread_join"
+                        || fn_name == "ThreadHandle_join"
+                    {
                         if args.len() == 1 {
                             return Some(DataraType::Int);
                         } else if args.len() >= 2 {
@@ -237,6 +251,17 @@ impl<'a> Lowering<'a> {
                 let key = format!("{}.{}", cls_name, member);
                 self.class_field_types.get(&key).cloned()
             }
+            DataraType::Result(ok, err) => match member {
+                "is_success" | "is_ok" | "is_err" => Some("Bool".to_string()),
+                "value" | "ok" => Some(ok.to_string()),
+                "error_msg" | "error" | "err" => Some(err.to_string()),
+                _ => None,
+            },
+            DataraType::Option(val) => match member {
+                "is_some" | "is_none" => Some("Bool".to_string()),
+                "value" | "val" => Some(val.to_string()),
+                _ => None,
+            },
             _ => None,
         }
     }

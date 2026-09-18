@@ -93,6 +93,7 @@ void Channel_close(DataraChannel* ch);
 int64_t Channel_len(DataraChannel* ch);
 void Channel_free(DataraChannel* ch);
 int64_t ThreadHandle_join(DataraThreadHandle* th);
+int64_t ThreadHandle_join_timeout(DataraThreadHandle* th, int64_t timeout_ms);
 void ThreadHandle_free(DataraThreadHandle* th);
 
 DataraThreadHandle* spawn(void* (*fn)(void*));

@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // Datara v1.3.0 - Example 21: High-Performance 3D Raytracer Render Benchmark
 //
 // Demonstrates:
@@ -73,10 +73,10 @@ fn intersect_sphere(view orig: Vec3, view dir: Vec3, view center: Vec3, radius: 
 }
 
 fn main() {
-    println("================================================================")
-    println("Datara v1.3.0 - 3D Raytracer Render Engine Benchmark")
-    println("Target: 480,000 Rays (800x600 Resolution, 3 Spheres, Phong)")
-    println("================================================================")
+    out "================================================================"
+    out "Datara v1.3.0 - 3D Raytracer Render Engine Benchmark"
+    out "Target: 480,000 Rays (800x600 Resolution, 3 Spheres, Phong)"
+    out "================================================================"
 
     let width = 800
     let height = 600
@@ -163,9 +163,9 @@ fn main() {
 
     let t_elapsed = now_ms() - t_start
 
-    println(fmt"Rendered:    {width}x{height} = {width * height} pixels")
-    println(fmt"Hits:        {total_hits}")
-    println(fmt"Checksum:    {checksum}")
-    println(fmt"Render Time: {t_elapsed} ms")
-    println("Verification: Exact bit-for-bit checksum match with Rust & C++.")
+    out fmt"Rendered:    {width}x{height} = {width * height} pixels"
+    out fmt"Hits:        {total_hits}"
+    out fmt"Checksum:    {checksum}"
+    out fmt"Render Time: {t_elapsed} ms"
+    out "Verification: Exact bit-for-bit checksum match with Rust & C++."
 }

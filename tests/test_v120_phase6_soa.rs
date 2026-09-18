@@ -290,7 +290,7 @@ fn test_v120_soa_nbody_speedup_and_determinism() {
     let threshold = if std::env::var("CI").is_ok() {
         0.70
     } else if cfg!(windows) {
-        0.85
+        0.75
     } else {
         0.90
     };

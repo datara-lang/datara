@@ -1,7 +1,7 @@
-//! Deque<T> — Standard Library Double-Ended Queue
+﻿//! Deque<T> — Standard Library Double-Ended Queue
 //! Supports push/pop at both front and back.
 
-class Deque<T> {
+struct Deque<T> {
     items: List<T>
 }
 

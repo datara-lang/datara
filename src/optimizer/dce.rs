@@ -57,7 +57,12 @@ impl Optimizer {
         all_fn_names.sort();
         for f_name in &all_fn_names {
             if let Some((cls, m_name)) = f_name.split_once('_') {
-                if cls.chars().next().map(|c| c.is_ascii_uppercase()).unwrap_or(false) {
+                if cls
+                    .chars()
+                    .next()
+                    .map(|c| c.is_ascii_uppercase())
+                    .unwrap_or(false)
+                {
                     user_methods
                         .entry(m_name.to_string())
                         .or_default()
@@ -78,7 +83,11 @@ impl Optimizer {
 
                 for (p_name, p_ty, p_val) in &f.params {
                     let base_ty = p_ty.split('<').next().unwrap_or(p_ty);
-                    if base_ty.chars().next().map(|c| c.is_ascii_uppercase()).unwrap_or(false)
+                    if base_ty
+                        .chars()
+                        .next()
+                        .map(|c| c.is_ascii_uppercase())
+                        .unwrap_or(false)
                         && !matches!(base_ty, "Int" | "Float" | "Bool" | "Str" | "Void")
                     {
                         var_to_class.insert(p_name.clone(), base_ty.to_string());
@@ -106,11 +115,21 @@ impl Optimizer {
 
         if !reachable.is_empty() {
             module.functions.retain(|name, _| reachable.contains(name));
-            module.function_spans.retain(|name, _| reachable.contains(name));
-            module.function_line_spans.retain(|name, _| reachable.contains(name));
-            module.extern_functions.retain(|name, _| used_externs.contains(name));
-            module.extern_sret.retain(|name, _| used_externs.contains(name));
-            module.extern_sysv.retain(|name, _| used_externs.contains(name));
+            module
+                .function_spans
+                .retain(|name, _| reachable.contains(name));
+            module
+                .function_line_spans
+                .retain(|name, _| reachable.contains(name));
+            module
+                .extern_functions
+                .retain(|name, _| used_externs.contains(name));
+            module
+                .extern_sret
+                .retain(|name, _| used_externs.contains(name));
+            module
+                .extern_sysv
+                .retain(|name, _| used_externs.contains(name));
             self.report.removed_symbols = initial_count - module.functions.len();
         } else {
             self.report.reachable_symbols = initial_count;
@@ -131,7 +150,9 @@ impl Optimizer {
     ) {
         for inst in instructions {
             match inst {
-                Inst::StructInit { dest, class_name, .. } => {
+                Inst::StructInit {
+                    dest, class_name, ..
+                } => {
                     val_to_class.insert(*dest, class_name.clone());
                 }
                 Inst::AssignVar { name, value } => {
@@ -153,7 +174,11 @@ impl Optimizer {
                         if let Some(target_f) = module.functions.get(func) {
                             let r_ty = &target_f.return_type;
                             let base_r = r_ty.split('<').next().unwrap_or(r_ty);
-                            if base_r.chars().next().map(|c| c.is_ascii_uppercase()).unwrap_or(false)
+                            if base_r
+                                .chars()
+                                .next()
+                                .map(|c| c.is_ascii_uppercase())
+                                .unwrap_or(false)
                                 && !matches!(base_r, "Int" | "Float" | "Bool" | "Str" | "Void")
                             {
                                 val_to_class.insert(*dest, base_r.to_string());
@@ -173,12 +198,23 @@ impl Optimizer {
                         used_externs.insert(func_name.clone());
                     }
                 }
-                Inst::MethodCall { dest, object, method, .. } => {
+                Inst::MethodCall {
+                    dest,
+                    object,
+                    method,
+                    ..
+                } => {
                     let mut resolved = false;
 
                     // 1. If receiver class is known statically
                     if let Some(cls) = val_to_class.get(object) {
-                        let base_cls = cls.split('<').next().unwrap_or(cls).split('_').next().unwrap_or(cls);
+                        let base_cls = cls
+                            .split('<')
+                            .next()
+                            .unwrap_or(cls)
+                            .split('_')
+                            .next()
+                            .unwrap_or(cls);
                         let cand1 = format!("{}_{}", cls, method);
                         let cand2 = format!("{}_{}", base_cls, method);
                         if module.functions.contains_key(&cand1) {
@@ -189,7 +225,11 @@ impl Optimizer {
                             if let Some(target_f) = module.functions.get(&cand1) {
                                 let r_ty = &target_f.return_type;
                                 let base_r = r_ty.split('<').next().unwrap_or(r_ty);
-                                if base_r.chars().next().map(|c| c.is_ascii_uppercase()).unwrap_or(false)
+                                if base_r
+                                    .chars()
+                                    .next()
+                                    .map(|c| c.is_ascii_uppercase())
+                                    .unwrap_or(false)
                                     && !matches!(base_r, "Int" | "Float" | "Bool" | "Str" | "Void")
                                 {
                                     val_to_class.insert(*dest, base_r.to_string());
@@ -204,7 +244,11 @@ impl Optimizer {
                             if let Some(target_f) = module.functions.get(&cand2) {
                                 let r_ty = &target_f.return_type;
                                 let base_r = r_ty.split('<').next().unwrap_or(r_ty);
-                                if base_r.chars().next().map(|c| c.is_ascii_uppercase()).unwrap_or(false)
+                                if base_r
+                                    .chars()
+                                    .next()
+                                    .map(|c| c.is_ascii_uppercase())
+                                    .unwrap_or(false)
                                     && !matches!(base_r, "Int" | "Float" | "Bool" | "Str" | "Void")
                                 {
                                     val_to_class.insert(*dest, base_r.to_string());
@@ -245,16 +289,52 @@ impl Optimizer {
                     body_insts,
                     ..
                 } => {
-                    self.collect_calls(condition_insts, module, user_methods, reachable, worklist, used_externs, val_to_class, var_to_class);
-                    self.collect_calls(body_insts, module, user_methods, reachable, worklist, used_externs, val_to_class, var_to_class);
+                    self.collect_calls(
+                        condition_insts,
+                        module,
+                        user_methods,
+                        reachable,
+                        worklist,
+                        used_externs,
+                        val_to_class,
+                        var_to_class,
+                    );
+                    self.collect_calls(
+                        body_insts,
+                        module,
+                        user_methods,
+                        reachable,
+                        worklist,
+                        used_externs,
+                        val_to_class,
+                        var_to_class,
+                    );
                 }
                 Inst::TryCatch {
                     try_insts,
                     catch_insts,
                     ..
                 } => {
-                    self.collect_calls(try_insts, module, user_methods, reachable, worklist, used_externs, val_to_class, var_to_class);
-                    self.collect_calls(catch_insts, module, user_methods, reachable, worklist, used_externs, val_to_class, var_to_class);
+                    self.collect_calls(
+                        try_insts,
+                        module,
+                        user_methods,
+                        reachable,
+                        worklist,
+                        used_externs,
+                        val_to_class,
+                        var_to_class,
+                    );
+                    self.collect_calls(
+                        catch_insts,
+                        module,
+                        user_methods,
+                        reachable,
+                        worklist,
+                        used_externs,
+                        val_to_class,
+                        var_to_class,
+                    );
                 }
                 _ => {}
             }

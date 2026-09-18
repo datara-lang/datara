@@ -215,7 +215,7 @@ fn main() {
         i = i + 1
     }
     let elapsed_ns = now_ns() - t0
-    let elapsed_ms = (elapsed_ns * 1.0) / 1000000.0
+    let elapsed_ms = elapsed_ns.to_float() / 1000000.0
     out "INTERNAL_MS:" + elapsed_ms
     out sum
 }

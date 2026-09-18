@@ -1644,8 +1644,16 @@ impl<'a> TypeChecker<'a> {
         // v1.4.0: StrBuf prelude class lives in its own file (prelude.rs
         // stays under the 60 KB limit).
         Self::register_strbuf(&mut class_fields, &mut class_methods);
-        Self::register_concurrency(&mut class_fields, &mut class_methods, &mut function_signatures);
-        Self::register_systems(&mut class_fields, &mut class_methods, &mut function_signatures);
+        Self::register_concurrency(
+            &mut class_fields,
+            &mut class_methods,
+            &mut function_signatures,
+        );
+        Self::register_systems(
+            &mut class_fields,
+            &mut class_methods,
+            &mut function_signatures,
+        );
 
         Self {
             resolver,
@@ -1666,6 +1674,7 @@ impl<'a> TypeChecker<'a> {
             function_param_nodes: HashMap::new(),
             var_array_lengths: HashMap::new(),
             traits: HashMap::new(),
+            roles: HashMap::new(),
             impls: HashMap::new(),
             trait_bounds: HashMap::new(),
             current_target_type: None,

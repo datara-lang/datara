@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // Proof-Carrying Scheduler (PCS) Future Model
 //
 // DESIGN CONTRACT:
@@ -11,7 +11,7 @@
 // with byte-level deterministic results.
 // ============================================================================
 
-class Future {
+struct Future {
     state: Int
     value: Str
     error_code: Int

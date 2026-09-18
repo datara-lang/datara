@@ -3,6 +3,7 @@ pub mod clif;
 pub mod delta_cache;
 pub mod dwarf;
 pub mod jit;
+pub mod jit_systems;
 pub mod near_memory;
 pub mod tiering;
 

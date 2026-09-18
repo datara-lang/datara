@@ -64,13 +64,25 @@ pub struct DpmManifest {
     #[serde(default, rename = "go-dependencies", alias = "go_dependencies")]
     pub go_dependencies: HashMap<String, DpmDepValue>,
 
-    #[serde(default, rename = "dotnet-dependencies", alias = "dotnet_dependencies", alias = "csharp-dependencies", alias = "csharp_dependencies")]
+    #[serde(
+        default,
+        rename = "dotnet-dependencies",
+        alias = "dotnet_dependencies",
+        alias = "csharp-dependencies",
+        alias = "csharp_dependencies"
+    )]
     pub dotnet_dependencies: HashMap<String, DpmDepValue>,
 
     #[serde(default, rename = "zig-dependencies", alias = "zig_dependencies")]
     pub zig_dependencies: HashMap<String, DpmDepValue>,
 
-    #[serde(default, rename = "jvm-dependencies", alias = "jvm_dependencies", alias = "java-dependencies", alias = "java_dependencies")]
+    #[serde(
+        default,
+        rename = "jvm-dependencies",
+        alias = "jvm_dependencies",
+        alias = "java-dependencies",
+        alias = "java_dependencies"
+    )]
     pub jvm_dependencies: HashMap<String, DpmDepValue>,
 }
 
@@ -95,11 +107,16 @@ impl DpmManifest {
 
         // 1. Rust dependencies via Cargo
         if !self.rust_dependencies.is_empty() {
-            println!(":: [Rust Bridge] Synchronizing {} Rust crates...", self.rust_dependencies.len());
+            println!(
+                ":: [Rust Bridge] Synchronizing {} Rust crates...",
+                self.rust_dependencies.len()
+            );
             for (crate_name, dep) in &self.rust_dependencies {
                 let ver_arg = match dep {
                     DpmDepValue::Simple(v) => format!("{}@{}", crate_name, v),
-                    DpmDepValue::Detailed { version: Some(v), .. } => format!("{}@{}", crate_name, v),
+                    DpmDepValue::Detailed {
+                        version: Some(v), ..
+                    } => format!("{}@{}", crate_name, v),
                     _ => crate_name.clone(),
                 };
                 let res = Command::new("cargo")
@@ -112,18 +129,41 @@ impl DpmManifest {
                         summary.rust_installed += 1;
                     }
                 } else {
-                    eprintln!("[WARN] 'cargo' not found in PATH. Ensure Rust and Cargo are installed.");
+                    eprintln!(
+                        "[WARN] 'cargo' not found in PATH. Ensure Rust and Cargo are installed."
+                    );
                 }
             }
         }
 
         // 2. Python dependencies via pip
         if !self.python_dependencies.is_empty() {
-            println!(":: [Python Bridge] Synchronizing {} Python packages...", self.python_dependencies.len());
+            println!(
+                ":: [Python Bridge] Synchronizing {} Python packages...",
+                self.python_dependencies.len()
+            );
             for (pkg_name, dep) in &self.python_dependencies {
                 let req_spec = match dep {
-                    DpmDepValue::Simple(v) => format!("{}{}", pkg_name, if v.starts_with(|c: char| c.is_ascii_punctuation()) { v.clone() } else { format!("=={}", v) }),
-                    DpmDepValue::Detailed { version: Some(v), .. } => format!("{}{}", pkg_name, if v.starts_with(|c: char| c.is_ascii_punctuation()) { v.clone() } else { format!("=={}", v) }),
+                    DpmDepValue::Simple(v) => format!(
+                        "{}{}",
+                        pkg_name,
+                        if v.starts_with(|c: char| c.is_ascii_punctuation()) {
+                            v.clone()
+                        } else {
+                            format!("=={}", v)
+                        }
+                    ),
+                    DpmDepValue::Detailed {
+                        version: Some(v), ..
+                    } => format!(
+                        "{}{}",
+                        pkg_name,
+                        if v.starts_with(|c: char| c.is_ascii_punctuation()) {
+                            v.clone()
+                        } else {
+                            format!("=={}", v)
+                        }
+                    ),
                     _ => pkg_name.clone(),
                 };
                 let res = Command::new("python")
@@ -142,18 +182,25 @@ impl DpmManifest {
                         summary.python_installed += 1;
                     }
                 } else {
-                    eprintln!("[WARN] 'python' / 'pip' not found in PATH. Install Python 3.8+ to use Python bridge.");
+                    eprintln!(
+                        "[WARN] 'python' / 'pip' not found in PATH. Install Python 3.8+ to use Python bridge."
+                    );
                 }
             }
         }
 
         // 3. NPM packages
         if !self.npm_dependencies.is_empty() {
-            println!(":: [Node/NPM Bridge] Synchronizing {} NPM packages...", self.npm_dependencies.len());
+            println!(
+                ":: [Node/NPM Bridge] Synchronizing {} NPM packages...",
+                self.npm_dependencies.len()
+            );
             for (pkg_name, dep) in &self.npm_dependencies {
                 let spec = match dep {
                     DpmDepValue::Simple(v) => format!("{}@{}", pkg_name, v),
-                    DpmDepValue::Detailed { version: Some(v), .. } => format!("{}@{}", pkg_name, v),
+                    DpmDepValue::Detailed {
+                        version: Some(v), ..
+                    } => format!("{}@{}", pkg_name, v),
                     _ => pkg_name.clone(),
                 };
                 let res = Command::new(if cfg!(windows) { "npm.cmd" } else { "npm" })
@@ -173,10 +220,21 @@ impl DpmManifest {
 
         // 4. Go dependencies (buildmode=c-shared)
         if !self.go_dependencies.is_empty() {
-            println!(":: [Go Bridge] Building {} Go c-shared packages...", self.go_dependencies.len());
+            println!(
+                ":: [Go Bridge] Building {} Go c-shared packages...",
+                self.go_dependencies.len()
+            );
             for (lib_name, dep) in &self.go_dependencies {
-                if let DpmDepValue::Detailed { path: Some(src_path), .. } = dep {
-                    let out_name = if cfg!(windows) { format!("{}.dll", lib_name) } else { format!("lib{}.so", lib_name) };
+                if let DpmDepValue::Detailed {
+                    path: Some(src_path),
+                    ..
+                } = dep
+                {
+                    let out_name = if cfg!(windows) {
+                        format!("{}.dll", lib_name)
+                    } else {
+                        format!("lib{}.so", lib_name)
+                    };
                     let res = Command::new("go")
                         .args(["build", "-buildmode=c-shared", "-o", &out_name, src_path])
                         .current_dir(project_dir)
@@ -187,7 +245,9 @@ impl DpmManifest {
                             summary.go_compiled += 1;
                         }
                     } else {
-                        eprintln!("[WARN] 'go' toolchain not found in PATH. Ensure Go 1.20+ is installed.");
+                        eprintln!(
+                            "[WARN] 'go' toolchain not found in PATH. Ensure Go 1.20+ is installed."
+                        );
                     }
                 }
             }
@@ -195,9 +255,16 @@ impl DpmManifest {
 
         // 5. .NET NativeAOT dependencies
         if !self.dotnet_dependencies.is_empty() {
-            println!(":: [C#/.NET Bridge] Publishing {} NativeAOT libraries...", self.dotnet_dependencies.len());
+            println!(
+                ":: [C#/.NET Bridge] Publishing {} NativeAOT libraries...",
+                self.dotnet_dependencies.len()
+            );
             for (lib_name, dep) in &self.dotnet_dependencies {
-                if let DpmDepValue::Detailed { path: Some(proj_path), .. } = dep {
+                if let DpmDepValue::Detailed {
+                    path: Some(proj_path),
+                    ..
+                } = dep
+                {
                     let res = Command::new("dotnet")
                         .args(["publish", "-c", "Release", "/p:PublishAot=true", proj_path])
                         .current_dir(project_dir)
@@ -208,7 +275,9 @@ impl DpmManifest {
                             summary.dotnet_published += 1;
                         }
                     } else {
-                        eprintln!("[WARN] 'dotnet' SDK not found in PATH. Install .NET 8.0+ SDK to use C# bridge.");
+                        eprintln!(
+                            "[WARN] 'dotnet' SDK not found in PATH. Install .NET 8.0+ SDK to use C# bridge."
+                        );
                     }
                 }
             }
@@ -216,12 +285,22 @@ impl DpmManifest {
 
         // 6. C dependencies
         if !self.c_dependencies.is_empty() {
-            println!(":: [C Bridge] Synchronizing {} C libraries...", self.c_dependencies.len());
+            println!(
+                ":: [C Bridge] Synchronizing {} C libraries...",
+                self.c_dependencies.len()
+            );
             for (lib_name, dep) in &self.c_dependencies {
                 match dep {
-                    DpmDepValue::Detailed { path: Some(src_path), .. } => {
+                    DpmDepValue::Detailed {
+                        path: Some(src_path),
+                        ..
+                    } => {
                         let src = project_dir.join(src_path);
-                        let out_name = if cfg!(windows) { format!("{}.dll", lib_name) } else { format!("lib{}.so", lib_name) };
+                        let out_name = if cfg!(windows) {
+                            format!("{}.dll", lib_name)
+                        } else {
+                            format!("lib{}.so", lib_name)
+                        };
                         let res = if src.join("CMakeLists.txt").exists() {
                             Command::new("cmake")
                                 .args(["-B", "build", "-DCMAKE_BUILD_TYPE=Release"])
@@ -247,7 +326,10 @@ impl DpmManifest {
                                 summary.c_compiled += 1;
                             }
                         } else {
-                            eprintln!("[WARN] Failed to compile C library '{}'. Ensure C compiler or CMake is installed.", lib_name);
+                            eprintln!(
+                                "[WARN] Failed to compile C library '{}'. Ensure C compiler or CMake is installed.",
+                                lib_name
+                            );
                         }
                     }
                     DpmDepValue::Detailed { link: Some(l), .. } | DpmDepValue::Simple(l) => {
@@ -264,12 +346,22 @@ impl DpmManifest {
 
         // 7. C++ dependencies
         if !self.cpp_dependencies.is_empty() {
-            println!(":: [C++ Bridge] Synchronizing {} C++ libraries...", self.cpp_dependencies.len());
+            println!(
+                ":: [C++ Bridge] Synchronizing {} C++ libraries...",
+                self.cpp_dependencies.len()
+            );
             for (lib_name, dep) in &self.cpp_dependencies {
                 match dep {
-                    DpmDepValue::Detailed { path: Some(src_path), .. } => {
+                    DpmDepValue::Detailed {
+                        path: Some(src_path),
+                        ..
+                    } => {
                         let src = project_dir.join(src_path);
-                        let out_name = if cfg!(windows) { format!("{}.dll", lib_name) } else { format!("lib{}.so", lib_name) };
+                        let out_name = if cfg!(windows) {
+                            format!("{}.dll", lib_name)
+                        } else {
+                            format!("lib{}.so", lib_name)
+                        };
                         let res = if src.join("CMakeLists.txt").exists() {
                             Command::new("cmake")
                                 .args(["-B", "build", "-DCMAKE_BUILD_TYPE=Release"])
@@ -295,7 +387,10 @@ impl DpmManifest {
                                 summary.cpp_compiled += 1;
                             }
                         } else {
-                            eprintln!("[WARN] Failed to compile C++ library '{}'. Ensure C++ compiler or CMake is installed.", lib_name);
+                            eprintln!(
+                                "[WARN] Failed to compile C++ library '{}'. Ensure C++ compiler or CMake is installed.",
+                                lib_name
+                            );
                         }
                     }
                     DpmDepValue::Detailed { link: Some(l), .. } | DpmDepValue::Simple(l) => {
@@ -312,12 +407,30 @@ impl DpmManifest {
 
         // 8. Zig dependencies
         if !self.zig_dependencies.is_empty() {
-            println!(":: [Zig Bridge] Synchronizing {} Zig packages...", self.zig_dependencies.len());
+            println!(
+                ":: [Zig Bridge] Synchronizing {} Zig packages...",
+                self.zig_dependencies.len()
+            );
             for (lib_name, dep) in &self.zig_dependencies {
-                if let DpmDepValue::Detailed { path: Some(src_path), .. } = dep {
-                    let out_name = if cfg!(windows) { format!("{}.dll", lib_name) } else { format!("lib{}.so", lib_name) };
+                if let DpmDepValue::Detailed {
+                    path: Some(src_path),
+                    ..
+                } = dep
+                {
+                    let out_name = if cfg!(windows) {
+                        format!("{}.dll", lib_name)
+                    } else {
+                        format!("lib{}.so", lib_name)
+                    };
                     let res = Command::new("zig")
-                        .args(["build-lib", "-dynamic", "-O", "ReleaseFast", src_path, &format!("-femit-bin={}", out_name)])
+                        .args([
+                            "build-lib",
+                            "-dynamic",
+                            "-O",
+                            "ReleaseFast",
+                            src_path,
+                            &format!("-femit-bin={}", out_name),
+                        ])
                         .current_dir(project_dir)
                         .status();
                     if let Ok(st) = res {
@@ -326,7 +439,9 @@ impl DpmManifest {
                             summary.zig_compiled += 1;
                         }
                     } else {
-                        eprintln!("[WARN] 'zig' toolchain not found in PATH. Ensure Zig is installed.");
+                        eprintln!(
+                            "[WARN] 'zig' toolchain not found in PATH. Ensure Zig is installed."
+                        );
                     }
                 } else {
                     println!("[DONE] Registered Zig dependency '{}'", lib_name);
@@ -337,21 +452,38 @@ impl DpmManifest {
 
         // 9. JVM dependencies
         if !self.jvm_dependencies.is_empty() {
-            println!(":: [JVM Bridge] Synchronizing {} JVM packages...", self.jvm_dependencies.len());
+            println!(
+                ":: [JVM Bridge] Synchronizing {} JVM packages...",
+                self.jvm_dependencies.len()
+            );
             for (lib_name, dep) in &self.jvm_dependencies {
-                if let DpmDepValue::Detailed { path: Some(proj_path), aot: Some(true), .. } = dep {
-                    let out_name = if cfg!(windows) { format!("{}.dll", lib_name) } else { format!("lib{}.so", lib_name) };
+                if let DpmDepValue::Detailed {
+                    path: Some(proj_path),
+                    aot: Some(true),
+                    ..
+                } = dep
+                {
+                    let out_name = if cfg!(windows) {
+                        format!("{}.dll", lib_name)
+                    } else {
+                        format!("lib{}.so", lib_name)
+                    };
                     let res = Command::new("native-image")
                         .args(["--shared", "-o", lib_name, "-jar", proj_path])
                         .current_dir(project_dir)
                         .status();
                     if let Ok(st) = res {
                         if st.success() {
-                            println!("[DONE] Compiled GraalVM Native Image for '{}' -> {}", lib_name, out_name);
+                            println!(
+                                "[DONE] Compiled GraalVM Native Image for '{}' -> {}",
+                                lib_name, out_name
+                            );
                             summary.jvm_compiled += 1;
                         }
                     } else {
-                        eprintln!("[WARN] 'native-image' not found in PATH. Install GraalVM to compile JVM libraries to native shared libraries.");
+                        eprintln!(
+                            "[WARN] 'native-image' not found in PATH. Install GraalVM to compile JVM libraries to native shared libraries."
+                        );
                     }
                 } else {
                     println!("[DONE] Registered JVM dependency '{}'", lib_name);

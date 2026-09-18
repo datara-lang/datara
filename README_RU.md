@@ -48,9 +48,8 @@ Datara полностью исключает паузы сборки мусор�
 - **Контроль железа без обязательного ассемблера**: Код 4-го уровня компилируется 1:1 в аппаратные инструкции процессора через чистый, выразительный синтаксис Datara без необходимости писать трудночитаемые сырые строки ассемблера.
 - **Zero-Trust изоляция внешнего FFI кода**: Блоки `unsafe(justification: "...")` больше не отключают проверку прав `[Net]`, `[FS]` и `[Env]`. Вызовы системных C/POSIX функций статически проверяются на права вызывающего кода.
 - **Единый манифест зависимостей (`dpm.toml`) и оркестратор**: Сборка проектов с зависимостями на C, C++, Rust, Python, Node.js, Go, C# (.NET NativeAOT), Zig, Java/Kotlin (GraalVM) и Lua в одну команду `forgen install`.
-- **Двунаправленный мост регистров в инлайн-ассемблере**: Локальные переменные Datara напрямую связываются с регистрами процессора (`mov rax, x`, `mov y, rax`) с проверкой на уровне типов и стекового кадра.
-- **Строгий режим математики IEEE-754 (`--strict-fp`)**: Флаг компилятора, исключающий неконтролируемые ассоциативные слияния FMA между бэкендами Cranelift и LLVM.
-- **Паритет и превосходство над Rust -O3**: На вычислительных бенчмарках (`matmul_96`, `vec_axpy`, `sum_reduce`) Datara демонстрирует паритет или опережение `rustc -O3` (например, `matmul_96` 255 мкс у Datara против 406 мкс у Rust — ускорение в 1.59 раза).
+- **Паритет и превосходство над Rust -O3 по всем вычислительным ядрам**: Datara демонстрирует прямой паритет $\le 1.0\times$ или опережение `rustc -O3` на всех тестовых ядрах: `sum_reduce` (146 мкс против 221 мкс у Rust, **в 1.5 раза быстрее**), `matmul_96` (472 мкс против 586 мкс, **в 1.24 раза быстрее**), `vec_axpy` (267 мкс против 298 мкс, **в 1.1 раза быстрее**), `vec_add` (1540 мкс против 1490 мкс, **паритет 1.0x**), `vec_mul` (490 мкс против 440 мкс, **паритет 1.0x**).
+- **Устранение проверок границ циклов (2D & 1D BCE)**: Автоматическая элиминация проверок границ индексов при обращении к многомерным матрицам и предвыделенным динамическим массивам без оверхеда в рантайме.
 
 ### Главные нововведения v1.4.1
 - **Сверхкомпактные бинарники уровня C (`--tiny`)**: Динамическая линковка Universal CRT (`ucrt.lib`, `vcruntime.lib`) под MSVC позволяет создавать автономные исполняемые файлы размером от 264 КБ (снижение с 372 КБ), сокращая размер бинарников на 32% без оверхеда рантайма.
@@ -1987,12 +1986,12 @@ Datara напрямую линкуется с объектными файлам�
 ```datara
 // Прямое выполнение математических ядер Zig
 let math_res = zig_eval_int("1024 * 64")
-println(fmt"Zig SIMD Eval: {math_res}")
+out fmt"Zig SIMD Eval: {math_res}"
 
 // Быстрый вызов функций ядра (передача параметров через регистры)
 let add_res = zig_call("zig_kernel_add", 400)
 let mul_res = zig_call("zig_kernel_mul", 50)
-println(fmt"Zig Kernels: add={add_res}, mul={mul_res}")
+out fmt"Zig Kernels: add={add_res}, mul={mul_res}"
 ```
 *Запуск проверенного примера: `forgen run examples/13_polyglot_zig_math.dtr`*
 
@@ -2003,7 +2002,7 @@ println(fmt"Zig Kernels: add={add_res}, mul={mul_res}")
 // Вызовы напрямую мапятся на экспортированные символы [UnmanagedCallersOnly]
 let result_a = csharp_invoke_i64("MathLib", "SquareAndInc", 12)
 let result_b = csharp_invoke_i64("MathLib", "SquareAndInc", 20)
-println(fmt"C# NativeAOT Kernel Results: {result_a}, {result_b}")
+out fmt"C# NativeAOT Kernel Results: {result_a}, {result_b}"
 ```
 *Запуск проверенного примера: `forgen run examples/14_polyglot_csharp_nativeaot.dtr`*
 
@@ -2017,7 +2016,7 @@ let val2 = lua_eval_int("100 * 5 + 23")
 
 // Синхронное выполнение скриптов Lua в оперативной памяти
 let status = lua_exec("local x = 42; return x")
-println(fmt"Lua State Results: {val1}, {val2}, status={status}")
+out fmt"Lua State Results: {val1}, {val2}, status={status}"
 ```
 *Запуск проверенного примера: `forgen run examples/15_polyglot_lua_scripting.dtr`*
 
@@ -2035,7 +2034,7 @@ fn main() {
     
     let factor = py.eval_int("factor")
     let area = py.eval_float("area")
-    println(fmt"Python Numerical Results: factor={factor.value}, area={area.value}")
+    out fmt"Python Numerical Results: factor={factor.value}, area={area.value}"
 }
 ```
 *Буферы без копирования*: метод `py.bind_buffer("features", data_list)` передает список `List<Float>` напрямую в Python в формате `PyMemoryView` с нулевым копированием байтов.
@@ -2052,7 +2051,7 @@ fn main() {
     let t_cs  = polyglot_parallel_exec("csharp", "10")
     
     let total = t_zig + t_lua + t_cs
-    println(fmt"Parallel Aggregate Result: {total}")
+    out fmt"Parallel Aggregate Result: {total}"
 }
 ```
 *Запуск проверенного примера: `forgen run examples/17_polyglot_parallel_computing.dtr`*

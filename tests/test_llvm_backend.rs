@@ -92,7 +92,7 @@ fn main() {
 #[test]
 fn test_llvm_ir_emission_classes_and_fields() {
     let source = r#"
-class Vector2 {
+struct Vector2 {
     x: Float
     y: Float
 }

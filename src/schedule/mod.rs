@@ -84,10 +84,15 @@ pub struct ScheduleProof {
 
 /// Canonicalizes a task symbol name to match DMIR module convention (`Class_method`).
 pub fn canonical_task_name(name: &str) -> String {
-    if name.contains('.') {
+    let s = if name.contains('.') {
         name.replace('.', "_")
     } else {
         name.to_string()
+    };
+    if let Some(stripped) = s.strip_prefix("B_") {
+        stripped.to_string()
+    } else {
+        s
     }
 }
 
@@ -130,7 +135,9 @@ impl ScheduleProof {
                         if let ClassItem::Method(m) = item {
                             let ast_name = format!("{}.{}", b.target_type, m.name);
                             let canon = format!("{}_{}", b.target_type, m.name);
+                            let b_name = format!("B_{}_{}", b.target_type, m.name);
                             alias_to_canonical.insert(ast_name, canon.clone());
+                            alias_to_canonical.insert(b_name, canon.clone());
                             alias_to_canonical.insert(canon.clone(), canon.clone());
                             symbol_names.insert(canon);
                         }
@@ -207,7 +214,11 @@ impl ScheduleProof {
 
             // (c) Determine Dependencies from DMIR call graph
             let mut deps = Vec::new();
-            if let Some(dmir_func) = dmir_module.functions.get(name) {
+            let dmir_func_opt = dmir_module.functions.get(name).or_else(|| {
+                let b_name = format!("B_{}", name);
+                dmir_module.functions.get(&b_name)
+            });
+            if let Some(dmir_func) = dmir_func_opt {
                 for blk in &dmir_func.blocks {
                     for inst in &blk.instructions {
                         match inst {
@@ -298,7 +309,11 @@ impl ScheduleProof {
         }
 
         // 2. Check if DMIR function has CFG loops or exceeds instruction threshold
-        if let Some(f) = dmir_module.functions.get(name) {
+        let dmir_func_opt = dmir_module.functions.get(name).or_else(|| {
+            let b_name = format!("B_{}", name);
+            dmir_module.functions.get(&b_name)
+        });
+        if let Some(f) = dmir_func_opt {
             let cfg = crate::dmir::cfg::ControlFlowGraph::build(f);
             if !cfg.loops.is_empty() {
                 return SchedulePriority::Hot;

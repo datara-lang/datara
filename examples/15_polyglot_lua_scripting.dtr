@@ -1,25 +1,25 @@
-// Datara Example 15: Universal Polyglot Engine - Lua / LuaJIT Scripting
+﻿// Datara Example 15: Universal Polyglot Engine - Lua / LuaJIT Scripting
 // Demonstrates embedding hot-reloadable Lua scripts inside high-performance Datara systems.
 
 fn main() {
-    println("==========================================================")
-    println("  DATARA v1.3.0 POLYGLOT SHOWCASE: LUA / LUAJIT SCRIPTING ")
-    println("==========================================================")
+    out "=========================================================="
+    out "  DATARA v1.3.0 POLYGLOT SHOWCASE: LUA / LUAJIT SCRIPTING "
+    out "=========================================================="
 
     // 1. Evaluate Lua expressions
     let exp_res = lua_eval_int("2^10")
-    println(fmt"Lua Expression Eval ('2^10'):         {exp_res}")
+    out fmt"Lua Expression Eval ('2^10'):         {exp_res}"
 
     let chained_res = lua_eval_int("100 * 5 + 23")
-    println(fmt"Lua Expression ('100 * 5 + 23'):      {chained_res}")
+    out fmt"Lua Expression ('100 * 5 + 23'):      {chained_res}"
 
     // 2. Execute Lua script
     let script = "local x = 42; return x"
     let status = lua_exec(script)
-    println(fmt"Lua Script Execution Status:           {status}")
+    out fmt"Lua Script Execution Status:           {status}"
 
     let total = exp_res + chained_res + status
-    println(fmt"Combined Lua Output:                  {total}")
-    println("==========================================================")
-    println("LuaJIT scripts execute synchronously with zero IPC latency.")
+    out fmt"Combined Lua Output:                  {total}"
+    out "=========================================================="
+    out "LuaJIT scripts execute synchronously with zero IPC latency."
 }

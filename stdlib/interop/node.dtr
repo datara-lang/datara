@@ -1,4 +1,4 @@
-﻿class Node {
+﻿struct Node {
     runtime_name: Str
 }
 

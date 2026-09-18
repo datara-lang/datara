@@ -1,6 +1,6 @@
-module math.math3d
+﻿module math.math3d
 
-class Vec2 {
+struct Vec2 {
     x: Float
     y: Float
 }
@@ -53,7 +53,7 @@ behavior Vec2 {
     }
 }
 
-class Vec3 {
+struct Vec3 {
     x: Float
     y: Float
     z: Float
@@ -138,7 +138,7 @@ behavior Vec3 {
     }
 }
 
-class Vec4 {
+struct Vec4 {
     x: Float
     y: Float
     z: Float
@@ -194,7 +194,7 @@ behavior Vec4 {
     }
 }
 
-class Mat4 {
+struct Mat4 {
     m00: Float
     m01: Float
     m02: Float
@@ -320,7 +320,7 @@ fn mat4_look_at(eye: Vec3, target: Vec3, up: Vec3) -> Mat4 {
     }
 }
 
-class Quat {
+struct Quat {
     x: Float
     y: Float
     z: Float
@@ -369,7 +369,7 @@ fn quat_from_axis_angle(axis: Vec3, angle_rad: Float) -> Quat {
     }
 }
 
-class Ray3 {
+struct Ray3 {
     origin: Vec3
     direction: Vec3
 }
@@ -403,7 +403,7 @@ behavior Ray3 {
     }
 }
 
-class Aabb3 {
+struct Aabb3 {
     min: Vec3
     max: Vec3
 }

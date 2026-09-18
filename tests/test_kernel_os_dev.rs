@@ -10,7 +10,7 @@ fn test_kernel_mode_and_mmu_bitfields() {
 @no_std
 module kernel.arch.x86_64.mmu
 
-class PageTableEntry {
+struct PageTableEntry {
     present: Bool in bit 0
     writable: Bool in bit 1
     user_accessible: Bool in bit 2
@@ -51,7 +51,7 @@ fn test_naked_function_and_inline_asm_ports() {
 @no_std
 module kernel.ports
 
-class Port8 {
+struct Port8 {
     port: UInt16
 }
 

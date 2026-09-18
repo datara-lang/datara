@@ -1,4 +1,4 @@
-class Cipher {
+﻿struct Cipher {
     key: Str
     rounds: Int
 }

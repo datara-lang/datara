@@ -12,5 +12,5 @@ behavior User {
 
 fn main() {
     let user = User { name: "Alex", age: 20 }
-    println(user.greet())
+    out user.greet()
 }

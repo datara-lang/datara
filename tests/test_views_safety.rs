@@ -5,7 +5,7 @@ use forgen::driver::ForgenCompiler;
 fn test_views_safety_positive_zero_copy_view() {
     let compiler = ForgenCompiler::new("release");
     let code = r#"
-class Dataset {
+struct Dataset {
     name: String
     size: Int
 }
@@ -34,7 +34,7 @@ fn main() {
 fn test_views_safety_negative_view_after_move() {
     let compiler = ForgenCompiler::new("release");
     let code = r#"
-class Buffer {
+struct Buffer {
     capacity: Int
 }
 
@@ -61,7 +61,7 @@ fn main() {
 fn test_views_safety_negative_mutation_during_view() {
     let compiler = ForgenCompiler::new("release");
     let code = r#"
-class Buffer {
+struct Buffer {
     capacity: Int
 }
 
@@ -88,7 +88,7 @@ fn main() {
 fn test_views_safety_negative_escaping_local_view() {
     let compiler = ForgenCompiler::new("release");
     let code = r#"
-class Record {
+struct Record {
     id: Int
 }
 

@@ -1,4 +1,4 @@
-class Clock {
+﻿struct Clock {
     zone: Str
 }
 
@@ -16,7 +16,7 @@ behavior Clock {
     }
 }
 
-class Stopwatch {
+struct Stopwatch {
     start_time: Int
 }
 

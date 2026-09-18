@@ -1,4 +1,4 @@
-class Maybe<T> {
+﻿struct Maybe<T> {
     is_some: Bool
     value: T
 }

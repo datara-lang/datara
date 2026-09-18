@@ -1,4 +1,4 @@
-class FileRecord {
+﻿struct FileRecord {
     path: Str
     line_count: Int
     byte_size: Int
@@ -10,7 +10,7 @@ behavior FileRecord {
     }
 }
 
-class DirectoryScanner {
+struct DirectoryScanner {
     root_dir: Str
 }
 

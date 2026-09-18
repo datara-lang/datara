@@ -162,7 +162,7 @@ fn main() {
         (
             "3. OOP Point SROA (10M)",
             r#"
-class Point {
+struct Point {
     x: Int
     y: Int
 }
@@ -192,7 +192,7 @@ fn main() {
         (
             "4. Generic Box (10M)",
             r#"
-class GenericBox<T> {
+struct GenericBox<T> {
     value: T
 }
 fn main() {

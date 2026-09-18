@@ -1,6 +1,6 @@
-use stdlib.net.socket
+﻿use stdlib.net.socket
 
-class RedisClient {
+struct RedisClient {
     host: Str
     port: Int
     stream: TcpStream

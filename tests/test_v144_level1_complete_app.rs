@@ -3,11 +3,12 @@ use forgen::driver::ForgenCompiler;
 #[test]
 fn test_level1_complete_application_pipeline() {
     let source = r#"
-class Transaction {
+struct Transaction {
     id: Int
     category: Str
     amount: Float
 }
+
 
 behavior Transaction {
     fn is_high_value(threshold: Float) -> Bool {
@@ -140,6 +141,9 @@ fn main() {
     let exe = res.exe_path.unwrap();
     let (stdout, stderr, code, _) = compiler.codegen.run_executable(&exe, &[]).unwrap();
     assert_eq!(code, 0, "Execution failed: {}", stderr);
-    assert!(stdout.trim().ends_with("85"), "Expected 85, got stdout: {}", stdout);
+    assert!(
+        stdout.trim().ends_with("85"),
+        "Expected 85, got stdout: {}",
+        stdout
+    );
 }
-

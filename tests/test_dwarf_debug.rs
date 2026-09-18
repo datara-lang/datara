@@ -194,9 +194,11 @@ pub fn main() {
 #[test]
 fn test_dwarf_debug_info_subprograms_and_classes() {
     let source = r#"
-class Calculator {
+struct Calculator {
     base: Int
+}
 
+behavior Calculator {
     calc(x: Int) -> Int {
         let res = this.base + x
         return res

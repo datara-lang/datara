@@ -17,7 +17,7 @@ fn test_dpm_publish_merkle_digest_capabilities_and_index() {
 use stdlib.net.socket
 use stdlib.io.fs
 
-class AuthService {
+struct AuthService {
     port: Int
 }
 

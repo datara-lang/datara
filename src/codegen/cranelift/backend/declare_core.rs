@@ -303,6 +303,10 @@ pub fn declare_runtime_core<M: ClifModule>(
     );
     func_ids.insert(
         "datara_rt_list_append".into(),
+        (rt_list_append_id, rt_list_append_sig.clone()),
+    );
+    func_ids.insert(
+        "datara_rt_list_append_unchecked".into(),
         (rt_list_append_id, rt_list_append_sig),
     );
     func_ids.insert(
@@ -558,17 +562,6 @@ pub fn declare_runtime_core<M: ClifModule>(
         (str_byte_at_id, str_offset_sig),
     );
 
-    let mut rt_println_sig = Signature::new(call_conv);
-    rt_println_sig.params.push(AbiParam::new(clif_types::I64));
-    let rt_println_id = module
-        .declare_function("datara_rt_println", Linkage::Import, &rt_println_sig)
-        .map_err(|e| e.to_string())?;
-    func_ids.insert(
-        "datara_rt_println".into(),
-        (rt_println_id, rt_println_sig.clone()),
-    );
-    func_ids.insert("println".into(), (rt_println_id, rt_println_sig));
-
     let mut rt_print_sig = Signature::new(call_conv);
     rt_print_sig.params.push(AbiParam::new(clif_types::I64));
     let rt_print_id = module
@@ -653,7 +646,7 @@ pub fn declare_runtime_core<M: ClifModule>(
         .map_err(|e| e.to_string())?;
     func_ids.insert(
         "datara_rt_print_float".into(),
-        (rt_print_flt_id, void_1_f64_sig),
+        (rt_print_flt_id, void_1_f64_sig.clone()),
     );
 
     let rt_print_bool_id = module
@@ -669,10 +662,35 @@ pub fn declare_runtime_core<M: ClifModule>(
         .map_err(|e| e.to_string())?;
     func_ids.insert(
         "datara_rt_print_list".into(),
-        (rt_print_list_id, void_1_i64_sig),
+        (rt_print_list_id, void_1_i64_sig.clone()),
     );
 
+    let rt_err_str_id = module
+        .declare_function("datara_rt_err_print_str", Linkage::Import, &void_1_i64_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert("datara_rt_err_print_str".into(), (rt_err_str_id, void_1_i64_sig.clone()));
+
+    let rt_err_int_id = module
+        .declare_function("datara_rt_err_print_int", Linkage::Import, &void_1_i64_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert("datara_rt_err_print_int".into(), (rt_err_int_id, void_1_i64_sig.clone()));
+
+    let rt_err_flt_id = module
+        .declare_function("datara_rt_err_print_float", Linkage::Import, &void_1_f64_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert("datara_rt_err_print_float".into(), (rt_err_flt_id, void_1_f64_sig));
+
+    let rt_err_bool_id = module
+        .declare_function("datara_rt_err_print_bool", Linkage::Import, &void_1_i64_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert("datara_rt_err_print_bool".into(), (rt_err_bool_id, void_1_i64_sig));
+
     let void_0_sig = Signature::new(call_conv);
+    let rt_err_nl_id = module
+        .declare_function("datara_rt_err_print_newline", Linkage::Import, &void_0_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert("datara_rt_err_print_newline".into(), (rt_err_nl_id, void_0_sig.clone()));
+
     let rt_print_sp_id = module
         .declare_function("datara_rt_print_space", Linkage::Import, &void_0_sig)
         .map_err(|e| e.to_string())?;

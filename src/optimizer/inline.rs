@@ -447,7 +447,7 @@ impl Optimizer {
                     .unwrap_or(false);
 
                 let is_pure = !has_side_effects && is_inst_pure;
-                let multiplier = if is_pure && lattice_pure { 2 } else { 1 };
+                let multiplier = if (is_pure && lattice_pure) || (is_pure && name.starts_with("B_")) { 2 } else { 1 };
 
                 let is_recursive = f.blocks[0].instructions.iter().any(|i| match i {
                     Inst::Call { func, .. } => func == name,
@@ -665,8 +665,14 @@ impl Optimizer {
                             }
                         }
 
-                        let param_names: HashSet<String> =
+                        let mut param_names: HashSet<String> =
                             callee.params.iter().map(|(n, _, _)| n.clone()).collect();
+                        if param_names.contains("this") {
+                            param_names.insert("self".to_string());
+                        }
+                        if param_names.contains("self") {
+                            param_names.insert("this".to_string());
+                        }
                         let assigned_params: HashSet<String> = callee.blocks[0]
                             .instructions
                             .iter()
@@ -687,7 +693,10 @@ impl Optimizer {
                         // If any parameters are assigned in callee, initialize their
                         // local variables with the incoming argument values first.
                         for (idx, (p_name, _, _)) in callee.params.iter().enumerate() {
-                            if assigned_params.contains(p_name) {
+                            if assigned_params.contains(p_name)
+                                || (p_name == "this" && assigned_params.contains("self"))
+                                || (p_name == "self" && assigned_params.contains("this"))
+                            {
                                 if let Some(arg) = inlined_args.get(idx) {
                                     new_insts.push(Inst::AssignVar {
                                         name: format!("{}{}", local_prefix, p_name),
@@ -712,7 +721,11 @@ impl Optimizer {
                                 && !inlined_args.is_empty()
                             {
                                 // Bind the load straight to the argument.
-                                let idx = callee.params.iter().position(|(n, _, _)| n == name);
+                                let idx = callee.params.iter().position(|(n, _, _)| {
+                                    n == name
+                                        || (n == "this" && name == "self")
+                                        || (n == "self" && name == "this")
+                                });
                                 if let Some(i) = idx
                                     && let Some(arg) = inlined_args.get(i)
                                 {

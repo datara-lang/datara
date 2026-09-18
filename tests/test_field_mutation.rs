@@ -43,7 +43,7 @@ fn run_datara(source: &str, name: &str) -> String {
 fn test_field_mutation_accumulates_across_calls() {
     let out = run_datara(
         r#"
-class Counter {
+struct Counter {
     val: Int
 }
 
@@ -73,7 +73,7 @@ fn main() {
 fn test_field_mutation_survives_method_call() {
     let out = run_datara(
         r#"
-class Counter {
+struct Counter {
     val: Int
 }
 
@@ -112,12 +112,12 @@ fn main() {
 fn test_scalarization_respects_mutation_boundary() {
     let out = run_datara(
         r#"
-class Point {
+struct Point {
     x: Int
     y: Int
 }
 
-class Counter {
+struct Counter {
     val: Int
 }
 

@@ -3,7 +3,7 @@ use forgen::lint::{apply_fixes, lint_source};
 #[test]
 fn test_lint_detects_style_and_mutability_violations() {
     let source = r#"
-class user_account {
+struct user_account {
     id: Int
 }
 
@@ -93,7 +93,7 @@ fn test_lint_auto_fix_unnecessary_mut() {
 #[test]
 fn test_lint_clean_code_zero_warnings() {
     let source = r#"
-class UserAccount {
+struct UserAccount {
     id: Int
 }
 

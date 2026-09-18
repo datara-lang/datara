@@ -74,10 +74,10 @@ trait Worker {
     fn work(&self) -> Int;
 }
 
-class Alpha { v: Int }
-class Beta { v: Int }
-class Gamma { v: Int }
-class Delta { v: Int }
+struct Alpha { v: Int }
+struct Beta { v: Int }
+struct Gamma { v: Int }
+struct Delta { v: Int }
 
 impl Worker for Alpha { fn work(&self) -> Int { self.v * 1 } }
 impl Worker for Beta { fn work(&self) -> Int { self.v * 2 } }

@@ -1,4 +1,4 @@
-﻿class Signal {
+﻿struct Signal {
     id: Int
     name: Str
     value: Str
@@ -29,7 +29,7 @@ behavior Signal {
     }
 }
 
-class Action {
+struct Action {
     event_type: Str
     target_id: Str
     callback_name: Str
@@ -41,7 +41,7 @@ behavior Action {
     }
 }
 
-class VNode {
+struct VNode {
     tag: Str
     id: Str
     text: Str
@@ -79,7 +79,7 @@ behavior VNode {
     }
 }
 
-class ReactiveComponent {
+struct ReactiveComponent {
     name: Str
     state_value: Str
     dirty_mask: Int

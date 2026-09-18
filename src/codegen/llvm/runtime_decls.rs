@@ -337,16 +337,16 @@ chk_magic:
   %hdr_magic_ptr = getelementptr inbounds i64, ptr %list, i64 -1
   %magic = load i64, ptr %hdr_magic_ptr, align 8
   %magic_masked = and i64 %magic, -16
-  %is_magic = icmp eq i64 %magic_masked, 4918304954689737776
-  br i1 %is_magic, label %chk_cap, label %slow, !prof !9
+  %not_magic = icmp ne i64 %magic_masked, 4918304954689737776
+  br i1 %not_magic, label %slow, label %chk_cap, !prof !9
 
 chk_cap:
   %hdr_cap_ptr = getelementptr inbounds i64, ptr %list, i64 -2
   %cap = load i64, ptr %hdr_cap_ptr, align 8
   %count = load i64, ptr %list, align 8
   %new_count = add i64 %count, 1
-  %has_cap = icmp sle i64 %new_count, %cap
-  br i1 %has_cap, label %fast, label %slow, !prof !9
+  %no_cap = icmp sgt i64 %new_count, %cap
+  br i1 %no_cap, label %slow, label %fast, !prof !9
 
 fast:
   store i64 %new_count, ptr %list, align 8
@@ -357,6 +357,26 @@ fast:
 slow:
   %res = call ptr @datara_rt_list_append_slow(ptr %list, i64 %v)
   ret ptr %res
+}
+
+define internal ptr @datara_rt_list_append_unchecked(ptr %list, i64 %v) alwaysinline {
+entry:
+  %count = load i64, ptr %list, align 8
+  %new_count = add i64 %count, 1
+  store i64 %new_count, ptr %list, align 8
+  %elem_ptr = getelementptr inbounds i64, ptr %list, i64 %new_count
+  store i64 %v, ptr %elem_ptr, align 8
+  ret ptr %list
+}
+
+define internal ptr @datara_rt_list_append_f64_unchecked(ptr %list, double %v) alwaysinline {
+entry:
+  %count = load i64, ptr %list, align 8
+  %new_count = add i64 %count, 1
+  store i64 %new_count, ptr %list, align 8
+  %elem_ptr = getelementptr inbounds double, ptr %list, i64 %new_count
+  store double %v, ptr %elem_ptr, align 8
+  ret ptr %list
 }
 declare i64 @datara_rt_list_len(ptr)
 declare i64 @datara_rt_list_sort(ptr, i64, i64)
@@ -563,4 +583,3 @@ declare void @atomic_fence_seq_cst()
 declare void @atomic_fence(ptr)
 declare ptr @typed_zero_init(i64)
 "#;
-

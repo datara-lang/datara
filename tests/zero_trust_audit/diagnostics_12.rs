@@ -45,7 +45,7 @@ const TWELVE_BROKEN: &[BrokenCase] = &[
     BrokenCase {
         id: 5,
         name: "borrow_conflict",
-        source: "class Box { v: Int } fn main() { mut b = Box { v: 1 }; let v = mut_view(b); out b.v }",
+        source: "struct Box { v: Int } fn main() { mut b = Box { v: 1 }; let v = mut_view(b); out b.v }",
         expected_code: "E-BORROW-006",
         expected_msg_sub: "borrow",
     },
@@ -61,7 +61,7 @@ const TWELVE_BROKEN: &[BrokenCase] = &[
     BrokenCase {
         id: 7,
         name: "invalid_trait_bound",
-        source: "trait Serializable { fn serialize(&self) -> String; } class Plain { v: Int } fn save<T: Serializable>(x: T) {} fn main() { let p = Plain { v: 1 }; save(p) }",
+        source: "trait Serializable { fn serialize(&self) -> String; } struct Plain { v: Int } fn save<T: Serializable>(x: T) {} fn main() { let p = Plain { v: 1 }; save(p) }",
         expected_code: "E-TYPE-001",
         expected_msg_sub: "Serializable",
     },

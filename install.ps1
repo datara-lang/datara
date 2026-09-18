@@ -86,13 +86,6 @@ foreach ($cand in $LocalCandidates) {
             Copy-Item -Path $cand -Destination (Join-Path $BinDir "dpm.exe") -Force
         }
 
-        $sparksLocal = Join-Path $candDir "sparks.exe"
-        if (Test-Path $sparksLocal) {
-            Copy-Item -Path $sparksLocal -Destination (Join-Path $BinDir "sparks.exe") -Force
-        } else {
-            Copy-Item -Path (Join-Path $BinDir "dpm.exe") -Destination (Join-Path $BinDir "sparks.exe") -Force
-        }
-
         foreach ($tool in @("datara-fmt.exe", "datara-clippy.exe", "datara-lsp.exe")) {
             $toolLocal = Join-Path $candDir $tool
             if (Test-Path $toolLocal) {
@@ -100,10 +93,10 @@ foreach ($cand in $LocalCandidates) {
             }
         }
 
-        Set-Content -Path (Join-Path $BinDir "sparks.cmd") -Value "@echo off`r`n`"%~dp0sparks.exe`" %*"
+        Set-Content -Path (Join-Path $BinDir "sparks.cmd") -Value "@echo off`r`n`"%~dp0dpm.exe`" %*"
         Set-Content -Path (Join-Path $BinDir "dpm.cmd") -Value "@echo off`r`n`"%~dp0dpm.exe`" %*"
 
-        Write-Host "  -> Installed toolchain binaries (forgen, datara, dpm, sparks, datara-fmt, datara-clippy, datara-lsp) from local source: $cand" -ForegroundColor Green
+        Write-Host "  -> Installed toolchain binaries (forgen, datara, dpm, datara-fmt, datara-clippy, datara-lsp) from local source: $cand" -ForegroundColor Green
         $InstalledSuccessfully = $true
         break
     }
@@ -132,14 +125,7 @@ if (-not $InstalledSuccessfully -and $DownloadUrl) {
             } else {
                 Copy-Item -Path $extractedExe.FullName -Destination (Join-Path $BinDir "dpm.exe") -Force
             }
-            $extractedSparks = Get-ChildItem -Path $env:TEMP\datara_extracted -Recurse -Filter "sparks.exe" | Select-Object -First 1
-            if ($extractedSparks) {
-                Copy-Item -Path $extractedSparks.FullName -Destination (Join-Path $BinDir "sparks.exe") -Force
-            } else {
-                Copy-Item -Path (Join-Path $BinDir "dpm.exe") -Destination (Join-Path $BinDir "sparks.exe") -Force
-            }
-
-            Set-Content -Path (Join-Path $BinDir "sparks.cmd") -Value "@echo off`r`n`"%~dp0sparks.exe`" %*"
+            Set-Content -Path (Join-Path $BinDir "sparks.cmd") -Value "@echo off`r`n`"%~dp0dpm.exe`" %*"
             Set-Content -Path (Join-Path $BinDir "dpm.cmd") -Value "@echo off`r`n`"%~dp0dpm.exe`" %*"
 
             # Extract standard library if present in downloaded package
@@ -187,18 +173,11 @@ if (-not $InstalledSuccessfully) {
             if (Test-Path $builtDpm) {
                 Copy-Item -Path $builtDpm -Destination (Join-Path $BinDir "dpm.exe") -Force
             }
-            $builtSparks = Join-Path $ScriptDir "target\release\sparks.exe"
-            if (Test-Path $builtSparks) {
-                Copy-Item -Path $builtSparks -Destination (Join-Path $BinDir "sparks.exe") -Force
-            } else {
-                Copy-Item -Path (Join-Path $BinDir "dpm.exe") -Destination (Join-Path $BinDir "sparks.exe") -Force
-            }
-
-            Set-Content -Path (Join-Path $BinDir "sparks.cmd") -Value "@echo off`r`n`"%~dp0sparks.exe`" %*"
+            Set-Content -Path (Join-Path $BinDir "sparks.cmd") -Value "@echo off`r`n`"%~dp0dpm.exe`" %*"
             Set-Content -Path (Join-Path $BinDir "dpm.cmd") -Value "@echo off`r`n`"%~dp0dpm.exe`" %*"
 
             $InstalledSuccessfully = $true
-            Write-Host "  -> Cargo compilation succeeded and binaries (forgen, datara, dpm, sparks) installed." -ForegroundColor Green
+            Write-Host "  -> Cargo compilation succeeded and binaries (forgen, datara, dpm) installed." -ForegroundColor Green
         }
     }
 }

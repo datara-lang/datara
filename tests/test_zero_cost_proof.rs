@@ -4,7 +4,7 @@ use forgen::driver::ForgenCompiler;
 #[test]
 fn test_zero_cost_oop_point_length() {
     let source = r#"
-class Point {
+struct Point {
     x: Float
     y: Float
 }
@@ -76,11 +76,11 @@ fn main() {
 #[test]
 fn test_zero_cost_generic_box_suite() {
     let source = r#"
-class Box<T> {
+struct Box<T> {
     val: T
 }
 
-class Inner {
+struct Inner {
     id: Int
     score: Float
 }
@@ -139,7 +139,7 @@ fn test_zero_cost_struct_creation_in_hot_loop() {
     // eliminate the allocation entirely — the CLIF may contain no heap call
     // at all, inside or outside the loop.
     let source = r#"
-class Box<T> {
+struct Box<T> {
     val: T
 }
 

@@ -1,6 +1,6 @@
-// Process execution and OS command primitives for Datara
+﻿// Process execution and OS command primitives for Datara
 
-class Process {
+struct Process {
     cmd: Str
 }
 

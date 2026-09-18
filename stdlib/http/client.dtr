@@ -1,7 +1,7 @@
-use stdlib.net.socket
+﻿use stdlib.net.socket
 use stdlib.http.types
 
-class HttpClient {
+struct HttpClient {
     timeout_ms: Int
 }
 

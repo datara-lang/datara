@@ -1,4 +1,4 @@
-class Box<T> {
+struct Box<T> {
     val: T
 }
 

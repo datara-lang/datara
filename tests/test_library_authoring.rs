@@ -73,7 +73,7 @@ fn test_lib_container_subdirectories_resolution() {
     let tensor_dir = test_dir.join("lib").join("tensor_lib").join("src");
     fs::create_dir_all(&tensor_dir).unwrap();
     let lib_code = r#"
-class Tensor {
+struct Tensor {
     rows: Int
     cols: Int
 }

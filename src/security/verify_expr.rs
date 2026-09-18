@@ -79,7 +79,19 @@ impl<'a> SecurityVerifier<'a> {
                                 | "db_query"
                                 | "read_file"
                                 | "write_file"
+                                | "file_read"
+                                | "file_write"
                                 | "format"
+                                | "malloc"
+                                | "calloc"
+                                | "realloc"
+                                | "datara_rt_malloc"
+                                | "datara_rt_list_create"
+                                | "datara_rt_map_new"
+                                | "datara_rt_strbuf_new"
+                                | "datara_rt_string_new"
+                                | "vec_new"
+                                | "string_new"
                         )
                     {
                         diag.error(
@@ -228,9 +240,23 @@ impl<'a> SecurityVerifier<'a> {
                     } else if let Some(req_cap) = required_capability_for_op(callee_name) {
                         let is_foreign_or_ffi = matches!(
                             callee_name.as_str(),
-                            "fopen" | "fread" | "fwrite" | "open" | "read" | "write"
-                                | "connect" | "bind" | "listen" | "send" | "sendto"
-                                | "recv" | "recvfrom" | "popen" | "fork" | "execve" | "posix_spawn"
+                            "fopen"
+                                | "fread"
+                                | "fwrite"
+                                | "open"
+                                | "read"
+                                | "write"
+                                | "connect"
+                                | "bind"
+                                | "listen"
+                                | "send"
+                                | "sendto"
+                                | "recv"
+                                | "recvfrom"
+                                | "popen"
+                                | "fork"
+                                | "execve"
+                                | "posix_spawn"
                         );
                         let justified = match &ctx.unsafe_justification {
                             Some(j) => !j.trim().is_empty(),
@@ -626,14 +652,13 @@ impl<'a> SecurityVerifier<'a> {
 /// preventing user directory substring collisions (e.g. `my_stdlib/payload.dtr`).
 fn is_genuine_stdlib_path(path: &str) -> bool {
     let p = std::path::Path::new(path);
-    if let Some(first) = p.components().next() {
-        let s = first.as_os_str().to_string_lossy();
-        if s == "stdlib" {
-            return true;
-        }
+    if p.components().any(|c| c.as_os_str() == "stdlib") {
+        return true;
     }
     path.starts_with("stdlib/")
         || path.starts_with("stdlib\\")
+        || path.contains("/stdlib/")
+        || path.contains("\\stdlib\\")
         || path.contains("datara_embedded_stdlib")
         || path.contains(".datara/stdlib")
         || path.contains(".datara\\stdlib")

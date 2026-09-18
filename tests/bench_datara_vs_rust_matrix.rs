@@ -208,7 +208,7 @@ fn slow_bench_comprehensive_datara_vs_rust_benchmark_matrix() {
     // 1. SROA 3D GEOMETRY 10M
     {
         let dtr_code = r#"
-class Vec3 {
+struct Vec3 {
     x: Int
     y: Int
     z: Int

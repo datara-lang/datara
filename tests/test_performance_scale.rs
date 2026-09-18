@@ -3,7 +3,7 @@ use forgen::driver::ForgenCompiler;
 #[test]
 fn test_scale_method_inlining_and_sroa() {
     let source = r#"
-class Point {
+struct Point {
     x: Int
     y: Int
 }

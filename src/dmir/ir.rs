@@ -1,6 +1,6 @@
 use crate::ast::{ContractClause, Refinement};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Default,
@@ -742,7 +742,7 @@ pub struct Module {
     /// such declarations at the cimport gate.
     #[serde(default)]
     pub extern_sysv: HashMap<String, [crate::ast::SysVClass; 2]>,
-    pub class_fields: HashMap<String, Vec<String>>,
+    pub class_fields: BTreeMap<String, Vec<String>>,
     pub class_field_types: HashMap<String, String>,
     #[serde(default)]
     pub function_spans: HashMap<String, crate::diagnostics::SourceSpan>,
@@ -756,6 +756,8 @@ pub struct Module {
     pub packed_classes: HashSet<String>,
     #[serde(default)]
     pub endian_classes: HashMap<String, String>,
+    #[serde(default)]
+    pub component_classes: HashSet<String>,
 }
 
 impl Module {
@@ -766,7 +768,7 @@ impl Module {
             extern_functions: HashMap::new(),
             extern_sret: HashMap::new(),
             extern_sysv: HashMap::new(),
-            class_fields: HashMap::new(),
+            class_fields: BTreeMap::new(),
             class_field_types: HashMap::new(),
             function_spans: HashMap::new(),
             function_line_spans: HashMap::new(),
@@ -774,6 +776,7 @@ impl Module {
             globals: HashMap::new(),
             packed_classes: HashSet::new(),
             endian_classes: HashMap::new(),
+            component_classes: HashSet::new(),
         }
     }
 }

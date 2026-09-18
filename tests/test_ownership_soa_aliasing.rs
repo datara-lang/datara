@@ -57,13 +57,13 @@ fn main() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 2: Destroying a class instance and then reading it again must be
-// rejected. Scalar Int values are copyable, so a class instance with an
+// Test 2: Destroying a struct instance and then reading it again must be
+// rejected. Scalar Int values are copyable, so a struct instance with an
 // explicit `destroy` is the ownership-tracked subject here.
 // ---------------------------------------------------------------------------
 #[test]
 fn test_soa_move_then_reuse_rejected() {
-    let src = r#"class Token {
+    let src = r#"struct Token {
     id: Int
 }
 

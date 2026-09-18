@@ -1,4 +1,4 @@
-class Point {
+struct Point {
     x: Float
     y: Float
 }

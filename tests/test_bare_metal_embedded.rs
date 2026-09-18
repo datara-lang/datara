@@ -40,7 +40,7 @@ fn test_interrupt_handler_vector() {
 @bare_metal
 module embedded.isr
 
-class SystemTimer {
+struct SystemTimer {
     ticks: Int
 }
 

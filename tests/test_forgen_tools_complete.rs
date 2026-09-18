@@ -40,7 +40,7 @@ pub fn add(a: Int, b: Int) -> Int {
 }
 
 /// 3D Vector primitive for graphics
-class Vector3 {
+struct Vector3 {
     x: Float
     y: Float
     z: Float
@@ -70,7 +70,7 @@ fn test_export_c_header() {
 
     let sample_file = temp_dir.join("geom.dtr");
     let sample_code = r#"
-class Point {
+struct Point {
     x: Int
     y: Int
 }
