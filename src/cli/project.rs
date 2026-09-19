@@ -8,13 +8,30 @@ use std::time::Instant;
 /// `forgen init` / `new` — scaffold a new project.
 pub(crate) fn cmd_init(args: &[String]) -> bool {
     let is_lib = args.iter().any(|a| a == "--lib");
+    let is_bare = args.iter().any(|a| a == "--bare");
+    let bare_idx = args.iter().position(|a| a == "--bare");
+    let mcu = if let Some(idx) = bare_idx {
+        if idx + 1 < args.len() && !args[idx + 1].starts_with("-") {
+            Some(args[idx + 1].as_str())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     let project_name = args
         .iter()
         .skip(2)
-        .find(|a| !a.starts_with("-"))
-        .map(|s| s.as_str());
+        .enumerate()
+        .find(|(i, a)| !a.starts_with("-") && Some(i + 2) != bare_idx.map(|idx| idx + 1))
+        .map(|(_, s)| s.as_str())
+        .or(if is_bare { mcu } else { None });
+
     let target_dir = Path::new(".");
-    let res = if is_lib {
+    let res = if is_bare {
+        ProjectInitializer::init_bare(project_name, target_dir, mcu)
+    } else if is_lib {
         ProjectInitializer::init_lib(project_name, target_dir)
     } else {
         ProjectInitializer::init(project_name, target_dir)

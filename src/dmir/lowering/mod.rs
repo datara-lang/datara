@@ -64,11 +64,13 @@ pub struct Lowering<'a> {
     pub loop_stack: Vec<(BasicBlockId, BasicBlockId)>,
     pub global_vars: HashMap<String, (String, bool)>,
     pub program_globals: Vec<GlobalDecl>,
+    pub comptime_functions: HashMap<String, FunctionDecl>,
+    pub comptime_evaluator: crate::comptime::ComptimeEvaluator,
 }
 
 impl<'a> Lowering<'a> {
     pub fn new(resolver: &'a Resolver, types: &'a TypeChecker<'a>) -> Self {
-        let mut function_return_types = HashMap::new();
+        let mut function_return_types = HashMap::with_capacity(256);
         function_return_types.insert("str_to_int".into(), "Int".into());
         function_return_types.insert("datara_rt_str_to_int".into(), "Int".into());
         function_return_types.insert("str_to_float".into(), "Float".into());
@@ -487,26 +489,28 @@ impl<'a> Lowering<'a> {
             types,
             val_counter: 0,
             block_counter: 0,
-            symbol_values: HashMap::new(),
-            current_blocks: Vec::new(),
-            class_field_types: HashMap::new(),
+            symbol_values: HashMap::with_capacity(64),
+            current_blocks: Vec::with_capacity(16),
+            class_field_types: HashMap::with_capacity(64),
             function_return_types,
             current_fn_name: String::new(),
-            local_var_types: HashMap::new(),
-            enum_variant_tags: HashMap::new(),
-            module_alias_functions: HashMap::new(),
+            local_var_types: HashMap::with_capacity(64),
+            enum_variant_tags: HashMap::with_capacity(32),
+            module_alias_functions: HashMap::with_capacity(16),
             bridge_registry: crate::bridge_decl::BridgeRegistry::new(),
-            enum_variant_names: HashMap::new(),
-            enum_slots: HashMap::new(),
-            current_line_spans: Vec::new(),
+            enum_variant_names: HashMap::with_capacity(32),
+            enum_slots: HashMap::with_capacity(32),
+            current_line_spans: Vec::with_capacity(64),
             in_wrapping_mode: false,
             in_saturating_mode: false,
-            local_lambdas: HashMap::new(),
-            inlineable_fns: HashMap::new(),
-            lambda_captures: HashMap::new(),
+            local_lambdas: HashMap::with_capacity(16),
+            inlineable_fns: HashMap::with_capacity(16),
+            lambda_captures: HashMap::with_capacity(16),
             loop_stack: Vec::new(),
-            global_vars: HashMap::new(),
+            global_vars: HashMap::with_capacity(32),
             program_globals: Vec::new(),
+            comptime_functions: HashMap::with_capacity(16),
+            comptime_evaluator: crate::comptime::ComptimeEvaluator::new(),
         }
     }
 
@@ -654,6 +658,15 @@ impl<'a> Lowering<'a> {
         self.bridge_registry = crate::bridge_decl::BridgeRegistry::from_program(program);
         self.global_vars.clear();
         self.program_globals.clear();
+        self.comptime_functions.clear();
+
+        for decl in &program.declarations {
+            if let Decl::Function(f) = decl {
+                self.comptime_functions.insert(f.name.clone(), f.clone());
+            }
+        }
+        self.comptime_evaluator =
+            crate::comptime::ComptimeEvaluator::with_functions(self.comptime_functions.clone());
 
         for decl in &program.declarations {
             if let Decl::Global(g) = decl {

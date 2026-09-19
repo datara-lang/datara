@@ -348,6 +348,11 @@ pub(super) fn run_check_pipeline(
     let tc_start = Instant::now();
     let mut type_checker = TypeChecker::new(&resolver);
     type_checker.program_module_aliases = program.module_aliases.clone();
+    if let Some((_, manifest)) = crate::rust_bridge::find_manifest(Path::new(".")) {
+        if let Some(devs) = manifest.devices {
+            type_checker.allowed_devices.extend(devs.allowed);
+        }
+    }
     type_checker.check_program(&program, diag);
     timings.typecheck_ms = tc_start.elapsed().as_millis();
     if diag.has_errors() {
@@ -361,6 +366,7 @@ pub(super) fn run_check_pipeline(
     let mut effects = EffectAnalyzer::new();
     effects.analyze_program(&program);
     effects.verify_behavior_purity(&program, diag);
+    effects.verify_comptime_purity(&program, diag);
     timings.effects_ms = eff_start.elapsed().as_millis();
 
     // 5. Ownership
@@ -576,6 +582,11 @@ pub(super) fn run_analysis_and_lower<R>(
     let tc_start = Instant::now();
     let mut type_checker = TypeChecker::new(&resolver);
     type_checker.program_module_aliases = program.module_aliases.clone();
+    if let Some((_, manifest)) = crate::rust_bridge::find_manifest(Path::new(".")) {
+        if let Some(devs) = manifest.devices {
+            type_checker.allowed_devices.extend(devs.allowed);
+        }
+    }
     type_checker.check_program(&program, diag);
     timings.typecheck_ms = tc_start.elapsed().as_millis();
     if diag.has_errors() {

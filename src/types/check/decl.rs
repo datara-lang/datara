@@ -356,6 +356,7 @@ impl<'a> TypeChecker<'a> {
                     .unwrap_or(DataraType::Unit);
                 self.current_return_type = Some(expected.clone());
 
+                self.active_requires = f.requires.iter().map(|r| r.condition.clone()).collect();
                 for req in &f.requires {
                     self.check_expr(&req.condition, diag);
                 }
@@ -367,6 +368,7 @@ impl<'a> TypeChecker<'a> {
                 self.symbol_types.remove("result");
 
                 let body_type = self.check_stmt(&f.body, diag);
+                self.active_requires.clear();
                 self.current_return_type = None;
                 self.current_fn_name = None;
 

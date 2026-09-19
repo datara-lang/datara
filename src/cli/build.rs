@@ -73,6 +73,21 @@ pub(crate) fn cmd_check(args: &[String]) -> bool {
     true
 }
 
+pub fn check_target_backend(target_triple: Option<&str>, is_llvm: bool) -> Result<(), String> {
+    if !is_llvm {
+        if let Some(triple) = target_triple {
+            let t = triple.to_lowercase();
+            if t.starts_with("thumb") || t.contains("cortex-m") || t.contains("-none-") {
+                return Err(format!(
+                    "Error [E-TARGET-001]: Target '{}' is only supported via LLVM backend. Use '--llvm'",
+                    triple
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// `forgen run` / `forgen quick` / `forgen start`.
 pub(crate) fn cmd_run(command: &str, args: &[String]) -> bool {
     let mut target_arg: Option<&str> = None;
@@ -137,7 +152,18 @@ pub(crate) fn cmd_run(command: &str, args: &[String]) -> bool {
             args.iter()
                 .find(|a| a.starts_with("--target="))
                 .and_then(|a| a.strip_prefix("--target=").map(|s| s.to_string()))
+        })
+        .or_else(|| {
+            layout
+                .manifest
+                .as_ref()
+                .and_then(|m| m.target.as_ref())
+                .and_then(|t| t.arch.clone())
         });
+    if let Err(e) = check_target_backend(target_triple.as_deref(), is_llvm) {
+        eprintln!("{}", e);
+        std::process::exit(1);
+    }
     let debug_info = args.iter().any(|a| a == "-g" || a == "--debug");
     let is_pgo_train = args
         .iter()
@@ -545,6 +571,13 @@ pub(crate) fn cmd_build(command: &str, args: &[String]) -> bool {
             args.iter()
                 .find(|a| a.starts_with("--target="))
                 .and_then(|a| a.strip_prefix("--target=").map(|s| s.to_string()))
+        })
+        .or_else(|| {
+            layout
+                .manifest
+                .as_ref()
+                .and_then(|m| m.target.as_ref())
+                .and_then(|t| t.arch.clone())
         });
     let is_tiny = args
         .iter()
@@ -561,6 +594,10 @@ pub(crate) fn cmd_build(command: &str, args: &[String]) -> bool {
         command
     };
     let is_llvm = args.iter().any(|a| a == "--llvm");
+    if let Err(e) = check_target_backend(target_triple.as_deref(), is_llvm) {
+        eprintln!("{}", e);
+        std::process::exit(1);
+    }
     let is_native = args
         .iter()
         .any(|a| a == "--native" || a == "--tune=native" || a.starts_with("--tune="));

@@ -187,4 +187,153 @@ impl ProjectInitializer {
         );
         Ok(())
     }
+
+    /// Initializes a Bare-Metal Datara project (Cortex-M)
+    pub fn init_bare(
+        name: Option<&str>,
+        target_dir: &Path,
+        mcu: Option<&str>,
+    ) -> Result<(), String> {
+        let dir_name = if let Some(n) = name {
+            n.to_string()
+        } else {
+            target_dir
+                .canonicalize()
+                .ok()
+                .and_then(|p| {
+                    p.file_name()
+                        .and_then(|s| s.to_str())
+                        .map(|s| s.to_string())
+                })
+                .unwrap_or_else(|| "cortex_m_app".to_string())
+        };
+
+        let project_root = if name.is_some() {
+            target_dir.join(&dir_name)
+        } else {
+            target_dir.to_path_buf()
+        };
+
+        if !project_root.exists() {
+            fs::create_dir_all(&project_root).map_err(|e| {
+                format!(
+                    "Failed to create bare-metal project directory '{}': {}",
+                    project_root.display(),
+                    e
+                )
+            })?;
+        }
+
+        let mcu_name = mcu.unwrap_or("cortex-m4");
+
+        // 1. datara.toml manifest
+        let manifest_path = project_root.join("datara.toml");
+        if !manifest_path.exists() {
+            let content = format!(
+                r#"[package]
+name = "{}"
+version = "0.1.0"
+profile = "bare"
+
+[target]
+arch = "thumbv7em-none-eabihf"
+cpu = "{}"
+
+[devices]
+allowed = ["GPIOC", "RCC"]
+"#,
+                dir_name, mcu_name
+            );
+            fs::write(&manifest_path, content)
+                .map_err(|e| format!("Failed to write datara.toml: {}", e))?;
+        }
+
+        // 2. src/main.dtr
+        let src_dir = project_root.join("src");
+        fs::create_dir_all(&src_dir).map_err(|e| format!("Failed to create src dir: {}", e))?;
+        let main_path = src_dir.join("main.dtr");
+        if !main_path.exists() {
+            let main_content = r#"@mmio(0x40021000)
+struct RCC {
+    cr: Int at 0x00,
+    cfgr: Int at 0x08,
+}
+
+@mmio(0x40020800)
+struct GPIOC {
+    moder: Int at 0x00,
+    odr: Int at 0x14,
+}
+
+fn main() {
+    unsafe(justification: "Initialize hardware clocks and GPIO") {
+        RCC.cr = 0x01
+        GPIOC.moder = 0x1000
+    }
+}
+"#;
+            fs::write(&main_path, main_content)
+                .map_err(|e| format!("Failed to write src/main.dtr: {}", e))?;
+        }
+
+        // 3. src/vectors.dtr
+        let vectors_path = src_dir.join("vectors.dtr");
+        if !vectors_path.exists() {
+            let vectors_content = r#"fn Reset_Handler() {
+    main()
+}
+
+fn Default_Handler() {
+    while true {}
+}
+"#;
+            fs::write(&vectors_path, vectors_content)
+                .map_err(|e| format!("Failed to write src/vectors.dtr: {}", e))?;
+        }
+
+        // 4. memory.ld
+        let ld_path = project_root.join("memory.ld");
+        if !ld_path.exists() {
+            let ld_content = r#"MEMORY
+{
+    FLASH (rx) : ORIGIN = 0x08000000, LENGTH = 512K
+    RAM (rwx)  : ORIGIN = 0x20000000, LENGTH = 128K
+}
+
+SECTIONS
+{
+    .text : {
+        *(.vectors)
+        *(.text*)
+        *(.rodata*)
+    } > FLASH
+
+    .data : {
+        *(.data*)
+    } > RAM AT > FLASH
+
+    .bss : {
+        *(.bss*)
+    } > RAM
+}
+"#;
+            fs::write(&ld_path, ld_content)
+                .map_err(|e| format!("Failed to write memory.ld: {}", e))?;
+        }
+
+        // 5. .gitignore
+        let gitignore_path = project_root.join(".gitignore");
+        if !gitignore_path.exists() {
+            let gitignore_content = "target/\n*.bin\n*.elf\n*.hex\n*.obj\n*.o\n";
+            let _ = fs::write(&gitignore_path, gitignore_content);
+        }
+
+        println!(
+            "[Forgen] Successfully created bare-metal project '{}' for {} at '{}'",
+            dir_name,
+            mcu_name,
+            project_root.display()
+        );
+        Ok(())
+    }
 }

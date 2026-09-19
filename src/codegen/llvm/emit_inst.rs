@@ -1012,6 +1012,47 @@ impl<'a> LlvmEmitter<'a> {
                     }
                 }
             }
+            Inst::VolatileLoad { dest, addr, ty } => {
+                let llvm_ty = match ty.as_str() {
+                    "Int" | "i64" | "u64" => "i64",
+                    "Int32" | "i32" | "u32" | "UInt32" => "i32",
+                    "Int16" | "i16" | "u16" | "UInt16" => "i16",
+                    "Int8" | "i8" | "u8" | "UInt8" | "Byte" => "i8",
+                    "Float" | "f64" => "double",
+                    "Float32" | "f32" => "float",
+                    _ => "i64",
+                };
+                value_types.insert(*dest, llvm_ty);
+                let ptr_vid = FIELD_PTR_COUNTER.fetch_add(1, Ordering::Relaxed);
+                out.push_str(&format!(
+                    "  %ptr_{} = inttoptr i64 %v{} to ptr\n",
+                    ptr_vid, addr.0
+                ));
+                out.push_str(&format!(
+                    "  %v{} = load volatile {}, ptr %ptr_{}\n",
+                    dest.0, llvm_ty, ptr_vid
+                ));
+            }
+            Inst::VolatileStore { addr, value, ty } => {
+                let llvm_ty = match ty.as_str() {
+                    "Int" | "i64" | "u64" => "i64",
+                    "Int32" | "i32" | "u32" | "UInt32" => "i32",
+                    "Int16" | "i16" | "u16" | "UInt16" => "i16",
+                    "Int8" | "i8" | "u8" | "UInt8" | "Byte" => "i8",
+                    "Float" | "f64" => "double",
+                    "Float32" | "f32" => "float",
+                    _ => "i64",
+                };
+                let ptr_vid = FIELD_PTR_COUNTER.fetch_add(1, Ordering::Relaxed);
+                out.push_str(&format!(
+                    "  %ptr_{} = inttoptr i64 %v{} to ptr\n",
+                    ptr_vid, addr.0
+                ));
+                out.push_str(&format!(
+                    "  store volatile {} %v{}, ptr %ptr_{}\n",
+                    llvm_ty, value.0, ptr_vid
+                ));
+            }
             _ => {}
         }
         Ok(())

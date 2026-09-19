@@ -70,6 +70,26 @@ impl<'a> Lowering<'a> {
                         return Some(dest);
                     }
                 }
+                if let Some((base_addr, fields)) = self.find_mmio_for_member(object, member) {
+                    if let Some(&(offset, ref ty_name)) = fields.get(member) {
+                        let addr_val = self.next_val();
+                        self.get_block_mut(*cur_block)
+                            .instructions
+                            .push(Inst::ConstInt {
+                                dest: addr_val,
+                                value: (base_addr + offset) as i64,
+                            });
+                        let dest = self.next_val();
+                        self.get_block_mut(*cur_block)
+                            .instructions
+                            .push(Inst::VolatileLoad {
+                                dest,
+                                addr: addr_val,
+                                ty: ty_name.clone(),
+                            });
+                        return Some(dest);
+                    }
+                }
                 let obj_val = self.lower_expr(object, cur_block)?;
                 if member == "view" || member == "files" || member == "net" || member == "proc" {
                     return Some(obj_val);
@@ -925,7 +945,14 @@ impl<'a> Lowering<'a> {
                 *cur_block = merge_block;
                 Some(result_val)
             }
-            Expr::Comptime { expr, .. } => self.lower_expr(expr, cur_block),
+            Expr::Comptime { expr, .. } => {
+                let mut scope = crate::comptime::ComptimeScope::new();
+                if let Ok(val) = self.comptime_evaluator.eval_expr(expr, &mut scope) {
+                    self.lower_comptime_val(val, cur_block)
+                } else {
+                    self.lower_expr(expr, cur_block)
+                }
+            }
             Expr::Wrapping(inner, _) => {
                 let prev = self.in_wrapping_mode;
                 self.in_wrapping_mode = true;
@@ -941,6 +968,81 @@ impl<'a> Lowering<'a> {
                 res
             }
             _ => None,
+        }
+    }
+
+    pub(crate) fn lower_comptime_val(
+        &mut self,
+        val: crate::comptime::ComptimeValue,
+        cur_block: &mut BasicBlockId,
+    ) -> Option<ValueId> {
+        use crate::comptime::ComptimeValue;
+        match val {
+            ComptimeValue::Int(i) => {
+                let dest = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::ConstInt { dest, value: i });
+                Some(dest)
+            }
+            ComptimeValue::Float(f) => {
+                let dest = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::ConstFloat { dest, value: f });
+                Some(dest)
+            }
+            ComptimeValue::Bool(b) => {
+                let dest = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::ConstBool { dest, value: b });
+                Some(dest)
+            }
+            ComptimeValue::Str(s) => {
+                let dest = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::ConstStr { dest, value: s });
+                Some(dest)
+            }
+            ComptimeValue::List(items) => {
+                let mut item_vals = Vec::with_capacity(items.len());
+                for it in items {
+                    if let Some(v) = self.lower_comptime_val(it, cur_block) {
+                        item_vals.push(v);
+                    }
+                }
+                let dest = self.next_val();
+                let cap = self.next_val();
+                self.get_block_mut(*cur_block).instructions.push(Inst::ConstInt {
+                    dest: cap,
+                    value: item_vals.len() as i64,
+                });
+                self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                    dest,
+                    func: "datara_rt_list_create".into(),
+                    args: vec![cap],
+                    ty: "List".into(),
+                });
+                for v in item_vals {
+                    let dummy = self.next_val();
+                    self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                        dest: dummy,
+                        func: "datara_rt_list_append".into(),
+                        args: vec![dest, v],
+                        ty: "Unit".into(),
+                    });
+                }
+                Some(dest)
+            }
+            _ => {
+                let dest = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::ConstInt { dest, value: 0 });
+                Some(dest)
+            }
         }
     }
 }

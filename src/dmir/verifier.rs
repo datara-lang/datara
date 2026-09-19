@@ -183,6 +183,7 @@ fn instruction_dest(instruction: &Inst) -> Option<ValueId> {
         | Inst::FormatStr { dest, .. }
         | Inst::GetFuncAddr { dest, .. }
         | Inst::Select { dest, .. }
+        | Inst::VolatileLoad { dest, .. }
         | Inst::Decide { dest, .. } => Some(*dest),
         Inst::InlineAsm { outputs, .. } => outputs.first().map(|(_, d)| *d),
         _ => None,
@@ -222,6 +223,11 @@ fn instruction_uses(instruction: &Inst) -> Vec<ValueId> {
         Inst::GetField { object, .. } => uses.push(*object),
         Inst::SetField { object, value, .. } => {
             uses.push(*object);
+            uses.push(*value);
+        }
+        Inst::VolatileLoad { addr, .. } => uses.push(*addr),
+        Inst::VolatileStore { addr, value, .. } => {
+            uses.push(*addr);
             uses.push(*value);
         }
         Inst::FormatStr { values, .. } => uses.extend(values.iter().copied()),

@@ -362,6 +362,40 @@ impl<'a> TypeChecker<'a> {
             );
         };
 
+        // --- SIMD Vector Operations & Strict Type Isolation (v1.4.5) ---
+        if lt == DataraType::SimdF32x4
+            || rt == DataraType::SimdF32x4
+            || lt == DataraType::SimdI32x4
+            || rt == DataraType::SimdI32x4
+        {
+            if lt != rt {
+                diag.error_with_help(
+                    ErrorCode::TypeIncomparableOperands,
+                    format!("SIMD vector type mismatch: cannot combine '{}' and '{}'", lt, rt),
+                    Some(span.clone()),
+                    Some("Datara enforces strict SIMD type isolation (E-TYPE-008): use explicit conversion '.to_f32()' or '.to_i32()'.".to_string()),
+                );
+                return if lt == DataraType::SimdF32x4 || rt == DataraType::SimdF32x4 {
+                    DataraType::SimdF32x4
+                } else {
+                    DataraType::SimdI32x4
+                };
+            }
+            match op {
+                "+" | "-" | "*" | "/" => return lt,
+                "&" | "|" | "^" if lt == DataraType::SimdI32x4 => return lt,
+                "==" | "!=" => return DataraType::Bool,
+                _ => {
+                    diag.error(
+                        ErrorCode::TypeInvalidBinaryOp,
+                        format!("Operator '{}' cannot be applied to SIMD vector type '{}'", op, lt),
+                        Some(span.clone()),
+                    );
+                    return lt;
+                }
+            }
+        }
+
         if !is_open(&lt) && !is_open(&rt) {
             match op {
                 "+" | "-" | "*" | "/" | "%" => {

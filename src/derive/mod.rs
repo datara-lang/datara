@@ -3,6 +3,18 @@ use crate::diagnostics::SourceSpan;
 
 /// Expand `@derive(...)` attributes and compile-time `comptime { ... }` expressions in AST.
 pub fn expand_derives_and_comptime(program: &mut Program) {
+    let has_any_attr_or_trait = !program.attributes.is_empty()
+        || program.declarations.iter().any(|d| match d {
+            Decl::Class(c) => !c.attributes.is_empty(),
+            Decl::Function(f) | Decl::Flow(f) | Decl::Task(f) => !f.attributes.is_empty() || f.is_comptime,
+            Decl::Trait(_) => true,
+            _ => false,
+        });
+
+    if !has_any_attr_or_trait {
+        return;
+    }
+
     expand_trait_defaults(program);
     for decl in &mut program.declarations {
         match decl {
@@ -802,6 +814,7 @@ pub fn expand_trait_defaults(program: &mut Program) {
                                 body: synth_body,
                                 is_expression_body: false,
                                 is_export: true,
+                                is_comptime: false,
                                 span: tm.span.clone(),
                             });
                         }
@@ -1081,7 +1094,7 @@ pub fn substitute_self_in_stmt(stmt: &mut Stmt, target: &str) {
             substitute_self_in_stmt(try_block, target);
             substitute_self_in_stmt(catch_block, target);
         }
-        Stmt::Parallel(body, _) | Stmt::Unsafe { body, .. } => {
+        Stmt::Parallel(body, _) | Stmt::Simd(body, _) | Stmt::Unsafe { body, .. } => {
             substitute_self_in_stmt(body, target);
         }
         Stmt::ParallelFor { iterable, body, .. } => {

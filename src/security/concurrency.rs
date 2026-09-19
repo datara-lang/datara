@@ -360,7 +360,7 @@ impl<'a> SecurityVerifier<'a> {
                 for_declared.insert(var_name.clone());
                 self.collect_and_check_data_race(body, outer_vars, &mut for_declared, diag);
             }
-            Stmt::Parallel(body, _) => {
+            Stmt::Parallel(body, _) | Stmt::Simd(body, _) => {
                 self.collect_and_check_data_race(body, outer_vars, inner_declared, diag);
             }
             Stmt::ParallelFor { var_name, body, .. } => {

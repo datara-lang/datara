@@ -200,6 +200,7 @@ impl ProjectRunner {
                         body: Box::new(main_body),
                         is_expression_body: false,
                         is_export: false,
+                        is_comptime: false,
                         span: test_fn.span.clone(),
                     };
                     test_program.declarations.push(Decl::Function(main_fn));

@@ -130,6 +130,15 @@ pub enum ErrorCode {
     ImplMissingSuperTrait,
     UnprintableType,
     DeprecatedPrintFunction,
+
+    // Comptime Errors (E-CT-*, v1.4.5)
+    ComptimeRecursionLimit,
+    ComptimeForbiddenEffect,
+    ComptimeNonConstArg,
+
+    // Bare-Metal & Target Errors (v1.4.5)
+    MmioRequiresUnsafe,
+    TargetRequiresLlvm,
 }
 
 impl ErrorCode {
@@ -228,6 +237,12 @@ impl ErrorCode {
             ErrorCode::ImplMissingSuperTrait => "E-IMPL-002",
             ErrorCode::UnprintableType => "E-OUT-001",
             ErrorCode::DeprecatedPrintFunction => "W0102",
+
+            ErrorCode::ComptimeRecursionLimit => "E-CT-001",
+            ErrorCode::ComptimeForbiddenEffect => "E-CT-002",
+            ErrorCode::ComptimeNonConstArg => "E-CT-003",
+            ErrorCode::MmioRequiresUnsafe => "E-MMIO-001",
+            ErrorCode::TargetRequiresLlvm => "E-TARGET-001",
         }
     }
 
@@ -442,6 +457,21 @@ impl ErrorCode {
                 ErrorCode::DeprecatedPrintFunction => {
                     "Использование функций печати устарело: используйте оператор 'out' или 'err'"
                 }
+                ErrorCode::ComptimeRecursionLimit => {
+                    "Превышен лимит глубины рекурсии или шагов вычислений в comptime (E-CT-001)"
+                }
+                ErrorCode::ComptimeForbiddenEffect => {
+                    "Запрещённый побочный эффект в comptime: ввод-вывод, runtime builtins и unsafe запрещены (E-CT-002)"
+                }
+                ErrorCode::ComptimeNonConstArg => {
+                    "Аргументы comptime-функции обязаны быть константами времени компиляции (E-CT-003)"
+                }
+                ErrorCode::MmioRequiresUnsafe => {
+                    "Доступ к MMIO требует блока 'unsafe' или объявления в секции [devices] datara.toml (E-MMIO-001)"
+                }
+                ErrorCode::TargetRequiresLlvm => {
+                    "Целевая архитектура поддерживается только через бэкенд LLVM (E-TARGET-001)"
+                }
             }
         } else {
             match self {
@@ -646,6 +676,21 @@ impl ErrorCode {
                 }
                 ErrorCode::DeprecatedPrintFunction => {
                     "Print function is deprecated: use 'out' or 'err' statement instead"
+                }
+                ErrorCode::ComptimeRecursionLimit => {
+                    "Recursion depth or step limit exceeded in comptime execution (E-CT-001)"
+                }
+                ErrorCode::ComptimeForbiddenEffect => {
+                    "Effect not allowed in comptime execution: I/O, runtime builtins, and unsafe are forbidden (E-CT-002)"
+                }
+                ErrorCode::ComptimeNonConstArg => {
+                    "Arguments to comptime function must be compile-time constants (E-CT-003)"
+                }
+                ErrorCode::MmioRequiresUnsafe => {
+                    "MMIO access requires an 'unsafe' block or declaration in datara.toml [devices] (E-MMIO-001)"
+                }
+                ErrorCode::TargetRequiresLlvm => {
+                    "Target is only supported via LLVM backend (E-TARGET-001)"
                 }
             }
         }

@@ -56,6 +56,8 @@ pub enum DataraType {
         base: Box<DataraType>,
         unit: String,
     },
+    SimdF32x4,
+    SimdI32x4,
 }
 
 impl DataraType {
@@ -68,7 +70,7 @@ impl DataraType {
             DataraType::Bool => 1,
             DataraType::Char => 4,
             DataraType::Int | DataraType::Float | DataraType::Dec64 | DataraType::RawPtr => 8,
-            DataraType::Dec128 => 16,
+            DataraType::Dec128 | DataraType::SimdF32x4 | DataraType::SimdI32x4 => 16,
             DataraType::String => 24, // { ptr: *u8, len: usize, cap: usize }
             DataraType::Trait(_) => 16, // Dynamic trait object fat pointer: { instance_ptr: 8, vtable_ptr: 8 }
             DataraType::Option(inner) => 8 + inner.size_in_bytes(), // 8-byte tag + payload
@@ -104,7 +106,9 @@ impl DataraType {
             | DataraType::Unit
             | DataraType::RawPtr
             | DataraType::Dec64
-            | DataraType::Dec128 => true,
+            | DataraType::Dec128
+            | DataraType::SimdF32x4
+            | DataraType::SimdI32x4 => true,
             DataraType::Range { base, .. } | DataraType::Measure { base, .. } => base.is_pod(),
             DataraType::Tuple(elems) => elems.iter().all(|e| e.is_pod()),
             DataraType::Class(name) => !matches!(
@@ -192,6 +196,20 @@ impl DataraType {
             && c == "Map"
         {
             return true;
+        }
+        if let (DataraType::SimdF32x4, DataraType::Class(c))
+            | (DataraType::Class(c), DataraType::SimdF32x4) = (self, other)
+        {
+            if c == "Float4" || c == "f32x4" || c == "simd_f32x4" {
+                return true;
+            }
+        }
+        if let (DataraType::SimdI32x4, DataraType::Class(c))
+            | (DataraType::Class(c), DataraType::SimdI32x4) = (self, other)
+        {
+            if c == "Int4" || c == "i32x4" || c == "simd_i32x4" {
+                return true;
+            }
         }
         if let (DataraType::Tuple(t1), DataraType::Tuple(t2)) = (self, other)
             && t1.len() == t2.len()
@@ -426,6 +444,8 @@ impl std::fmt::Display for DataraType {
             DataraType::Trait(t) => write!(f, "{}", t),
             DataraType::Range { base, min, max } => write!(f, "{}<{}..{}>", base, min, max),
             DataraType::Measure { base, unit } => write!(f, "{}<{}>", base, unit),
+            DataraType::SimdF32x4 => write!(f, "simd_f32x4"),
+            DataraType::SimdI32x4 => write!(f, "simd_i32x4"),
         }
     }
 }
@@ -526,6 +546,10 @@ pub struct TypeChecker<'a> {
     /// checked. `break` / `continue` outside any loop (E0312) are rejected;
     /// `parallel` bodies do not open a breakable scope.
     pub loop_depth: usize,
+    /// Active function contract requirements (requires conditions), checked for SIMD bound proofs (E0947).
+    pub active_requires: Vec<Expr>,
+    pub in_unsafe: bool,
+    pub allowed_devices: HashSet<String>,
 }
 
 /// Maximum nesting depth for expression type-checking. Expressions nested

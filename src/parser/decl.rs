@@ -199,6 +199,27 @@ impl<'a> Parser<'a> {
             self.error("Expected 'fn', 'function', or 'task' after 'async'");
             return None;
         }
+        if self.match_token(&TokenType::Comptime) || self.check_ident_str("comptime") {
+            if self.check_ident_str("comptime") {
+                self.advance();
+            }
+            if self.match_token(&TokenType::Fn) || self.match_token(&TokenType::Function) {
+                let mut comptime_attrs = attrs;
+                comptime_attrs.push(Attribute {
+                    name: "comptime".to_string(),
+                    args: Vec::new(),
+                    span: self.previous().span.clone(),
+                });
+                return self
+                    .parse_function_decl(is_export, comptime_attrs)
+                    .map(|mut f| {
+                        f.is_comptime = true;
+                        Decl::Function(f)
+                    });
+            }
+            self.error("Expected 'fn' or 'function' after 'comptime' in declaration");
+            return None;
+        }
         if self.match_token(&TokenType::Fn) || self.match_token(&TokenType::Function) {
             return self
                 .parse_function_decl(is_export, attrs)
@@ -1254,6 +1275,24 @@ impl<'a> Parser<'a> {
                 }
             }
 
+            let mut offset = None;
+            if self.check_ident_str("at") {
+                self.advance();
+                match &self.peek().token_type {
+                    TokenType::IntLiteral(n) => {
+                        if *n >= 0 {
+                            offset = Some(*n as u64);
+                            self.advance();
+                        } else {
+                            self.error("Field offset must be non-negative");
+                        }
+                    }
+                    _ => {
+                        self.error("Expected field offset integer after 'at'");
+                    }
+                }
+            }
+
             let mut default_value = None;
             if self.match_token(&TokenType::Equal) {
                 default_value = self.parse_expression();
@@ -1264,6 +1303,7 @@ impl<'a> Parser<'a> {
                 name,
                 type_node,
                 bit_field,
+                offset,
                 default_value,
                 is_mut,
                 span: self.previous().span.clone(),
@@ -1334,6 +1374,7 @@ impl<'a> Parser<'a> {
             Box::new(self.parse_block()?)
         };
 
+        let is_comptime = attributes.iter().any(|a| a.name == "comptime");
         Some(FunctionDecl {
             name,
             attributes,
@@ -1347,6 +1388,7 @@ impl<'a> Parser<'a> {
             body,
             is_expression_body,
             is_export,
+            is_comptime,
             span: SourceSpan::new(
                 start_line_from(&start_span),
                 start_col_from(&start_span),

@@ -7,6 +7,7 @@ use std::path::Path;
 pub struct PackageMeta {
     pub name: String,
     pub version: String,
+    pub profile: Option<String>,
     pub entry: Option<String>,
     pub authors: Option<Vec<String>>,
     pub description: Option<String>,
@@ -32,8 +33,15 @@ pub enum DependencyConfig {
 pub struct TargetConfig {
     pub bin_name: Option<String>,
     pub arch: Option<String>,
+    pub cpu: Option<String>,
     pub os: Option<String>,
     pub opt_level: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DevicesConfig {
+    #[serde(default)]
+    pub allowed: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -61,6 +69,8 @@ pub struct DataraManifest {
     pub profiles: HashMap<String, ProfileConfig>,
     #[serde(default)]
     pub capabilities: Option<CapabilitiesConfig>,
+    #[serde(default)]
+    pub devices: Option<DevicesConfig>,
     #[serde(default)]
     pub lint: Option<LintConfig>,
 }

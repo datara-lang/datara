@@ -1097,6 +1097,9 @@ impl<'a> SecurityVerifier<'a> {
                 }
                 self.verify_stmt(body, ctx, diag);
             }
+            Stmt::Simd(body, _) => {
+                self.verify_stmt(body, ctx, diag);
+            }
             Stmt::ParallelFor {
                 var_name,
                 iterable,

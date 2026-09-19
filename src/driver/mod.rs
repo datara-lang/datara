@@ -526,7 +526,19 @@ impl ForgenCompiler {
                         self.cranelift.compile_native(&dmir_module, &target_exe)
                     }
                 } else {
-                    self.cranelift.compile_native(&dmir_module, &target_exe)
+                    if let Some(ref triple) = self.target_triple {
+                        let t = triple.to_lowercase();
+                        if t.starts_with("thumb") || t.contains("cortex-m") || t.contains("-none-") {
+                            Err(format!(
+                                "Error [E-TARGET-001]: Target '{}' is only supported via LLVM backend. Use '--llvm'",
+                                triple
+                            ))
+                        } else {
+                            self.cranelift.compile_native(&dmir_module, &target_exe)
+                        }
+                    } else {
+                        self.cranelift.compile_native(&dmir_module, &target_exe)
+                    }
                 };
 
                 timings.codegen_ms = codegen_start.elapsed().as_millis();

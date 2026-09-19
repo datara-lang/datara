@@ -4,7 +4,7 @@ impl Resolver {
     pub(crate) fn resolve_decl(&mut self, decl: &Decl, diag: &mut DiagnosticEngine) {
         match decl {
             Decl::Function(f) | Decl::Flow(f) | Decl::Task(f) => {
-                self.enter_scope(&format!("fn_{}", f.name));
+                self.enter_scope(&f.name);
                 for p in &f.params {
                     self.define_local(&p.name, SymbolKind::Param, false, &p.span);
                 }
@@ -32,7 +32,7 @@ impl Resolver {
             Decl::Impl(i) => {
                 self.current_target_type = Some(i.target_type.clone());
                 for m in &i.methods {
-                    self.enter_scope(&format!("method_{}_{}", i.target_type, m.name));
+                    self.enter_scope(&m.name);
                     self.define_local("this", SymbolKind::Param, false, &m.span);
                     self.define_local("self", SymbolKind::Param, false, &m.span);
                     for p in &m.params {
@@ -51,7 +51,7 @@ impl Resolver {
     }
 
     fn resolve_method(&mut self, m: &MethodDecl, diag: &mut DiagnosticEngine) {
-        self.enter_scope(&format!("method_{}", m.name));
+        self.enter_scope(&m.name);
         self.define_local("this", SymbolKind::Param, false, &m.span);
         for p in &m.params {
             self.define_local(&p.name, SymbolKind::Param, false, &p.span);
@@ -224,7 +224,7 @@ impl Resolver {
                 self.resolve_stmt(body, diag);
                 self.exit_scope();
             }
-            Stmt::Unsafe { body, .. } => {
+            Stmt::Unsafe { body, .. } | Stmt::Simd(body, _) => {
                 self.resolve_stmt(body, diag);
             }
             Stmt::Break(_) | Stmt::Continue(_) => {}

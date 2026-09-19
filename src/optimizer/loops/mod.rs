@@ -310,7 +310,8 @@ impl LoopOptimizer {
             | Inst::FormatStr { dest, .. }
             | Inst::GetFuncAddr { dest, .. }
             | Inst::Select { dest, .. }
-            | Inst::Decide { dest, .. } => Some(*dest),
+            | Inst::Decide { dest, .. }
+            | Inst::VolatileLoad { dest, .. } => Some(*dest),
             Inst::InlineAsm { outputs, .. } => outputs.first().map(|(_, d)| *d),
             Inst::AssignVar { .. }
             | Inst::SetField { .. }
@@ -318,7 +319,8 @@ impl LoopOptimizer {
             | Inst::Err { .. }
             | Inst::Return { .. }
             | Inst::WhileLoop { .. }
-            | Inst::TryCatch { .. } => None,
+            | Inst::TryCatch { .. }
+            | Inst::VolatileStore { .. } => None,
         }
     }
 
@@ -1037,6 +1039,11 @@ impl LoopOptimizer {
                     map(v);
                 }
             }
+            Inst::VolatileLoad { addr, .. } => map(addr),
+            Inst::VolatileStore { addr, value, .. } => {
+                map(addr);
+                map(value);
+            }
             Inst::Return { value } => {
                 if let Some(v) = value {
                     map(v);
@@ -1157,6 +1164,14 @@ impl LoopOptimizer {
                 for (_, i) in inputs {
                     f(i);
                 }
+            }
+            Inst::VolatileLoad { dest, addr, .. } => {
+                f(dest);
+                f(addr);
+            }
+            Inst::VolatileStore { addr, value, .. } => {
+                f(addr);
+                f(value);
             }
             Inst::Out { value } | Inst::Err { value } => f(value),
             Inst::Return { value: Some(v) } => f(v),

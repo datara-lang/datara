@@ -1174,4 +1174,36 @@ impl<'a> Lowering<'a> {
         }
         None
     }
+
+    pub(crate) fn find_mmio_for_member(
+        &self,
+        object: &Expr,
+        member: &str,
+    ) -> Option<(u64, std::collections::HashMap<String, (u64, String)>)> {
+        match object {
+            Expr::Identifier(var_name, _) => {
+                if let Some(mmio) = self.resolver.mmio_classes.get(var_name) {
+                    if mmio.fields.contains_key(member) {
+                        return Some((mmio.base_address, mmio.fields.clone()));
+                    }
+                }
+                if let Some(crate::types::DataraType::Class(cls_name)) = self.lookup_var_type(var_name) {
+                    if let Some(mmio) = self.resolver.mmio_classes.get(&cls_name) {
+                        if mmio.fields.contains_key(member) {
+                            return Some((mmio.base_address, mmio.fields.clone()));
+                        }
+                    }
+                }
+            }
+            Expr::ObjectInit { class_name, .. } => {
+                if let Some(mmio) = self.resolver.mmio_classes.get(class_name) {
+                    if mmio.fields.contains_key(member) {
+                        return Some((mmio.base_address, mmio.fields.clone()));
+                    }
+                }
+            }
+            _ => {}
+        }
+        None
+    }
 }

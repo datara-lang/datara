@@ -180,6 +180,27 @@ impl<'a> TypeChecker<'a> {
                 let obj_type = self.check_expr(object, diag);
                 match &obj_type {
                     DataraType::Class(cls_name) => {
+                        if self.resolver.mmio_classes.contains_key(cls_name) {
+                            if !self.in_unsafe && !self.allowed_devices.contains(cls_name) {
+                                diag.error(
+                                    ErrorCode::MmioRequiresUnsafe,
+                                    format!(
+                                        "MMIO access to '{}' requires an 'unsafe' block or declaration in datara.toml [devices]",
+                                        cls_name
+                                    ),
+                                    Some(span.clone()),
+                                );
+                            }
+                            if let Some(mmio) = self.resolver.mmio_classes.get(cls_name) {
+                                if let Some((_, ty_name)) = mmio.fields.get(member) {
+                                    return match ty_name.as_str() {
+                                        "Float" | "Float64" | "Float32" | "f64" | "f32" => DataraType::Float,
+                                        "Bool" => DataraType::Bool,
+                                        _ => DataraType::Int,
+                                    };
+                                }
+                            }
+                        }
                         let full_name = format!("{}.{}", cls_name, member);
                         if let Some(t) = self.symbol_types.get(&full_name) {
                             return t.clone();

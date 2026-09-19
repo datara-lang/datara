@@ -81,6 +81,7 @@ impl<'a> Parser<'a> {
                             | TokenType::Unsafe
                             | TokenType::Try
                             | TokenType::Parallel
+                            | TokenType::Simd
                     ) =>
                 {
                     return true;
@@ -560,6 +561,22 @@ impl<'a> Parser<'a> {
                     self.file.clone(),
                 ),
             });
+        }
+
+        // v1.4.5: `simd { ... }` explicit vectorization block
+        if self.match_token(&TokenType::Simd) || self.check_ident_str("simd") {
+            if self.check_ident_str("simd") {
+                self.advance();
+            }
+            let body = Box::new(self.parse_block()?);
+            let span = SourceSpan::new(
+                start_span.start_line,
+                start_span.start_col,
+                self.previous().span.end_line,
+                self.previous().span.end_col,
+                self.file.clone(),
+            );
+            return Some(Stmt::Simd(body, span));
         }
 
         // v1.4.0: structured `asm { ... }` block. Bare `asm` is otherwise a

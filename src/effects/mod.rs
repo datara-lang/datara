@@ -357,6 +357,41 @@ impl EffectAnalyzer {
         }
     }
 
+    pub fn verify_comptime_purity(
+        &self,
+        program: &Program,
+        diag: &mut crate::diagnostics::DiagnosticEngine,
+    ) {
+        for decl in &program.declarations {
+            if let Decl::Function(f) = decl {
+                if f.is_comptime() {
+                    if let Some(eff_set) = self.function_effects.get(&f.name) {
+                        let forbidden = eff_set.effects.iter().any(|e| {
+                            matches!(
+                                e,
+                                Effect::IO
+                                    | Effect::Network
+                                    | Effect::Database
+                                    | Effect::Foreign
+                                    | Effect::Unsafe
+                            )
+                        });
+                        if forbidden {
+                            diag.error(
+                                crate::diagnostics::ErrorCode::ComptimeForbiddenEffect,
+                                format!(
+                                    "Effect not allowed in comptime execution of function '{}' ({}): I/O, runtime builtins, and unsafe are forbidden",
+                                    f.name, eff_set
+                                ),
+                                Some(f.span.clone()),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fn analyze_stmt(&self, stmt: &Stmt, effects: &mut EffectSet, local_vars: &mut HashSet<String>) {
         match stmt {
             Stmt::Block(stmts, _) => {
@@ -484,6 +519,9 @@ impl EffectAnalyzer {
                 if !options.iter().any(|o| o == "pure") {
                     effects.add(Effect::IO);
                 }
+            }
+            Stmt::Simd(body, _) => {
+                self.analyze_stmt(body, effects, local_vars);
             }
         }
     }

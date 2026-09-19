@@ -80,6 +80,7 @@ pub enum TokenType {
     Pub,
     Struct,
     Bridge,
+    Simd,
 
     // Literals & Identifiers
     Identifier(String),

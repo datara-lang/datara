@@ -914,6 +914,7 @@ impl Lexer {
                         "impl" => TokenType::Impl,
                         "pub" => TokenType::Pub,
                         "bridge" => TokenType::Bridge,
+                        "simd" => TokenType::Simd,
                         "asm" if self.peek() == '!' => {
                             self.advance();
                             TokenType::Asm

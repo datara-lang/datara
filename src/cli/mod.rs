@@ -18,6 +18,7 @@ mod pkg;
 mod project;
 mod tools;
 
+pub use build::check_target_backend;
 pub use misc::write_zip;
 
 use std::env;

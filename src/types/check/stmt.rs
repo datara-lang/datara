@@ -766,6 +766,11 @@ impl<'a> TypeChecker<'a> {
                 self.check_stmt(body, diag);
                 DataraType::Unit
             }
+            Stmt::Simd(body, _) => {
+                self.check_simd_loop_bounds(body, diag);
+                self.check_stmt(body, diag);
+                DataraType::Unit
+            }
             Stmt::With {
                 resource_name,
                 init,
@@ -795,7 +800,10 @@ impl<'a> TypeChecker<'a> {
                 DataraType::Unit
             }
             Stmt::Unsafe { body, .. } => {
+                let prev_unsafe = self.in_unsafe;
+                self.in_unsafe = true;
                 self.check_stmt(body, diag);
+                self.in_unsafe = prev_unsafe;
                 DataraType::Unit
             }
             Stmt::Asm { structured, .. } => {
@@ -993,5 +1001,94 @@ impl<'a> TypeChecker<'a> {
             self.symbol_mutability.remove(var_name);
         }
         DataraType::Unit
+    }
+
+    fn check_simd_loop_bounds(&self, stmt: &Stmt, diag: &mut DiagnosticEngine) {
+        match stmt {
+            Stmt::For {
+                iterable,
+                span,
+                body,
+                ..
+            } => {
+                if let Expr::Range { start, end, .. } = iterable {
+                    let is_proven = match &**end {
+                        Expr::Literal(LiteralValue::Int(n), _) => {
+                            let start_val = match &**start {
+                                Expr::Literal(LiteralValue::Int(s), _) => *s,
+                                _ => 0,
+                            };
+                            (n - start_val) % 4 == 0
+                        }
+                        Expr::Identifier(var_name, _) => {
+                            self.active_requires.iter().any(|req| expr_proves_mod_4(req, var_name))
+                        }
+                        _ => false,
+                    };
+                    if !is_proven {
+                        diag.error(
+                            ErrorCode::RangeViolation,
+                            "unproven loop bound for SIMD chunk — use require len % 4 == 0 or handle tail explicitly".to_string(),
+                            Some(span.clone()),
+                        );
+                    }
+                }
+                self.check_simd_loop_bounds(body, diag);
+            }
+            Stmt::While {
+                condition,
+                span,
+                body,
+            } => {
+                if let Expr::Binary { op, right, .. } = condition {
+                    if op == "<" || op == "<=" {
+                        let is_proven = match &**right {
+                            Expr::Literal(LiteralValue::Int(n), _) => *n % 4 == 0,
+                            Expr::Identifier(var_name, _) => {
+                                self.active_requires.iter().any(|req| expr_proves_mod_4(req, var_name))
+                            }
+                            _ => false,
+                        };
+                        if !is_proven {
+                            diag.error(
+                                ErrorCode::RangeViolation,
+                                "unproven loop bound for SIMD chunk — use require len % 4 == 0 or handle tail explicitly".to_string(),
+                                Some(span.clone()),
+                            );
+                        }
+                    }
+                }
+                self.check_simd_loop_bounds(body, diag);
+            }
+            Stmt::Block(stmts, _) => {
+                for s in stmts {
+                    self.check_simd_loop_bounds(s, diag);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn expr_proves_mod_4(expr: &Expr, var_name: &str) -> bool {
+    match expr {
+        Expr::Binary { op, left, right, .. } if op == "==" => {
+            let check_mod = |m_expr: &Expr, zero_expr: &Expr| -> bool {
+                if let Expr::Literal(LiteralValue::Int(0), _) = zero_expr {
+                    if let Expr::Binary { op, left, right, .. } = m_expr {
+                        if op == "%" {
+                            if let (Expr::Identifier(id, _), Expr::Literal(LiteralValue::Int(4), _)) =
+                                (&**left, &**right)
+                            {
+                                return id == var_name;
+                            }
+                        }
+                    }
+                }
+                false
+            };
+            check_mod(left, right) || check_mod(right, left)
+        }
+        _ => false,
     }
 }

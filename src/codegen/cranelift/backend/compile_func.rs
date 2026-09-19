@@ -986,6 +986,52 @@ pub fn compile_all_functions<M: ClifModule>(
                             bool_vids.insert(*dest);
                         }
                     }
+                    Inst::VolatileLoad { dest, addr, ty } => {
+                        let a_val = val_map.get(addr).copied().ok_or_else(|| {
+                            format!("Address %{} not found for VolatileLoad in '{}'", addr, f.name)
+                        })?;
+                        let flags = cranelift_codegen::ir::MachMemFlags::new();
+                        let clif_ty = match ty.as_str() {
+                            "Int" | "i64" | "u64" => clif_types::I64,
+                            "Int32" | "i32" | "u32" | "UInt32" => clif_types::I32,
+                            "Int16" | "i16" | "u16" | "UInt16" => clif_types::I16,
+                            "Int8" | "i8" | "u8" | "UInt8" | "Byte" => clif_types::I8,
+                            "Float" | "f64" => clif_types::F64,
+                            "Float32" | "f32" => clif_types::F32,
+                            _ => clif_types::I64,
+                        };
+                        let loaded = builder.ins().load(clif_ty, flags, a_val, 0);
+                        let final_val = if clif_ty == clif_types::I32 || clif_ty == clif_types::I16 || clif_ty == clif_types::I8 {
+                            builder.ins().uextend(clif_types::I64, loaded)
+                        } else {
+                            loaded
+                        };
+                        val_map.insert(*dest, final_val);
+                    }
+                    Inst::VolatileStore { addr, value, ty } => {
+                        let a_val = val_map.get(addr).copied().ok_or_else(|| {
+                            format!("Address %{} not found for VolatileStore in '{}'", addr, f.name)
+                        })?;
+                        let v_val = val_map.get(value).copied().ok_or_else(|| {
+                            format!("Value %{} not found for VolatileStore in '{}'", value, f.name)
+                        })?;
+                        let flags = cranelift_codegen::ir::MachMemFlags::new();
+                        let clif_ty = match ty.as_str() {
+                            "Int" | "i64" | "u64" => clif_types::I64,
+                            "Int32" | "i32" | "u32" | "UInt32" => clif_types::I32,
+                            "Int16" | "i16" | "u16" | "UInt16" => clif_types::I16,
+                            "Int8" | "i8" | "u8" | "UInt8" | "Byte" => clif_types::I8,
+                            "Float" | "f64" => clif_types::F64,
+                            "Float32" | "f32" => clif_types::F32,
+                            _ => clif_types::I64,
+                        };
+                        let truncated = if clif_ty != clif_types::I64 && clif_ty != clif_types::F64 && clif_ty != clif_types::F32 {
+                            builder.ins().ireduce(clif_ty, v_val)
+                        } else {
+                            v_val
+                        };
+                        builder.ins().store(flags, truncated, a_val, 0);
+                    }
                     Inst::WhileLoop { .. } | Inst::TryCatch { .. } | Inst::Return { .. } => {}
                 }
             }

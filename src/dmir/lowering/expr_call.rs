@@ -79,7 +79,30 @@ impl<'a> Lowering<'a> {
             }
             return self.lower_expr(body, cur_block);
         }
-        if let Expr::Identifier(fn_name, _) = callee {
+        if let Expr::Identifier(fn_name, fn_span) = callee {
+            if let Some(f) = self.comptime_functions.get(fn_name).cloned() {
+                if f.is_comptime() {
+                    let mut const_args = Vec::with_capacity(args.len());
+                    let mut scope = crate::comptime::ComptimeScope::new();
+                    let mut all_const = true;
+                    for a in args {
+                        match self.comptime_evaluator.eval_expr(a, &mut scope) {
+                            Ok(val) => const_args.push(val),
+                            Err(_) => {
+                                all_const = false;
+                                break;
+                            }
+                        }
+                    }
+                    if all_const {
+                        if let Ok(res) =
+                            self.comptime_evaluator.call_fn(fn_name, const_args, fn_span)
+                        {
+                            return self.lower_comptime_val(res, cur_block);
+                        }
+                    }
+                }
+            }
             if let Some((params, body)) = self.local_lambdas.get(fn_name).cloned() {
                 let mut arg_vals = Vec::new();
                 for a in args {

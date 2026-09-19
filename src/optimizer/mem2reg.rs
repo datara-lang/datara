@@ -169,6 +169,14 @@ fn visit_vids(inst: &Inst, f: &mut dyn FnMut(&ValueId)) {
             }
         }
         Inst::Out { value } | Inst::Err { value } => f(value),
+        Inst::VolatileLoad { dest, addr, .. } => {
+            f(dest);
+            f(addr);
+        }
+        Inst::VolatileStore { addr, value, .. } => {
+            f(addr);
+            f(value);
+        }
         Inst::Return { value: Some(v) } => f(v),
         Inst::Return { value: None } => {}
         Inst::WhileLoop { .. } | Inst::TryCatch { .. } => {}
@@ -833,6 +841,11 @@ fn substitute_inst(
             map(else_val);
         }
         Inst::Out { value } | Inst::Err { value } => map(value),
+        Inst::VolatileLoad { addr, .. } => map(addr),
+        Inst::VolatileStore { addr, value, .. } => {
+            map(addr);
+            map(value);
+        }
         Inst::InlineAsm { inputs, .. } => {
             inputs.iter_mut().for_each(|(_, v)| map(v));
         }

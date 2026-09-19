@@ -7,6 +7,7 @@ pub enum Arch {
     Aarch64,
     RiscV64,
     Wasm32,
+    ArmCortexM,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -332,6 +333,9 @@ impl TargetInfo {
     }
 
     pub fn triple_string(&self) -> String {
+        if self.arch == Arch::ArmCortexM {
+            return "thumbv7em-none-eabihf".to_string();
+        }
         if self.arch == Arch::Wasm32 {
             return "wasm32-unknown-unknown".to_string();
         }
@@ -340,6 +344,7 @@ impl TargetInfo {
             Arch::Aarch64 => "aarch64",
             Arch::RiscV64 => "riscv64",
             Arch::Wasm32 => "wasm32",
+            Arch::ArmCortexM => "thumbv7em",
         };
         match self.os {
             Os::Windows => {
@@ -366,6 +371,19 @@ impl TargetInfo {
         let t = triple.to_lowercase();
         if t == "native" || t == "host" {
             return Ok(Self::native());
+        }
+        if t.starts_with("thumb") || t.contains("cortex-m") {
+            return Ok(Self {
+                arch: Arch::ArmCortexM,
+                os: Os::Unknown,
+                abi: Abi::Gnu,
+                pointer_width: 32,
+                endianness: Endianness::Little,
+                vector_support: vec![],
+                atomic_support: true,
+                calling_convention: CallingConvention::SystemV,
+                cpu_features: HashSet::new(),
+            });
         }
         if t.contains("wasm32") || t == "wasm" {
             return Ok(Self::wasm32());

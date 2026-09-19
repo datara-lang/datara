@@ -618,6 +618,13 @@ impl<'a> ClifEmitter<'a> {
             Inst::InlineAsm { template, .. } => {
                 format!("    ; inline asm: {:?}\n", template)
             }
+            Inst::VolatileLoad { dest, addr, ty } => {
+                let clif_ty = self.dmir_type_to_clif(ty);
+                format!("    v{} = load.{} notrap aligned v{}\n", dest.0, clif_ty, addr.0)
+            }
+            Inst::VolatileStore { addr, value, .. } => {
+                format!("    store notrap aligned v{}, v{}\n", value.0, addr.0)
+            }
         };
         Ok(code)
     }

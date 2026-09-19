@@ -146,7 +146,10 @@ fn stmt_has_asm_kind(stmt: &Stmt, structured_only: bool) -> bool {
             expr_has_asm_kind(condition, structured_only)
                 || stmt_has_asm_kind(body, structured_only)
         }
-        Stmt::Loop { body, .. } | Stmt::Parallel(body, _) | Stmt::Unsafe { body, .. } => {
+        Stmt::Loop { body, .. }
+        | Stmt::Parallel(body, _)
+        | Stmt::Simd(body, _)
+        | Stmt::Unsafe { body, .. } => {
             stmt_has_asm_kind(body, structured_only)
         }
         Stmt::TryCatch {
@@ -495,12 +498,18 @@ pub struct FunctionDecl {
     pub body: Box<Stmt>,
     pub is_expression_body: bool,
     pub is_export: bool,
+    #[serde(default)]
+    pub is_comptime: bool,
     pub span: SourceSpan,
 }
 
 impl FunctionDecl {
     pub fn is_async(&self) -> bool {
         self.attributes.iter().any(|a| a.name == "async")
+    }
+
+    pub fn is_comptime(&self) -> bool {
+        self.is_comptime || self.attributes.iter().any(|a| a.name == "comptime")
     }
 }
 
@@ -572,6 +581,8 @@ pub struct FieldDecl {
     pub name: String,
     pub type_node: Option<TypeNode>,
     pub bit_field: Option<BitFieldRange>,
+    #[serde(default)]
+    pub offset: Option<u64>,
     pub default_value: Option<Expr>,
     pub is_mut: bool,
     pub span: SourceSpan,
@@ -722,6 +733,7 @@ pub enum Stmt {
         body: Box<Stmt>,
         span: SourceSpan,
     },
+    Simd(Box<Stmt>, SourceSpan),
     With {
         resource_name: String,
         init: Expr,
@@ -768,6 +780,7 @@ impl Stmt {
             | Stmt::TryCatch { span: s, .. }
             | Stmt::Parallel(_, s)
             | Stmt::ParallelFor { span: s, .. }
+            | Stmt::Simd(_, s)
             | Stmt::With { span: s, .. }
             | Stmt::Unsafe { span: s, .. }
             | Stmt::Asm { span: s, .. }
@@ -1190,7 +1203,10 @@ pub fn infer_captures(
                 walk_expr(condition, params, enclosing, is_escaping, captured, seen);
                 walk_stmt(body, params, enclosing, is_escaping, captured, seen);
             }
-            Stmt::Loop { body, .. } | Stmt::Parallel(body, _) | Stmt::Unsafe { body, .. } => {
+            Stmt::Loop { body, .. }
+            | Stmt::Parallel(body, _)
+            | Stmt::Simd(body, _)
+            | Stmt::Unsafe { body, .. } => {
                 walk_stmt(body, params, enclosing, is_escaping, captured, seen);
             }
             Stmt::With {

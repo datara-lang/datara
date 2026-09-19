@@ -202,7 +202,24 @@ impl<'a> Lowering<'a> {
                         // diagnostic, because the statement *was* visited, it
                         // just produced no instruction.
                         Expr::MemberAccess { object, member, .. } => {
-                            if let Some(obj_val) = self.lower_expr(object, &mut cur_block) {
+                            if let Some((base_addr, fields)) = self.find_mmio_for_member(object, member) {
+                                if let Some(&(offset, ref ty_name)) = fields.get(member) {
+                                    let addr_val = self.next_val();
+                                    self.get_block_mut(cur_block)
+                                        .instructions
+                                        .push(Inst::ConstInt {
+                                            dest: addr_val,
+                                            value: (base_addr + offset) as i64,
+                                        });
+                                    self.get_block_mut(cur_block)
+                                        .instructions
+                                        .push(Inst::VolatileStore {
+                                            addr: addr_val,
+                                            value: v,
+                                            ty: ty_name.clone(),
+                                        });
+                                }
+                            } else if let Some(obj_val) = self.lower_expr(object, &mut cur_block) {
                                 self.get_block_mut(cur_block)
                                     .instructions
                                     .push(Inst::SetField {
@@ -1158,6 +1175,7 @@ impl<'a> Lowering<'a> {
                     (cur_block, None)
                 }
             }
+            Stmt::Simd(body, _) => self.lower_stmt_cfg(body, cur_block),
         }
     }
 }

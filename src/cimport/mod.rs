@@ -326,6 +326,7 @@ pub fn expand_c_imports(
                                         )),
                                         is_expression_body: true,
                                         is_export: true,
+                                        is_comptime: false,
                                         span: v_span,
                                     }));
                                 }
@@ -358,6 +359,7 @@ pub fn expand_c_imports(
                                 )),
                                 is_expression_body: true,
                                 is_export: true,
+                                is_comptime: false,
                                 span: d_span,
                             }));
                         }
@@ -410,6 +412,7 @@ pub fn expand_c_imports(
                                         name: f.name.clone(),
                                         type_node,
                                         bit_field: None,
+                                        offset: None,
                                         default_value: None,
                                         is_mut: false,
                                         span: f_span,

@@ -154,8 +154,8 @@ pub fn try_emit_simd_call(
         }
     }
 
-    // f32x4_horizontal_add
-    if (func == "f32x4_horizontal_add" || func == "horizontal_add")
+    // f32x4_horizontal_add / sum
+    if (func == "f32x4_horizontal_add" || func == "horizontal_add" || func == "sum" || func == "f32x4_sum")
         && args.len() == 1
         && value_types.get(&args[0]).copied() == Some("<4 x float>")
     {

@@ -15,6 +15,7 @@ pub mod c_api;
 pub mod cimport;
 pub mod cli;
 pub mod codegen;
+pub mod comptime;
 pub mod derive;
 pub mod diagnostics;
 pub mod dmir;

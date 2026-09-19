@@ -150,6 +150,8 @@ impl<'a> TypeChecker<'a> {
             "Unit" => DataraType::Unit,
             "val" | "Val" => DataraType::Val,
             "RawPtr" => DataraType::RawPtr,
+            "simd_f32x4" | "F32x4" | "Float4" | "float4" => DataraType::SimdF32x4,
+            "simd_i32x4" | "I32x4" | "Int4" | "int4" => DataraType::SimdI32x4,
             // A name is only treated as a generic type parameter when it is
             // NOT a declared class/enum/type alias; otherwise a field like
             // `value: Value` (with a real `Value` class) would silently

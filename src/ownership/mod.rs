@@ -459,7 +459,7 @@ impl<'a> OwnershipTracker<'a> {
                 self.handle_binding(resource_name, init, false, span, diag);
                 self.check_stmt(body, diag, false);
             }
-            Stmt::Unsafe { body, .. } => {
+            Stmt::Unsafe { body, .. } | Stmt::Simd(body, _) => {
                 self.check_stmt(body, diag, false);
             }
             Stmt::Asm { .. } => {}

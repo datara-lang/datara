@@ -170,6 +170,16 @@ pub enum Inst {
         clobbers: Vec<String>,
         options: Vec<String>,
     },
+    VolatileLoad {
+        dest: ValueId,
+        addr: ValueId,
+        ty: String,
+    },
+    VolatileStore {
+        addr: ValueId,
+        value: ValueId,
+        ty: String,
+    },
 }
 
 impl Inst {
@@ -221,6 +231,14 @@ impl Inst {
             }
             Inst::SetField { object, value, .. } => {
                 f(object);
+                f(value);
+            }
+            Inst::VolatileLoad { dest, addr, .. } => {
+                f(dest);
+                f(addr);
+            }
+            Inst::VolatileStore { addr, value, .. } => {
+                f(addr);
                 f(value);
             }
             Inst::Out { value } | Inst::Err { value } => f(value),
@@ -483,6 +501,16 @@ impl std::hash::Hash for Inst {
                 clobbers.hash(state);
                 options.hash(state);
             }
+            Inst::VolatileLoad { dest, addr, ty } => {
+                dest.hash(state);
+                addr.hash(state);
+                ty.hash(state);
+            }
+            Inst::VolatileStore { addr, value, ty } => {
+                addr.hash(state);
+                value.hash(state);
+                ty.hash(state);
+            }
         }
     }
 }
@@ -581,6 +609,7 @@ pub enum ArenaHint {
     #[default]
     None,
     Arena,
+    ArenaSized(u64),
     Pool(u64),
 }
 
@@ -642,11 +671,23 @@ impl ArenaHint {
                         );
                     }
                 }
-            } else if !a.args.is_empty() {
-                return (
-                    ArenaHint::None,
-                    Some("'@arena' does not take arguments".to_string()),
-                );
+            } else if a.name == "arena" {
+                if !a.args.is_empty() {
+                    let size_str = a
+                        .args
+                        .first()
+                        .map(|(k, v)| {
+                            if v.trim().is_empty() {
+                                k.trim().to_string()
+                            } else {
+                                v.trim().to_string()
+                            }
+                        })
+                        .unwrap_or_default();
+                    if let Ok(n) = size_str.parse::<u64>() {
+                        hint = ArenaHint::ArenaSized(n);
+                    }
+                }
             }
         }
         (hint, None)

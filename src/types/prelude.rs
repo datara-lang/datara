@@ -1682,6 +1682,9 @@ impl<'a> TypeChecker<'a> {
             bridge_functions: HashSet::new(),
             expr_depth: 0,
             loop_depth: 0,
+            active_requires: Vec::new(),
+            in_unsafe: false,
+            allowed_devices: HashSet::new(),
         }
     }
 }

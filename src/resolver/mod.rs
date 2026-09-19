@@ -5,6 +5,33 @@ use std::collections::{HashMap, HashSet};
 pub mod symbols;
 pub(crate) mod visit;
 
+#[derive(Debug, Clone)]
+pub struct MmioInfo {
+    pub name: String,
+    pub base_address: u64,
+    pub fields: HashMap<String, (u64, String)>,
+}
+
+pub fn get_mmio_base_address(attrs: &[Attribute]) -> Option<u64> {
+    for attr in attrs {
+        if attr.name == "mmio" {
+            if let Some((k, v)) = attr.args.first() {
+                let s = if v.is_empty() { k } else { v };
+                let s_clean = s.replace('_', "");
+                let val = if s_clean.starts_with("0x") || s_clean.starts_with("0X") {
+                    u64::from_str_radix(&s_clean[2..], 16).ok()
+                } else {
+                    s_clean.parse::<u64>().ok()
+                };
+                if val.is_some() {
+                    return val;
+                }
+            }
+        }
+    }
+    None
+}
+
 pub use symbols::{Scope, Symbol, SymbolKind};
 pub struct Resolver {
     pub scopes: Vec<Scope>,
@@ -21,6 +48,8 @@ pub struct Resolver {
     /// v1.3.3: module namespace aliases (`use path as alias`) so qualified
     /// callee objects (`alias.func()`) resolve without "undefined symbol".
     pub module_aliases: std::collections::HashMap<String, Vec<String>>,
+    pub comptime_functions: HashSet<String>,
+    pub mmio_classes: HashMap<String, MmioInfo>,
 }
 
 impl Default for Resolver {
@@ -32,6 +61,7 @@ impl Default for Resolver {
 impl Resolver {
     pub fn new() -> Self {
         let mut global_scope = Scope::new("global");
+        let comptime_functions = HashSet::new();
 
         // Built-in / Intrinsic functions & stdlib symbols
         let builtins = [
@@ -616,7 +646,7 @@ impl Resolver {
         );
         global_scope.define("VolatilePtr".to_string(), volatile_sym.clone());
 
-        let mut classes: HashMap<String, Symbol> = HashMap::new();
+        let mut classes: HashMap<String, Symbol> = HashMap::with_capacity(64);
         classes.insert("StrBuf".to_string(), strbuf_sym);
         classes.insert("ThreadHandle".to_string(), th_sym);
         classes.insert("Channel".to_string(), ch_sym);
@@ -626,16 +656,18 @@ impl Resolver {
         Self {
             scopes: vec![global_scope],
             classes,
-            components: HashMap::new(),
-            roles: HashMap::new(),
-            traits: HashMap::new(),
-            functions: HashMap::new(),
-            packets: HashMap::new(),
-            extern_functions: HashMap::new(),
-            type_aliases: HashMap::new(),
-            enums: HashMap::new(),
+            components: HashMap::with_capacity(32),
+            roles: HashMap::with_capacity(32),
+            traits: HashMap::with_capacity(32),
+            functions: HashMap::with_capacity(64),
+            packets: HashMap::with_capacity(16),
+            extern_functions: HashMap::with_capacity(32),
+            type_aliases: HashMap::with_capacity(32),
+            enums: HashMap::with_capacity(32),
             current_target_type: None,
-            module_aliases: std::collections::HashMap::new(),
+            module_aliases: std::collections::HashMap::with_capacity(16),
+            comptime_functions,
+            mmio_classes: HashMap::with_capacity(16),
         }
     }
 
@@ -828,6 +860,31 @@ impl Resolver {
 
                     self.classes.insert(c.name.clone(), sym.clone());
                     self.scopes[0].define(c.name.clone(), sym);
+
+                    if let Some(base_addr) = get_mmio_base_address(&c.attributes) {
+                        let mut fields_map = HashMap::new();
+                        let mut cur_offset = 0u64;
+                        for item in &c.body_items {
+                            if let ClassItem::Field(f) = item {
+                                let offset = f.offset.unwrap_or(cur_offset);
+                                let ty_name = f
+                                    .type_node
+                                    .as_ref()
+                                    .map(|t| t.name.clone())
+                                    .unwrap_or_else(|| "Int".to_string());
+                                fields_map.insert(f.name.clone(), (offset, ty_name));
+                                cur_offset = offset + 4;
+                            }
+                        }
+                        self.mmio_classes.insert(
+                            c.name.clone(),
+                            MmioInfo {
+                                name: c.name.clone(),
+                                base_address: base_addr,
+                                fields: fields_map,
+                            },
+                        );
+                    }
                 }
 
                 Decl::Enum(e) => {
@@ -1064,6 +1121,9 @@ impl Resolver {
                 }
 
                 Decl::Function(f) | Decl::Flow(f) | Decl::Task(f) => {
+                    if f.is_comptime() {
+                        self.comptime_functions.insert(f.name.clone());
+                    }
                     let sym = Symbol {
                         name: f.name.clone(),
                         kind: SymbolKind::Function,
@@ -1241,6 +1301,22 @@ impl Resolver {
                     }
                     self.classes.insert(reg.name.clone(), sym.clone());
                     self.scopes[0].define(reg.name.clone(), sym);
+
+                    let mut mmio_fields = HashMap::new();
+                    for field in &reg.fields {
+                        mmio_fields.insert(
+                            field.name.clone(),
+                            (field.offset, field.type_node.name.clone()),
+                        );
+                    }
+                    self.mmio_classes.insert(
+                        reg.name.clone(),
+                        MmioInfo {
+                            name: reg.name.clone(),
+                            base_address: reg.base_address,
+                            fields: mmio_fields,
+                        },
+                    );
                 }
                 Decl::CImport(_) => {}
                 Decl::Bridge(_) => {}

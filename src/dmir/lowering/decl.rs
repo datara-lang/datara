@@ -69,7 +69,8 @@ impl<'a> Lowering<'a> {
         }
 
         if f.name == "main" {
-            for g in self.program_globals.clone() {
+            let globals = std::mem::take(&mut self.program_globals);
+            for g in &globals {
                 if let Some(init_val) = self.lower_expr(&g.init, &mut entry_id) {
                     self.symbol_values.insert(g.name.clone(), init_val);
                     self.get_block_mut(entry_id)
@@ -80,6 +81,7 @@ impl<'a> Lowering<'a> {
                         });
                 }
             }
+            self.program_globals = globals;
         }
 
         for req in &f.requires {
@@ -176,7 +178,7 @@ impl<'a> Lowering<'a> {
                 .map(Self::repr_type_string)
                 .unwrap_or_else(|| "Unit".into()),
             entry_block: entry_id,
-            blocks: self.current_blocks.clone(),
+            blocks: std::mem::take(&mut self.current_blocks),
             // v1.3.4: malformed inline attributes are rejected by the
             // driver-level validation pass before lowering runs, so only
             // the classified hint is carried here.
@@ -459,7 +461,7 @@ impl<'a> Lowering<'a> {
             requires: f.requires.clone(),
             return_type,
             entry_block: entry_id,
-            blocks: self.current_blocks.clone(),
+            blocks: std::mem::take(&mut self.current_blocks),
             inline_hint: InlineHint::parse_from_attrs(&f.attributes).0,
             alloc_hint: ArenaHint::parse_from_attrs(&f.attributes).0,
             has_inline_asm: stmt_contains_structured_asm(&f.body),
@@ -777,7 +779,7 @@ impl<'a> Lowering<'a> {
                 .map(Self::repr_type_string)
                 .unwrap_or_else(|| "Unit".into()),
             entry_block: entry_id,
-            blocks: self.current_blocks.clone(),
+            blocks: std::mem::take(&mut self.current_blocks),
             inline_hint: InlineHint::parse_from_attrs(&m.attributes).0,
             alloc_hint: ArenaHint::parse_from_attrs(&m.attributes).0,
             has_inline_asm: m

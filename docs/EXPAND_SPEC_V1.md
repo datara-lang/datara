@@ -2531,6 +2531,7 @@ WP-10 = ступень 1. Дальше — по одной ступени, ка�
 
 ```
 v1.4.4  — WP-0..WP-9 (Часть III) + WP-10 embedded (Часть IV)
+v1.4.5  — COMPTIME + SIMD DSL + BARE-METAL PREP (Часть V)
 v1.5    — eBPF-бэкенд, WCET-отчёт, экосистема драйверов (код в Sparks + hw-контракты)
 v1.6    — userspace-драйверы (DPDK/VFIO/UIO), RTOS-профиль
 v2.0    — multicore/AMP, OTA-инфраструктура, kernel-эксперименты
@@ -2539,6 +2540,324 @@ v2.0    — multicore/AMP, OTA-инфраструктура, kernel-экспер
 Каждая строка релиза обязана иметь исполняемый гейт. Нет гейта — нет строки.
 
 <!-- CHUNK-C28-END -->
+
+---
+
+# ЧАСТЬ V. РЕЛИЗ v1.4.5 «COMPTIME + SIMD DSL + BARE-METAL PREP»
+
+## 45. Архитектурный манифест v1.4.5
+
+Релиз v1.4.5 объединяет три фундаментальных направления языка Datara:
+1. **Compile-Time Function Execution (CTFE / Zig-стиль comptime)**: вычисление чистых функций во время компиляции со встраиванием результата в DMIR как константных литералов.
+2. **Explicit & Safe SIMD DSL**: эргономичные векторные блоки `simd { ... }` с гарантией типобезопасности и строгим контролем границ (`E0947`).
+3. **Bare-Metal & Embedded Preparation**: кодогенерация MMIO-регистров с контролем доступа через `unsafe` / `[devices]`, статический профиль `@arena` и скаффолдинг Cortex-M4.
+4. **Compiler Speedup**: оптимизация фаз разрешения символов и lowering'а для достижения суммарного времени компиляции всех примеров (`examples/`) < 500 мс.
+
+---
+
+## 46. ЗАДАЧА 1: Comptime (Compile-time вычисления)
+
+### 46.1 Синтаксис и грамматика
+* Объявление функции:
+  ```datara
+  comptime fn make_crc_table() -> List<Int> {
+      mut table: List<Int> = []
+      mut i = 0
+      while i < 256 {
+          mut c = i
+          mut j = 0
+          while j < 8 {
+              if (c & 1) != 0 {
+                  c = 0xEDB88320 ^ (c >> 1)
+              } else {
+                  c = c >> 1
+              }
+              j = j + 1
+          }
+          table.push(c)
+          i = i + 1
+      }
+      return table
+  }
+  ```
+* Вызов из обычного кода:
+  ```datara
+  let CRC_TABLE = make_crc_table()
+  ```
+* Грамматика EBNF:
+  ```ebnf
+  comptime_fn_decl ::= "comptime" "fn" IDENT "(" param_list? ")" ("->" type)? block
+  comptime_expr    ::= "comptime" (block | expr)
+  ```
+
+### 46.2 Семантика интерпретатора (`src/comptime/`)
+Интерпретатор времени компиляции изолирован в модуле `src/comptime/mod.rs` (выделен и расширен из прототипа в `src/optimizer/comptime_eval.rs`):
+* **Окружение исполнения (`ComptimeScope`)**:
+  * Таблица локальных переменных `HashMap<String, ComptimeValue>`.
+  * Реестр функций `comptime fn` текущей программы.
+  * Счётчик шагов (`step_count: usize`).
+  * Счётчик глубины вызовов (`call_depth: usize`).
+* **Поддерживаемое подмножество типов и операций**:
+  * `Int`: 64-битные знаковые целые, побитовые (`&`, `|`, `^`, `<<`, `>>`), арифметические (`+`, `-`, `*`, `/`, `%`).
+  * `Float`: 64-битные числа с плавающей точкой.
+  * `Bool`: логические операции (`&&`, `||`, `!`, `==`, `!=`, `<`, `<=`, `>`, `>=`).
+  * `Str`: неизменяемые строки, конкатенация `+`, длина `.len()`, срезы.
+  * `List<T>`: списочные литералы `[a, b, c]`, методы `.push(x)`, `.len()`, индексация `xs[i]`.
+  * `Map<K, V>`: ассоциативные массивы, вставка и поиск по ключу.
+  * `Struct`: инициализация POD-структур `Point { x: 1, y: 2 }`, чтение полей `p.x`.
+  * Поток управления: `if/else`, `while`, `return`, рекурсивные вызовы `fib(n - 1) + fib(n - 2)`.
+
+### 46.3 Инварианты безопасности и лимиты
+* **Лимит рекурсии (I-CT-1)**: Максимальная глубина рекурсивных вызовов ограничена `MAX_RECURSION_DEPTH = 64`. Превышение -> ошибка `E-CT-001: Recursion depth limit exceeded in comptime execution`.
+* **Лимит шагов (I-CT-2)**: Максимальное количество инструкций ограничено `MAX_COMPTIME_STEPS = 1_000_000`. Защита от бесконечных циклов -> ошибка `E-CT-001: Step limit exceeded in comptime execution`.
+* **Запрет сайд-эффектов (I-CT-3)**: Любые попытки I/O (`println`, `read_file`, сетевые вызовы), FFI-вызовов, `unsafe` блоков или обращений к рантайм-специфичным встроенным функциям компилятора прерываются на этапе проверки эффектов -> ошибка `E-CT-002: Effect not allowed in comptime execution (I/O, runtime builtins, and unsafe are forbidden)`.
+* **Константность аргументов (I-CT-4)**: Аргументы, передаваемые в `comptime fn`, обязаны быть известны во время компиляции. Если передан неконстантный идентификатор рантайма -> ошибка `E-CT-003: Arguments to comptime function must be compile-time constants`.
+
+### 46.4 Хук в Lowering (AST -> DMIR)
+В модуле `src/dmir/lowering/expr_call.rs`:
+1. При понижении вызова функции проверяется флаг `is_comptime` у вызываемой функции либо контекст `Expr::Comptime`.
+2. Аргументы вычисляются через `ComptimeEvaluator`.
+3. Тело функции интерпретируется в изолированном контексте.
+4. Результат трансформируется в DMIR константу:
+   * `ComptimeValue::Int(v)` -> `Instruction::ConstInt(v)`
+   * `ComptimeValue::Float(v)` -> `Instruction::ConstFloat(v)`
+   * `ComptimeValue::Str(s)` -> `Instruction::ConstStr(s)`
+   * `ComptimeValue::List(items)` -> генерация массива в секции констант `.rodata` с прямым указателем.
+5. Вызов функции полностью удаляется из рантайм-кода: нулевые накладные расходы.
+
+### 46.5 Тест-матрица (`tests/test_comptime.rs`, >= 10 тестов)
+1. `test_comptime_arithmetic`: базовые арифметические и побитовые операции.
+2. `test_comptime_strings`: конкатенация строк и вычисление длины.
+3. `test_comptime_list_literals`: создание и индексация списков.
+4. `test_comptime_control_flow`: ветвления `if/else` и циклы `while`.
+5. `test_comptime_recursion_fib`: рекурсивное вычисление чисел Фибоначчи.
+6. `test_comptime_mutual_calls`: взаимный вызов двух `comptime fn`.
+7. `test_comptime_dmir_inspect`: проверка, что в DMIR сгенерирован `ConstInt` без инструкции `Call`.
+8. `test_comptime_recursion_limit_err`: превышение лимита вызовов -> ловит `E-CT-001`.
+9. `test_comptime_forbidden_io_err`: попытка вызова I/O -> ловит `E-CT-002`.
+10. `test_comptime_crc32_table`: вычисление CRC32-таблицы (256 элементов) в `comptime` и побайтовое равенство с рантайм-результатом.
+
+---
+
+## 47. ЗАДАЧА 2: SIMD-DSL (Явный и безопасный)
+
+### 47.1 Синтаксис и типы
+Явный векторный синтаксис внутри блоков `simd { ... }`:
+```datara
+simd {
+    mut i = 0
+    let n = xs.len()
+    while i + 4 <= n {
+        let va: simd_f32x4 = simd.load(xs, i)
+        let vb: simd_f32x4 = simd.load(ys, i)
+        let vres = va * vb + va
+        simd.store(vres, out_arr, i)
+        i = i + 4
+    }
+    // Скалярный хвост для n % 4 элементов
+    while i < n {
+        out_arr[i] = xs[i] * ys[i] + xs[i]
+        i = i + 1
+    }
+}
+```
+* Поддерживаемые векторные типы:
+  * `simd_f32x4` (алиас: `F32x4`, `Float4`): 4x 32-bit float (128 бит).
+  * `simd_i32x4` (алиас: `I32x4`, `Int4`): 4x 32-bit int (128 бит).
+* Встроенные операции модуля `simd`:
+  * `simd.load(array, offset) -> V`
+  * `simd.store(vector, array, offset)`
+  * `simd.splat(scalar) -> V`
+  * Арифметические операторы: `+`, `-`, `*`, `/`.
+
+### 47.2 Безопасность памяти и типов
+* **Контроль границ (`E0947`)**:
+  Функция `simd.load(xs, i)` требует, чтобы срез `i .. i + 4` находился строго в пределах длины массива `xs.len()`. Если смещение выходит за пределы -> компилятор/рантайм генерирует `E0947: SIMD load out of bounds (array length <len>, requested index <offset>..+4)`.
+* **Строгая изоляция типов (`E-TYPE-008`)**:
+  Смешивание векторных типов разной разрядности или природы (например, `simd_f32x4 + simd_i32x4`) строго запрещено в типизаторе -> `E-TYPE-008: Cannot mix vector types 'simd_f32x4' and 'simd_i32x4' in binary operation '+'`.
+* **Выравнивание (Zero-Unaligned-Fault)**:
+  Все `simd.load` и `simd.store` генерируют unaligned векторные инструкции (`movups`/`movdqu` в x86, `vld1`/`vst1` в ARM), исключая GP-fault при произвольном выравнивании в куче или на стеке.
+
+### 47.3 Кодогенерация (Cranelift + LLVM)
+* **Cranelift Backend**:
+  * Прямой маппинг на XMM-инструкции в `src/codegen/cranelift/backend/simd.rs`.
+  * `simd.load` -> `ins().load(clif_types::F32X4, flags, ptr, offset)`.
+  * `simd.store` -> `ins().store(flags, val, ptr, offset)`.
+  * `+`, `-`, `*`, `/` -> нативные Cranelift `fadd`, `fsub`, `fmul`, `fdiv` над векторными регистрами.
+* **LLVM Backend**:
+  * Векторные типы `<4 x float>` и `<4 x i32>` в `src/codegen/llvm/simd.rs`.
+  * Векторные операции `fadd <4 x float>`, `fmul <4 x float>`, `add <4 x i32>`.
+  * `insertelement` / `extractelement` / `shufflevector` при необходимости скалярного доступа.
+
+### 47.4 Тест-матрица (`tests/test_simd_dsl.rs`, >= 7 тестов)
+1. `test_simd_load_store_roundtrip`: загрузка, сохранение и проверка идентичности данных.
+2. `test_simd_arithmetic_f32x4`: векторные операции `+`, `-`, `*`, `/`.
+3. `test_simd_arithmetic_i32x4`: векторные операции над целыми числами.
+4. `test_simd_tail_handling`: массив произвольной длины (не кратной 4) с корректной обработкой хвоста.
+5. `test_simd_bounds_check_err`: выход за границы массива при `simd.load` -> ловит `E0947`.
+6. `test_simd_type_mixing_err`: попытка сложения `F32x4` и `I32x4` -> ловит `E-TYPE-008`.
+7. `test_simd_speedup_benchmark`: замер скорости векторного умножения массивов на N=10000 элементов (SIMD быстрее скалярного кода).
+8. `test_simd_llvm_codegen`: проверка генерации LLVM IR с вектором `<4 x float>`.
+
+---
+
+## 48. ЗАДАЧА 3: Подготовка Bare-Metal (MMIO, @arena, Cortex-M4)
+
+### 48.1 MMIO классы и регистры
+* Синтаксис:
+  ```datara
+  @mmio(0x40021000)
+  struct GpioB {
+      moder: Int at 0x00,
+      odr:   Int at 0x14,
+      bsrr:  Int at 0x18,
+  }
+  ```
+* Или объявление через `register` в AST:
+  ```datara
+  register GPIOB at 0x40021000 {
+      moder: Int at 0x00,
+      odr:   Int at 0x14,
+      bsrr:  Int at 0x18,
+  }
+  ```
+* **Семантика доступа**:
+  * Чтение поля -> `volatile load` по адресу `base_address + offset`.
+  * Запись поля -> `volatile store` по адресу `base_address + offset`.
+  * В LLVM IR: `load volatile i32, ptr inttoptr (i64 0x40021014 to ptr)`. Оптимизатор LLVM не имеет права кешировать или выбрасывать такие операции.
+* **Provenance Gate (I-MMIO-1)**:
+  Доступ к MMIO-регистрам разрешён только:
+  1. Внутри блока `unsafe(justification: "...") { ... }`.
+  2. ИЛИ если устройство объявлено в `datara.toml` в секции `[devices]` (например, `devices = ["GPIOB"]`).
+  Неавторизованный доступ -> ошибка `E-MMIO-001: MMIO access to 'GPIOB' requires an 'unsafe' block or declaration in datara.toml [devices]`.
+
+### 48.2 Память: `@arena` в bare-профиле
+* При сборке с `--profile bare` динамический кучевой аллокатор отключается.
+* Аннотация `@arena(size: 65536)` объявляет статический пул в секции `.bss`:
+  * Нулевые накладные расходы на инициализацию.
+  * Указатель текущей позиции аллокации смещается линейно; освобождение памяти происходит сбросом арены.
+
+### 48.3 Скелет `forgen new --bare cortex-m4`
+Команда CLI создает готовый проект для встраиваемых систем:
+* `datara.toml`:
+  ```toml
+  [package]
+  name = "firmware"
+  version = "0.1.0"
+  profile = "bare"
+
+  [target]
+  arch = "thumbv7em-none-eabihf"
+  cpu = "cortex-m4"
+
+  [devices]
+  allowed = ["GPIOC", "RCC"]
+  ```
+* `src/main.dtr`:
+  ```datara
+  @mmio(0x40021000)
+  struct GpioC {
+      moder: Int at 0x00,
+      odr:   Int at 0x14,
+  }
+
+  fn main() {
+      // Инициализация GPIO и мигание светодиодом
+      let gpio = GpioC {}
+      unsafe(justification: "Toggle LED pin via MMIO") {
+          gpio.odr = gpio.odr ^ (1 << 13)
+      }
+      while true {}
+  }
+  ```
+* `memory.ld`: Linker script с описанием карты памяти Cortex-M4:
+  `FLASH (rx) : ORIGIN = 0x08000000, LENGTH = 512K`
+  `RAM (xrw)  : ORIGIN = 0x20000000, LENGTH = 128K`
+* **Ограничение бэкенда**:
+  Cranelift не поддерживает архитектуру ARM/Thumb (`thumbv7em-none-eabihf`). Сборка для Cortex-M4 осуществляется исключительно через LLVM:
+  `forgen build --llvm --target thumbv7em-none-eabihf`
+  Попытка сборки через Cranelift выдает диагностику `E-TARGET-001: Target 'thumbv7em-none-eabihf' is only supported via LLVM backend. Use '--llvm'`.
+
+### 48.4 Тест-матрица (`tests/test_baremetal.rs`)
+1. `test_mmio_volatile_load_store`: генерация `volatile load` и `volatile store` в DMIR.
+2. `test_mmio_provenance_gate`: проверка запрета доступа без `unsafe` и без `[devices]` -> `E-MMIO-001`.
+3. `test_mmio_manifest_allowed`: доступ разрешен при наличии устройства в `datara.toml`.
+4. `test_bare_skeleton_generation`: создание проекта через `forgen new --bare cortex-m4`.
+5. `test_bare_llvm_compilation`: успешная компиляция скелета в объектный файл ELF для `thumbv7em-none-eabihf` через LLVM.
+
+---
+
+## 49. ЗАДАЧА 4: Ускорение компилятора (Compiler Speedup)
+
+### 49.1 Профилирование компилятора
+В компиляторе задействован встроенный механизм замера фаз `CompilationTimings`:
+`discovery_ms`, `parse_ms`, `resolve_ms`, `typecheck_ms`, `lower_ms`, `opt_ms`, `codegen_ms`, `link_ms`, `total_ms`.
+
+### 49.2 Топ-3 горячих фазы и их оптимизация
+1. **`resolver` (устранение избыточных реаллокаций)**:
+   * Замена повторяющегося форматирования составных строк `format!("{}.{}", ns, name)` на срезы и интернированные строки (`Arc<str>` / `SymbolId`).
+   * Предварительное резервирование емкостей хеш-таблиц (`with_capacity(64)`).
+2. **`lowering` (сокращение клонирования AST-деревьев)**:
+   * Переход на перемещение выражений (`std::mem::take` / `std::mem::replace`) вместо `.clone()` в `src/dmir/lowering/expr.rs` и `expr_call.rs`.
+   * Использование ссылок на неизменяемые таблицы типов.
+3. **`derive & comptime folding` (ранний отсев)**:
+   * Быстрый пропуск файлов и блоков, не содержащих атрибутов `@derive` или выражений `comptime`, без рекурсивного обхода всего AST.
+
+### 49.3 Целевой показатель (Speed Gate)
+* **Контракт скорости**: Суммарное время компиляции всех примеров (`examples/*.dtr`, 30+ файлов) в режиме `--check`:
+  * До оптимизации: замеряется baseline (T_base).
+  * После оптимизации: T_opt < 500 мс (суммарно для всех 30+ примеров).
+
+---
+
+## 50. Подводные камни (Pitfalls) и Архитектурные Решения v1.4.5
+
+| # | Подводный камень | Опасность | Архитектурное решение в v1.4.5 |
+|---|---|---|---|
+| **P1** | Бесконечный цикл или глубокая рекурсия в `comptime fn` | Зависание компилятора, исчерпание памяти хоста | Жесткий лимит шагов `1_000_000` и лимит рекурсии `64` с ошибкой `E-CT-001` |
+| **P2** | Попытка выполнить I/O, доступ к ФС или вызов runtime builtins в `comptime` | Недетерминизм сборки, уязвимости хост-системы | Строгий fail-closed фильтр эффектов в `ComptimeEvaluator` -> `E-CT-002` |
+| **P3** | Неконстантные аргументы в `comptime fn` из рантайм-кода | Невозможность вычислить результат на этапе компиляции | Проверка константности на этапе lowering'а -> ошибка `E-CT-003` |
+| **P4** | Выход за границы массива в `simd.load` при некратной длине | Segfault / чтение чужой памяти в рантайме | Автоматическая генерация bounds-check (`E0947`) и паттерн безопасного скалярного хвоста |
+| **P5** | Неявное приведение типов в SIMD (`F32x4 + I32x4`) | Порча данных в регистрах XMM | Строгий отказ типизатора с кодом `E-TYPE-008` (без неявных кастов) |
+| **P6** | Оптимизатор LLVM удаляет чтение/запись MMIO | Аппаратные регистры не обновляются, зависание MCU | Обязательный квалификатор `volatile` на всех операциях чтения/записи MMIO |
+| **P7** | Несанкционированный доступ к адресам оборудования | Нарушение песочницы, утечки в bare-metal | Provenance Gate: MMIO доступен только в `unsafe` или через `datara.toml [devices]` (`E-MMIO-001`) |
+| **P8** | Попытка использовать Cranelift для ARM Cortex-M4 | Паника компилятора, отсутствие бэкенда | Понятная ошибка `E-TARGET-001` с указанием использовать `--llvm` |
+| **P9** | Раздувание бинарника от повторного инлайнинга comptime-литералов | Увеличение `.rodata` секции | Дедупликация идентичных константных таблиц в DMIR/LLVM |
+| **P10** | Невыровненные обращения к памяти в SIMD (`movaps` vs `movups`) | General Protection Fault (#GP segfault) на x86 | Все `simd.load`/`simd.store` генерируют unaligned инструкции (`movups`/`movdqu`, `vld1`/`vst1`) |
+| **P11** | Несоответствие разрядности целых чисел при записи в 32-битные MMIO регистры | Искажение соседних регистров периферии, BusFault на MCU | Приведение и валидация ширины регистра (32 бита на Cortex-M4) с маскированием или ошибкой типизатора |
+| **P12** | Переупорядочивание инструкций вокруг MMIO регистров компилятором | Нарушение протокола периферии (например, включение тактирования до настройки пинов) | Использование барьеров памяти `mmio.fence()` / `llvm.arm.dmb` и сохранение строгой последовательности volatile-доступов |
+| **P13** | Хостовые аллокации в `comptime` и утечка указателей хоста в таргет | Падения рантайма из-за некорректных адресов памяти | Полноценная сериализация структур данных из памяти хоста в целевой DMIR-формат (`datara_rt_list_create` или `.rodata` таблицы) |
+| **P14** | Отсутствие стартап-кода и таблицы векторов прерываний для bare-metal | MCU не может стартовать после сброса (зависание в BootROM) | Скелет `forgen new --bare cortex-m4` включает минимальный векторный файл `src/vectors.dtr` с `Reset_Handler` |
+| **P15** | Попытка сборки bare-metal без кросс-компилятора LLVM | Ошибки линковки `lld` или отсутствие CRT-стабов | Информативная диагностика с рекомендацией `forgen toolchain install arm-none-eabi` |
+
+---
+
+## 51. ПРИЁМОЧНАЯ МАТРИЦА И DEFINITION OF DONE v1.4.5
+
+Для завершения релиза v1.4.5 должны быть выполнены все 6 критериев:
+
+1. **Полный гейт 0 failed**:
+   * Все существующие тесты компилятора (`cargo test`) проходят зелёными.
+2. **Comptime**:
+   * Тест-сьют `tests/test_comptime.rs` (>= 10 тестов) проходит успешно.
+   * Демонстрация вычисления таблицы CRC32 на этапе компиляции с побайтовой проверкой.
+   * Полноценная изоляция эффектов (`E-CT-001`, `E-CT-002`, `E-CT-003`).
+3. **SIMD-DSL**:
+   * Тест-сьют `tests/test_simd_dsl.rs` (>= 7 тестов) проходит успешно.
+   * Замер производительности: векторизованный код быстрее скалярного на N=10000.
+   * Проверка контроля границ (`E0947`) и изоляции типов (`E-TYPE-008`).
+4. **Bare-Metal**:
+   * Unit-тесты генерации `volatile` инструкций для MMIO в DMIR и LLVM.
+   * Проверка Provenance Gate (`E-MMIO-001`) при доступе без `unsafe` и без `[devices]`.
+   * Проект `forgen new --bare cortex-m4` успешно генерирует скелет со стартап-кодом, linker script и манифестом.
+   * Ограничение бэкенда: выдача `E-TARGET-001` при попытке сборки ARM через Cranelift.
+   * Скелет компилируется для `thumbv7em-none-eabihf` через LLVM.
+5. **Ускорение компилятора**:
+   * Проведены замеры времени фаз до и после оптимизаций.
+   * Суммарное время компиляции всех примеров `examples/*.dtr` < 500 мс.
+6. **Качество кода**:
+   * `cargo fmt --check` и `cargo clippy` проходят без предупреждений.
+   * MSRV совместимость сохранена.
 
 <!-- END OF SPEC -->
 

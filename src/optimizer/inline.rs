@@ -86,7 +86,8 @@ impl Optimizer {
             | Inst::FormatStr { dest, .. }
             | Inst::GetFuncAddr { dest, .. }
             | Inst::Select { dest, .. }
-            | Inst::Decide { dest, .. } => fix(dest),
+            | Inst::Decide { dest, .. }
+            | Inst::VolatileLoad { dest, .. } => fix(dest),
             Inst::InlineAsm { outputs, .. } => {
                 for (_, d) in outputs {
                     fix(d);
@@ -98,10 +99,16 @@ impl Optimizer {
             | Inst::Err { .. }
             | Inst::Return { .. }
             | Inst::WhileLoop { .. }
-            | Inst::TryCatch { .. } => {}
+            | Inst::TryCatch { .. }
+            | Inst::VolatileStore { .. } => {}
         }
         match inst {
             Inst::AssignVar { value, .. } | Inst::Out { value } | Inst::Err { value } => fix(value),
+            Inst::VolatileLoad { addr, .. } => fix(addr),
+            Inst::VolatileStore { addr, value, .. } => {
+                fix(addr);
+                fix(value);
+            }
             Inst::BinOp { left, right, .. } => {
                 fix(left);
                 fix(right);

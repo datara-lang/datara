@@ -92,6 +92,11 @@ impl<'a> TypeChecker<'a> {
                 return DataraType::Never;
             }
             if fn_name == "assert" || fn_name == "require" {
+                if fn_name == "require" {
+                    if let Some(cond) = args.first() {
+                        self.active_requires.push(cond.clone());
+                    }
+                }
                 return DataraType::Unit;
             }
             if fn_name == "input" || fn_name == "read_line" {
@@ -116,7 +121,7 @@ impl<'a> TypeChecker<'a> {
                 || fn_name.starts_with("f32x4_lerp")
                 || fn_name.starts_with("f32x4_normalize")
             {
-                return DataraType::Class("Float4".to_string());
+                return DataraType::SimdF32x4;
             }
             if fn_name == "f32x8"
                 || fn_name == "datara_rt_f32x8"
@@ -155,7 +160,7 @@ impl<'a> TypeChecker<'a> {
                 || fn_name.starts_with("i32x4_min")
                 || fn_name.starts_with("i32x4_max")
             {
-                return DataraType::Class("Int4".to_string());
+                return DataraType::SimdI32x4;
             }
             if fn_name == "i32x8"
                 || fn_name == "datara_rt_i32x8"
@@ -233,6 +238,21 @@ impl<'a> TypeChecker<'a> {
                 || fn_name.starts_with("i32x8_horizontal_add")
             {
                 return DataraType::Int;
+            }
+
+            if self.resolver.comptime_functions.contains(fn_name) {
+                for a in args {
+                    if !is_comptime_constant(a, self.resolver) {
+                        diag.error(
+                            ErrorCode::ComptimeNonConstArg,
+                            format!(
+                                "Arguments to comptime function must be compile-time constants: '{}'",
+                                fn_name
+                            ),
+                            Some(a.span().clone()),
+                        );
+                    }
+                }
             }
 
             if let Some(param_nodes) = self.function_param_nodes.get(fn_name).cloned() {
@@ -521,6 +541,46 @@ impl<'a> TypeChecker<'a> {
             // types flow into the result (e.g. `Map<Str, Int>.get`
             // returns `Int`, not a hardcoded `Int` for every map).
             match &obj_type {
+                DataraType::SimdF32x4 => match member.as_str() {
+                    "sum" => return DataraType::Float,
+                    "dot" => {
+                        if let Some(arg_ty) = arg_types.first() {
+                            if *arg_ty != DataraType::SimdF32x4 {
+                                diag.error_with_help(
+                                    ErrorCode::TypeIncomparableOperands,
+                                    format!("SIMD vector type mismatch: 'dot' expects 'simd_f32x4', got '{}'", arg_ty),
+                                    Some(span.clone()),
+                                    Some("Use explicit conversion '.to_f32()' before calling '.dot()'.".to_string()),
+                                );
+                            }
+                        }
+                        return DataraType::Float;
+                    }
+                    "min" | "max" => return DataraType::Float,
+                    "to_i32" => return DataraType::SimdI32x4,
+                    "to_f32" => return DataraType::SimdF32x4,
+                    _ => {}
+                },
+                DataraType::SimdI32x4 => match member.as_str() {
+                    "sum" => return DataraType::Int,
+                    "dot" => {
+                        if let Some(arg_ty) = arg_types.first() {
+                            if *arg_ty != DataraType::SimdI32x4 {
+                                diag.error_with_help(
+                                    ErrorCode::TypeIncomparableOperands,
+                                    format!("SIMD vector type mismatch: 'dot' expects 'simd_i32x4', got '{}'", arg_ty),
+                                    Some(span.clone()),
+                                    Some("Use explicit conversion '.to_i32()' before calling '.dot()'.".to_string()),
+                                );
+                            }
+                        }
+                        return DataraType::Int;
+                    }
+                    "min" | "max" => return DataraType::Int,
+                    "to_f32" => return DataraType::SimdF32x4,
+                    "to_i32" => return DataraType::SimdI32x4,
+                    _ => {}
+                },
                 DataraType::List(elem) => match member.as_str() {
                     "length" | "count" | "len" => return DataraType::Int,
                     "get" => return (**elem).clone(),
@@ -1049,5 +1109,31 @@ fn subst_type_params(ty: &DataraType, bindings: &HashMap<String, DataraType>) ->
                 .collect(),
         },
         _ => ty.clone(),
+    }
+}
+
+fn is_comptime_constant(expr: &Expr, resolver: &crate::resolver::Resolver) -> bool {
+    match expr {
+        Expr::Literal(..) => true,
+        Expr::ListLiteral(items, _) => items.iter().all(|it| is_comptime_constant(it, resolver)),
+        Expr::MapLiteral(entries, _) => entries
+            .iter()
+            .all(|(k, v)| is_comptime_constant(k, resolver) && is_comptime_constant(v, resolver)),
+        Expr::Binary { left, right, .. } => {
+            is_comptime_constant(left, resolver) && is_comptime_constant(right, resolver)
+        }
+        Expr::Unary { expr, .. } => is_comptime_constant(expr, resolver),
+        Expr::Wrapping(inner, _)
+        | Expr::Saturating(inner, _)
+        | Expr::Comptime { expr: inner, .. } => is_comptime_constant(inner, resolver),
+        Expr::Call { callee, args, .. } => {
+            if let Expr::Identifier(name, _) = &**callee {
+                resolver.comptime_functions.contains(name)
+                    && args.iter().all(|a| is_comptime_constant(a, resolver))
+            } else {
+                false
+            }
+        }
+        _ => false,
     }
 }

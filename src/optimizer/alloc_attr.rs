@@ -144,7 +144,7 @@ fn validate_fn(
         return;
     }
     let tier = match hint {
-        ArenaHint::Arena => "@arena",
+        ArenaHint::Arena | ArenaHint::ArenaSized(_) => "@arena",
         ArenaHint::Pool(_) => "@pool",
         ArenaHint::None => return,
     };
