@@ -75,10 +75,7 @@ impl<'a> TypeChecker<'a> {
                 } else {
                     DataraType::Int
                 };
-                return DataraType::Result(
-                    Box::new(payload),
-                    Box::new(DataraType::String),
-                );
+                return DataraType::Result(Box::new(payload), Box::new(DataraType::String));
             }
             if fn_name == "input_float" || fn_name == "read_float" || fn_name == "fast_read_float" {
                 return DataraType::Float;

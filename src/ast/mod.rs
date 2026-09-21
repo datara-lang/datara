@@ -149,9 +149,7 @@ fn stmt_has_asm_kind(stmt: &Stmt, structured_only: bool) -> bool {
         Stmt::Loop { body, .. }
         | Stmt::Parallel(body, _)
         | Stmt::Simd(body, _)
-        | Stmt::Unsafe { body, .. } => {
-            stmt_has_asm_kind(body, structured_only)
-        }
+        | Stmt::Unsafe { body, .. } => stmt_has_asm_kind(body, structured_only),
         Stmt::TryCatch {
             try_block,
             catch_block,

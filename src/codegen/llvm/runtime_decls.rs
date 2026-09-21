@@ -276,7 +276,7 @@ declare ptr @datara_rt_int_to_str(i64)
 declare ptr @datara_rt_dec_to_str(i64)
 declare ptr @datara_rt_bool_to_str(i64)
 declare ptr @datara_rt_float_to_str(double)
-// v1.4.5 W4 fmt specifiers: precision / radix converters.
+; v1.4.5 W4 fmt specifiers: precision / radix converters.
 declare ptr @datara_rt_float_to_str_prec(double, i64)
 declare ptr @datara_rt_dec64_to_str_prec(i64, i64)
 declare ptr @datara_rt_int_to_str_radix(i64, i64)

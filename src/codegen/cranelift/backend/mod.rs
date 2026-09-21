@@ -144,15 +144,12 @@ impl RealCraneliftBackend {
                     !libs.is_empty()
                 );
             }
-            if libs.is_empty() {
-                None
-            } else {
-                Some(libs)
-            }
+            if libs.is_empty() { None } else { Some(libs) }
         } else {
             None
         };
-        let mut module = crate::codegen::cranelift::jit::create_jit_module_with_bridges(isa, bridges)?;
+        let mut module =
+            crate::codegen::cranelift::jit::create_jit_module_with_bridges(isa, bridges)?;
         let artifacts =
             self.compile_into_module(&mut module, dmir_module, frontend_config, call_conv)?;
         module.finalize_definitions().map_err(|e| e.to_string())?;

@@ -311,7 +311,7 @@ impl LoopOptimizer {
             | Inst::GetFuncAddr { dest, .. }
             | Inst::Select { dest, .. }
             | Inst::Decide { dest, .. }
-            |            Inst::VolatileLoad { dest, .. } => Some(*dest),
+            | Inst::VolatileLoad { dest, .. } => Some(*dest),
             Inst::Cast { dest, .. } => Some(*dest),
             Inst::InlineAsm { outputs, .. } => outputs.first().map(|(_, d)| *d),
             Inst::AssignVar { .. }

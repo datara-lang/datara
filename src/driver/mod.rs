@@ -474,15 +474,14 @@ impl ForgenCompiler {
                     // extern functions are added to the linker command line.
                     let bridge_dirs =
                         crate::codegen::bridge_loader::collect_bridge_search_dirs(None);
-                    let bridge_libs =
-                        crate::codegen::bridge_loader::resolve_bridge_lib_paths(
-                            &bridge_dirs,
-                            &dmir_module
-                                .extern_functions
-                                .keys()
-                                .cloned()
-                                .collect::<Vec<String>>(),
-                        );
+                    let bridge_libs = crate::codegen::bridge_loader::resolve_bridge_lib_paths(
+                        &bridge_dirs,
+                        &dmir_module
+                            .extern_functions
+                            .keys()
+                            .cloned()
+                            .collect::<Vec<String>>(),
+                    );
 
                     if clang_ready {
                         let link_result = if is_shared_lib {
@@ -544,7 +543,8 @@ impl ForgenCompiler {
                 } else {
                     if let Some(ref triple) = self.target_triple {
                         let t = triple.to_lowercase();
-                        if t.starts_with("thumb") || t.contains("cortex-m") || t.contains("-none-") {
+                        if t.starts_with("thumb") || t.contains("cortex-m") || t.contains("-none-")
+                        {
                             Err(format!(
                                 "Error [E-TARGET-001]: Target '{}' is only supported via LLVM backend. Use '--llvm'",
                                 triple

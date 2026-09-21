@@ -60,52 +60,33 @@ impl<'a> Lowering<'a> {
                         if elem_ty == DataraType::Float {
                             self.class_field_types.insert(name.clone(), "Float".into());
                         }
-                    } else if matches!(
-                        tn.name.as_str(),
-                        "Float" | "Float64" | "f64"
-                    ) {
+                    } else if matches!(tn.name.as_str(), "Float" | "Float64" | "f64") {
                         self.local_var_types.insert(name.clone(), DataraType::Float);
                         self.class_field_types.insert(name.clone(), "Float".into());
                     } else if matches!(tn.name.as_str(), "Float32" | "f32") {
                         // v1.4.5 W2: Float32 keeps its own width — collapsing it
                         // to Float turned annotated f32 vars into f64 ops.
-                        self.local_var_types.insert(name.clone(), DataraType::Float32);
-                        self.class_field_types.insert(name.clone(), "Float32".into());
-                    } else if matches!(
-                        tn.name.as_str(),
-                        "Int8" | "i8"
-                    ) {
+                        self.local_var_types
+                            .insert(name.clone(), DataraType::Float32);
+                        self.class_field_types
+                            .insert(name.clone(), "Float32".into());
+                    } else if matches!(tn.name.as_str(), "Int8" | "i8") {
                         self.local_var_types.insert(name.clone(), DataraType::Int8);
-                    } else if matches!(
-                        tn.name.as_str(),
-                        "Int16" | "i16"
-                    ) {
+                    } else if matches!(tn.name.as_str(), "Int16" | "i16") {
                         self.local_var_types.insert(name.clone(), DataraType::Int16);
-                    } else if matches!(
-                        tn.name.as_str(),
-                        "Int32" | "i32"
-                    ) {
+                    } else if matches!(tn.name.as_str(), "Int32" | "i32") {
                         self.local_var_types.insert(name.clone(), DataraType::Int32);
-                    } else if matches!(
-                        tn.name.as_str(),
-                        "UInt8" | "Byte" | "u8"
-                    ) {
+                    } else if matches!(tn.name.as_str(), "UInt8" | "Byte" | "u8") {
                         self.local_var_types.insert(name.clone(), DataraType::UInt8);
-                    } else if matches!(
-                        tn.name.as_str(),
-                        "UInt16" | "u16"
-                    ) {
-                        self.local_var_types.insert(name.clone(), DataraType::UInt16);
-                    } else if matches!(
-                        tn.name.as_str(),
-                        "UInt32" | "u32"
-                    ) {
-                        self.local_var_types.insert(name.clone(), DataraType::UInt32);
-                    } else if matches!(
-                        tn.name.as_str(),
-                        "UInt" | "UInt64" | "u64" | "usize"
-                    ) {
-                        self.local_var_types.insert(name.clone(), DataraType::UInt64);
+                    } else if matches!(tn.name.as_str(), "UInt16" | "u16") {
+                        self.local_var_types
+                            .insert(name.clone(), DataraType::UInt16);
+                    } else if matches!(tn.name.as_str(), "UInt32" | "u32") {
+                        self.local_var_types
+                            .insert(name.clone(), DataraType::UInt32);
+                    } else if matches!(tn.name.as_str(), "UInt" | "UInt64" | "u64" | "usize") {
+                        self.local_var_types
+                            .insert(name.clone(), DataraType::UInt64);
                     } else if matches!(tn.name.as_str(), "String" | "Str") {
                         self.local_var_types
                             .insert(name.clone(), DataraType::String);
@@ -251,22 +232,24 @@ impl<'a> Lowering<'a> {
                         // diagnostic, because the statement *was* visited, it
                         // just produced no instruction.
                         Expr::MemberAccess { object, member, .. } => {
-                            if let Some((base_addr, fields)) = self.find_mmio_for_member(object, member) {
+                            if let Some((base_addr, fields)) =
+                                self.find_mmio_for_member(object, member)
+                            {
                                 if let Some(&(offset, ref ty_name)) = fields.get(member) {
                                     let addr_val = self.next_val();
-                                    self.get_block_mut(cur_block)
-                                        .instructions
-                                        .push(Inst::ConstInt {
+                                    self.get_block_mut(cur_block).instructions.push(
+                                        Inst::ConstInt {
                                             dest: addr_val,
                                             value: (base_addr + offset) as i64,
-                                        });
-                                    self.get_block_mut(cur_block)
-                                        .instructions
-                                        .push(Inst::VolatileStore {
+                                        },
+                                    );
+                                    self.get_block_mut(cur_block).instructions.push(
+                                        Inst::VolatileStore {
                                             addr: addr_val,
                                             value: v,
                                             ty: ty_name.clone(),
-                                        });
+                                        },
+                                    );
                                 }
                             } else if let Some(obj_val) = self.lower_expr(object, &mut cur_block) {
                                 self.get_block_mut(cur_block)

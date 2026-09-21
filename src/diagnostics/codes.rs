@@ -651,9 +651,7 @@ impl ErrorCode {
                 ErrorCode::DeprecatedFeature => {
                     "Deprecated language construct: use the modern equivalent"
                 }
-                ErrorCode::CanonicalKeyword => {
-                    "Synonymous keyword: use the canonical spelling"
-                }
+                ErrorCode::CanonicalKeyword => "Synonymous keyword: use the canonical spelling",
                 ErrorCode::CanonicalTypeSpelling => {
                     "Synonymous type spelling: use the canonical type name"
                 }

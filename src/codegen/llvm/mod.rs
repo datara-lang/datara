@@ -160,7 +160,9 @@ impl<'a> LlvmEmitter<'a> {
         // Target Layout & Triple
         match (&self.target.arch, &self.target.os) {
             (Arch::ArmCortexM, _) => {
-                ir.push_str("target datalayout = \"e-m:e-p:32:32-Fi8-i64:64-v128:64:128-a:0:32-n32-S64\"\n");
+                ir.push_str(
+                    "target datalayout = \"e-m:e-p:32:32-Fi8-i64:64-v128:64:128-a:0:32-n32-S64\"\n",
+                );
                 ir.push_str("target triple = \"thumbv7em-none-eabihf\"\n\n");
             }
             (Arch::Aarch64, Os::MacOS) => {

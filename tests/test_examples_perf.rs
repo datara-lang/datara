@@ -1,9 +1,9 @@
 //! Performance test: verify total examples/ compile time < 500ms (v1.4.5)
 
+use forgen::driver::ForgenCompiler;
 use std::fs;
 use std::path::Path;
 use std::time::Instant;
-use forgen::driver::ForgenCompiler;
 
 #[test]
 fn test_examples_compilation_under_500ms() {
@@ -24,7 +24,10 @@ fn test_examples_compilation_under_500ms() {
         }
     }
 
-    println!("Total compile time for {} example files: {} ms", checked_count, total_time_ms);
+    println!(
+        "Total compile time for {} example files: {} ms",
+        checked_count, total_time_ms
+    );
     assert!(
         total_time_ms < 500,
         "Total examples compile time must be < 500ms, got {}ms",

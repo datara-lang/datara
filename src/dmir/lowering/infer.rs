@@ -100,7 +100,7 @@ impl<'a> Lowering<'a> {
                                 "Int16" | "i16" => return Some(DataraType::Int16),
                                 "Int8" | "i8" => return Some(DataraType::Int8),
                                 "UInt" | "UInt64" | "u64" | "usize" => {
-                                    return Some(DataraType::UInt64)
+                                    return Some(DataraType::UInt64);
                                 }
                                 "UInt32" | "u32" => return Some(DataraType::UInt32),
                                 "UInt16" | "u16" => return Some(DataraType::UInt16),
@@ -536,11 +536,10 @@ impl<'a> Lowering<'a> {
         }
         match expr {
             Expr::Literal(LiteralValue::Dec64(_), _) => true,
-            Expr::Identifier(name, ..) => {
-                self.lookup_var_type(name)
-                    .map(|ty| ty == crate::types::DataraType::Dec64)
-                    .unwrap_or(false)
-            }
+            Expr::Identifier(name, ..) => self
+                .lookup_var_type(name)
+                .map(|ty| ty == crate::types::DataraType::Dec64)
+                .unwrap_or(false),
             Expr::Binary { left, right, .. } => {
                 self.is_expr_dec64(left) || self.is_expr_dec64(right)
             }

@@ -491,8 +491,18 @@ impl<'a> ClifEmitter<'a> {
                 let is_i = |t: &str| {
                     matches!(
                         t,
-                        "Int" | "Int8" | "Int16" | "Int32" | "Int64" | "UInt" | "UInt8"
-                            | "UInt16" | "UInt32" | "UInt64" | "Bool" | "Char"
+                        "Int"
+                            | "Int8"
+                            | "Int16"
+                            | "Int32"
+                            | "Int64"
+                            | "UInt"
+                            | "UInt8"
+                            | "UInt16"
+                            | "UInt32"
+                            | "UInt64"
+                            | "Bool"
+                            | "Char"
                     )
                 };
                 if is_f64(from_ty) && is_i(to_ty) {
@@ -651,7 +661,10 @@ impl<'a> ClifEmitter<'a> {
             }
             Inst::VolatileLoad { dest, addr, ty } => {
                 let clif_ty = self.dmir_type_to_clif(ty);
-                format!("    v{} = load.{} notrap aligned v{}\n", dest.0, clif_ty, addr.0)
+                format!(
+                    "    v{} = load.{} notrap aligned v{}\n",
+                    dest.0, clif_ty, addr.0
+                )
             }
             Inst::VolatileStore { addr, value, .. } => {
                 format!("    store notrap aligned v{}, v{}\n", value.0, addr.0)

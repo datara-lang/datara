@@ -237,7 +237,12 @@ pub fn try_compile_simd_call<M: ClifModule>(
     }
 
     // 7. Horizontal Add / Sum
-    if (func == "f32x4_horizontal_add" || func == "horizontal_add" || func == "sum" || func == "f32x4_sum") && args.len() == 1 {
+    if (func == "f32x4_horizontal_add"
+        || func == "horizontal_add"
+        || func == "sum"
+        || func == "f32x4_sum")
+        && args.len() == 1
+    {
         let v_raw = ctx
             .val_map
             .get(&args[0])

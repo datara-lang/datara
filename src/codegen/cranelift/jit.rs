@@ -508,7 +508,10 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_eprintln", datara_rt_eprintln);
     reg!("datara_rt_err_print_str", datara_rt_err_print_str);
     reg!("datara_rt_err_print_int", datara_rt_err_print_int);
-    reg!("datara_rt_err_print_dec64_str", datara_rt_err_print_dec64_str);
+    reg!(
+        "datara_rt_err_print_dec64_str",
+        datara_rt_err_print_dec64_str
+    );
     reg!("datara_rt_err_print_float", datara_rt_err_print_float);
     reg!("datara_rt_err_print_bool", datara_rt_err_print_bool);
     reg!("datara_rt_err_print_newline", datara_rt_err_print_newline);
@@ -800,9 +803,18 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_list_get", datara_rt_list_get);
     reg!("datara_rt_list_set", datara_rt_list_set);
     reg!("datara_rt_list_pop_outcome", datara_rt_list_pop_outcome);
-    reg!("datara_rt_checked_add_outcome", datara_rt_checked_add_outcome);
-    reg!("datara_rt_checked_sub_outcome", datara_rt_checked_sub_outcome);
-    reg!("datara_rt_checked_mul_outcome", datara_rt_checked_mul_outcome);
+    reg!(
+        "datara_rt_checked_add_outcome",
+        datara_rt_checked_add_outcome
+    );
+    reg!(
+        "datara_rt_checked_sub_outcome",
+        datara_rt_checked_sub_outcome
+    );
+    reg!(
+        "datara_rt_checked_mul_outcome",
+        datara_rt_checked_mul_outcome
+    );
     reg!("datara_rt_list_first", datara_rt_list_first);
     reg!("datara_rt_list_last", datara_rt_list_last);
     reg!("datara_rt_list_sort", datara_rt_list_sort);

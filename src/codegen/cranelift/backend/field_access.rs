@@ -119,7 +119,7 @@ pub fn emit_field_load(
                 .ins()
                 .load(clif_types::F64, flags, base_addr, offset)
         }
-    } else    if is_packed {
+    } else if is_packed {
         match field_type {
             // v1.4.5 W1: canonical narrow names route identically to the
             // legacy short reprs via explicit arms below.

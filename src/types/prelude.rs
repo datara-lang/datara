@@ -331,11 +331,7 @@ impl<'a> TypeChecker<'a> {
             );
             function_signatures.insert(
                 op.to_string(),
-                (
-                    vec![DataraType::Int, DataraType::Int],
-                    ret,
-                    Vec::new(),
-                ),
+                (vec![DataraType::Int, DataraType::Int], ret, Vec::new()),
             );
         }
         function_signatures.insert(
@@ -530,7 +526,16 @@ impl<'a> TypeChecker<'a> {
                 Vec::new(),
             ),
         );
-        for f in &["str_len", "datara_rt_str_len", "byte_len", "datara_rt_byte_len", "str_chars", "datara_rt_str_chars", "char_len", "datara_rt_char_len"] {
+        for f in &[
+            "str_len",
+            "datara_rt_str_len",
+            "byte_len",
+            "datara_rt_byte_len",
+            "str_chars",
+            "datara_rt_str_chars",
+            "char_len",
+            "datara_rt_char_len",
+        ] {
             function_signatures.insert(
                 f.to_string(),
                 (vec![DataraType::String], DataraType::Int, Vec::new()),

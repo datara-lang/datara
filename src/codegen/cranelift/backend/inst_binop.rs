@@ -89,8 +89,7 @@ pub fn compile_binop<M: ClifModule>(
         return Ok(());
     }
 
-    let is_float =
-        lv_ty == clif_types::F64 || rv_ty == clif_types::F64 || is_f32;
+    let is_float = lv_ty == clif_types::F64 || rv_ty == clif_types::F64 || is_f32;
 
     let (lv, rv) = if is_float {
         if is_f32 {
@@ -810,7 +809,10 @@ pub fn compile_binop<M: ClifModule>(
             _ => res,
         }
     } else if !is_float
-        && !matches!(op, "<" | "<=" | ">" | ">=" | "==" | "!=" | "&&" | "||" | "<<" | ">>")
+        && !matches!(
+            op,
+            "<" | "<=" | ">" | ">=" | "==" | "!=" | "&&" | "||" | "<<" | ">>"
+        )
     {
         // Shift counts must NOT be wrapped (they are widths, not values);
         // comparisons are Bools; everything else is a value op.
@@ -870,8 +872,16 @@ pub fn compile_binop<M: ClifModule>(
             "UInt32" | "u32" => 0xFFFF_FFFF,
             _ => -1, // UInt64: full width, no mask needed
         };
-        let lm = if mask == -1 { lv } else { ctx.builder.ins().band_imm_u(lv, mask) };
-        let rm = if mask == -1 { rv } else { ctx.builder.ins().band_imm_u(rv, mask) };
+        let lm = if mask == -1 {
+            lv
+        } else {
+            ctx.builder.ins().band_imm_u(lv, mask)
+        };
+        let rm = if mask == -1 {
+            rv
+        } else {
+            ctx.builder.ins().band_imm_u(rv, mask)
+        };
         let c = ctx.builder.ins().icmp(cc, lm, rm);
         let res_u = ctx.builder.ins().uextend(clif_types::I64, c);
         ctx.val_map.insert(*dest, res_u);

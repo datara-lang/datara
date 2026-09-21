@@ -44,7 +44,9 @@ comptime fn calc() -> Int {
             eval.register_function(f.clone());
         }
     }
-    let res = eval.call_fn("calc", vec![], &SourceSpan::default()).unwrap();
+    let res = eval
+        .call_fn("calc", vec![], &SourceSpan::default())
+        .unwrap();
     // 10 + 60 = 70. 70 >> 2 = 17. 17 & 0x0F = 1. 1 ^ 5 = 4.
     assert_eq!(res, ComptimeValue::Int(4));
 }
@@ -63,7 +65,13 @@ comptime fn greet(name: Str) -> Str {
             eval.register_function(f.clone());
         }
     }
-    let res = eval.call_fn("greet", vec![ComptimeValue::Str("Datara".into())], &SourceSpan::default()).unwrap();
+    let res = eval
+        .call_fn(
+            "greet",
+            vec![ComptimeValue::Str("Datara".into())],
+            &SourceSpan::default(),
+        )
+        .unwrap();
     assert_eq!(res, ComptimeValue::Str("Hello, Datara".into()));
 }
 
@@ -82,7 +90,9 @@ comptime fn make_list() -> Int {
             eval.register_function(f.clone());
         }
     }
-    let res = eval.call_fn("make_list", vec![], &SourceSpan::default()).unwrap();
+    let res = eval
+        .call_fn("make_list", vec![], &SourceSpan::default())
+        .unwrap();
     assert_eq!(res, ComptimeValue::Int(30));
 }
 
@@ -108,7 +118,13 @@ comptime fn sum_odd(n: Int) -> Int {
             eval.register_function(f.clone());
         }
     }
-    let res = eval.call_fn("sum_odd", vec![ComptimeValue::Int(10)], &SourceSpan::default()).unwrap();
+    let res = eval
+        .call_fn(
+            "sum_odd",
+            vec![ComptimeValue::Int(10)],
+            &SourceSpan::default(),
+        )
+        .unwrap();
     // 1 + 3 + 5 + 7 + 9 = 25
     assert_eq!(res, ComptimeValue::Int(25));
 }
@@ -130,7 +146,9 @@ comptime fn fib(n: Int) -> Int {
             eval.register_function(f.clone());
         }
     }
-    let res = eval.call_fn("fib", vec![ComptimeValue::Int(10)], &SourceSpan::default()).unwrap();
+    let res = eval
+        .call_fn("fib", vec![ComptimeValue::Int(10)], &SourceSpan::default())
+        .unwrap();
     assert_eq!(res, ComptimeValue::Int(55));
 }
 
@@ -158,8 +176,20 @@ comptime fn is_odd(n: Int) -> Bool {
             eval.register_function(f.clone());
         }
     }
-    let res1 = eval.call_fn("is_even", vec![ComptimeValue::Int(8)], &SourceSpan::default()).unwrap();
-    let res2 = eval.call_fn("is_odd", vec![ComptimeValue::Int(8)], &SourceSpan::default()).unwrap();
+    let res1 = eval
+        .call_fn(
+            "is_even",
+            vec![ComptimeValue::Int(8)],
+            &SourceSpan::default(),
+        )
+        .unwrap();
+    let res2 = eval
+        .call_fn(
+            "is_odd",
+            vec![ComptimeValue::Int(8)],
+            &SourceSpan::default(),
+        )
+        .unwrap();
     assert_eq!(res1, ComptimeValue::Bool(true));
     assert_eq!(res2, ComptimeValue::Bool(false));
 }
@@ -186,7 +216,10 @@ fn main() -> Int {
     let mut lowering = forgen::dmir::lowering::Lowering::new(&resolver, &type_checker);
     let module = lowering.lower_program(&prog, "main");
 
-    let main_func = module.functions.get("main").expect("main function exists in DMIR");
+    let main_func = module
+        .functions
+        .get("main")
+        .expect("main function exists in DMIR");
     let mut has_const_84 = false;
     let mut has_call_magic = false;
     for block in &main_func.blocks {
@@ -202,8 +235,14 @@ fn main() -> Int {
             }
         }
     }
-    assert!(has_const_84, "DMIR should contain ConstInt 84 evaluated at comptime");
-    assert!(!has_call_magic, "DMIR should not contain a runtime Call to magic_num");
+    assert!(
+        has_const_84,
+        "DMIR should contain ConstInt 84 evaluated at comptime"
+    );
+    assert!(
+        !has_call_magic,
+        "DMIR should not contain a runtime Call to magic_num"
+    );
 }
 
 #[test]
@@ -220,7 +259,11 @@ comptime fn infinite_recursion(n: Int) -> Int {
             eval.register_function(f.clone());
         }
     }
-    let res = eval.call_fn("infinite_recursion", vec![ComptimeValue::Int(0)], &SourceSpan::default());
+    let res = eval.call_fn(
+        "infinite_recursion",
+        vec![ComptimeValue::Int(0)],
+        &SourceSpan::default(),
+    );
     assert!(res.is_err());
     match res.unwrap_err() {
         forgen::comptime::ComptimeError::RecursionLimitExceeded(_) => {}
@@ -282,7 +325,9 @@ comptime fn make_crc_table() -> List<Int> {
             eval.register_function(f.clone());
         }
     }
-    let res = eval.call_fn("make_crc_table", vec![], &SourceSpan::default()).unwrap();
+    let res = eval
+        .call_fn("make_crc_table", vec![], &SourceSpan::default())
+        .unwrap();
     if let ComptimeValue::List(table) = res {
         assert_eq!(table.len(), 256, "CRC32 table must have 256 entries");
         // Check standard CRC-32 polynomial IEEE 802.3 table values

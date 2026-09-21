@@ -753,7 +753,8 @@ impl Lexer {
                                 Some((i, f)) => (i, f),
                                 None => (num_str.as_str(), ""),
                             };
-                            let clean = |s: &str| s.chars().filter(|c| *c != '_').collect::<String>();
+                            let clean =
+                                |s: &str| s.chars().filter(|c| *c != '_').collect::<String>();
                             // v1.4.5 D2: a mantissa that does not fit in i64 must
                             // be diagnosed, not silently clamped to 0 ("999…9d"
                             // used to print 0 with no error). Overflow beyond

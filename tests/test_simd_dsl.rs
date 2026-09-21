@@ -58,7 +58,11 @@ fn test_simd_block() {
 }
 "#;
     let (prog, diag) = compile_pipeline(src);
-    assert!(!diag.has_errors(), "Compilation failed: {:?}", diag.diagnostics);
+    assert!(
+        !diag.has_errors(),
+        "Compilation failed: {:?}",
+        diag.diagnostics
+    );
 
     // Check that AST contains Stmt::Simd
     let mut has_simd_stmt = false;
@@ -82,7 +86,10 @@ fn test_simd_block() {
     let tc = TypeChecker::new(&resolver);
     let mut lowering = Lowering::new(&resolver, &tc);
     let dmir = lowering.lower_program(&prog, "test_simd");
-    assert!(!dmir.functions.is_empty(), "DMIR must contain lowered function");
+    assert!(
+        !dmir.functions.is_empty(),
+        "DMIR must contain lowered function"
+    );
 }
 
 #[test]
@@ -106,7 +113,11 @@ fn simd_ops() {
 }
 "#;
     let (_, diag) = compile_pipeline(src);
-    assert!(!diag.has_errors(), "SIMD arithmetic must typecheck: {:?}", diag.diagnostics);
+    assert!(
+        !diag.has_errors(),
+        "SIMD arithmetic must typecheck: {:?}",
+        diag.diagnostics
+    );
 }
 
 #[test]
@@ -123,7 +134,11 @@ fn test_dot() -> Float {
 }
 "#;
     let (_, diag) = compile_pipeline(src);
-    assert!(!diag.has_errors(), "SIMD dot product must typecheck: {:?}", diag.diagnostics);
+    assert!(
+        !diag.has_errors(),
+        "SIMD dot product must typecheck: {:?}",
+        diag.diagnostics
+    );
 }
 
 #[test]
@@ -139,7 +154,11 @@ fn test_sum() -> Float {
 }
 "#;
     let (_, diag) = compile_pipeline(src);
-    assert!(!diag.has_errors(), "SIMD sum must typecheck: {:?}", diag.diagnostics);
+    assert!(
+        !diag.has_errors(),
+        "SIMD sum must typecheck: {:?}",
+        diag.diagnostics
+    );
 }
 
 #[test]
@@ -154,11 +173,19 @@ fn unproven_simd_loop(n: Int) {
 }
 "#;
     let (_, diag) = compile_pipeline(src);
-    assert!(diag.has_errors(), "Unproven loop bound in SIMD block must produce error");
-    let has_e0947 = diag.diagnostics.iter().any(|d| {
-        d.code == "E0947" || d.message.contains("unproven loop bound for SIMD chunk")
-    });
-    assert!(has_e0947, "Expected E0947 unproven loop bound diagnostic, got: {:?}", diag.diagnostics);
+    assert!(
+        diag.has_errors(),
+        "Unproven loop bound in SIMD block must produce error"
+    );
+    let has_e0947 = diag
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "E0947" || d.message.contains("unproven loop bound for SIMD chunk"));
+    assert!(
+        has_e0947,
+        "Expected E0947 unproven loop bound diagnostic, got: {:?}",
+        diag.diagnostics
+    );
 }
 
 #[test]
@@ -174,7 +201,11 @@ fn proven_simd_loop(n: Int) {
 }
 "#;
     let (_, diag) = compile_pipeline(src);
-    assert!(!diag.has_errors(), "Proven loop bound with require n % 4 == 0 must pass without errors: {:?}", diag.diagnostics);
+    assert!(
+        !diag.has_errors(),
+        "Proven loop bound with require n % 4 == 0 must pass without errors: {:?}",
+        diag.diagnostics
+    );
 }
 
 #[test]
@@ -189,11 +220,19 @@ fn bad_simd_mix() {
 }
 "#;
     let (_, diag) = compile_pipeline(src);
-    assert!(diag.has_errors(), "Mixing simd_f32x4 and simd_i32x4 must be rejected");
-    let has_e_type_008 = diag.diagnostics.iter().any(|d| {
-        d.code == "E-TYPE-008" || d.message.contains("SIMD vector type mismatch")
-    });
-    assert!(has_e_type_008, "Expected E-TYPE-008 SIMD vector type mismatch, got: {:?}", diag.diagnostics);
+    assert!(
+        diag.has_errors(),
+        "Mixing simd_f32x4 and simd_i32x4 must be rejected"
+    );
+    let has_e_type_008 = diag
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "E-TYPE-008" || d.message.contains("SIMD vector type mismatch"));
+    assert!(
+        has_e_type_008,
+        "Expected E-TYPE-008 SIMD vector type mismatch, got: {:?}",
+        diag.diagnostics
+    );
 }
 
 #[test]
@@ -241,7 +280,11 @@ fn test_simd_vs_scalar_benchmark_10k() {
 
     // Verify mathematical equivalence
     for i in 0..N {
-        assert!((c_scalar[i] - c_simd[i]).abs() < 1e-4, "Mismatch at index {}", i);
+        assert!(
+            (c_scalar[i] - c_simd[i]).abs() < 1e-4,
+            "Mismatch at index {}",
+            i
+        );
     }
 
     println!(

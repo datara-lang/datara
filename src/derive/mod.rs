@@ -6,7 +6,9 @@ pub fn expand_derives_and_comptime(program: &mut Program) {
     let has_any_attr_or_trait = !program.attributes.is_empty()
         || program.declarations.iter().any(|d| match d {
             Decl::Class(c) => !c.attributes.is_empty(),
-            Decl::Function(f) | Decl::Flow(f) | Decl::Task(f) => !f.attributes.is_empty() || f.is_comptime,
+            Decl::Function(f) | Decl::Flow(f) | Decl::Task(f) => {
+                !f.attributes.is_empty() || f.is_comptime
+            }
             Decl::Trait(_) => true,
             _ => false,
         });

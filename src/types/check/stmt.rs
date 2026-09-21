@@ -1148,9 +1148,10 @@ impl<'a> TypeChecker<'a> {
                             };
                             (n - start_val) % 4 == 0
                         }
-                        Expr::Identifier(var_name, _) => {
-                            self.active_requires.iter().any(|req| expr_proves_mod_4(req, var_name))
-                        }
+                        Expr::Identifier(var_name, _) => self
+                            .active_requires
+                            .iter()
+                            .any(|req| expr_proves_mod_4(req, var_name)),
                         _ => false,
                     };
                     if !is_proven {
@@ -1172,9 +1173,10 @@ impl<'a> TypeChecker<'a> {
                     if op == "<" || op == "<=" {
                         let is_proven = match &**right {
                             Expr::Literal(LiteralValue::Int(n), _) => *n % 4 == 0,
-                            Expr::Identifier(var_name, _) => {
-                                self.active_requires.iter().any(|req| expr_proves_mod_4(req, var_name))
-                            }
+                            Expr::Identifier(var_name, _) => self
+                                .active_requires
+                                .iter()
+                                .any(|req| expr_proves_mod_4(req, var_name)),
                             _ => false,
                         };
                         if !is_proven {
@@ -1200,13 +1202,20 @@ impl<'a> TypeChecker<'a> {
 
 fn expr_proves_mod_4(expr: &Expr, var_name: &str) -> bool {
     match expr {
-        Expr::Binary { op, left, right, .. } if op == "==" => {
+        Expr::Binary {
+            op, left, right, ..
+        } if op == "==" => {
             let check_mod = |m_expr: &Expr, zero_expr: &Expr| -> bool {
                 if let Expr::Literal(LiteralValue::Int(0), _) = zero_expr {
-                    if let Expr::Binary { op, left, right, .. } = m_expr {
+                    if let Expr::Binary {
+                        op, left, right, ..
+                    } = m_expr
+                    {
                         if op == "%" {
-                            if let (Expr::Identifier(id, _), Expr::Literal(LiteralValue::Int(4), _)) =
-                                (&**left, &**right)
+                            if let (
+                                Expr::Identifier(id, _),
+                                Expr::Literal(LiteralValue::Int(4), _),
+                            ) = (&**left, &**right)
                             {
                                 return id == var_name;
                             }

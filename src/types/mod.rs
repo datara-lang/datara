@@ -84,12 +84,14 @@ impl DataraType {
             DataraType::Unit | DataraType::Never => 0,
             DataraType::Bool => 1,
             DataraType::Char => 4,
-            DataraType::Int | DataraType::UInt | DataraType::Float
-            | DataraType::Dec64 | DataraType::RawPtr => 8,
+            DataraType::Int
+            | DataraType::UInt
+            | DataraType::Float
+            | DataraType::Dec64
+            | DataraType::RawPtr => 8,
             DataraType::Int8 | DataraType::UInt8 => 1,
             DataraType::Int16 | DataraType::UInt16 => 2,
-            DataraType::Int32 | DataraType::UInt32 | DataraType::UInt64
-            | DataraType::Float32 => 4,
+            DataraType::Int32 | DataraType::UInt32 | DataraType::UInt64 | DataraType::Float32 => 4,
             DataraType::SimdF32x4 | DataraType::SimdI32x4 => 16,
             DataraType::String => 24, // { ptr: *u8, len: usize, cap: usize }
             DataraType::Trait(_) => 16, // Dynamic trait object fat pointer: { instance_ptr: 8, vtable_ptr: 8 }
@@ -226,14 +228,14 @@ impl DataraType {
             return true;
         }
         if let (DataraType::SimdF32x4, DataraType::Class(c))
-            | (DataraType::Class(c), DataraType::SimdF32x4) = (self, other)
+        | (DataraType::Class(c), DataraType::SimdF32x4) = (self, other)
         {
             if c == "Float4" || c == "f32x4" || c == "simd_f32x4" {
                 return true;
             }
         }
         if let (DataraType::SimdI32x4, DataraType::Class(c))
-            | (DataraType::Class(c), DataraType::SimdI32x4) = (self, other)
+        | (DataraType::Class(c), DataraType::SimdI32x4) = (self, other)
         {
             if c == "Int4" || c == "i32x4" || c == "simd_i32x4" {
                 return true;
@@ -370,7 +372,8 @@ impl DataraType {
     /// v1.4.5 W1: is this a (narrow or wide) integer type? Used to decide
     /// whether an Int literal may adopt an operand's integer width in a
     /// binary expression (literal labeling, not a Gate-7 conversion).
-    pub fn is_integer_type(t: &DataraType) -> bool {        matches!(
+    pub fn is_integer_type(t: &DataraType) -> bool {
+        matches!(
             t,
             DataraType::Int
                 | DataraType::Int8

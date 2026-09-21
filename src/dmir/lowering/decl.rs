@@ -24,32 +24,32 @@ impl<'a> Lowering<'a> {
                 .as_ref()
                 .map(|t| t.full_type_name())
                 .unwrap_or_else(|| "Int".into());
-                if let Some(ref tn) = p.type_node {
-                    if tn.name == "List" && !tn.generic_args.is_empty() {
-                        let elem = match tn.generic_args[0].name.as_str() {
-                            "Float" | "Float64" => crate::types::DataraType::Float,
-                            "Float32" => crate::types::DataraType::Float32,
-                            "String" | "Str" => crate::types::DataraType::String,
-                            "Bool" => crate::types::DataraType::Bool,
-                            _ => crate::types::DataraType::Int,
-                        };
-                        self.local_var_types.insert(
-                            p.name.clone(),
-                            crate::types::DataraType::List(Box::new(elem)),
-                        );
-                        self.class_field_types
-                            .insert(p.name.clone(), ty_str.clone());
-                    } else if tn.name == "Float32" {
-                        // v1.4.5 W2: keep the f32 width on parameters too.
-                        self.local_var_types
-                            .insert(p.name.clone(), crate::types::DataraType::Float32);
-                        self.class_field_types
-                            .insert(p.name.clone(), "Float32".into());
-                    } else if tn.name == "Float" || tn.name == "Float64" {
-                        self.local_var_types
-                            .insert(p.name.clone(), crate::types::DataraType::Float);
-                        self.class_field_types
-                            .insert(p.name.clone(), "Float".into());
+            if let Some(ref tn) = p.type_node {
+                if tn.name == "List" && !tn.generic_args.is_empty() {
+                    let elem = match tn.generic_args[0].name.as_str() {
+                        "Float" | "Float64" => crate::types::DataraType::Float,
+                        "Float32" => crate::types::DataraType::Float32,
+                        "String" | "Str" => crate::types::DataraType::String,
+                        "Bool" => crate::types::DataraType::Bool,
+                        _ => crate::types::DataraType::Int,
+                    };
+                    self.local_var_types.insert(
+                        p.name.clone(),
+                        crate::types::DataraType::List(Box::new(elem)),
+                    );
+                    self.class_field_types
+                        .insert(p.name.clone(), ty_str.clone());
+                } else if tn.name == "Float32" {
+                    // v1.4.5 W2: keep the f32 width on parameters too.
+                    self.local_var_types
+                        .insert(p.name.clone(), crate::types::DataraType::Float32);
+                    self.class_field_types
+                        .insert(p.name.clone(), "Float32".into());
+                } else if tn.name == "Float" || tn.name == "Float64" {
+                    self.local_var_types
+                        .insert(p.name.clone(), crate::types::DataraType::Float);
+                    self.class_field_types
+                        .insert(p.name.clone(), "Float".into());
                 } else if tn.name == "String" || tn.name == "Str" {
                     self.local_var_types
                         .insert(p.name.clone(), crate::types::DataraType::String);

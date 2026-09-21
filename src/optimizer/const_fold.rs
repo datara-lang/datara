@@ -174,8 +174,17 @@ impl Optimizer {
                         let is_i = |t: &str| {
                             matches!(
                                 t,
-                                "Int" | "Int8" | "Int16" | "Int32" | "Int64" | "UInt"
-                                    | "UInt8" | "UInt16" | "UInt32" | "UInt64" | "Bool"
+                                "Int"
+                                    | "Int8"
+                                    | "Int16"
+                                    | "Int32"
+                                    | "Int64"
+                                    | "UInt"
+                                    | "UInt8"
+                                    | "UInt16"
+                                    | "UInt32"
+                                    | "UInt64"
+                                    | "Bool"
                                     | "Char"
                             )
                         };
@@ -235,7 +244,9 @@ impl Optimizer {
                             // v1.4.5 W1: shift-count validation follows the
                             // operand width (`ty`), not hard-coded 64.
                             let shift_w = crate::dmir::ir::dm_repr_shift_width(ty);
-                            if matches!(op.as_str(), "<<" | ">>") && (*r_val < 0 || *r_val >= shift_w) {
+                            if matches!(op.as_str(), "<<" | ">>")
+                                && (*r_val < 0 || *r_val >= shift_w)
+                            {
                                 let diag = crate::diagnostics::Diagnostic::error(
                                     crate::diagnostics::ErrorCode::RangeViolation,
                                     format!(
@@ -258,22 +269,20 @@ impl Optimizer {
                             // let the backend emit sadd_overflow/trapnz.
                             let narrow_ty = crate::dmir::ir::dm_repr_is_narrow_int(ty);
                             let sat = crate::dmir::ir::dm_repr_sat_bounds(ty);
-                            let wrap_to_width = |v: i64| crate::dmir::ir::dm_wrap_i64_to_repr(ty, v);
+                            let wrap_to_width =
+                                |v: i64| crate::dmir::ir::dm_wrap_i64_to_repr(ty, v);
                             let folded = match op.as_str() {
                                 "+" | "-" | "*" if !narrow_ty => {
                                     let (raw, _wrapped) = match op.as_str() {
-                                        "+" => (
-                                            l_val.checked_add(*r_val),
-                                            l_val.wrapping_add(*r_val),
-                                        ),
-                                        "-" => (
-                                            l_val.checked_sub(*r_val),
-                                            l_val.wrapping_sub(*r_val),
-                                        ),
-                                        _ => (
-                                            l_val.checked_mul(*r_val),
-                                            l_val.wrapping_mul(*r_val),
-                                        ),
+                                        "+" => {
+                                            (l_val.checked_add(*r_val), l_val.wrapping_add(*r_val))
+                                        }
+                                        "-" => {
+                                            (l_val.checked_sub(*r_val), l_val.wrapping_sub(*r_val))
+                                        }
+                                        _ => {
+                                            (l_val.checked_mul(*r_val), l_val.wrapping_mul(*r_val))
+                                        }
                                     };
                                     match raw {
                                         Some(v) => Some(v),
@@ -283,18 +292,18 @@ impl Optimizer {
                                         None => None,
                                     }
                                 }
-                                "+" | "wrapping_+" => Some(wrap_to_width(l_val.wrapping_add(*r_val))),
-                                "-" | "wrapping_-" => Some(wrap_to_width(l_val.wrapping_sub(*r_val))),
-                                "*" | "wrapping_*" => Some(wrap_to_width(l_val.wrapping_mul(*r_val))),
-                                "saturating_+" => Some(
-                                    l_val.saturating_add(*r_val),
-                                ),
-                                "saturating_-" => Some(
-                                    l_val.saturating_sub(*r_val),
-                                ),
-                                "saturating_*" => Some(
-                                    l_val.saturating_mul(*r_val),
-                                ),
+                                "+" | "wrapping_+" => {
+                                    Some(wrap_to_width(l_val.wrapping_add(*r_val)))
+                                }
+                                "-" | "wrapping_-" => {
+                                    Some(wrap_to_width(l_val.wrapping_sub(*r_val)))
+                                }
+                                "*" | "wrapping_*" => {
+                                    Some(wrap_to_width(l_val.wrapping_mul(*r_val)))
+                                }
+                                "saturating_+" => Some(l_val.saturating_add(*r_val)),
+                                "saturating_-" => Some(l_val.saturating_sub(*r_val)),
+                                "saturating_*" => Some(l_val.saturating_mul(*r_val)),
                                 "&" => Some(l_val & r_val),
                                 "|" => Some(l_val | r_val),
                                 "^" => Some(l_val ^ r_val),
@@ -305,9 +314,7 @@ impl Optimizer {
                                 "<<" if *r_val >= 0 && *r_val < shift_w => {
                                     Some(wrap_to_width(l_val.wrapping_shl(*r_val as u32)))
                                 }
-                                ">>" if *r_val >= 0 && *r_val < shift_w => {
-                                    Some(l_val >> *r_val)
-                                }
+                                ">>" if *r_val >= 0 && *r_val < shift_w => Some(l_val >> *r_val),
                                 "/" if *r_val != 0 && !(*l_val == i64::MIN && *r_val == -1) => {
                                     l_val.checked_div(*r_val).map(wrap_to_width)
                                 }
@@ -318,10 +325,9 @@ impl Optimizer {
                             };
                             // Saturating ops clamp to the width's bounds
                             // instead of wrapping.
-                            let folded = if let (true, Some((lo, hi))) = (
-                                op.starts_with("saturating_"),
-                                sat,
-                            ) {
+                            let folded = if let (true, Some((lo, hi))) =
+                                (op.starts_with("saturating_"), sat)
+                            {
                                 folded.map(|v| v.clamp(lo, hi))
                             } else {
                                 folded
@@ -368,16 +374,15 @@ impl Optimizer {
                             // the f64 artifact 0.30000000000000004 before the
                             // backend ever sees the operands.
                             let is_f32_fold = ty == "Float32" || ty == "f32";
-                            let fold_op =
-                                |a: f64, b: f64| -> f64 {
-                                    match op.as_str() {
-                                        "+" => a + b,
-                                        "-" => a - b,
-                                        "*" => a * b,
-                                        "/" if b != 0.0 => a / b,
-                                        _ => f64::NAN,
-                                    }
-                                };
+                            let fold_op = |a: f64, b: f64| -> f64 {
+                                match op.as_str() {
+                                    "+" => a + b,
+                                    "-" => a - b,
+                                    "*" => a * b,
+                                    "/" if b != 0.0 => a / b,
+                                    _ => f64::NAN,
+                                }
+                            };
                             let folded = if is_f32_fold {
                                 // Fold at f32: convert, compute, round back.
                                 let r = fold_op(*l_val as f32 as f64, *r_val as f32 as f64);
@@ -388,11 +393,7 @@ impl Optimizer {
                                 }
                             } else {
                                 let r = fold_op(*l_val, *r_val);
-                                if r.is_nan() {
-                                    None
-                                } else {
-                                    Some(r)
-                                }
+                                if r.is_nan() { None } else { Some(r) }
                             };
                             if let Some(res) = folded {
                                 float_constants.insert(*dest, res);
@@ -648,12 +649,13 @@ impl Optimizer {
                             }
                         }
                         new_instructions.push(inst.clone());
-                    }                        Inst::FormatStr {
-                            dest,
-                            parts,
-                            values,
-                            value_tys: _,
-                        } => {
+                    }
+                    Inst::FormatStr {
+                        dest,
+                        parts,
+                        values,
+                        value_tys: _,
+                    } => {
                         let all_known = values.iter().all(|v| {
                             int_constants.contains_key(v)
                                 || float_constants.contains_key(v)

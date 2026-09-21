@@ -72,7 +72,8 @@ impl<'a> Lowering<'a> {
                     // fmt"{x:.2}" would silently print full precision.
                     let spec = specs.get(idx).map(|s| s.as_str()).unwrap_or("");
                     if !spec.is_empty()
-                        && let Some((conv_fn, consts, spec_ty)) = self.fmt_spec_converter(target_sub, spec)
+                        && let Some((conv_fn, consts, spec_ty)) =
+                            self.fmt_spec_converter(target_sub, spec)
                         && let Some(arg_val) = self.lower_expr(target_sub, &mut cur_block)
                     {
                         let mut call_args = vec![arg_val];
@@ -80,7 +81,10 @@ impl<'a> Lowering<'a> {
                             let c_dest = self.next_val();
                             self.get_block_mut(cur_block)
                                 .instructions
-                                .push(Inst::ConstInt { dest: c_dest, value: c });
+                                .push(Inst::ConstInt {
+                                    dest: c_dest,
+                                    value: c,
+                                });
                             call_args.push(c_dest);
                         }
                         let conv_dest = self.next_val();
@@ -166,12 +170,10 @@ impl<'a> Lowering<'a> {
                 .infer_expr_datara_type(target_e)
                 .map(|t| t.to_string())
                 .unwrap_or_else(|| "Int".into());
-            self.get_block_mut(cur_block)
-                .instructions
-                .push(Inst::Out {
-                    value: val,
-                    ty: out_ty,
-                });
+            self.get_block_mut(cur_block).instructions.push(Inst::Out {
+                value: val,
+                ty: out_ty,
+            });
         }
         (cur_block, None)
     }
@@ -241,7 +243,8 @@ impl<'a> Lowering<'a> {
                     // convert to the formatted string, then err-print it.
                     let spec = specs.get(idx).map(|s| s.as_str()).unwrap_or("");
                     if !spec.is_empty()
-                        && let Some((conv_fn, consts, spec_ty)) = self.fmt_spec_converter(target_sub, spec)
+                        && let Some((conv_fn, consts, spec_ty)) =
+                            self.fmt_spec_converter(target_sub, spec)
                         && let Some(arg_val) = self.lower_expr(target_sub, &mut cur_block)
                     {
                         let mut call_args = vec![arg_val];
@@ -249,7 +252,10 @@ impl<'a> Lowering<'a> {
                             let c_dest = self.next_val();
                             self.get_block_mut(cur_block)
                                 .instructions
-                                .push(Inst::ConstInt { dest: c_dest, value: c });
+                                .push(Inst::ConstInt {
+                                    dest: c_dest,
+                                    value: c,
+                                });
                             call_args.push(c_dest);
                         }
                         let conv_dest = self.next_val();

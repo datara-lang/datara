@@ -101,7 +101,8 @@ impl BridgeLibs {
                 let at = unsafe { base.add(i * THUNK_SIZE) };
                 // mov rax, imm64 ; jmp rax  (x86-64, works on any address)
                 let code: [u8; 12] = [
-                    0x48, 0xB8,
+                    0x48,
+                    0xB8,
                     (*target & 0xFF) as u8,
                     ((*target >> 8) & 0xFF) as u8,
                     ((*target >> 16) & 0xFF) as u8,
@@ -110,7 +111,8 @@ impl BridgeLibs {
                     ((*target >> 40) & 0xFF) as u8,
                     ((*target >> 48) & 0xFF) as u8,
                     ((*target >> 56) & 0xFF) as u8,
-                    0xFF, 0xE0,
+                    0xFF,
+                    0xE0,
                 ];
                 unsafe {
                     std::ptr::copy_nonoverlapping(code.as_ptr(), at, THUNK_SIZE);
@@ -336,7 +338,16 @@ fn bridge_mmap_near(target: usize, len: usize) -> Option<(usize, usize)> {
     } else {
         target as *mut std::ffi::c_void
     };
-    let ptr = unsafe { bridge_mmap(hint, len, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0) };
+    let ptr = unsafe {
+        bridge_mmap(
+            hint,
+            len,
+            PROT_READ | PROT_WRITE,
+            MAP_PRIVATE | MAP_ANONYMOUS,
+            -1,
+            0,
+        )
+    };
     if ptr as usize == usize::MAX || ptr.is_null() {
         None
     } else {
@@ -387,9 +398,7 @@ pub fn resolve_bridge_lib_paths(dirs: &[PathBuf], names: &[String]) -> Vec<Strin
                 Some(h) => h,
                 None => continue,
             };
-            let hits = c_names
-                .iter()
-                .any(|c| lookup_symbol(handle, c).is_some());
+            let hits = c_names.iter().any(|c| lookup_symbol(handle, c).is_some());
             if hits {
                 // Prefer the import library next to the DLL: MSVC's link.exe
                 // reliably resolves symbols through a .lib, while direct DLL

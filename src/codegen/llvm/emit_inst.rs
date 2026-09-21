@@ -204,10 +204,7 @@ impl<'a> LlvmEmitter<'a> {
                             tmp
                         } else if ty == "i64" {
                             let tmp = format!("%f32conv_{}_{}", vid.0, dem_ctr);
-                            out.push_str(&format!(
-                                "  {} = sitofp i64 %v{} to float\n",
-                                tmp, vid.0
-                            ));
+                            out.push_str(&format!("  {} = sitofp i64 %v{} to float\n", tmp, vid.0));
                             tmp
                         } else {
                             format!("%v{}", vid.0)
@@ -256,10 +253,7 @@ impl<'a> LlvmEmitter<'a> {
                             ));
                             // Result goes back into an F64 slot.
                             let tmp = format!("%v{}", dest.0);
-                            out.push_str(&format!(
-                                "  {} = fpext float {} to double\n",
-                                tmp, res32
-                            ));
+                            out.push_str(&format!("  {} = fpext float {} to double\n", tmp, res32));
                             value_types.insert(*dest, "double");
                             f32_vids.insert(*dest);
                         }

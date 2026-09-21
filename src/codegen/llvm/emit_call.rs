@@ -231,10 +231,7 @@ impl<'a> LlvmEmitter<'a> {
             && args.len() == 1
         {
             let a = args[0];
-            out.push_str(&format!(
-                "  call void @{}(i64 %v{})\n",
-                actual_func, a.0
-            ));
+            out.push_str(&format!("  call void @{}(i64 %v{})\n", actual_func, a.0));
             return Ok(());
         }
 
@@ -243,10 +240,7 @@ impl<'a> LlvmEmitter<'a> {
         if actual_func == "datara_rt_print_f32" && args.len() == 1 {
             let a = args[0];
             let tmp = format!("%f32_demote_{}_{}", dest.0, a.0);
-            out.push_str(&format!(
-                "  {} = fptrunc double %v{} to float\n",
-                tmp, a.0
-            ));
+            out.push_str(&format!("  {} = fptrunc double %v{} to float\n", tmp, a.0));
             out.push_str(&format!(
                 "  call void @datara_rt_print_f32(float {})\n",
                 tmp

@@ -95,8 +95,9 @@ impl<'a> Lowering<'a> {
                         }
                     }
                     if all_const {
-                        if let Ok(res) =
-                            self.comptime_evaluator.call_fn(fn_name, const_args, fn_span)
+                        if let Ok(res) = self
+                            .comptime_evaluator
+                            .call_fn(fn_name, const_args, fn_span)
                         {
                             return self.lower_comptime_val(res, cur_block);
                         }
@@ -274,9 +275,7 @@ impl<'a> Lowering<'a> {
                 let err_val = if self.is_expr_str(&args[0]) {
                     arg_val
                 } else {
-                    let conv_fn = if self.is_expr_f32(&args[0])
-                        || self.is_expr_float(&args[0])
-                    {
+                    let conv_fn = if self.is_expr_f32(&args[0]) || self.is_expr_float(&args[0]) {
                         "datara_rt_float_to_str"
                     } else if self.is_expr_bool(&args[0]) {
                         "datara_rt_bool_to_str"

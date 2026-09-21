@@ -164,7 +164,10 @@ impl<'a> Lowering<'a> {
                 Some(dest)
             }
             Expr::InterpolatedString {
-                parts, expressions, specs, ..
+                parts,
+                expressions,
+                specs,
+                ..
             } => {
                 let mut vals = Vec::new();
                 let mut value_tys = Vec::new();
@@ -184,9 +187,12 @@ impl<'a> Lowering<'a> {
                                 let mut call_args = vec![arg_val];
                                 for c in consts {
                                     let c_dest = self.next_val();
-                                    self.get_block_mut(*cur_block)
-                                        .instructions
-                                        .push(Inst::ConstInt { dest: c_dest, value: c });
+                                    self.get_block_mut(*cur_block).instructions.push(
+                                        Inst::ConstInt {
+                                            dest: c_dest,
+                                            value: c,
+                                        },
+                                    );
                                     call_args.push(c_dest);
                                 }
                                 let conv_dest = self.next_val();
@@ -210,15 +216,13 @@ impl<'a> Lowering<'a> {
                         // route Dec64 through the fixed-point formatter and
                         // keep Float32 precision instead of guessing from the
                         // storage slot (Dec64 shares the I64 slot).
-                        value_tys.push(
-                            if self.is_expr_dec64(e) {
-                                "Dec64".to_string()
-                            } else if self.is_expr_f32(e) {
-                                "Float32".to_string()
-                            } else {
-                                String::new()
-                            },
-                        );
+                        value_tys.push(if self.is_expr_dec64(e) {
+                            "Dec64".to_string()
+                        } else if self.is_expr_f32(e) {
+                            "Float32".to_string()
+                        } else {
+                            String::new()
+                        });
                     }
                 }
                 let dest = self.next_val();
@@ -386,7 +390,8 @@ impl<'a> Lowering<'a> {
                 let int_width = if is_str_concat || is_str_cmp || is_f32 || is_float {
                     None
                 } else {
-                    self.int_expr_repr(left).or_else(|| self.int_expr_repr(right))
+                    self.int_expr_repr(left)
+                        .or_else(|| self.int_expr_repr(right))
                 };
                 self.get_block_mut(*cur_block)
                     .instructions

@@ -268,7 +268,10 @@ impl ComptimeEvaluator {
     }
 
     pub fn with_functions(functions: HashMap<String, FunctionDecl>) -> Self {
-        let f_map = functions.into_iter().map(|(k, v)| (k, Arc::new(v))).collect();
+        let f_map = functions
+            .into_iter()
+            .map(|(k, v)| (k, Arc::new(v)))
+            .collect();
         Self {
             functions: f_map,
             step_count: 0,
@@ -359,7 +362,9 @@ impl ComptimeEvaluator {
                 }
             }
             Expr::Call { callee, args, span } => self.eval_call(callee, args, span, scope),
-            Expr::Block(stmts, trailing_expr, _) => self.eval_block(stmts, trailing_expr.as_deref(), scope),
+            Expr::Block(stmts, trailing_expr, _) => {
+                self.eval_block(stmts, trailing_expr.as_deref(), scope)
+            }
             Expr::Decide {
                 arms,
                 else_arm,
@@ -658,11 +663,7 @@ impl ComptimeEvaluator {
                             };
                             if i < 0 || (i as usize) >= list.len() {
                                 return Err(ComptimeError::ContractViolation(
-                                    format!(
-                                        "Index {} out of bounds (len: {})",
-                                        idx,
-                                        list.len()
-                                    ),
+                                    format!("Index {} out of bounds (len: {})", idx, list.len()),
                                     idx_span.clone(),
                                 ));
                             }
@@ -704,7 +705,10 @@ impl ComptimeEvaluator {
                 | "spawn"
                 | "panic"
         ) {
-            return Err(ComptimeError::ForbiddenEffect(name.to_string(), span.clone()));
+            return Err(ComptimeError::ForbiddenEffect(
+                name.to_string(),
+                span.clone(),
+            ));
         }
 
         // Builtin functions

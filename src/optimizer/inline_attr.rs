@@ -176,9 +176,9 @@ impl Optimizer {
                         | Inst::LoadVar { .. }
                         | Inst::AssignVar { .. }
                         | Inst::BinOp { .. }
-                    | Inst::UnOp { .. }
-                    | Inst::Cast { .. }
-                    | Inst::GetField { .. }
+                        | Inst::UnOp { .. }
+                        | Inst::Cast { .. }
+                        | Inst::GetField { .. }
                         | Inst::Select { .. }
                         | Inst::Decide { .. }
                         | Inst::Return { .. }

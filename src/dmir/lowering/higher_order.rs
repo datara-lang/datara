@@ -1187,7 +1187,9 @@ impl<'a> Lowering<'a> {
                         return Some((mmio.base_address, mmio.fields.clone()));
                     }
                 }
-                if let Some(crate::types::DataraType::Class(cls_name)) = self.lookup_var_type(var_name) {
+                if let Some(crate::types::DataraType::Class(cls_name)) =
+                    self.lookup_var_type(var_name)
+                {
                     if let Some(mmio) = self.resolver.mmio_classes.get(&cls_name) {
                         if mmio.fields.contains_key(member) {
                             return Some((mmio.base_address, mmio.fields.clone()));

@@ -615,19 +615,15 @@ impl ForgenCompiler {
                                 .map(stmt_uses_outcome)
                                 .unwrap_or(false)
                     }
-                    Stmt::For {
-                        iterable, body, ..
-                    }
+                    Stmt::For { iterable, body, .. }
                     | Stmt::While {
                         condition: iterable,
                         body,
                         ..
                     }
-                    | Stmt::ParallelFor {
-                        iterable,
-                        body,
-                        ..
-                    } => expr_uses_outcome(iterable) || stmt_uses_outcome(body),
+                    | Stmt::ParallelFor { iterable, body, .. } => {
+                        expr_uses_outcome(iterable) || stmt_uses_outcome(body)
+                    }
                     Stmt::Loop { body, .. } | Stmt::Unsafe { body, .. } => stmt_uses_outcome(body),
                     _ => false,
                 }
@@ -666,7 +662,7 @@ impl ForgenCompiler {
                 }
             }
         }
-        
+
         if !program.file.is_empty() {
             let root_path = PathBuf::from(&program.file);
             let root_canon = root_path

@@ -195,7 +195,9 @@ impl<'a> TypeChecker<'a> {
                             if let Some(mmio) = self.resolver.mmio_classes.get(cls_name) {
                                 if let Some((_, ty_name)) = mmio.fields.get(member) {
                                     return match ty_name.as_str() {
-                                        "Float" | "Float64" | "Float32" | "f64" | "f32" => DataraType::Float,
+                                        "Float" | "Float64" | "Float32" | "f64" | "f32" => {
+                                            DataraType::Float
+                                        }
                                         "Bool" => DataraType::Bool,
                                         _ => DataraType::Int,
                                     };
@@ -402,11 +404,12 @@ impl<'a> TypeChecker<'a> {
                                     // v1.4.5 W1: an int literal adopts the field's
                                     // narrow width when its value fits (same
                                     // compile-time labeling as declarations).
-                                    let lit_fits = if let Expr::Literal(LiteralValue::Int(n), _) = val {
-                                        DataraType::narrow_literal_fits(&expected_ty, *n)
-                                    } else {
-                                        false
-                                    };
+                                    let lit_fits =
+                                        if let Expr::Literal(LiteralValue::Int(n), _) = val {
+                                            DataraType::narrow_literal_fits(&expected_ty, *n)
+                                        } else {
+                                            false
+                                        };
                                     if !lit_fits
                                         && !matches!(expected_ty, DataraType::TypeParam(_))
                                         && !actual_ty.is_compatible_with_args(
@@ -1058,7 +1061,11 @@ impl<'a> TypeChecker<'a> {
             }
             Expr::Comptime { expr, .. } => self.check_expr(expr, diag),
             Expr::Wrapping(expr, _) | Expr::Saturating(expr, _) => self.check_expr(expr, diag),
-            Expr::Cast { expr: inner, target_ty, span } => {
+            Expr::Cast {
+                expr: inner,
+                target_ty,
+                span,
+            } => {
                 let src_ty = self.check_expr(inner, diag);
                 let dst_ty = self.resolve_type_node(
                     &TypeNode {
@@ -1075,25 +1082,33 @@ impl<'a> TypeChecker<'a> {
                 // families interconvert freely (narrowing is value-checked by
                 // the runtime); Str <-> numeric and Bool <-> numeric are also
                 // defined. Class/pointer casts are rejected as unsound.
-                let numeric = |t: &DataraType| matches!(
-                    t,
-                    DataraType::Int
-                        | DataraType::UInt
-                        | DataraType::Int8
-                        | DataraType::Int16
-                        | DataraType::Int32
-                        | DataraType::UInt8
-                        | DataraType::UInt16
-                        | DataraType::UInt32
-                        | DataraType::UInt64
-                        | DataraType::Float
-                        | DataraType::Float32
-                        | DataraType::Dec64
-                );
+                let numeric = |t: &DataraType| {
+                    matches!(
+                        t,
+                        DataraType::Int
+                            | DataraType::UInt
+                            | DataraType::Int8
+                            | DataraType::Int16
+                            | DataraType::Int32
+                            | DataraType::UInt8
+                            | DataraType::UInt16
+                            | DataraType::UInt32
+                            | DataraType::UInt64
+                            | DataraType::Float
+                            | DataraType::Float32
+                            | DataraType::Dec64
+                    )
+                };
                 let src_ok = numeric(&src_ty)
-                    || matches!(src_ty, DataraType::String | DataraType::Bool | DataraType::Char);
+                    || matches!(
+                        src_ty,
+                        DataraType::String | DataraType::Bool | DataraType::Char
+                    );
                 let dst_ok = numeric(&dst_ty)
-                    || matches!(dst_ty, DataraType::String | DataraType::Bool | DataraType::Char);
+                    || matches!(
+                        dst_ty,
+                        DataraType::String | DataraType::Bool | DataraType::Char
+                    );
                 if !src_ok || !dst_ok {
                     diag.error(
                         ErrorCode::TypeMismatch,

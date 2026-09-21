@@ -149,8 +149,12 @@ pub fn declare_runtime_core<M: ClifModule>(
     // v1.4.5 W3: Dec64 fixed-point -> string for fmt interpolation (i64 -> i64
     // string pointer, same shape as int_to_str).
     let mut rt_dec_to_str_sig = Signature::new(call_conv);
-    rt_dec_to_str_sig.params.push(AbiParam::new(clif_types::I64));
-    rt_dec_to_str_sig.returns.push(AbiParam::new(clif_types::I64));
+    rt_dec_to_str_sig
+        .params
+        .push(AbiParam::new(clif_types::I64));
+    rt_dec_to_str_sig
+        .returns
+        .push(AbiParam::new(clif_types::I64));
     let rt_dec_to_str_id = module
         .declare_function("datara_rt_dec_to_str", Linkage::Import, &rt_dec_to_str_sig)
         .map_err(|e| e.to_string())?;
@@ -725,11 +729,13 @@ pub fn declare_runtime_core<M: ClifModule>(
     );
 
     // v1.4.5 W3: Dec64 on stderr (formats through datara_rt_dec_to_str).
-    let rt_err_dec_id = module.declare_function(
-        "datara_rt_err_print_dec64_str",
-        Linkage::Import,
-        &void_1_i64_sig,
-    ).map_err(|e| e.to_string())?;
+    let rt_err_dec_id = module
+        .declare_function(
+            "datara_rt_err_print_dec64_str",
+            Linkage::Import,
+            &void_1_i64_sig,
+        )
+        .map_err(|e| e.to_string())?;
     func_ids.insert(
         "datara_rt_err_print_dec64_str".into(),
         (rt_err_dec_id, void_1_i64_sig.clone()),

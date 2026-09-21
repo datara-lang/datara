@@ -429,22 +429,28 @@ pub fn compile_all_functions<M: ClifModule>(
                         let is_i = |t: &str| {
                             matches!(
                                 t,
-                                "Int" | "Int8" | "Int16" | "Int32" | "Int64" | "UInt" | "UInt8"
-                                    | "UInt16" | "UInt32" | "UInt64" | "Bool" | "Char"
+                                "Int"
+                                    | "Int8"
+                                    | "Int16"
+                                    | "Int32"
+                                    | "Int64"
+                                    | "UInt"
+                                    | "UInt8"
+                                    | "UInt16"
+                                    | "UInt32"
+                                    | "UInt64"
+                                    | "Bool"
+                                    | "Char"
                             )
                         };
                         let v = if is_f64(from_ty) && is_i(to_ty) {
                             builder.ins().fcvt_to_sint_sat(clif_types::I64, src)
                         } else if is_i(from_ty) && is_f64(to_ty) {
-                            builder
-                                .ins()
-                                .fcvt_from_sint(clif_types::F64, src)
+                            builder.ins().fcvt_from_sint(clif_types::F64, src)
                         } else if is_f32(from_ty) && is_i(to_ty) {
                             builder.ins().fcvt_to_sint_sat(clif_types::I64, src)
                         } else if is_i(from_ty) && is_f32(to_ty) {
-                            builder
-                                .ins()
-                                .fcvt_from_sint(clif_types::F32, src)
+                            builder.ins().fcvt_from_sint(clif_types::F32, src)
                         } else if is_f64(from_ty) && is_f32(to_ty) {
                             builder.ins().fvdemote(src)
                         } else if is_f32(from_ty) && is_f64(to_ty) {
@@ -845,8 +851,7 @@ pub fn compile_all_functions<M: ClifModule>(
                             // v1.4.5 W3: Dec64 rides in an I64 slot; the repr
                             // metadata routes the print through the fixed-point
                             // formatter (mantissa ÷ 10⁴).
-                            let fn_ref =
-                                module.declare_func_in_func(rt_out_dec64_id, builder.func);
+                            let fn_ref = module.declare_func_in_func(rt_out_dec64_id, builder.func);
                             builder.ins().call(fn_ref, &[v]);
                         } else if list_vids.contains(value) || map_vids.contains(value) {
                             return Err(format!(
@@ -1073,7 +1078,10 @@ pub fn compile_all_functions<M: ClifModule>(
                     }
                     Inst::VolatileLoad { dest, addr, ty } => {
                         let a_val = val_map.get(addr).copied().ok_or_else(|| {
-                            format!("Address %{} not found for VolatileLoad in '{}'", addr, f.name)
+                            format!(
+                                "Address %{} not found for VolatileLoad in '{}'",
+                                addr, f.name
+                            )
                         })?;
                         let flags = cranelift_codegen::ir::MachMemFlags::new();
                         let clif_ty = match ty.as_str() {
@@ -1086,7 +1094,10 @@ pub fn compile_all_functions<M: ClifModule>(
                             _ => clif_types::I64,
                         };
                         let loaded = builder.ins().load(clif_ty, flags, a_val, 0);
-                        let final_val = if clif_ty == clif_types::I32 || clif_ty == clif_types::I16 || clif_ty == clif_types::I8 {
+                        let final_val = if clif_ty == clif_types::I32
+                            || clif_ty == clif_types::I16
+                            || clif_ty == clif_types::I8
+                        {
                             builder.ins().uextend(clif_types::I64, loaded)
                         } else {
                             loaded
@@ -1095,10 +1106,16 @@ pub fn compile_all_functions<M: ClifModule>(
                     }
                     Inst::VolatileStore { addr, value, ty } => {
                         let a_val = val_map.get(addr).copied().ok_or_else(|| {
-                            format!("Address %{} not found for VolatileStore in '{}'", addr, f.name)
+                            format!(
+                                "Address %{} not found for VolatileStore in '{}'",
+                                addr, f.name
+                            )
                         })?;
                         let v_val = val_map.get(value).copied().ok_or_else(|| {
-                            format!("Value %{} not found for VolatileStore in '{}'", value, f.name)
+                            format!(
+                                "Value %{} not found for VolatileStore in '{}'",
+                                value, f.name
+                            )
                         })?;
                         let flags = cranelift_codegen::ir::MachMemFlags::new();
                         let clif_ty = match ty.as_str() {
@@ -1110,7 +1127,10 @@ pub fn compile_all_functions<M: ClifModule>(
                             "Float32" | "f32" => clif_types::F32,
                             _ => clif_types::I64,
                         };
-                        let truncated = if clif_ty != clif_types::I64 && clif_ty != clif_types::F64 && clif_ty != clif_types::F32 {
+                        let truncated = if clif_ty != clif_types::I64
+                            && clif_ty != clif_types::F64
+                            && clif_ty != clif_types::F32
+                        {
                             builder.ins().ireduce(clif_ty, v_val)
                         } else {
                             v_val

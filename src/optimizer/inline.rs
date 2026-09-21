@@ -104,7 +104,9 @@ impl Optimizer {
             | Inst::VolatileStore { .. } => {}
         }
         match inst {
-            Inst::AssignVar { value, .. } | Inst::Out { value, .. } | Inst::Err { value } => fix(value),
+            Inst::AssignVar { value, .. } | Inst::Out { value, .. } | Inst::Err { value } => {
+                fix(value)
+            }
             Inst::VolatileLoad { addr, .. } => fix(addr),
             Inst::VolatileStore { addr, value, .. } => {
                 fix(addr);

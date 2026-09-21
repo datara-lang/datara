@@ -978,12 +978,14 @@ impl<'a> Lowering<'a> {
                     .map(|t| t.to_string())
                     .unwrap_or_else(|| "Int".to_string());
                 let dest = self.next_val();
-                self.get_block_mut(*cur_block).instructions.push(Inst::Cast {
-                    dest,
-                    value: src,
-                    from_ty,
-                    to_ty: target_ty.clone(),
-                });
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::Cast {
+                        dest,
+                        value: src,
+                        from_ty,
+                        to_ty: target_ty.clone(),
+                    });
                 Some(dest)
             }
             _ => None,
@@ -1034,24 +1036,30 @@ impl<'a> Lowering<'a> {
                 }
                 let dest = self.next_val();
                 let cap = self.next_val();
-                self.get_block_mut(*cur_block).instructions.push(Inst::ConstInt {
-                    dest: cap,
-                    value: item_vals.len() as i64,
-                });
-                self.get_block_mut(*cur_block).instructions.push(Inst::Call {
-                    dest,
-                    func: "datara_rt_list_create".into(),
-                    args: vec![cap],
-                    ty: "List".into(),
-                });
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::ConstInt {
+                        dest: cap,
+                        value: item_vals.len() as i64,
+                    });
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::Call {
+                        dest,
+                        func: "datara_rt_list_create".into(),
+                        args: vec![cap],
+                        ty: "List".into(),
+                    });
                 for v in item_vals {
                     let dummy = self.next_val();
-                    self.get_block_mut(*cur_block).instructions.push(Inst::Call {
-                        dest: dummy,
-                        func: "datara_rt_list_append".into(),
-                        args: vec![dest, v],
-                        ty: "Unit".into(),
-                    });
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest: dummy,
+                            func: "datara_rt_list_append".into(),
+                            args: vec![dest, v],
+                            ty: "Unit".into(),
+                        });
                 }
                 Some(dest)
             }

@@ -72,7 +72,11 @@ fn test_io() -> Int {
 
     let mut tc = TypeChecker::new(&resolver);
     tc.check_program(&program, &mut diag);
-    assert!(!diag.has_errors(), "Unexpected errors: {}", diag.format_all());
+    assert!(
+        !diag.has_errors(),
+        "Unexpected errors: {}",
+        diag.format_all()
+    );
 
     // 1. Lower to DMIR and check for VolatileLoad / VolatileStore
     let mut lowering = Lowering::new(&resolver, &tc);
@@ -93,7 +97,10 @@ fn test_io() -> Int {
         }
     }
 
-    assert!(found_volatile_store, "DMIR must contain Inst::VolatileStore");
+    assert!(
+        found_volatile_store,
+        "DMIR must contain Inst::VolatileStore"
+    );
     assert!(found_volatile_load, "DMIR must contain Inst::VolatileLoad");
 
     // 2. Emit LLVM IR and verify volatile instructions
@@ -272,7 +279,9 @@ fn Reset_Handler() {
         .expect("LLVM emission must succeed");
 
     assert!(
-        llvm_ir.contains("target datalayout = \"e-m:e-p:32:32-Fi8-i64:64-v128:64:128-a:0:32-n32-S64\""),
+        llvm_ir.contains(
+            "target datalayout = \"e-m:e-p:32:32-Fi8-i64:64-v128:64:128-a:0:32-n32-S64\""
+        ),
         "Missing Cortex-M datalayout in LLVM IR"
     );
     assert!(

@@ -418,7 +418,10 @@ impl<'a> TypeChecker<'a> {
                 _ => {
                     diag.error(
                         ErrorCode::TypeInvalidBinaryOp,
-                        format!("Operator '{}' cannot be applied to SIMD vector type '{}'", op, lt),
+                        format!(
+                            "Operator '{}' cannot be applied to SIMD vector type '{}'",
+                            op, lt
+                        ),
                         Some(span.clone()),
                     );
                     return lt;
@@ -442,19 +445,15 @@ impl<'a> TypeChecker<'a> {
                             // are compile-time values, not runtime Ints,
                             // so this is literal labeling, not a Gate-7
                             // implicit conversion of a runtime value.
-                            let lit_int = |e: &Expr| {
-                                matches!(e, Expr::Literal(LiteralValue::Int(_), _))
-                            };
+                            let lit_int =
+                                |e: &Expr| matches!(e, Expr::Literal(LiteralValue::Int(_), _));
                             // v1.4.5 W2: a FLOAT literal adopts the other
                             // operand's float width the same way an int
                             // literal adopts an integer width.
-                            let lit_float = |e: &Expr| {
-                                matches!(e, Expr::Literal(LiteralValue::Float(_), _))
-                            };
-                            let mixed = !((lit_int(left)
-                                && DataraType::is_integer_type(&rt)
-                                || lit_int(right)
-                                    && DataraType::is_integer_type(&lt))
+                            let lit_float =
+                                |e: &Expr| matches!(e, Expr::Literal(LiteralValue::Float(_), _));
+                            let mixed = !((lit_int(left) && DataraType::is_integer_type(&rt)
+                                || lit_int(right) && DataraType::is_integer_type(&lt))
                                 || (lit_float(left) && DataraType::is_float_type(&rt))
                                 || (lit_float(right) && DataraType::is_float_type(&lt)));
                             if mixed {
