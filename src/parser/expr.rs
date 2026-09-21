@@ -405,6 +405,21 @@ impl<'a> Parser<'a> {
                     self.file.clone(),
                 );
                 expr = Expr::ErrorPropagate(Box::new(expr), span);
+            } else if self.match_token(&TokenType::As) {
+                // Explicit cast: `expr as Type` (Gate 7 numeric conversions).
+                let type_node = self.parse_type()?;
+                let span = SourceSpan::new(
+                    expr.span().start_line,
+                    expr.span().start_col,
+                    self.previous().span.end_line,
+                    self.previous().span.end_col,
+                    self.file.clone(),
+                );
+                expr = Expr::Cast {
+                    expr: Box::new(expr),
+                    target_ty: type_node.name,
+                    span,
+                };
             } else {
                 break;
             }
@@ -417,6 +432,9 @@ impl<'a> Parser<'a> {
         let token = self.advance();
         match token.token_type {
             TokenType::IntLiteral(val) => Some(Expr::Literal(LiteralValue::Int(val), token.span)),
+            TokenType::Dec64Literal(val) => {
+                Some(Expr::Literal(LiteralValue::Dec64(val), token.span))
+            }
             TokenType::FloatLiteral(val) => {
                 Some(Expr::Literal(LiteralValue::Float(val), token.span))
             }
@@ -766,6 +784,14 @@ impl<'a> Parser<'a> {
 
     #[inline(never)]
     pub(crate) fn parse_select_expr(&mut self, start_span: SourceSpan) -> Option<Expr> {
+        // Canonical-form warning: `select` is a synonym of `if/else if/else`.
+        // It parses to the same Expr::Select node, so this only nudges the
+        // author toward the canonical spelling without breaking anything.
+        self.diag.warning(
+            crate::diagnostics::ErrorCode::CanonicalKeyword,
+            "'select' is a synonym of the canonical 'if/else if/else' expression. Use 'if' (or 'match' for pattern dispatch).".to_string(),
+            Some(start_span.clone()),
+        );
         self.consume(&TokenType::LBrace, "Expected '{' after select")?;
         let mut arms = Vec::new();
         let mut else_arm = None;
@@ -1198,6 +1224,7 @@ impl<'a> Parser<'a> {
     ) -> Expr {
         let mut parts = Vec::new();
         let mut expressions = Vec::new();
+        let mut specs: Vec<String> = Vec::new();
         let mut current_lit = String::new();
         let chars: Vec<char> = content.chars().collect();
         let mut i = 0;
@@ -1245,8 +1272,17 @@ impl<'a> Parser<'a> {
                     continue;
                 }
 
+                // v1.4.5 W4: format specifiers -- `{expr:.2}`, `{expr:x}`,
+                // `{expr:X}`, `{expr:o}`, `{expr:b}`. The spec starts at the
+                // FIRST top-level ':' outside a `{}` body: that rule keeps
+                // struct literals, match arms and paths intact, because the
+                // `:` inside a `{ ... }` block (record field colon) sits
+                // before the closing brace while the spec colon follows it.
+                // A colon inside a string literal is also skipped.
+                let (expr_part, spec_part) = split_fmt_spec(&expr_str);
+
                 let mut sub_diag = DiagnosticEngine::new("en");
-                let mut sub_lexer = Lexer::new(&expr_str, &self.file);
+                let mut sub_lexer = Lexer::new(expr_part, &self.file);
                 let sub_tokens = sub_lexer.tokenize(&mut sub_diag);
                 let mut sub_parser = Parser::new(sub_tokens, &mut sub_diag, &self.file);
                 let parsed_expr = sub_parser.parse_expression();
@@ -1256,9 +1292,22 @@ impl<'a> Parser<'a> {
                     && is_end
                     && let Some(expr) = parsed_expr
                 {
+                    // A non-empty suffix that is not a valid specifier must
+                    // not be silently dropped: restore the original text and
+                    // fall back to the literal path so typos like `{x:q}` stay
+                    // visible instead of formatting without a spec.
+                    if !spec_part.is_empty() && !is_valid_fmt_spec(spec_part) {
+                        current_lit.push('{');
+                        current_lit.push_str(&expr_str);
+                        if depth == 0 {
+                            current_lit.push('}');
+                        }
+                        continue;
+                    }
                     parts.push(current_lit.clone());
                     current_lit.clear();
                     expressions.push(expr);
+                    specs.push(spec_part.to_string());
                 } else {
                     // Not a Datara expression (e.g. CSS, JSON, regex, plain text); preserve as literal text
                     current_lit.push('{');
@@ -1280,8 +1329,58 @@ impl<'a> Parser<'a> {
             Expr::InterpolatedString {
                 parts,
                 expressions,
+                specs,
                 span: span.clone(),
             }
         }
     }
+}
+
+// v1.4.5 W4: split "expr:spec" at the first top-level colon. Colons inside
+// nested braces (record literal fields, match arms) and inside string
+// literals are skipped; everything after the split point is the specifier.
+fn split_fmt_spec(expr_str: &str) -> (&str, &str) {
+    let chars: Vec<char> = expr_str.chars().collect();
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escape = false;
+    let mut byte_idx = 0usize;
+    for &c in &chars {
+        if in_string {
+            if escape {
+                escape = false;
+            } else if c == '\\' {
+                escape = true;
+            } else if c == '"' {
+                in_string = false;
+            }
+        } else {
+            match c {
+                '"' => in_string = true,
+                '{' => depth += 1,
+                '}' => {
+                    if depth > 0 {
+                        depth -= 1;
+                    }
+                }
+                ':' if depth == 0 => {
+                    let split_at: usize = chars[..byte_idx].iter().map(|c| c.len_utf8()).sum();
+                    return (&expr_str[..split_at], &expr_str[split_at + 1..]);
+                }
+                _ => {}
+            }
+        }
+        byte_idx += c.len_utf8();
+    }
+    (expr_str, "")
+}
+
+// v1.4.5 W4: valid specifiers are ".N" (N decimal digits, up to 9) and the
+// radix forms "x" / "X" / "o" / "b". Anything else is a typo and keeps the
+// interpolation as literal text.
+fn is_valid_fmt_spec(spec: &str) -> bool {
+    if let Some(rest) = spec.strip_prefix('.') {
+        return !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit());
+    }
+    matches!(spec, "x" | "X" | "o" | "b")
 }

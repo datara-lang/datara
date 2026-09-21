@@ -1326,6 +1326,11 @@ impl LoopOptimizer {
                     *operand = to;
                 }
             }
+            Inst::Cast { value, .. } => {
+                if *value == from {
+                    *value = to;
+                }
+            }
             Inst::Call { args, .. } => {
                 for a in args {
                     if *a == from {
@@ -1406,7 +1411,7 @@ impl LoopOptimizer {
                     *value = to;
                 }
             }
-            Inst::Out { value } | Inst::Err { value } => {
+            Inst::Out { value, .. } | Inst::Err { value } => {
                 if *value == from {
                     *value = to;
                 }

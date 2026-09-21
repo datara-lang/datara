@@ -28,9 +28,13 @@ fn main() {
     dynamic_box = "now a dynamic string payload"
     out fmt"mut val (as String): {dynamic_box}"
 
-    // Dynamic transition to List
+    // Dynamic transition to List (printed element-by-element:
+    // Lists are not directly interpolable into fmt-strings)
     dynamic_box = [1, 2, 3, 4]
-    out fmt"mut val (as List): {dynamic_box}"
+    out "mut val (as List):"
+    for item in dynamic_box {
+        out fmt"  {item}"
+    }
 
     out "=== Demo completed successfully ==="
 }

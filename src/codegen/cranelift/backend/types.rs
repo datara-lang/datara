@@ -82,6 +82,8 @@ pub struct RuntimeIds {
     pub rt_out_int_id: FuncId,
     pub rt_out_bool_id: FuncId,
     pub rt_out_flt_id: FuncId,
+    pub rt_out_f32_id: FuncId,
+    pub rt_out_dec64_id: FuncId,
     pub rt_out_str_id: FuncId,
     pub rt_err_id: FuncId,
     pub rt_concat_id: FuncId,
@@ -91,6 +93,7 @@ pub struct RuntimeIds {
     pub rt_int_to_str_id: FuncId,
     pub rt_bool_to_str_id: FuncId,
     pub rt_flt_to_str_id: FuncId,
+    pub rt_dec_to_str_id: FuncId,
     pub malloc_id: FuncId,
     pub rt_list_get_id: FuncId,
     pub rt_list_create_id: FuncId,
@@ -138,6 +141,8 @@ pub struct CoreRuntimeIds {
     pub rt_out_int_id: FuncId,
     pub rt_out_bool_id: FuncId,
     pub rt_out_flt_id: FuncId,
+    pub rt_out_f32_id: FuncId,
+    pub rt_out_dec64_id: FuncId,
     pub rt_out_str_id: FuncId,
     pub rt_err_id: FuncId,
     pub rt_concat_id: FuncId,
@@ -147,6 +152,7 @@ pub struct CoreRuntimeIds {
     pub rt_int_to_str_id: FuncId,
     pub rt_bool_to_str_id: FuncId,
     pub rt_flt_to_str_id: FuncId,
+    pub rt_dec_to_str_id: FuncId,
     pub malloc_id: FuncId,
     pub rt_list_get_id: FuncId,
     pub rt_list_create_id: FuncId,
@@ -185,6 +191,9 @@ pub struct CoreRuntimeIds {
 
 pub struct ModuleDecls {
     pub class_field_offsets: HashMap<String, HashMap<String, i32>>,
+    /// v1.4.5 W1: total byte size per class (packed: sum of field sizes;
+    /// unpacked: field count × 8). Powers the comptime-known `size_of()`.
+    pub class_total_sizes: HashMap<String, i32>,
     pub string_fields: HashSet<String>,
     pub string_literal_map: HashMap<String, DataId>,
     pub main_entry_info: Option<(FuncId, Signature)>,

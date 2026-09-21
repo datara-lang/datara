@@ -663,6 +663,7 @@ impl<'a> LlvmEmitter<'a> {
         let mut value_types: HashMap<ValueId, &'static str> = HashMap::new();
         let mut bool_vids: HashSet<ValueId> = HashSet::new();
         let mut bool_vars: HashSet<String> = HashSet::new();
+        let mut f32_vids: HashSet<ValueId> = HashSet::new();
         for (p_name, p_ty, p_val) in &f.params {
             value_types.insert(*p_val, self.dmir_type_to_llvm(p_ty));
             if p_ty == "Bool" {
@@ -1027,6 +1028,7 @@ impl<'a> LlvmEmitter<'a> {
                     &mut value_classes,
                     &mut bool_vids,
                     &mut bool_vars,
+                    &mut f32_vids,
                     &mut out,
                     &f.name,
                     types,
@@ -1250,7 +1252,7 @@ impl CodegenBackend for LlvmBackend {
             } else {
                 None
             };
-            compile_with_clang(&ll_path, rt_opt, &exe_path, "3", None, self.debug_info)?;
+            compile_with_clang(&ll_path, rt_opt, &exe_path, "3", None, self.debug_info, &[])?;
             Ok(exe_path)
         } else {
             Err(format!(

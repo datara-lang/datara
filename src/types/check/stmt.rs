@@ -16,12 +16,20 @@ impl<'a> TypeChecker<'a> {
     pub fn is_printable_type(&self, ty: &DataraType) -> bool {
         match ty {
             DataraType::Int
+            | DataraType::UInt
+            | DataraType::Int8
+            | DataraType::Int16
+            | DataraType::Int32
+            | DataraType::UInt8
+            | DataraType::UInt16
+            | DataraType::UInt32
+            | DataraType::UInt64
             | DataraType::Float
+            | DataraType::Float32
             | DataraType::Bool
             | DataraType::Char
             | DataraType::String
             | DataraType::Dec64
-            | DataraType::Dec128
             | DataraType::TypeParam(_) => true,
             DataraType::Range { base, .. } | DataraType::Measure { base, .. } => {
                 self.is_printable_type(base)
@@ -112,6 +120,36 @@ impl<'a> TypeChecker<'a> {
                         init_type
                             .is_compatible_with_refined_with_args(&declared, Some(self.resolver))
                     };
+                    // v1.4.5 W1: an in-range INT LITERAL coerces to a narrow
+                    // integer target (`let a: Int8 = 100`). The actual range
+                    // proof lives in `check_range_and_measure_assignment`,
+                    // which fires right below; a runtime Int value never
+                    // narrows implicitly (Gate 7).
+                    // Negative literals arrive as Unary('-', lit): peel so
+                    // `let a: Int8 = -128` proves in-range too.
+                    let literal_in_range = match init {
+                        Expr::Literal(LiteralValue::Int(v), _) => {
+                            DataraType::narrow_literal_fits(&declared, *v)
+                        }
+                        Expr::Unary { op, expr, .. } if op == "-" => match expr.as_ref() {
+                            Expr::Literal(LiteralValue::Int(v), _) => {
+                                DataraType::narrow_literal_fits(&declared, -v)
+                            }
+                            _ => false,
+                        },
+                        _ => false,
+                    };
+                    let compatible = compatible
+                        || DataraType::is_compatible_narrow_literal(
+                            &declared,
+                            &init_type,
+                            literal_in_range,
+                        )
+                        || DataraType::is_compatible_float_literal(
+                            &declared,
+                            &init_type,
+                            matches!(init, Expr::Literal(LiteralValue::Float(_), _)),
+                        );
                     if !compatible {
                         let help_msg = Self::suggest_type_fix(&declared, &init_type);
                         diag.error_with_help(
@@ -171,6 +209,36 @@ impl<'a> TypeChecker<'a> {
                         init_type
                             .is_compatible_with_refined_with_args(&declared, Some(self.resolver))
                     };
+                    // v1.4.5 W1: an in-range INT LITERAL coerces to a narrow
+                    // integer target (`let a: Int8 = 100`). The actual range
+                    // proof lives in `check_range_and_measure_assignment`,
+                    // which fires right below; a runtime Int value never
+                    // narrows implicitly (Gate 7).
+                    // Negative literals arrive as Unary('-', lit): peel so
+                    // `let a: Int8 = -128` proves in-range too.
+                    let literal_in_range = match init {
+                        Expr::Literal(LiteralValue::Int(v), _) => {
+                            DataraType::narrow_literal_fits(&declared, *v)
+                        }
+                        Expr::Unary { op, expr, .. } if op == "-" => match expr.as_ref() {
+                            Expr::Literal(LiteralValue::Int(v), _) => {
+                                DataraType::narrow_literal_fits(&declared, -v)
+                            }
+                            _ => false,
+                        },
+                        _ => false,
+                    };
+                    let compatible = compatible
+                        || DataraType::is_compatible_narrow_literal(
+                            &declared,
+                            &init_type,
+                            literal_in_range,
+                        )
+                        || DataraType::is_compatible_float_literal(
+                            &declared,
+                            &init_type,
+                            matches!(init, Expr::Literal(LiteralValue::Float(_), _)),
+                        );
                     if !compatible {
                         let help_msg = Self::suggest_type_fix(&declared, &init_type);
                         diag.error_with_help(
@@ -230,6 +298,36 @@ impl<'a> TypeChecker<'a> {
                         init_type
                             .is_compatible_with_refined_with_args(&declared, Some(self.resolver))
                     };
+                    // v1.4.5 W1: an in-range INT LITERAL coerces to a narrow
+                    // integer target (`let a: Int8 = 100`). The actual range
+                    // proof lives in `check_range_and_measure_assignment`,
+                    // which fires right below; a runtime Int value never
+                    // narrows implicitly (Gate 7).
+                    // Negative literals arrive as Unary('-', lit): peel so
+                    // `let a: Int8 = -128` proves in-range too.
+                    let literal_in_range = match init {
+                        Expr::Literal(LiteralValue::Int(v), _) => {
+                            DataraType::narrow_literal_fits(&declared, *v)
+                        }
+                        Expr::Unary { op, expr, .. } if op == "-" => match expr.as_ref() {
+                            Expr::Literal(LiteralValue::Int(v), _) => {
+                                DataraType::narrow_literal_fits(&declared, -v)
+                            }
+                            _ => false,
+                        },
+                        _ => false,
+                    };
+                    let compatible = compatible
+                        || DataraType::is_compatible_narrow_literal(
+                            &declared,
+                            &init_type,
+                            literal_in_range,
+                        )
+                        || DataraType::is_compatible_float_literal(
+                            &declared,
+                            &init_type,
+                            matches!(init, Expr::Literal(LiteralValue::Float(_), _)),
+                        );
                     if !compatible {
                         let help_msg = Self::suggest_type_fix(&declared, &init_type);
                         diag.error_with_help(
@@ -290,6 +388,36 @@ impl<'a> TypeChecker<'a> {
                         init_type
                             .is_compatible_with_refined_with_args(&declared, Some(self.resolver))
                     };
+                    // v1.4.5 W1: an in-range INT LITERAL coerces to a narrow
+                    // integer target (`let a: Int8 = 100`). The actual range
+                    // proof lives in `check_range_and_measure_assignment`,
+                    // which fires right below; a runtime Int value never
+                    // narrows implicitly (Gate 7).
+                    // Negative literals arrive as Unary('-', lit): peel so
+                    // `let a: Int8 = -128` proves in-range too.
+                    let literal_in_range = match init {
+                        Expr::Literal(LiteralValue::Int(v), _) => {
+                            DataraType::narrow_literal_fits(&declared, *v)
+                        }
+                        Expr::Unary { op, expr, .. } if op == "-" => match expr.as_ref() {
+                            Expr::Literal(LiteralValue::Int(v), _) => {
+                                DataraType::narrow_literal_fits(&declared, -v)
+                            }
+                            _ => false,
+                        },
+                        _ => false,
+                    };
+                    let compatible = compatible
+                        || DataraType::is_compatible_narrow_literal(
+                            &declared,
+                            &init_type,
+                            literal_in_range,
+                        )
+                        || DataraType::is_compatible_float_literal(
+                            &declared,
+                            &init_type,
+                            matches!(init, Expr::Literal(LiteralValue::Float(_), _)),
+                        );
                     if !compatible {
                         let help_msg = Self::suggest_type_fix(&declared, &init_type);
                         diag.error_with_help(

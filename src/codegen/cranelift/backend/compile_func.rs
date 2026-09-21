@@ -33,6 +33,8 @@ pub fn compile_all_functions<M: ClifModule>(
     let rt_out_int_id = runtime.rt_out_int_id;
     let rt_out_bool_id = runtime.rt_out_bool_id;
     let rt_out_flt_id = runtime.rt_out_flt_id;
+    let rt_out_f32_id = runtime.rt_out_f32_id;
+    let rt_out_dec64_id = runtime.rt_out_dec64_id;
     let rt_out_str_id = runtime.rt_out_str_id;
     let rt_err_id = runtime.rt_err_id;
     let rt_concat_id = runtime.rt_concat_id;
@@ -42,6 +44,7 @@ pub fn compile_all_functions<M: ClifModule>(
     let rt_int_to_str_id = runtime.rt_int_to_str_id;
     let rt_bool_to_str_id = runtime.rt_bool_to_str_id;
     let rt_flt_to_str_id = runtime.rt_flt_to_str_id;
+    let rt_dec_to_str_id = runtime.rt_dec_to_str_id;
     let malloc_id = runtime.malloc_id;
 
     // 3. Compile functions
@@ -409,6 +412,52 @@ pub fn compile_all_functions<M: ClifModule>(
                         };
                         compile_unop(&mut ctx, dest, op, operand, ty)?;
                     }
+                    Inst::Cast {
+                        dest,
+                        value,
+                        from_ty,
+                        to_ty,
+                    } => {
+                        let src = *val_map.get(value).ok_or_else(|| {
+                            format!(
+                                "Code generation failed: cast source v{} not found in function '{}'",
+                                value.0, f.name
+                            )
+                        })?;
+                        let is_f32 = |t: &str| matches!(t, "Float32");
+                        let is_f64 = |t: &str| matches!(t, "Float" | "Dec64");
+                        let is_i = |t: &str| {
+                            matches!(
+                                t,
+                                "Int" | "Int8" | "Int16" | "Int32" | "Int64" | "UInt" | "UInt8"
+                                    | "UInt16" | "UInt32" | "UInt64" | "Bool" | "Char"
+                            )
+                        };
+                        let v = if is_f64(from_ty) && is_i(to_ty) {
+                            builder.ins().fcvt_to_sint_sat(clif_types::I64, src)
+                        } else if is_i(from_ty) && is_f64(to_ty) {
+                            builder
+                                .ins()
+                                .fcvt_from_sint(clif_types::F64, src)
+                        } else if is_f32(from_ty) && is_i(to_ty) {
+                            builder.ins().fcvt_to_sint_sat(clif_types::I64, src)
+                        } else if is_i(from_ty) && is_f32(to_ty) {
+                            builder
+                                .ins()
+                                .fcvt_from_sint(clif_types::F32, src)
+                        } else if is_f64(from_ty) && is_f32(to_ty) {
+                            builder.ins().fvdemote(src)
+                        } else if is_f32(from_ty) && is_f64(to_ty) {
+                            builder.ins().fpromote(clif_types::F64, src)
+                        } else {
+                            // Integer<->integer (incl. narrowing) and identity:
+                            // everything is carried as i64 bit patterns; a copy
+                            // preserves the value and `Out`/BinOp narrow on use.
+                            let zero = builder.ins().iconst(clif_types::I64, 0);
+                            builder.ins().iadd(src, zero)
+                        };
+                        val_map.insert(*dest, v);
+                    }
                     Inst::Call {
                         dest,
                         func,
@@ -757,7 +806,7 @@ pub fn compile_all_functions<M: ClifModule>(
                             .unwrap_or(false);
                         emit_field_store(&mut builder, flags, obj_val, offset, val, fty, is_packed);
                     }
-                    Inst::Out { value } => {
+                    Inst::Out { value, ty } => {
                         let v = val_map.get(value).copied().ok_or_else(|| {
                                 format!(
                                     "Code generation failed: value %{} not found for Out in function '{}'",
@@ -769,10 +818,35 @@ pub fn compile_all_functions<M: ClifModule>(
                             let fn_ref = module.declare_func_in_func(rt_out_str_id, builder.func);
                             builder.ins().call(fn_ref, &[v]);
                         } else if v_ty == clif_types::F64 {
-                            let fn_ref = module.declare_func_in_func(rt_out_flt_id, builder.func);
+                            // v1.4.5 W2: an F64 slot holding a Float32 result
+                            // prints through the f32 shortest-round-trip
+                            // printer (the slot discipline keeps variables
+                            // monomorphic; the repr metadata decides print
+                            // precision).
+                            if ty == "Float32" || ty == "f32" || ty == "F32" {
+                                let demoted = builder.ins().fdemote(clif_types::F32, v);
+                                let fn_ref =
+                                    module.declare_func_in_func(rt_out_f32_id, builder.func);
+                                builder.ins().call(fn_ref, &[demoted]);
+                            } else {
+                                let fn_ref =
+                                    module.declare_func_in_func(rt_out_flt_id, builder.func);
+                                builder.ins().call(fn_ref, &[v]);
+                            }
+                        } else if v_ty == clif_types::F32 {
+                            // v1.4.5 W2: true Float32 output — f32 shortest
+                            // round-trip, no f64 artifacts.
+                            let fn_ref = module.declare_func_in_func(rt_out_f32_id, builder.func);
                             builder.ins().call(fn_ref, &[v]);
                         } else if bool_vids.contains(value) {
                             let fn_ref = module.declare_func_in_func(rt_out_bool_id, builder.func);
+                            builder.ins().call(fn_ref, &[v]);
+                        } else if ty == "Dec64" || ty == "dec64" {
+                            // v1.4.5 W3: Dec64 rides in an I64 slot; the repr
+                            // metadata routes the print through the fixed-point
+                            // formatter (mantissa ÷ 10⁴).
+                            let fn_ref =
+                                module.declare_func_in_func(rt_out_dec64_id, builder.func);
                             builder.ins().call(fn_ref, &[v]);
                         } else if list_vids.contains(value) || map_vids.contains(value) {
                             return Err(format!(
@@ -798,6 +872,7 @@ pub fn compile_all_functions<M: ClifModule>(
                         dest,
                         parts,
                         values,
+                        value_tys,
                     } => {
                         let concat_ref = module.declare_func_in_func(rt_concat_id, builder.func);
                         let concat_3_ref =
@@ -812,6 +887,8 @@ pub fn compile_all_functions<M: ClifModule>(
                             module.declare_func_in_func(rt_bool_to_str_id, builder.func);
                         let flt_to_str_ref =
                             module.declare_func_in_func(rt_flt_to_str_id, builder.func);
+                        let dec_to_str_ref =
+                            module.declare_func_in_func(rt_dec_to_str_id, builder.func);
 
                         let empty_id = *string_literal_map.get("").ok_or_else(|| {
                                 format!(
@@ -841,8 +918,16 @@ pub fn compile_all_functions<M: ClifModule>(
                                     })?;
                                 let val_is_str = string_vids.contains(val_id);
                                 let v_ty = builder.func.dfg.value_type(raw_val);
+                                // v1.4.5 W3/W4: the lowering carries the declared
+                                // repr; Dec64 shares the I64 slot with plain
+                                // integers so the slot alone cannot distinguish
+                                // them and the metadata must decide.
+                                let declared = value_tys.get(idx).map(|s| s.as_str());
                                 let s_val = if val_is_str {
                                     raw_val
+                                } else if declared == Some("Dec64") {
+                                    let call = builder.ins().call(dec_to_str_ref, &[raw_val]);
+                                    builder.inst_results(call)[0]
                                 } else if bool_vids.contains(val_id) {
                                     let call = builder.ins().call(bool_to_str_ref, &[raw_val]);
                                     builder.inst_results(call)[0]

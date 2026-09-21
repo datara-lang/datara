@@ -311,7 +311,8 @@ impl LoopOptimizer {
             | Inst::GetFuncAddr { dest, .. }
             | Inst::Select { dest, .. }
             | Inst::Decide { dest, .. }
-            | Inst::VolatileLoad { dest, .. } => Some(*dest),
+            |            Inst::VolatileLoad { dest, .. } => Some(*dest),
+            Inst::Cast { dest, .. } => Some(*dest),
             Inst::InlineAsm { outputs, .. } => outputs.first().map(|(_, d)| *d),
             Inst::AssignVar { .. }
             | Inst::SetField { .. }
@@ -1002,6 +1003,7 @@ impl LoopOptimizer {
                 map(right);
             }
             Inst::UnOp { operand, .. } => map(operand),
+            Inst::Cast { value, .. } => map(value),
             Inst::Call { args, .. } => args.iter_mut().for_each(map),
             Inst::MethodCall { object, args, .. } => {
                 map(object);
@@ -1033,7 +1035,7 @@ impl LoopOptimizer {
                 map(then_val);
                 map(else_val);
             }
-            Inst::Out { value } | Inst::Err { value } => map(value),
+            Inst::Out { value, .. } | Inst::Err { value } => map(value),
             Inst::InlineAsm { inputs, .. } => {
                 for (_, v) in inputs {
                     map(v);
@@ -1099,6 +1101,10 @@ impl LoopOptimizer {
             Inst::UnOp { dest, operand, .. } => {
                 f(dest);
                 f(operand);
+            }
+            Inst::Cast { dest, value, .. } => {
+                f(dest);
+                f(value);
             }
             Inst::Call { dest, args, .. } => {
                 f(dest);
@@ -1173,7 +1179,7 @@ impl LoopOptimizer {
                 f(addr);
                 f(value);
             }
-            Inst::Out { value } | Inst::Err { value } => f(value),
+            Inst::Out { value, .. } | Inst::Err { value } => f(value),
             Inst::Return { value: Some(v) } => f(v),
             Inst::Return { value: None } => {}
             Inst::WhileLoop {

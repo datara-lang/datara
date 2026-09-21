@@ -469,6 +469,21 @@ impl ForgenCompiler {
                                 || crate::codegen::linker::find_llc().is_some())
                     };
 
+                    // v1.4.5: resolve Rust-bridge cdylibs for the native link.
+                    // Only libraries that actually export one of the module's
+                    // extern functions are added to the linker command line.
+                    let bridge_dirs =
+                        crate::codegen::bridge_loader::collect_bridge_search_dirs(None);
+                    let bridge_libs =
+                        crate::codegen::bridge_loader::resolve_bridge_lib_paths(
+                            &bridge_dirs,
+                            &dmir_module
+                                .extern_functions
+                                .keys()
+                                .cloned()
+                                .collect::<Vec<String>>(),
+                        );
+
                     if clang_ready {
                         let link_result = if is_shared_lib {
                             crate::codegen::linker::compile_shared_with_clang(
@@ -485,6 +500,7 @@ impl ForgenCompiler {
                                 opt_level,
                                 target_triple_for_clang,
                                 self.debug_info,
+                                &bridge_libs,
                             )
                         };
                         match link_result {

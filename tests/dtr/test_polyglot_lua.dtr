@@ -7,15 +7,15 @@ fn main() {
     let status = lua_exec("local x = 42; return x")
     let total = val1 + val2 + status
 
-    println(fmt"Lua 2^10:             {val1}")
-    println(fmt"Lua 100 * 5 + 23:     {val2}")
-    println(fmt"Lua Script Status:    {status}")
-    println(fmt"Combined Total:       {total}")
+    out(fmt"Lua 2^10:             {val1}")
+    out(fmt"Lua 100 * 5 + 23:     {val2}")
+    out(fmt"Lua Script Status:    {status}")
+    out(fmt"Combined Total:       {total}")
 
     // Expected: 1024 + 523 + 0 = 1547
     if total == 1547 {
-        println("[PASS] Lua in-process interop verified successfully.")
+        out("[PASS] Lua in-process interop verified successfully.")
     } else {
-        println("[FAIL] Unexpected total.")
+        out("[FAIL] Unexpected total.")
     }
 }

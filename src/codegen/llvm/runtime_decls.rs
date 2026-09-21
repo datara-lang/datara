@@ -5,9 +5,11 @@ pub fn emit_runtime_declarations(ir: &mut String) {
 }
 
 const RUNTIME_DECLARATIONS: &str = r#"; --- Datara Standard Runtime Declarations ---
-declare void @llvm.assume(i1)
-declare void @datara_rt_overflow_panic() cold noreturn nounwind
+declare void @llvm.assume(i1)declare void @datara_rt_overflow_panic() cold noreturn nounwind
+
 declare void @datara_rt_div_zero_panic() cold noreturn nounwind
+
+declare void @datara_rt_panic(ptr) cold noreturn nounwind
 declare { i64, i1 } @llvm.sadd.with.overflow.i64(i64, i64)
 declare { i64, i1 } @llvm.ssub.with.overflow.i64(i64, i64)
 declare { i64, i1 } @llvm.smul.with.overflow.i64(i64, i64)
@@ -248,9 +250,15 @@ declare i64 @datara_rt_own_acquire(i64)
 declare void @datara_rt_own_release(i64)
 declare void @datara_rt_out_int(i64)
 declare void @datara_rt_out_float(double)
+declare void @datara_rt_print_f32(float)
+declare void @datara_rt_print_dec64(i64)
+declare void @datara_rt_out_dec64(i64)
 declare void @datara_rt_out_bool(i64)
 declare void @datara_rt_out_str(ptr)
 declare void @datara_rt_err(ptr)
+declare void @datara_rt_err_print_str(ptr)
+declare void @datara_rt_err_print_int(i64)
+declare void @datara_rt_err_print_dec64_str(i64)
 declare void @datara_rt_print_str(ptr)
 declare void @datara_rt_print_int(i64)
 declare void @datara_rt_print_float(double)
@@ -265,8 +273,13 @@ declare ptr @datara_rt_str_concat_4(ptr, ptr, ptr, ptr)
 declare ptr @datara_rt_str_concat_5(ptr, ptr, ptr, ptr, ptr)
 declare ptr @datara_rt_format_str_i64_str_i64(ptr, i64, ptr, i64)
 declare ptr @datara_rt_int_to_str(i64)
+declare ptr @datara_rt_dec_to_str(i64)
 declare ptr @datara_rt_bool_to_str(i64)
 declare ptr @datara_rt_float_to_str(double)
+// v1.4.5 W4 fmt specifiers: precision / radix converters.
+declare ptr @datara_rt_float_to_str_prec(double, i64)
+declare ptr @datara_rt_dec64_to_str_prec(i64, i64)
+declare ptr @datara_rt_int_to_str_radix(i64, i64)
 declare i64 @datara_rt_str_len(ptr)
 declare i64 @datara_rt_byte_len(ptr)
 declare i64 @datara_rt_str_chars(ptr)
@@ -392,6 +405,11 @@ declare ptr @datara_rt_list_slice(ptr, i64, i64)
 declare ptr @datara_rt_list_first(ptr)
 declare ptr @datara_rt_list_last(ptr)
 declare ptr @datara_rt_list_pop_outcome(ptr)
+
+; v1.4.5 W1: checked arithmetic returning Outcome<IntN> objects.
+declare ptr @datara_rt_checked_add_outcome(i64, i64, i64)
+declare ptr @datara_rt_checked_sub_outcome(i64, i64, i64)
+declare ptr @datara_rt_checked_mul_outcome(i64, i64, i64)
 declare ptr @datara_rt_exec_utf8(ptr)
 declare ptr @datara_rt_map_create()
 declare ptr @datara_rt_map_create_1(ptr, i64)
@@ -495,6 +513,12 @@ declare i64 @datara_rt_cap_get_mask()
 declare void @datara_rt_cap_revoke(i64)
 declare void @datara_rt_cap_grant(i64)
 declare void @datara_rt_cap_require(i64, ptr)
+declare ptr @datara_rt_arena_alloc(i64)
+declare i64 @datara_rt_arena_checkpoint()
+declare void @datara_rt_arena_reset(i64)
+declare i64 @datara_rt_arena_remaining()
+declare i64 @datara_rt_arena_used()
+declare void @datara_rt_arena_clear()
 declare ptr @arena_alloc(i64)
 declare void @arena_reset(i64)
 declare i64 @arena_used()

@@ -64,10 +64,26 @@ impl<'a> TypeChecker<'a> {
             if fn_name == "input_int" || fn_name == "read_int" || fn_name == "fast_read_int" {
                 return DataraType::Int;
             }
+            // v1.4.5 W1: checked arithmetic. The payload type is the common
+            // type of both operands (the language requires matching operand
+            // types -- Gate 7), so the Outcome payload is that type. The
+            // checker-level representation is Result(T, Str), matching
+            // `?` propagation and the checked-I/O builtins.
+            if fn_name == "checked_add" || fn_name == "checked_sub" || fn_name == "checked_mul" {
+                let payload = if arg_types.len() == 2 && arg_types[0] == arg_types[1] {
+                    arg_types[0].clone()
+                } else {
+                    DataraType::Int
+                };
+                return DataraType::Result(
+                    Box::new(payload),
+                    Box::new(DataraType::String),
+                );
+            }
             if fn_name == "input_float" || fn_name == "read_float" || fn_name == "fast_read_float" {
                 return DataraType::Float;
             }
-            if fn_name == "len" || fn_name == "now" {
+            if fn_name == "len" || fn_name == "now" || fn_name == "size_of" {
                 return DataraType::Int;
             }
             if fn_name == "map" || fn_name == "filter" {
@@ -700,7 +716,18 @@ impl<'a> TypeChecker<'a> {
             // instruction, never a method dispatch.
             if matches!(
                 &obj_type,
-                DataraType::Int | DataraType::Float | DataraType::Dec64 | DataraType::Dec128
+                DataraType::Int
+                    | DataraType::UInt
+                    | DataraType::Int8
+                    | DataraType::Int16
+                    | DataraType::Int32
+                    | DataraType::UInt8
+                    | DataraType::UInt16
+                    | DataraType::UInt32
+                    | DataraType::UInt64
+                    | DataraType::Float
+                    | DataraType::Float32
+                    | DataraType::Dec64
             ) && matches!(member.as_str(), "to_float" | "to_int")
             {
                 if !arg_types.is_empty() {
@@ -930,12 +957,20 @@ impl<'a> TypeChecker<'a> {
                 || matches!(
                     &obj_type,
                     DataraType::Int
+                        | DataraType::UInt
+                        | DataraType::Int8
+                        | DataraType::Int16
+                        | DataraType::Int32
+                        | DataraType::UInt8
+                        | DataraType::UInt16
+                        | DataraType::UInt32
+                        | DataraType::UInt64
                         | DataraType::Float
+                        | DataraType::Float32
                         | DataraType::Bool
                         | DataraType::String
                         | DataraType::Char
                         | DataraType::Dec64
-                        | DataraType::Dec128
                         | DataraType::List(_)
                         | DataraType::Map(_, _)
                         | DataraType::Result(_, _)
@@ -944,7 +979,18 @@ impl<'a> TypeChecker<'a> {
             if receiver_known {
                 let help = if matches!(
                     &obj_type,
-                    DataraType::Int | DataraType::Float | DataraType::Dec64 | DataraType::Dec128
+                    DataraType::Int
+                        | DataraType::UInt
+                        | DataraType::Int8
+                        | DataraType::Int16
+                        | DataraType::Int32
+                        | DataraType::UInt8
+                        | DataraType::UInt16
+                        | DataraType::UInt32
+                        | DataraType::UInt64
+                        | DataraType::Float
+                        | DataraType::Float32
+                        | DataraType::Dec64
                 ) {
                     Some(
                         "numeric receivers provide the conversion methods '.to_float()' and '.to_int()'"

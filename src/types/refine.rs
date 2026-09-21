@@ -81,6 +81,7 @@ impl<'a> TypeChecker<'a> {
                     let lit_str = match lit {
                         LiteralValue::Int(i) => i.to_string(),
                         LiteralValue::Float(f) => f.to_string(),
+                        LiteralValue::Dec64(m) => format!("{}e-4", m),
                         LiteralValue::String(s) => format!("\"{}\"", s),
                         LiteralValue::Bool(b) => b.to_string(),
                         LiteralValue::Char(c) => format!("'{}'", c),
@@ -240,6 +241,51 @@ impl<'a> TypeChecker<'a> {
         span: &SourceSpan,
         diag: &mut DiagnosticEngine,
     ) {
+        // v1.4.5 W1: fixed-width integer literal range checks.
+        // `let a: Int8 = 200` must fail at compile time with a pointer to
+        // the explicit-cast escape hatch; wrapping silently is exactly the
+        // bug class the fixed widths exist to catch.
+        // A negative literal arrives as Unary('-', Int(v)): peel it so that
+        // `let a: Int8 = -128` is range-checked against the true value -128
+        // (not the positive literal 128, which doesn't fit Int8's +127 max).
+        let (neg_lit, peeled) = match init {
+            Expr::Unary { op, expr, .. } if op == "-" => match expr.as_ref() {
+                Expr::Literal(LiteralValue::Int(v), _) => (
+                    true,
+                    Expr::Literal(LiteralValue::Int(-v), expr.span().clone()),
+                ),
+                _ => (false, init.clone()),
+            },
+            _ => (false, init.clone()),
+        };
+        let _ = neg_lit;
+        if let Expr::Literal(LiteralValue::Int(v), lit_span) = &peeled {
+            let (min, max, width_name): (i128, i128, &str) = match declared {
+                DataraType::Int8 => (-128, 127, "Int8"),
+                DataraType::Int16 => (-32768, 32767, "Int16"),
+                DataraType::Int32 => (-2147483648, 2147483647, "Int32"),
+                DataraType::UInt8 => (0, 255, "UInt8"),
+                DataraType::UInt16 => (0, 65535, "UInt16"),
+                DataraType::UInt32 => (0, 4294967295, "UInt32"),
+                _ => (i128::MIN, i128::MAX, ""),
+            };
+            let narrow = !width_name.is_empty();
+            if narrow && ((*v as i128) < min || (*v as i128) > max) {
+                diag.error_with_help(
+                    ErrorCode::RangeViolation,
+                    format!(
+                        "Literal {} does not fit in type '{}' (allowed [{}..{}])",
+                        v, width_name, min, max
+                    ),
+                    Some(lit_span.clone()),
+                    Some(format!(
+                        "use an explicit truncating cast 'as {}' when the wrap is intended, or keep the value in range",
+                        width_name
+                    )),
+                );
+            }
+        }
+
         // Range check
         if let DataraType::Range { min, max, .. } = declared {
             let lit_val = match init {

@@ -27,6 +27,13 @@ pub fn declare_runtime_core<M: ClifModule>(
         .declare_function("datara_rt_out_float", Linkage::Import, &rt_out_flt_sig)
         .map_err(|e| e.to_string())?;
 
+    // v1.4.5 W2: true Float32 output (f32 shortest round-trip).
+    let mut rt_out_f32_sig = Signature::new(call_conv);
+    rt_out_f32_sig.params.push(AbiParam::new(clif_types::F32));
+    let rt_out_f32_id = module
+        .declare_function("datara_rt_out_f32", Linkage::Import, &rt_out_f32_sig)
+        .map_err(|e| e.to_string())?;
+
     let mut rt_out_str_sig = Signature::new(call_conv);
     rt_out_str_sig.params.push(AbiParam::new(clif_types::I64));
     let rt_out_str_id = module
@@ -137,6 +144,15 @@ pub fn declare_runtime_core<M: ClifModule>(
             Linkage::Import,
             &rt_flt_to_str_sig,
         )
+        .map_err(|e| e.to_string())?;
+
+    // v1.4.5 W3: Dec64 fixed-point -> string for fmt interpolation (i64 -> i64
+    // string pointer, same shape as int_to_str).
+    let mut rt_dec_to_str_sig = Signature::new(call_conv);
+    rt_dec_to_str_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_dec_to_str_sig.returns.push(AbiParam::new(clif_types::I64));
+    let rt_dec_to_str_id = module
+        .declare_function("datara_rt_dec_to_str", Linkage::Import, &rt_dec_to_str_sig)
         .map_err(|e| e.to_string())?;
 
     let mut malloc_sig = Signature::new(call_conv);
@@ -649,12 +665,39 @@ pub fn declare_runtime_core<M: ClifModule>(
         (rt_print_flt_id, void_1_f64_sig.clone()),
     );
 
+    // v1.4.5 W2: f32 printer (float param).
+    let mut void_1_f32_sig = Signature::new(call_conv);
+    void_1_f32_sig.params.push(AbiParam::new(clif_types::F32));
+    let rt_print_f32_id = module
+        .declare_function("datara_rt_print_f32", Linkage::Import, &void_1_f32_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_print_f32".into(),
+        (rt_print_f32_id, void_1_f32_sig),
+    );
+
     let rt_print_bool_id = module
         .declare_function("datara_rt_print_bool", Linkage::Import, &void_1_i64_sig)
         .map_err(|e| e.to_string())?;
     func_ids.insert(
         "datara_rt_print_bool".into(),
         (rt_print_bool_id, void_1_i64_sig.clone()),
+    );
+
+    // v1.4.5 W3: Dec64 fixed-point printers (i64 mantissa × 10⁴).
+    let rt_print_dec64_id = module
+        .declare_function("datara_rt_print_dec64", Linkage::Import, &void_1_i64_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_print_dec64".into(),
+        (rt_print_dec64_id, void_1_i64_sig.clone()),
+    );
+    let rt_out_dec64_id = module
+        .declare_function("datara_rt_out_dec64", Linkage::Import, &void_1_i64_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_out_dec64".into(),
+        (rt_out_dec64_id, void_1_i64_sig.clone()),
     );
 
     let rt_print_list_id = module
@@ -679,6 +722,17 @@ pub fn declare_runtime_core<M: ClifModule>(
     func_ids.insert(
         "datara_rt_err_print_int".into(),
         (rt_err_int_id, void_1_i64_sig.clone()),
+    );
+
+    // v1.4.5 W3: Dec64 on stderr (formats through datara_rt_dec_to_str).
+    let rt_err_dec_id = module.declare_function(
+        "datara_rt_err_print_dec64_str",
+        Linkage::Import,
+        &void_1_i64_sig,
+    ).map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_err_print_dec64_str".into(),
+        (rt_err_dec_id, void_1_i64_sig.clone()),
     );
 
     let rt_err_flt_id = module
@@ -797,6 +851,21 @@ pub fn declare_runtime_core<M: ClifModule>(
         "datara_rt_list_pop_outcome".into(),
         (rt_list_pop_outcome_id, rt_pop_sig),
     );
+
+    // v1.4.5 W1: checked arithmetic returning Outcome<IntN> objects.
+    // ABI: (bits, a, b) I64*3 -> I64 (the Outcome object pointer).
+    let mut checked_sig = Signature::new(call_conv);
+    checked_sig.params.push(AbiParam::new(clif_types::I64));
+    checked_sig.params.push(AbiParam::new(clif_types::I64));
+    checked_sig.params.push(AbiParam::new(clif_types::I64));
+    checked_sig.returns.push(AbiParam::new(clif_types::I64));
+    for op in ["add", "sub", "mul"] {
+        let sym = format!("datara_rt_checked_{}_outcome", op);
+        let id = module
+            .declare_function(&sym, Linkage::Import, &checked_sig)
+            .map_err(|e| e.to_string())?;
+        func_ids.insert(sym, (id, checked_sig.clone()));
+    }
 
     // v1.4.1: full List<T> protocol. All ABI shapes are I64* -> I64; sort /
     // remove_value / contains / index_of carry an extra elem_kind (and sort
@@ -1524,6 +1593,8 @@ pub fn declare_runtime_core<M: ClifModule>(
         rt_out_int_id,
         rt_out_bool_id,
         rt_out_flt_id,
+        rt_out_f32_id,
+        rt_out_dec64_id,
         rt_out_str_id,
         rt_err_id,
         rt_concat_id,
@@ -1533,6 +1604,7 @@ pub fn declare_runtime_core<M: ClifModule>(
         rt_int_to_str_id,
         rt_bool_to_str_id,
         rt_flt_to_str_id,
+        rt_dec_to_str_id,
         malloc_id,
         rt_list_get_id,
         rt_list_create_id,

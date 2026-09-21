@@ -76,6 +76,9 @@ impl ComptimeValue {
         match lit {
             LiteralValue::Int(i) => ComptimeValue::Int(*i),
             LiteralValue::Float(f) => ComptimeValue::Float(*f),
+            // v1.4.5 W3: comptime treats Dec64 as its raw mantissa; the
+            // runtime type stays authoritative for arithmetic semantics.
+            LiteralValue::Dec64(m) => ComptimeValue::Int(*m),
             LiteralValue::Bool(b) => ComptimeValue::Bool(*b),
             LiteralValue::String(s) => ComptimeValue::Str(s.clone()),
             LiteralValue::Char(c) => ComptimeValue::Int(*c as i64),

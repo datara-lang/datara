@@ -13,7 +13,9 @@ struct Matrix3x3 {
     m20: Float
     m21: Float
     m22: Float
+}
 
+behavior Matrix3x3 {
     trace() -> Float {
         return m00 + m11 + m22
     }
@@ -29,7 +31,7 @@ struct Matrix3x3 {
         return det != 0.0
     }
 
-    print_matrix(name: Str) {
+    print_matrix(name: Str) / IO {
         out fmt"Матрица [{name}]:"
         out fmt"  | {m00}  {m01}  {m02} |"
         out fmt"  | {m10}  {m11}  {m12} |"
@@ -41,7 +43,9 @@ struct Vector3 {
     x: Float
     y: Float
     z: Float
+}
 
+behavior Vector3 {
     dot(other_x: Float, other_y: Float, other_z: Float) -> Float {
         return (x * other_x) + (y * other_y) + (z * other_z)
     }

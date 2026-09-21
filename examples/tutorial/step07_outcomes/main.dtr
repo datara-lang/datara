@@ -1,7 +1,7 @@
 // Step 7: Error Handling with Outcomes
 // Demonstrates type-safe Result/Outcome patterns without exceptions.
 
-record DivisionResult {
+struct DivisionResult {
     success: Bool,
     quotient: Int,
 }

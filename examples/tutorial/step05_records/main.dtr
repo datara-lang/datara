@@ -1,12 +1,12 @@
 // Step 5: Records and Structs
 // Demonstrates structured data types and field access.
 
-record Point {
+struct Point {
     x: Int,
     y: Int,
 }
 
-record Rectangle {
+struct Rectangle {
     top_left: Point,
     width: Int,
     height: Int,

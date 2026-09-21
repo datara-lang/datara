@@ -455,6 +455,17 @@ impl WasmEmitter {
                     | "err"
                     | "datara_rt_print"
                     | "datara_rt_err"
+                    // v1.4.5 W4: fused out/err streaming primitives are void.
+                    | "print_str"
+                    | "datara_rt_print_str"
+                    | "print_newline"
+                    | "datara_rt_print_newline"
+                    | "err_print_str"
+                    | "datara_rt_err_print_str"
+                    | "err_print_newline"
+                    | "datara_rt_err_print_newline"
+                    | "flush"
+                    | "datara_rt_flush"
             );
             if !is_void {
                 body.push(0x21); // local.set dest

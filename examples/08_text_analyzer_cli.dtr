@@ -14,24 +14,24 @@ struct TextMetrics {
 behavior TextMetrics {
     avg_word_length() -> Float {
         if this.word_count == 0 { return 0.0 }
-        let denom = this.word_count * 1.0
+        let denom = this.word_count.to_float()
         require denom != 0.0
-        return (this.letter_chars * 1.0) / denom
+        return (this.letter_chars.to_float()) / denom
     }
 
     avg_sentence_length() -> Float {
         if this.sentence_count == 0 { return 0.0 }
-        let denom = this.sentence_count * 1.0
+        let denom = this.sentence_count.to_float()
         require denom != 0.0
-        return (this.word_count * 1.0) / denom
+        return (this.word_count.to_float()) / denom
     }
 
     readability_index() -> Float {
         if this.word_count == 0 { return 0.0 }
-        let denom = this.word_count * 1.0
+        let denom = this.word_count.to_float()
         require denom != 0.0
-        let l = ((this.letter_chars * 1.0) / denom) * 100.0
-        let s = ((this.sentence_count * 1.0) / denom) * 100.0
+        let l = ((this.letter_chars.to_float()) / denom) * 100.0
+        let s = ((this.sentence_count.to_float()) / denom) * 100.0
         return (0.0588 * l) - (0.296 * s) - 15.8
     }
 

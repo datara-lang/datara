@@ -10,6 +10,7 @@ impl<'a> Lowering<'a> {
             Expr::Literal(lit, _) => match lit {
                 LiteralValue::Int(_) => Some(DataraType::Int),
                 LiteralValue::Float(_) => Some(DataraType::Float),
+                LiteralValue::Dec64(_) => Some(DataraType::Dec64),
                 LiteralValue::Bool(_) => Some(DataraType::Bool),
                 LiteralValue::String(_) => Some(DataraType::String),
                 LiteralValue::Char(_) => Some(DataraType::Char),
@@ -23,8 +24,16 @@ impl<'a> Lowering<'a> {
                     if t.starts_with("List<") && t.ends_with('>') {
                         let inner = &t[5..t.len() - 1];
                         let elem_ty = match inner {
-                            "Float" | "Float64" | "Float32" => DataraType::Float,
-                            "Int" | "Int64" | "Int32" => DataraType::Int,
+                            "Float" | "Float64" => DataraType::Float,
+                            "Float32" => DataraType::Float32,
+                            "Int" | "Int64" | "isize" => DataraType::Int,
+                            "Int32" | "i32" => DataraType::Int32,
+                            "Int16" | "i16" => DataraType::Int16,
+                            "Int8" | "i8" => DataraType::Int8,
+                            "UInt" | "UInt64" | "u64" | "usize" => DataraType::UInt64,
+                            "UInt32" | "u32" => DataraType::UInt32,
+                            "UInt16" | "u16" => DataraType::UInt16,
+                            "UInt8" | "Byte" | "u8" => DataraType::UInt8,
                             "String" | "Str" => DataraType::String,
                             "Bool" => DataraType::Bool,
                             _ => DataraType::Class(inner.to_string()),
@@ -32,8 +41,16 @@ impl<'a> Lowering<'a> {
                         return Some(DataraType::List(Box::new(elem_ty)));
                     }
                     match t.as_str() {
-                        "Float" | "Float64" | "Float32" => return Some(DataraType::Float),
-                        "Int" | "Int64" | "Int32" => return Some(DataraType::Int),
+                        "Float" | "Float64" => return Some(DataraType::Float),
+                        "Float32" => return Some(DataraType::Float32),
+                        "Int" | "Int64" | "isize" => return Some(DataraType::Int),
+                        "Int32" | "i32" => return Some(DataraType::Int32),
+                        "Int16" | "i16" => return Some(DataraType::Int16),
+                        "Int8" | "i8" => return Some(DataraType::Int8),
+                        "UInt" | "UInt64" | "u64" | "usize" => return Some(DataraType::UInt64),
+                        "UInt32" | "u32" => return Some(DataraType::UInt32),
+                        "UInt16" | "u16" => return Some(DataraType::UInt16),
+                        "UInt8" | "Byte" | "u8" => return Some(DataraType::UInt8),
                         "String" | "Str" => return Some(DataraType::String),
                         "Bool" => return Some(DataraType::Bool),
                         _ => return Some(DataraType::Class(t.clone())),
@@ -66,7 +83,8 @@ impl<'a> Lowering<'a> {
                             if t.starts_with("List<") && t.ends_with('>') {
                                 let inner = &t[5..t.len() - 1];
                                 let elem_ty = match inner {
-                                    "Float" | "Float64" | "Float32" => DataraType::Float,
+                                    "Float" | "Float64" => DataraType::Float,
+                                    "Float32" => DataraType::Float32,
                                     "Int" | "Int64" | "Int32" => DataraType::Int,
                                     "String" | "Str" => DataraType::String,
                                     "Bool" => DataraType::Bool,
@@ -75,8 +93,18 @@ impl<'a> Lowering<'a> {
                                 return Some(DataraType::List(Box::new(elem_ty)));
                             }
                             match t.as_str() {
-                                "Float" | "Float64" | "Float32" => return Some(DataraType::Float),
-                                "Int" | "Int64" | "Int32" => return Some(DataraType::Int),
+                                "Float" | "Float64" => return Some(DataraType::Float),
+                                "Float32" => return Some(DataraType::Float32),
+                                "Int" | "Int64" | "isize" => return Some(DataraType::Int),
+                                "Int32" | "i32" => return Some(DataraType::Int32),
+                                "Int16" | "i16" => return Some(DataraType::Int16),
+                                "Int8" | "i8" => return Some(DataraType::Int8),
+                                "UInt" | "UInt64" | "u64" | "usize" => {
+                                    return Some(DataraType::UInt64)
+                                }
+                                "UInt32" | "u32" => return Some(DataraType::UInt32),
+                                "UInt16" | "u16" => return Some(DataraType::UInt16),
+                                "UInt8" | "Byte" | "u8" => return Some(DataraType::UInt8),
                                 "String" | "Str" => return Some(DataraType::String),
                                 "Bool" => return Some(DataraType::Bool),
                                 _ => return Some(DataraType::Class(t.clone())),
@@ -117,6 +145,12 @@ impl<'a> Lowering<'a> {
                 }
                 let l_ty = self.infer_expr_datara_type(left);
                 let r_ty = self.infer_expr_datara_type(right);
+                // v1.4.5 W2: Float32 must be checked BEFORE Float — a bare
+                // f64 literal (`0.1`) infers as Float, which would silently
+                // widen an f32 arithmetic tree back to f64 here.
+                if l_ty == Some(DataraType::Float32) || r_ty == Some(DataraType::Float32) {
+                    return Some(DataraType::Float32);
+                }
                 if l_ty == Some(DataraType::Float) || r_ty == Some(DataraType::Float) {
                     return Some(DataraType::Float);
                 }
@@ -155,7 +189,8 @@ impl<'a> Lowering<'a> {
                         // elements stay unresolved rather than being
                         // guessed.
                         let elem_ty = match inner {
-                            "Float" | "Float64" | "Float32" => DataraType::Float,
+                            "Float" | "Float64" => DataraType::Float,
+                            "Float32" => DataraType::Float32,
                             "Bool" => DataraType::Bool,
                             "Int" | "Int64" | "Int32" => DataraType::Int,
                             "String" | "Str" => DataraType::String,
@@ -481,6 +516,38 @@ impl<'a> Lowering<'a> {
         }
     }
 
+    /// v1.4.5 W1: the integer width (bits) of this expression's type, for
+    /// the checked-arithmetic builtins. Only integer types count; anything
+    /// else reports the default 64.
+    pub(crate) fn expr_int_bits(&self, expr: &Expr) -> i64 {
+        let ty = self.infer_expr_datara_type(expr);
+        match ty.as_ref().unwrap_or(&DataraType::Int) {
+            DataraType::Int8 | DataraType::UInt8 => 8,
+            DataraType::Int16 | DataraType::UInt16 => 16,
+            DataraType::Int32 | DataraType::UInt32 => 32,
+            _ => 64,
+        }
+    }
+
+    /// v1.4.5 W3: does this expression carry Dec64 (fixed-point ×10⁴) values?
+    pub(crate) fn is_expr_dec64(&self, expr: &Expr) -> bool {
+        if let Some(DataraType::Dec64) = self.infer_expr_datara_type(expr) {
+            return true;
+        }
+        match expr {
+            Expr::Literal(LiteralValue::Dec64(_), _) => true,
+            Expr::Identifier(name, ..) => {
+                self.lookup_var_type(name)
+                    .map(|ty| ty == crate::types::DataraType::Dec64)
+                    .unwrap_or(false)
+            }
+            Expr::Binary { left, right, .. } => {
+                self.is_expr_dec64(left) || self.is_expr_dec64(right)
+            }
+            _ => false,
+        }
+    }
+
     pub(crate) fn is_expr_float(&self, expr: &Expr) -> bool {
         if let Some(DataraType::Float) = self.infer_expr_datara_type(expr) {
             return true;
@@ -489,16 +556,20 @@ impl<'a> Lowering<'a> {
             Expr::Literal(LiteralValue::Float(_), _) => true,
             Expr::MemberAccess { member, .. } => {
                 if let Some(t) = self.class_field_types.get(member) {
-                    return t == "Float" || t == "Float64" || t == "Float32";
+                    return t == "Float" || t == "Float64";
                 }
                 member.contains("flt") || member.contains("float")
             }
             Expr::Identifier(name, ..) => {
                 if let Some(ty) = self.lookup_var_type(name) {
+                    // v1.4.5 W2: a Float32-typed variable is NOT a f64
+                    // float for arithmetic routing — the is_f32 path in the
+                    // backends owns it. Falling through to name heuristics
+                    // here would misroute f32 vars back into f64 ops.
                     return ty == crate::types::DataraType::Float;
                 }
                 if let Some(t) = self.class_field_types.get(name) {
-                    return t == "Float" || t == "Float64" || t == "Float32";
+                    return t == "Float" || t == "Float64";
                 }
                 name.contains("flt") || name.contains("float")
             }
@@ -752,5 +823,60 @@ impl<'a> Lowering<'a> {
         }
 
         res
+    }
+
+    /// v1.4.5 W1: the integer width an expression carries. Returns the
+    /// repr-string name for the widest known integer type of the expression
+    /// (`Int8`, `UInt32`, ...), or `None` when the expression is not a
+    /// known-width integer (plain Int, Float, Str, unknown). Used to stamp
+    /// `Inst::BinOp.ty` so the backends can emit width-correct arithmetic.
+    pub(crate) fn int_expr_repr(&self, expr: &Expr) -> Option<&'static str> {
+        match self.infer_expr_datara_type(expr) {
+            Some(DataraType::Int8) => Some("Int8"),
+            Some(DataraType::Int16) => Some("Int16"),
+            Some(DataraType::Int32) => Some("Int32"),
+            Some(DataraType::UInt8) => Some("UInt8"),
+            Some(DataraType::UInt16) => Some("UInt16"),
+            Some(DataraType::UInt32) => Some("UInt32"),
+            Some(DataraType::UInt64) => Some("UInt64"),
+            Some(DataraType::UInt) => Some("UInt"),
+            _ => None,
+        }
+    }
+
+    /// True when the expression is a Float32 (`Float32` repr string). The
+    /// f32 arithmetic path in the backends keys off this marker.
+    pub(crate) fn is_expr_f32(&self, expr: &Expr) -> bool {
+        matches!(self.infer_expr_datara_type(expr), Some(DataraType::Float32))
+    }
+
+    /// v1.4.5 W4: map a fmt"{expr:spec}" specifier to a synthetic converter
+    /// call: (runtime fn, constant extra args, DMIR result type). Routing:
+    /// - ".N" on a Dec64 value -> dec64_to_str_prec(N) (fixed-point scale-10^4,
+    ///   round-half-away-from-zero, zero padding beyond 4 digits)
+    /// - ".N" otherwise        -> float_to_str_prec(N) (f64 %.*f, NaN/Inf kept)
+    /// - "x"/"X"/"o"/"b"       -> int_to_str_radix(v, radix, upper): the
+    ///   two's-complement bit pattern; applied regardless of the declared int
+    ///   width because every int repr rides the I64 slot.
+    pub(crate) fn fmt_spec_converter(
+        &self,
+        expr: &Expr,
+        spec: &str,
+    ) -> Option<(&'static str, Vec<i64>, &'static str)> {
+        if let Some(digits) = spec.strip_prefix('.') {
+            let prec: i64 = digits.parse().unwrap_or(0);
+            if self.is_expr_dec64(expr) {
+                return Some(("datara_rt_dec64_to_str_prec", vec![prec], "Str"));
+            }
+            return Some(("datara_rt_float_to_str_prec", vec![prec], "Str"));
+        }
+        let (radix, upper): (i64, i64) = match spec {
+            "x" => (16, 0),
+            "X" => (16, 1),
+            "o" => (8, 0),
+            "b" => (2, 0),
+            _ => return None,
+        };
+        Some(("datara_rt_int_to_str_radix", vec![radix, upper], "Str"))
     }
 }

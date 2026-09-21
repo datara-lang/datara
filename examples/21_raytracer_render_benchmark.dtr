@@ -80,7 +80,9 @@ fn main() {
 
     let width = 800
     let height = 600
-    let aspect = (width * 1.0) / (height * 1.0)
+    let height_f = height.to_float()
+    require height_f != 0.0
+    let aspect = (width.to_float() * 1.0) / height_f
     let light_pos = Vec3 { x: 4.0, y: 6.0, z: -2.0 }
     let cam_orig = Vec3 { x: 0.0, y: 0.0, z: -1.0 }
 
@@ -97,17 +99,19 @@ fn main() {
     mut total_hits = 0
     mut checksum = 0.0
 
-    let inv_w = 1.0 / (width * 1.0)
-    let inv_h = 1.0 / (height * 1.0)
+    let width_f = width.to_float()
+    require width_f != 0.0
+    let inv_w = 1.0 / width_f
+    let inv_h = 1.0 / height_f
 
     let t_start = now_ms()
 
     mut y = 0
     while y < height {
-        let ny = 1.0 - (2.0 * ((y * 1.0) + 0.5) * inv_h)
+        let ny = 1.0 - (2.0 * ((y.to_float() * 1.0) + 0.5) * inv_h)
         mut x = 0
         while x < width {
-            let nx = ((2.0 * ((x * 1.0) + 0.5) * inv_w) - 1.0) * aspect
+            let nx = ((2.0 * ((x.to_float() * 1.0) + 0.5) * inv_w) - 1.0) * aspect
             let ray_dir = Vec3 { x: nx, y: ny, z: 1.5 }.normalize()
 
             mut hit_t = 10000.0
@@ -153,7 +157,7 @@ fn main() {
                 let light_dir = light_pos.sub(hit_p).normalize()
 
                 let diff = clamp(normal.dot(light_dir), 0.0, 1.0)
-                let pixel_val = diff * 200.0 + 55.0 + (hit_id * 10.0)
+                let pixel_val = diff * 200.0 + 55.0 + (hit_id.to_float() * 10.0)
                 checksum = checksum + pixel_val
             }
             x = x + 1

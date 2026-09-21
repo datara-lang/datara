@@ -378,7 +378,7 @@ impl EscapeAnalyzer {
                             }
                         }
                     }
-                    Inst::Out { value } | Inst::Err { value } => {
+                    Inst::Out { value, .. } | Inst::Err { value } => {
                         if let Some(&root) = val_to_alloc_root.get(value) {
                             if let Some(alloc) = result.allocations.get_mut(&root) {
                                 if alloc.state == EscapeState::NonEscaping {

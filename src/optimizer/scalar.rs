@@ -405,6 +405,7 @@ impl ScalarOptimizer {
                     | Inst::LoadVar { dest, .. }
                     | Inst::BinOp { dest, .. }
                     | Inst::UnOp { dest, .. }
+                    | Inst::Cast { dest, .. }
                     | Inst::Call { dest, .. }
                     | Inst::MethodCall { dest, .. }
                     | Inst::StructInit { dest, .. }

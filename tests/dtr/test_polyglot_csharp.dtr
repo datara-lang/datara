@@ -6,14 +6,14 @@ fn main() {
     let res_b = csharp_invoke_i64("MathLib", "SquareAndInc", 20)
     let total = res_a + res_b
 
-    println(fmt"C# NativeAOT Result A (12): {res_a}")
-    println(fmt"C# NativeAOT Result B (20): {res_b}")
-    println(fmt"C# Combined Total:          {total}")
+    out(fmt"C# NativeAOT Result A (12): {res_a}")
+    out(fmt"C# NativeAOT Result B (20): {res_b}")
+    out(fmt"C# Combined Total:          {total}")
 
     // Expected: (12*12+1) + (20*20+1) = 145 + 401 = 546
     if total == 546 {
-        println("[PASS] C# .NET NativeAOT interop verified successfully.")
+        out("[PASS] C# .NET NativeAOT interop verified successfully.")
     } else {
-        println("[FAIL] Unexpected total.")
+        out("[FAIL] Unexpected total.")
     }
 }

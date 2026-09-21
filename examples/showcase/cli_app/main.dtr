@@ -10,7 +10,7 @@ fn is_digit(ch: String) -> Bool {
            ch == "5" || ch == "6" || ch == "7" || ch == "8" || ch == "9"
 }
 
-record JsonStats {
+struct JsonStats {
     tokens_count: Int,
     objects_count: Int,
     arrays_count: Int,

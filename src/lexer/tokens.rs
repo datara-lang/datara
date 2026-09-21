@@ -86,6 +86,8 @@ pub enum TokenType {
     Identifier(String),
     IntLiteral(i64),
     FloatLiteral(f64),
+    /// v1.4.5 W3: fixed-point decimal literal `19.99d` — i64 mantissa × 10⁴.
+    Dec64Literal(i64),
     StringLiteral(String),
     InterpolatedString(String),
     CharLiteral(char),

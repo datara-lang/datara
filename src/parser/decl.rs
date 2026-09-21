@@ -158,6 +158,23 @@ impl<'a> Parser<'a> {
             || self.match_token(&TokenType::Struct)
             || self.match_token(&TokenType::Record)
         {
+            // Canonical-form warnings: `entity` and `record` are silent
+            // synonyms of `struct` (unlike `class`, which is a hard error).
+            // Warn so codebases converge on one spelling per construct.
+            let syn_span = self.previous().span.clone();
+            match self.previous().token_type {
+                TokenType::Entity => self.diag.warning(
+                    crate::diagnostics::ErrorCode::CanonicalKeyword,
+                    "'entity' is a synonym of the canonical 'struct' declaration.".to_string(),
+                    Some(syn_span),
+                ),
+                TokenType::Record => self.diag.warning(
+                    crate::diagnostics::ErrorCode::CanonicalKeyword,
+                    "'record' is a synonym of the canonical 'struct' declaration.".to_string(),
+                    Some(syn_span),
+                ),
+                _ => {}
+            }
             return self.parse_class_decl(is_export, attrs).map(Decl::Class);
         }
         if self.match_token(&TokenType::Enum) {
@@ -221,6 +238,15 @@ impl<'a> Parser<'a> {
             return None;
         }
         if self.match_token(&TokenType::Fn) || self.match_token(&TokenType::Function) {
+            // Canonical-form warning: `function` is a synonym of `fn`.
+            let fn_span = self.previous().span.clone();
+            if self.previous().token_type == TokenType::Function {
+                self.diag.warning(
+                    crate::diagnostics::ErrorCode::CanonicalKeyword,
+                    "'function' is a synonym of the canonical 'fn' keyword.".to_string(),
+                    Some(fn_span),
+                );
+            }
             return self
                 .parse_function_decl(is_export, attrs)
                 .map(Decl::Function);

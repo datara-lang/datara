@@ -598,6 +598,7 @@ pub fn compile_call<M: ClifModule>(
 
     let mut resolved_callee_id = callee_id;
     if func.starts_with("datara_rt_print_")
+        && func != "datara_rt_print_f32"
         && args.len() == 1
         && let Some(&first_arg_id) = args.first()
         && let Some(&av) = ctx.val_map.get(&first_arg_id)
@@ -683,6 +684,16 @@ pub fn compile_call<M: ClifModule>(
                     cranelift_codegen::ir::MemFlagsData::new(),
                     *av,
                 );
+            } else if ctx.builder.func.dfg.value_type(*av) == clif_types::F64
+                && callee_sig
+                    .params
+                    .get(i)
+                    .map(|p| p.value_type == clif_types::F32)
+                    .unwrap_or(false)
+            {
+                // v1.4.5 W2: f32-parameter callee (datara_rt_print_f32)
+                // — demote the F64 slot value to float.
+                *av = ctx.builder.ins().fdemote(clif_types::F32, *av);
             }
         }
     }

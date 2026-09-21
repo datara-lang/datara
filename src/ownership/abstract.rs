@@ -848,7 +848,7 @@ impl<'a> DmirOwnershipAnalyzer<'a> {
                 f(*object);
                 f(*value);
             }
-            Inst::Out { value } | Inst::Err { value } => f(*value),
+            Inst::Out { value, .. } | Inst::Err { value } => f(*value),
             Inst::FormatStr { dest, values, .. } => {
                 f(*dest);
                 for v in values {

@@ -136,14 +136,52 @@ impl<'a> TypeChecker<'a> {
         }
 
         let mut base = match tn.name.as_str() {
-            "Int" | "Int64" | "Int32" | "Int16" | "Int8" | "UInt" | "UInt64" | "UInt32"
-            | "UInt16" | "UInt8" | "i64" | "i32" | "i16" | "i8" | "isize" | "u64" | "u32"
-            | "u16" | "u8" | "u128" | "i128" | "usize" | "USize" | "Byte" | "byte" => {
+            // v1.4.5 W1: fixed-width integer types are REAL types now.
+            // `Int`/`UInt` are canonical 64-bit spellings; `Int64`/`UInt64`
+            // are the same types (documented W-SYN-002-compatible names).
+            // C-style short spellings (`i8`, `u32`, ...) are legacy aliases
+            // reported with W-SYN-002 by the parser/lexer side, mapped to the
+            // same canonical width here so old code keeps compiling.
+            "Int" | "Int64" | "isize" => DataraType::Int,
+            "UInt" | "UInt64" | "usize" | "USize" => DataraType::UInt,
+            "Int32" | "i32" => DataraType::Int32,
+            "Int16" | "i16" => DataraType::Int16,
+            "Int8" | "i8" => DataraType::Int8,
+            "UInt32" | "u32" => DataraType::UInt32,
+            "UInt16" | "u16" => DataraType::UInt16,
+            "UInt8" | "Byte" | "byte" | "u8" => DataraType::UInt8,
+            "u64" => DataraType::UInt64,
+            // u128/i128 are planned for v1.5 (true 128-bit); reject loudly
+            // instead of silently aliasing to 64-bit (honest types rule).
+            "u128" | "i128" => {
+                if let Some(d) = diag.as_deref_mut() {
+                    d.error(
+                        ErrorCode::ResolveUnknownType,
+                        format!(
+                            "Type '{}' is not available in v1.4.5: true 128-bit integers are planned for v1.5. Use Int64/UInt64 or checked pairs instead.",
+                            tn.name
+                        ),
+                        Some(tn.span.clone()),
+                    );
+                }
                 DataraType::Int
             }
-            "Float" | "Float64" | "Float32" | "f64" | "f32" | "f16" => DataraType::Float,
-            "dec64" => DataraType::Dec64,
-            "dec128" => DataraType::Dec128,
+            "Float" | "Float64" | "f64" => DataraType::Float,
+            "Float32" | "f32" => DataraType::Float32,
+            // f16 (half precision) has no backend lowering yet: reject
+            // honestly instead of silently widening to f64.
+            "f16" => {
+                if let Some(d) = diag.as_deref_mut() {
+                    d.error(
+                        ErrorCode::ResolveUnknownType,
+                        "Type 'f16' is not available in v1.4.5: half-precision floats are planned for a later release. Use Float32 or Float."
+                            .to_string(),
+                        Some(tn.span.clone()),
+                    );
+                }
+                DataraType::Float
+            }
+            "dec64" | "Dec64" => DataraType::Dec64,
             "Bool" => DataraType::Bool,
             "String" | "Str" => DataraType::String,
             "Char" | "char" => DataraType::Char,

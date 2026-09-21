@@ -463,6 +463,9 @@ impl<'a> SecurityVerifier<'a> {
             Expr::Wrapping(expr, _) | Expr::Saturating(expr, _) => {
                 self.verify_expr(expr, ctx, diag);
             }
+            Expr::Cast { expr, .. } => {
+                self.verify_expr(expr, ctx, diag);
+            }
             Expr::ObjectInit {
                 class_name,
                 fields,

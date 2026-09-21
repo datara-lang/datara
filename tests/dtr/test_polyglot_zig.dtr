@@ -7,15 +7,15 @@ fn main() {
     let call_res2 = zig_call("zig_kernel_mul", 50)
     let total = eval_res + call_res1 + call_res2
 
-    println(fmt"Zig Eval Result: {eval_res}")
-    println(fmt"Zig Call Add:    {call_res1}")
-    println(fmt"Zig Call Mul:    {call_res2}")
-    println(fmt"Total Combined:  {total}")
+    out(fmt"Zig Eval Result: {eval_res}")
+    out(fmt"Zig Call Add:    {call_res1}")
+    out(fmt"Zig Call Mul:    {call_res2}")
+    out(fmt"Total Combined:  {total}")
 
     // Expected: 65536 + 800 + 100 = 66436
     if total == 66436 {
-        println("[PASS] Zig zero-latency interop verified successfully.")
+        out("[PASS] Zig zero-latency interop verified successfully.")
     } else {
-        println("[FAIL] Unexpected total.")
+        out("[FAIL] Unexpected total.")
     }
 }

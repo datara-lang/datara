@@ -214,6 +214,31 @@ pub fn classify_capability_call(func: &str) -> Option<(&'static str, &'static st
         "own_acquire" | "datara_rt_own_acquire" => Some(("datara:rt", "own_acquire")),
         "own_release" | "datara_rt_own_release" => Some(("datara:rt", "own_release")),
 
+        // v1.4.5 W4 fmt specifiers: precision / radix string converters.
+        "float_to_str_prec" | "datara_rt_float_to_str_prec" => {
+            Some(("datara:rt", "float_to_str_prec"))
+        }
+        "dec64_to_str_prec" | "datara_rt_dec64_to_str_prec" => {
+            Some(("datara:rt", "dec64_to_str_prec"))
+        }
+        "int_to_str_radix" | "datara_rt_int_to_str_radix" => {
+            Some(("datara:rt", "int_to_str_radix"))
+        }
+
+        // v1.4.5 W4: fused `out fmt"..."` / `err fmt"..."` streaming calls.
+        // Without these the WASM backend silently fell back to 0 and the
+        // formatted output vanished.
+        "print_str" | "datara_rt_print_str" => Some(("datara:rt", "print_str")),
+        "print_newline" | "datara_rt_print_newline" => {
+            Some(("datara:rt", "print_newline"))
+        }
+        "err_print_str" | "datara_rt_err_print_str" => {
+            Some(("datara:rt", "err_print_str"))
+        }
+        "err_print_newline" | "datara_rt_err_print_newline" => {
+            Some(("datara:rt", "err_print_newline"))
+        }
+
         _ => None,
     }
 }

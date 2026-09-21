@@ -367,6 +367,39 @@ impl WasmEmitter {
                         params: vec![WasmValType::I64],
                         results: vec![],
                     },
+                    // v1.4.5 W4 fmt specifiers: converters return a string
+                    // pointer (i64). The float converter takes a real f64 so
+                    // the operand stack type matches without bitcasts; the
+                    // other params are i64 bit patterns / integers.
+                    ("datara:rt", "float_to_str_prec") => WasmFuncType {
+                        params: vec![WasmValType::F64, WasmValType::I64],
+                        results: vec![WasmValType::I64],
+                    },
+                    ("datara:rt", "dec64_to_str_prec") => WasmFuncType {
+                        params: vec![WasmValType::I64, WasmValType::I64],
+                        results: vec![WasmValType::I64],
+                    },
+                    ("datara:rt", "int_to_str_radix") => WasmFuncType {
+                        params: vec![WasmValType::I64, WasmValType::I64, WasmValType::I64],
+                        results: vec![WasmValType::I64],
+                    },
+                    // v1.4.5 W4: fused out/err streaming primitives.
+                    ("datara:rt", "print_str") => WasmFuncType {
+                        params: vec![WasmValType::I64],
+                        results: vec![],
+                    },
+                    ("datara:rt", "print_newline") => WasmFuncType {
+                        params: vec![],
+                        results: vec![],
+                    },
+                    ("datara:rt", "err_print_str") => WasmFuncType {
+                        params: vec![WasmValType::I64],
+                        results: vec![],
+                    },
+                    ("datara:rt", "err_print_newline") => WasmFuncType {
+                        params: vec![],
+                        results: vec![],
+                    },
                     _ => WasmFuncType {
                         params: vec![WasmValType::I64],
                         results: vec![WasmValType::I64],

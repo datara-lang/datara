@@ -87,7 +87,8 @@ impl Optimizer {
             | Inst::GetFuncAddr { dest, .. }
             | Inst::Select { dest, .. }
             | Inst::Decide { dest, .. }
-            | Inst::VolatileLoad { dest, .. } => fix(dest),
+            | Inst::VolatileLoad { dest, .. }
+            | Inst::Cast { dest, .. } => fix(dest),
             Inst::InlineAsm { outputs, .. } => {
                 for (_, d) in outputs {
                     fix(d);
@@ -103,7 +104,7 @@ impl Optimizer {
             | Inst::VolatileStore { .. } => {}
         }
         match inst {
-            Inst::AssignVar { value, .. } | Inst::Out { value } | Inst::Err { value } => fix(value),
+            Inst::AssignVar { value, .. } | Inst::Out { value, .. } | Inst::Err { value } => fix(value),
             Inst::VolatileLoad { addr, .. } => fix(addr),
             Inst::VolatileStore { addr, value, .. } => {
                 fix(addr);
@@ -325,6 +326,17 @@ impl Optimizer {
                 op: op.clone(),
                 operand: lookup(operand),
                 ty: ty.clone(),
+            }),
+            Inst::Cast {
+                dest,
+                value,
+                from_ty,
+                to_ty,
+            } => Some(Inst::Cast {
+                dest: lookup(dest),
+                value: lookup(value),
+                from_ty: from_ty.clone(),
+                to_ty: to_ty.clone(),
             }),
             Inst::GetField {
                 dest,

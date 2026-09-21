@@ -6,15 +6,20 @@ extern fn json_create_pair(k1: String, v1: String, k2: String, v2: Int) -> Strin
 
 fn main() {
     let payload = "{\"compiler\":\"forgen\",\"tests_passing\":625,\"status\":\"verified\"}"
-    let compiler_name = json_get_string(payload, "compiler")
-    let tests = json_get_int(payload, "tests_passing")
-    let status = json_get_string(payload, "status")
+    mut compiler_name = ""
+    mut tests = 0
+    mut status = ""
+    mut serialized = ""
+    unsafe(justification: "Rust bridge: serde_json helpers are pure Rust crate calls") {
+        compiler_name = json_get_string(payload, "compiler")
+        tests = json_get_int(payload, "tests_passing")
+        status = json_get_string(payload, "status")
+        serialized = json_create_pair("runtime", "zero-gc", "cores", 8)
+    }
 
     out "COMPILER: " + compiler_name
     out "TESTS: " + tests
     out "STATUS: " + status
-
-    let serialized = json_create_pair("runtime", "zero-gc", "cores", 8)
     out "SERIALIZED: " + serialized
     out "JSON_SHOWCASE_OK"
 }

@@ -109,6 +109,14 @@ pub enum ErrorCode {
     // Deprecation & Modernization Warnings (W0100)
     DeprecatedFeature,
 
+    // Canonical-Form Warnings (W-SYN-*): the language accepts a legacy or
+    // synonymous spelling, but the canonical keyword is something else.
+    // These are warnings (not errors) so existing code keeps compiling
+    // while nudging codebases toward one spelling per construct.
+    CanonicalKeyword,
+    CanonicalTypeSpelling,
+    BoolIntComparison,
+
     // Bridge Block Errors (E-BRIDGE-*, v1.4.2)
     BridgeTypeMismatch,
     BridgeUnsupportedType,
@@ -221,6 +229,9 @@ impl ErrorCode {
             ErrorCode::PoolCapacityExceeded => "E1406",
             ErrorCode::OptimizationUnproven => "E-OPT-001",
             ErrorCode::DeprecatedFeature => "W0100",
+            ErrorCode::CanonicalKeyword => "W-SYN-001",
+            ErrorCode::CanonicalTypeSpelling => "W-SYN-002",
+            ErrorCode::BoolIntComparison => "W-TYPE-002",
             ErrorCode::BridgeTypeMismatch => "E-BRIDGE-001",
             ErrorCode::BridgeUnsupportedType => "E-BRIDGE-002",
             ErrorCode::BridgeUnknownLanguage => "E-BRIDGE-003",
@@ -408,6 +419,15 @@ impl ErrorCode {
 
                 ErrorCode::DeprecatedFeature => {
                     "Устаревшая языковая конструкция: используйте современный аналог"
+                }
+                ErrorCode::CanonicalKeyword => {
+                    "Синонимичное ключевое слово: используйте каноническую форму"
+                }
+                ErrorCode::CanonicalTypeSpelling => {
+                    "Синонимичное написание типа: используйте каноническое имя типа"
+                }
+                ErrorCode::BoolIntComparison => {
+                    "Сравнение Bool с целым числом: типы должны совпадать"
                 }
                 ErrorCode::BridgeTypeMismatch => {
                     "Несоответствие типов аргументов декларативного моста"
@@ -630,6 +650,15 @@ impl ErrorCode {
 
                 ErrorCode::DeprecatedFeature => {
                     "Deprecated language construct: use the modern equivalent"
+                }
+                ErrorCode::CanonicalKeyword => {
+                    "Synonymous keyword: use the canonical spelling"
+                }
+                ErrorCode::CanonicalTypeSpelling => {
+                    "Synonymous type spelling: use the canonical type name"
+                }
+                ErrorCode::BoolIntComparison => {
+                    "Comparison between Bool and an integer: operand types must match"
                 }
                 ErrorCode::BridgeTypeMismatch => "Bridge argument type mismatch",
                 ErrorCode::BridgeUnsupportedType => {

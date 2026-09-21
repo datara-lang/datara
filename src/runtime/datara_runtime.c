@@ -1262,6 +1262,165 @@ void datara_rt_print_float(double v) {
     datara_rt_buf_write(buf, strlen(buf));
 }
 
+// v1.4.5 W2: Float32 printing. Shortest decimal that round-trips through the
+// FLOAT (f32) type — `0.1f + 0.2f` prints `0.3`, not the f64 artifact.
+// Placed after datara_rt_buf_write's definition (static inline above).
+void datara_rt_print_f32(float v) {
+    if (isnan(v)) {
+        datara_rt_buf_write(signbit(v) ? "-NaN" : "NaN", signbit(v) ? 4 : 3);
+        return;
+    }
+    if (isinf(v)) {
+        datara_rt_buf_write(v < 0 ? "-Infinity" : "Infinity", v < 0 ? 9 : 8);
+        return;
+    }
+    char buf[64];
+    if (v == floorf(v) && fabsf(v) < 1e7f) {
+        int len = snprintf(buf, sizeof(buf), "%.0f", (double)v);
+        datara_rt_buf_write(buf, (size_t)len);
+        return;
+    }
+    for (int prec = 4; prec < 10; prec++) {
+        snprintf(buf, sizeof(buf), "%.*g", prec, (double)v);
+        if (strtof(buf, NULL) == v) {
+            datara_rt_buf_write(buf, strlen(buf));
+            return;
+        }
+    }
+    snprintf(buf, sizeof(buf), "%.9g", (double)v);
+    datara_rt_buf_write(buf, strlen(buf));
+}
+
+void datara_rt_out_f32(float v) {
+    datara_rt_print_f32(v);
+    datara_rt_print_newline();
+}
+
+// v1.4.5 W3: Dec64 printing. The value is an i64 mantissa scaled by 10⁴;
+// print integer part, a decimal point, and exactly 4 fractional digits.
+// Trailing zeros in the fraction are trimmed for natural output (19.9900
+// prints as 19.99) while exact fixed-point representation is preserved.
+void datara_rt_print_dec64(int64_t val) {
+    char buf[48];
+    int64_t integer = val / 10000;
+    int64_t frac = val % 10000;
+    if (frac < 0) frac = -frac;
+    if (val < 0 && integer == 0) {
+        // Keep the sign visible for values in (-1, 0).
+        int len = snprintf(buf, sizeof(buf), "-0.%04lld", (long long)frac);
+        // Trim trailing zeros but keep at least one fractional digit.
+        while (len > 3 && buf[len - 1] == '0') len--;
+        datara_rt_buf_write(buf, (size_t)len);
+        return;
+    }
+    int len = snprintf(buf, sizeof(buf), "%lld.%04lld", (long long)integer, (long long)frac);
+    while (len > 0 && buf[len - 1] == '0') len--;
+    if (len > 0 && buf[len - 1] == '.') len--;
+    datara_rt_buf_write(buf, (size_t)len);
+}
+
+void datara_rt_out_dec64(int64_t val) {
+    datara_rt_print_dec64(val);
+    datara_rt_print_newline();
+}
+
+// v1.4.5 W3: Dec64 -> string for fmt"..." interpolation (FormatStr). Uses the
+// shared TLS scratch allocator so the result outlives the call like the
+// other *_to_str helpers; reuses the same formatting as datara_rt_print_dec64
+// (4 fractional digits, trailing zeros trimmed).
+const char* datara_rt_dec_to_str(int64_t val) {
+    char* buf = datara_str_scratch_alloc(48);
+    if (!buf) return "";
+    int64_t integer = val / 10000;
+    int64_t frac = val % 10000;
+    if (frac < 0) frac = -frac;
+    int len;
+    if (val < 0 && integer == 0) {
+        len = snprintf(buf, 48, "-0.%04lld", (long long)frac);
+    } else {
+        len = snprintf(buf, 48, "%lld.%04lld", (long long)integer, (long long)frac);
+    }
+    while (len > 0 && buf[len - 1] == '0') len--;
+    if (len > 0 && buf[len - 1] == '.') len--;
+    buf[len] = '\0';
+    return buf;
+}
+
+// v1.4.5 W4: fmt"{x:.N}" — fixed-precision double formatting. Negative N
+// (e.g. {x:.0}) means at least one fractional digit ("%.0f" would print no
+// point at all, which reads like an integer). Shares the TLS scratch
+// allocator with the other *_to_str helpers so the text outlives the call.
+const char* datara_rt_float_to_str_prec(double v, int64_t prec) {
+    if (isnan(v)) {
+        return signbit(v) ? "-NaN" : "NaN";
+    }
+    if (isinf(v)) {
+        return v < 0 ? "-Infinity" : "Infinity";
+    }
+    char* buf = datara_str_scratch_alloc(64);
+    if (!buf) return "";
+    if (prec < 0) prec = 0;
+    if (prec > 60) prec = 60;
+    snprintf(buf, 64, "%.*f", (int)prec, v);
+    return buf;
+}
+
+// v1.4.5 W4: fmt"{x:x}" / "{x:X}" / "{x:o}" / "{x:b}" — integer radix
+// formatting. Signed values print their two's-complement bit pattern as an
+// unsigned number (hex on negatives must stay predictable, not sign-prefixed).
+// Uppercase requests uppercase hex digits.
+const char* datara_rt_int_to_str_radix(int64_t v, int64_t radix, int64_t upper) {
+    char* buf = datara_str_scratch_alloc(72);
+    if (!buf) return "";
+    const char* digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
+    uint64_t uv = (uint64_t)v;
+    char tmp[72];
+    int pos = 0;
+    uint64_t base = radix <= 1 ? 16 : (radix > 16 ? 16 : (uint64_t)radix);
+    do {
+        tmp[pos++] = digits[uv % base];
+        uv /= base;
+    } while (uv > 0);
+    int len = 0;
+    while (pos > 0) {
+        buf[len++] = tmp[--pos];
+    }
+    buf[len] = '\0';
+    return buf;
+}
+
+// v1.4.5 W4: fmt"{d:.N}" — fixed-precision Dec64 formatting. The mantissa is
+// a fixed-point scale-10^4 value; precision N means N fractional digits
+// (round-half-away-from-zero beyond the 4 stored digits), and N > 4 pads
+// with zeros so {d:.6} prints exactly 6 decimals.
+const char* datara_rt_dec64_to_str_prec(int64_t val, int64_t prec) {
+    char* buf = datara_str_scratch_alloc(64);
+    if (!buf) return "";
+    if (prec < 0) prec = 0;
+    if (prec > 40) prec = 40;
+    int64_t scale = 1;
+    for (int64_t i = 0; i < prec; i++) scale *= 10;
+    int64_t scaled = val * scale; // units of 10^-prec
+    // Round from the stored 10^-4 grid to the requested 10^-prec grid.
+    if (prec < 4) {
+        int64_t drop = scaled % 10000;
+        scaled /= 10000;
+        if (drop <= -5000) scaled--;
+        else if (drop >= 5000) scaled++;
+    }
+    int64_t integer = scaled / scale;
+    int64_t frac = scaled % scale;
+    if (frac < 0) frac = -frac;
+    if (scaled < 0 && integer == 0) {
+        snprintf(buf, 64, "-0.%0*lld", (int)prec, (long long)frac);
+    } else if (prec == 0) {
+        snprintf(buf, 64, "%lld", (long long)integer);
+    } else {
+        snprintf(buf, 64, "%lld.%0*lld", (long long)integer, (int)prec, (long long)frac);
+    }
+    return buf;
+}
+
 void datara_rt_print_bool(int64_t v) {
     if (v) {
         datara_rt_buf_write("true", 4);
@@ -1307,6 +1466,14 @@ void datara_rt_err_print_int(int64_t v) {
     char buf[32];
     size_t len = datara_fast_i64toa(v, buf);
     datara_rt_err_buf_write(buf, len);
+}
+
+// v1.4.5 W3: Dec64 value on stderr. There is no err-dec64 primitive, so the
+// exact fixed-point text is produced by datara_rt_dec_to_str and written to
+// the stderr buffer.
+void datara_rt_err_print_dec64_str(int64_t v) {
+    const char* s = datara_rt_dec_to_str(v);
+    datara_rt_err_buf_write(s, strlen(s));
 }
 
 void datara_rt_err_print_float(double v) {
@@ -1716,13 +1883,6 @@ double datara_rt_input_float(const char* prompt) {
         return strtod(s, NULL);
     }
     return datara_rt_fast_read_float();
-}
-
-void datara_rt_out_dec64(int64_t val) {
-    int64_t integer = val / 10000;
-    int64_t frac = val % 10000;
-    if (frac < 0) frac = -frac;
-    printf("%lld.%04lld\n", (long long)integer, (long long)frac);
 }
 
 int64_t datara_rt_str_eq(const char* a, const char* b) {
@@ -2738,6 +2898,115 @@ void* datara_rt_list_pop_outcome(int64_t* list) {
     int64_t val = list[count];
     list[0] = count - 1;
     return datara_rt_outcome_build_raw(1, val, "");
+}
+
+// v1.4.5 W1: checked arithmetic builtins. `bits` selects the operand
+// width (8/16/32/64); both operands and the payload ride in I64 slots.
+// Overflow is detected at the *operand* width, not i64, so Int8 arithmetic
+// reports the Int8 overflow. The result is an Outcome<IntN> object in the
+// stdlib Outcome<T> layout: ok carries the raw payload, err carries the
+// diagnostic message. Narrowing on the ok path is the caller's business
+// (the checker knows the payload type and unwrapping narrows).
+static void* datara_rt_checked_op_outcome(int bits, int64_t a, int64_t b, int is_sub, int is_mul) {
+    int64_t res = 0;
+    int ovf = 0;
+    const char* opname = is_sub ? "subtraction" : (is_mul ? "multiplication" : "addition");
+#if defined(__GNUC__) || defined(__clang__)
+    if (is_mul) {
+        if (bits == 8)  ovf = __builtin_mul_overflow((int8_t)a,  (int8_t)b,  (int8_t*)&res);
+        else if (bits == 16) ovf = __builtin_mul_overflow((int16_t)a, (int16_t)b, (int16_t*)&res);
+        else if (bits == 32) ovf = __builtin_mul_overflow((int32_t)a, (int32_t)b, (int32_t*)&res);
+        else ovf = __builtin_mul_overflow(a, b, &res);
+    } else if (is_sub) {
+        if (bits == 8)  ovf = __builtin_sub_overflow((int8_t)a,  (int8_t)b,  (int8_t*)&res);
+        else if (bits == 16) ovf = __builtin_sub_overflow((int16_t)a, (int16_t)b, (int16_t*)&res);
+        else if (bits == 32) ovf = __builtin_sub_overflow((int32_t)a, (int32_t)b, (int32_t*)&res);
+        else ovf = __builtin_sub_overflow(a, b, &res);
+    } else {
+        if (bits == 8)  ovf = __builtin_add_overflow((int8_t)a,  (int8_t)b,  (int8_t*)&res);
+        else if (bits == 16) ovf = __builtin_add_overflow((int16_t)a, (int16_t)b, (int16_t*)&res);
+        else if (bits == 32) ovf = __builtin_add_overflow((int32_t)a, (int32_t)b, (int32_t*)&res);
+        else ovf = __builtin_add_overflow(a, b, &res);
+    }
+#else
+    // MSVC fallback: signed overflow at each width, computed in i64 with
+    // explicit range checks (no UB: the widened multiply/add never overflows).
+    if (is_mul) {
+        if (bits == 8) {
+            int64_t prod = (int64_t)(int8_t)a * (int64_t)(int8_t)b;
+            ovf = prod < INT8_MIN || prod > INT8_MAX;
+            res = (int8_t)prod;
+        } else if (bits == 16) {
+            int64_t prod = (int64_t)(int16_t)a * (int64_t)(int16_t)b;
+            ovf = prod < INT16_MIN || prod > INT16_MAX;
+            res = (int16_t)prod;
+        } else if (bits == 32) {
+            int64_t prod = (int64_t)(int32_t)a * (int64_t)(int32_t)b;
+            ovf = prod < INT32_MIN || prod > INT32_MAX;
+            res = (int32_t)prod;
+        } else {
+            ovf = (b != 0) && ((a > INT64_MAX / b) || (a < INT64_MIN / b))
+                  && !(a == -1 && b == INT64_MIN) && !(b == -1 && a == INT64_MIN);
+            res = a * b;
+        }
+    } else if (is_sub) {
+        if (bits == 8) {
+            int64_t diff = (int8_t)a - (int64_t)(int8_t)b;
+            ovf = diff < INT8_MIN || diff > INT8_MAX;
+            res = (int8_t)diff;
+        } else if (bits == 16) {
+            int64_t diff = (int16_t)a - (int64_t)(int16_t)b;
+            ovf = diff < INT16_MIN || diff > INT16_MAX;
+            res = (int16_t)diff;
+        } else if (bits == 32) {
+            int64_t diff = (int32_t)a - (int64_t)(int32_t)b;
+            ovf = diff < INT32_MIN || diff > INT32_MAX;
+            res = (int32_t)diff;
+        } else {
+            ovf = (b < 0 && a > INT64_MAX + b) || (b > 0 && a < INT64_MIN + b);
+            res = a - b;
+        }
+    } else {
+        if (bits == 8) {
+            int64_t sum = (int8_t)a + (int64_t)(int8_t)b;
+            ovf = sum < INT8_MIN || sum > INT8_MAX;
+            res = (int8_t)sum;
+        } else if (bits == 16) {
+            int64_t sum = (int16_t)a + (int64_t)(int16_t)b;
+            ovf = sum < INT16_MIN || sum > INT16_MAX;
+            res = (int16_t)sum;
+        } else if (bits == 32) {
+            int64_t sum = (int32_t)a + (int64_t)(int32_t)b;
+            ovf = sum < INT32_MIN || sum > INT32_MAX;
+            res = (int32_t)sum;
+        } else {
+            ovf = (b > 0 && a > INT64_MAX - b) || (b < 0 && a < INT64_MIN - b);
+            res = a + b;
+        }
+    }
+#endif
+    if (ovf) {
+        char stack_msg[96];
+        snprintf(stack_msg, sizeof(stack_msg),
+                 "overflow in Int%d %s: %lld %s %lld",
+                 (int)bits, opname, (long long)a, is_mul ? "*" : (is_sub ? "-" : "+"), (long long)b);
+        char* msg = datara_str_scratch_alloc(strlen(stack_msg) + 1);
+        if (msg) memcpy(msg, stack_msg, strlen(stack_msg) + 1);
+        return datara_rt_outcome_build_raw(0, 0, msg ? msg : "integer overflow");
+    }
+    return datara_rt_outcome_build_raw(1, res, "");
+}
+
+void* datara_rt_checked_add_outcome(int bits, int64_t a, int64_t b) {
+    return datara_rt_checked_op_outcome(bits, a, b, 0, 0);
+}
+
+void* datara_rt_checked_sub_outcome(int bits, int64_t a, int64_t b) {
+    return datara_rt_checked_op_outcome(bits, a, b, 1, 0);
+}
+
+void* datara_rt_checked_mul_outcome(int bits, int64_t a, int64_t b) {
+    return datara_rt_checked_op_outcome(bits, a, b, 0, 1);
 }
 
 void* datara_rt_file_read_checked(const char* path) {

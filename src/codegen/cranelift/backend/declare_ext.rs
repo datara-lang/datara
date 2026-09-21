@@ -879,6 +879,71 @@ pub fn declare_runtime_ext<M: ClifModule>(
     );
     func_ids.insert("float_to_str".into(), (rt_f2s_id, rt_f2s_sig.clone()));
 
+    // v1.4.5 W4 fmt specifiers: fixed-precision float, radix int, and
+    // fixed-precision Dec64 converters used by the synthetic lowering calls
+    // for fmt"{x:.2}" / fmt"{x:x}" / fmt"{d:.N}".
+    let mut rt_f2sp_sig = Signature::new(call_conv);
+    rt_f2sp_sig.params.push(AbiParam::new(clif_types::F64));
+    rt_f2sp_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_f2sp_sig.returns.push(AbiParam::new(clif_types::I64));
+    let rt_f2sp_id = module
+        .declare_function(
+            "datara_rt_float_to_str_prec",
+            Linkage::Import,
+            &rt_f2sp_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_float_to_str_prec".into(),
+        (rt_f2sp_id, rt_f2sp_sig.clone()),
+    );
+    func_ids.insert(
+        "float_to_str_prec".into(),
+        (rt_f2sp_id, rt_f2sp_sig.clone()),
+    );
+
+    let mut rt_i2sr_sig = Signature::new(call_conv);
+    for _ in 0..3 {
+        rt_i2sr_sig.params.push(AbiParam::new(clif_types::I64));
+    }
+    rt_i2sr_sig.returns.push(AbiParam::new(clif_types::I64));
+    let rt_i2sr_id = module
+        .declare_function(
+            "datara_rt_int_to_str_radix",
+            Linkage::Import,
+            &rt_i2sr_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_int_to_str_radix".into(),
+        (rt_i2sr_id, rt_i2sr_sig.clone()),
+    );
+    func_ids.insert(
+        "int_to_str_radix".into(),
+        (rt_i2sr_id, rt_i2sr_sig.clone()),
+    );
+
+    let mut rt_d2sp_sig = Signature::new(call_conv);
+    for _ in 0..2 {
+        rt_d2sp_sig.params.push(AbiParam::new(clif_types::I64));
+    }
+    rt_d2sp_sig.returns.push(AbiParam::new(clif_types::I64));
+    let rt_d2sp_id = module
+        .declare_function(
+            "datara_rt_dec64_to_str_prec",
+            Linkage::Import,
+            &rt_d2sp_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_dec64_to_str_prec".into(),
+        (rt_d2sp_id, rt_d2sp_sig.clone()),
+    );
+    func_ids.insert(
+        "dec64_to_str_prec".into(),
+        (rt_d2sp_id, rt_d2sp_sig),
+    );
+
     // String: bool_to_str (same shape as int_to_str: i64 -> ptr). Registered
     // in the JIT reg!-table since v1.3.1 but missing from the AOT table and
     // the typechecker prelude; exposed for parity (README documents it).

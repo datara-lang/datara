@@ -15,9 +15,15 @@ void        datara_rt_out_int(int64_t v);
 void        datara_rt_out_bool(int64_t v);
 const char* datara_rt_bool_to_str(int64_t v);
 void        datara_rt_out_float(double v);
+void        datara_rt_out_f32(float v);
+void        datara_rt_print_f32(float v);
 const char* datara_rt_float_to_str(double v);
 void        datara_rt_out_str(const char* s);
 void        datara_rt_out_dec64(int64_t v);
+const char* datara_rt_dec_to_str(int64_t v);
+const char* datara_rt_float_to_str_prec(double v, int64_t prec);
+const char* datara_rt_int_to_str_radix(int64_t v, int64_t radix, int64_t upper);
+const char* datara_rt_dec64_to_str_prec(int64_t val, int64_t prec);
 void        datara_rt_err(const char* s);
 void        datara_rt_exit(int32_t code);
 void        datara_rt_panic(const char* s);
@@ -154,6 +160,7 @@ void        datara_rt_flush_if_tty(void);
 void        datara_rt_print_list(void* list);
 void        datara_rt_err_print_str(const char* s);
 void        datara_rt_err_print_int(int64_t v);
+void        datara_rt_err_print_dec64_str(int64_t v);
 void        datara_rt_err_print_float(double v);
 void        datara_rt_err_print_bool(int64_t v);
 void        datara_rt_err_print_newline(void);
@@ -589,6 +596,12 @@ int64_t     datara_rt_checked_sub(int64_t a, int64_t b);
 int64_t     datara_rt_checked_mul(int64_t a, int64_t b);
 int64_t     datara_rt_checked_div(int64_t a, int64_t b);
 int64_t     datara_rt_checked_rem(int64_t a, int64_t b);
+// v1.4.5 W1: checked arithmetic returning Outcome<IntN> objects (stdlib
+// Outcome<T> layout: is_success/value/error_msg). bits selects the operand
+// width (8/16/32/64); the overflow is detected at the operand width.
+void*       datara_rt_checked_add_outcome(int bits, int64_t a, int64_t b);
+void*       datara_rt_checked_sub_outcome(int bits, int64_t a, int64_t b);
+void*       datara_rt_checked_mul_outcome(int bits, int64_t a, int64_t b);
 int64_t     datara_rt_saturating_add(int64_t a, int64_t b);
 int64_t     datara_rt_saturating_sub(int64_t a, int64_t b);
 int64_t     datara_rt_saturating_mul(int64_t a, int64_t b);

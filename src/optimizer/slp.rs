@@ -43,6 +43,10 @@ impl SLPOptimizer {
                 f(*dest);
                 f(*operand);
             }
+            Inst::Cast { dest, value, .. } => {
+                f(*dest);
+                f(*value);
+            }
             Inst::ConstInt { dest, .. }
             | Inst::ConstFloat { dest, .. }
             | Inst::ConstBool { dest, .. }

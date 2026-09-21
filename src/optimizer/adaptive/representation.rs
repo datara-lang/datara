@@ -67,7 +67,7 @@ impl RepresentationAdapter {
                     Inst::Return { value: Some(v) } => {
                         escaping_values.insert(*v);
                     }
-                    Inst::Out { value } | Inst::Err { value } => {
+                    Inst::Out { value, .. } | Inst::Err { value } => {
                         escaping_values.insert(*value);
                     }
                     _ => {}

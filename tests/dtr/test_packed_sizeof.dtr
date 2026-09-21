@@ -1,0 +1,24 @@
+// v1.4.5 W1 regression: packed layout honors narrow field widths.
+// Q = { Int8, Int8, Int32, Int64 } packs to 1+1+4+8 = 14 bytes
+// (the pre-W1 layout matcher treated Int8 as 8 bytes, yielding 32).
+
+@packed
+struct Q {
+    a: Int8
+    b: Int8
+    c: Int32
+    d: Int64
+}
+
+fn main() -> Int {
+    let total = size_of(Q)
+    require total == 14
+    out total
+
+    let q = Q { a: 1i8, b: 2i8, c: 3i32, d: 4i64 }
+    out q.a
+    out q.b
+    out q.c
+    out q.d
+    return 0
+}

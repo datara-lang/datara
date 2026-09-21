@@ -183,7 +183,8 @@ fn expr_has_asm_kind(expr: &Expr, structured_only: bool) -> bool {
         | Expr::ErrorPropagate(expr, _)
         | Expr::Wrapping(expr, _)
         | Expr::Saturating(expr, _)
-        | Expr::Comptime { expr, .. } => expr_has_asm_kind(expr, structured_only),
+        | Expr::Comptime { expr, .. }
+        | Expr::Cast { expr, .. } => expr_has_asm_kind(expr, structured_only),
         Expr::Call { callee, args, .. } => {
             expr_has_asm_kind(callee, structured_only)
                 || args.iter().any(|a| expr_has_asm_kind(a, structured_only))
@@ -796,6 +797,11 @@ pub enum Expr {
     InterpolatedString {
         parts: Vec<String>,
         expressions: Vec<Expr>,
+        // v1.4.5 W4: per-expression format specifiers (".2", "x", "X", "o",
+        // "b"). Same length as `expressions` (empty string = no spec); serde
+        // default keeps older serialized ASTs valid.
+        #[serde(default)]
+        specs: Vec<String>,
         span: SourceSpan,
     },
     Binary {
@@ -880,6 +886,13 @@ pub enum Expr {
     },
     Wrapping(Box<Expr>, SourceSpan),
     Saturating(Box<Expr>, SourceSpan),
+    /// Explicit type cast: `expr as Type` (Gate 7 numeric conversions plus
+    /// narrowing reinterpretation for the small integer families).
+    Cast {
+        expr: Box<Expr>,
+        target_ty: String,
+        span: SourceSpan,
+    },
     /// A braced block used in expression position, e.g. a match/decide/select
     /// arm body: `{ let y = 2; y }`. The trailing expression (if any) is the
     /// block's value; `None` means the block evaluates to Unit.
@@ -913,6 +926,7 @@ impl Expr {
             | Expr::Comptime { span: s, .. }
             | Expr::Wrapping(_, s)
             | Expr::Saturating(_, s)
+            | Expr::Cast { span: s, .. }
             | Expr::Block(_, _, s) => s,
         }
     }
@@ -968,6 +982,9 @@ pub struct SelectArm {
 pub enum LiteralValue {
     Int(i64),
     Float(f64),
+    /// v1.4.5 W3: fixed-point decimal literal `19.99d`, stored as the raw
+    /// i64 mantissa (value × 10⁴). Exact decimal arithmetic, no binary FP error.
+    Dec64(i64),
     String(String),
     Bool(bool),
     Char(char),
@@ -1030,6 +1047,7 @@ pub fn infer_captures(
             | Expr::ErrorPropagate(expr, _)
             | Expr::Wrapping(expr, _)
             | Expr::Saturating(expr, _)
+            | Expr::Cast { expr, .. }
             | Expr::Comptime { expr, .. } => {
                 walk_expr(expr, params, enclosing, is_escaping, captured, seen);
             }
@@ -1244,6 +1262,8 @@ pub fn infer_captures(
 pub enum StaticVal {
     Int(i64),
     Float(f64),
+    /// v1.4.5 W3: Dec64 raw mantissa (value × 10⁴).
+    Dec64(i64),
     Bool(bool),
     String(String),
     Char(char),
@@ -1260,6 +1280,7 @@ pub fn eval_static_expr(
         Expr::Literal(lit, _) => match lit {
             LiteralValue::Int(n) => StaticVal::Int(*n),
             LiteralValue::Float(f) => StaticVal::Float(*f),
+            LiteralValue::Dec64(m) => StaticVal::Dec64(*m),
             LiteralValue::Bool(b) => StaticVal::Bool(*b),
             LiteralValue::String(s) => StaticVal::String(s.clone()),
             LiteralValue::Char(c) => StaticVal::Char(*c),

@@ -3,6 +3,7 @@ use crate::dmir::Module;
 use crate::types::TypeChecker;
 use std::path::{Path, PathBuf};
 
+pub mod bridge_loader;
 pub mod cranelift;
 pub mod linker;
 pub mod llvm;

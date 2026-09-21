@@ -15,8 +15,24 @@ mod resolve;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DataraType {
+    /// 64-bit signed integer (canonical `Int`). `Int64` is its
+    /// W-SYN-002-compatible spelling — the canonical enum variant is `Int`.
     Int,
+    /// 64-bit unsigned integer (canonical `UInt`).
+    UInt,
+    /// 64-bit float (canonical `Float`).
     Float,
+    /// 32-bit float (`Float32`, W-SYN-002 alias `f32`).
+    Float32,
+    /// Fixed-width signed integers (v1.4.5 W1).
+    Int8,
+    Int16,
+    Int32,
+    /// Fixed-width unsigned integers (v1.4.5 W1).
+    UInt8,
+    UInt16,
+    UInt32,
+    UInt64,
     Bool,
     String,
     Char,
@@ -45,7 +61,6 @@ pub enum DataraType {
     },
     Val,
     Dec64,
-    Dec128,
     RawPtr,
     Range {
         base: Box<DataraType>,
@@ -69,8 +84,13 @@ impl DataraType {
             DataraType::Unit | DataraType::Never => 0,
             DataraType::Bool => 1,
             DataraType::Char => 4,
-            DataraType::Int | DataraType::Float | DataraType::Dec64 | DataraType::RawPtr => 8,
-            DataraType::Dec128 | DataraType::SimdF32x4 | DataraType::SimdI32x4 => 16,
+            DataraType::Int | DataraType::UInt | DataraType::Float
+            | DataraType::Dec64 | DataraType::RawPtr => 8,
+            DataraType::Int8 | DataraType::UInt8 => 1,
+            DataraType::Int16 | DataraType::UInt16 => 2,
+            DataraType::Int32 | DataraType::UInt32 | DataraType::UInt64
+            | DataraType::Float32 => 4,
+            DataraType::SimdF32x4 | DataraType::SimdI32x4 => 16,
             DataraType::String => 24, // { ptr: *u8, len: usize, cap: usize }
             DataraType::Trait(_) => 16, // Dynamic trait object fat pointer: { instance_ptr: 8, vtable_ptr: 8 }
             DataraType::Option(inner) => 8 + inner.size_in_bytes(), // 8-byte tag + payload
@@ -100,13 +120,21 @@ impl DataraType {
     pub fn is_pod(&self) -> bool {
         match self {
             DataraType::Int
+            | DataraType::UInt
+            | DataraType::Int8
+            | DataraType::Int16
+            | DataraType::Int32
+            | DataraType::UInt8
+            | DataraType::UInt16
+            | DataraType::UInt32
+            | DataraType::UInt64
             | DataraType::Float
+            | DataraType::Float32
             | DataraType::Bool
             | DataraType::Char
             | DataraType::Unit
             | DataraType::RawPtr
             | DataraType::Dec64
-            | DataraType::Dec128
             | DataraType::SimdF32x4
             | DataraType::SimdI32x4 => true,
             DataraType::Range { base, .. } | DataraType::Measure { base, .. } => base.is_pod(),
@@ -339,6 +367,86 @@ impl DataraType {
         false
     }
 
+    /// v1.4.5 W1: is this a (narrow or wide) integer type? Used to decide
+    /// whether an Int literal may adopt an operand's integer width in a
+    /// binary expression (literal labeling, not a Gate-7 conversion).
+    pub fn is_integer_type(t: &DataraType) -> bool {        matches!(
+            t,
+            DataraType::Int
+                | DataraType::Int8
+                | DataraType::Int16
+                | DataraType::Int32
+                | DataraType::UInt
+                | DataraType::UInt8
+                | DataraType::UInt16
+                | DataraType::UInt32
+                | DataraType::UInt64
+        )
+    }
+
+    /// v1.4.5 W1: does the integer literal fit the narrow target's range?
+    /// Pure value predicate used both for literal coercibility at
+    /// declaration sites and by `check_range_and_measure_assignment`.
+    pub fn narrow_literal_fits(target: &DataraType, v: i64) -> bool {
+        match target {
+            DataraType::Int8 => (-128i64..=127).contains(&v),
+            DataraType::Int16 => (-32768i64..=32767).contains(&v),
+            DataraType::Int32 => (i32::MIN as i64..=i32::MAX as i64).contains(&v),
+            DataraType::UInt8 => (0..=255).contains(&v),
+            DataraType::UInt16 => (0..=65535).contains(&v),
+            DataraType::UInt32 => (0..=u32::MAX as i64).contains(&v),
+            DataraType::UInt64 => v >= 0,
+            _ => true,
+        }
+    }
+
+    /// v1.4.5 W2: is this a floating-point type (wide Float or Float32)?
+    /// Float literals may adopt the operand's float width analogously to
+    /// int literals (compile-time labeling, not a Gate-7 conversion).
+    pub fn is_float_type(t: &DataraType) -> bool {
+        matches!(t, DataraType::Float | DataraType::Float32)
+    }
+
+    /// v1.4.5 W1: `Int` is compatible with a narrow integer target when the
+    /// source is an INT LITERAL proven in range at compile time (the caller
+    /// passes `expr_is_in_range_literal`). This is literal-only coercibility:
+    /// a runtime `Int` value NEVER silently narrows (Gate 7 preserved).
+    pub fn is_compatible_narrow_literal(
+        target: &DataraType,
+        source: &DataraType,
+        expr_is_in_range_literal: bool,
+    ) -> bool {
+        if !expr_is_in_range_literal {
+            return false;
+        }
+        if *source != DataraType::Int {
+            return false;
+        }
+        matches!(
+            target,
+            DataraType::Int8
+                | DataraType::Int16
+                | DataraType::Int32
+                | DataraType::UInt8
+                | DataraType::UInt16
+                | DataraType::UInt32
+                | DataraType::UInt64
+        )
+    }
+
+    /// v1.4.5 W2: a FLOAT literal coerces to an annotated `Float32`
+    /// (analogous to the int-literal narrowing above). Every f32 literal
+    /// is representable approximately, so no range proof is needed — only
+    /// the literal itself (a runtime Float value still never narrows,
+    /// Gate 7).
+    pub fn is_compatible_float_literal(
+        target: &DataraType,
+        source: &DataraType,
+        expr_is_float_literal: bool,
+    ) -> bool {
+        expr_is_float_literal && *source == DataraType::Float && *target == DataraType::Float32
+    }
+
     /// If this type flows through `?` as a Result-like value, return its
     /// (ok, err) payload types.
     ///
@@ -395,7 +503,16 @@ impl std::fmt::Display for DataraType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DataraType::Int => write!(f, "Int"),
+            DataraType::UInt => write!(f, "UInt"),
             DataraType::Float => write!(f, "Float"),
+            DataraType::Float32 => write!(f, "Float32"),
+            DataraType::Int8 => write!(f, "Int8"),
+            DataraType::Int16 => write!(f, "Int16"),
+            DataraType::Int32 => write!(f, "Int32"),
+            DataraType::UInt8 => write!(f, "UInt8"),
+            DataraType::UInt16 => write!(f, "UInt16"),
+            DataraType::UInt32 => write!(f, "UInt32"),
+            DataraType::UInt64 => write!(f, "UInt64"),
             DataraType::Bool => write!(f, "Bool"),
             DataraType::String => write!(f, "Str"),
             DataraType::Char => write!(f, "Char"),
@@ -438,8 +555,7 @@ impl std::fmt::Display for DataraType {
                 write!(f, "({}) -> {}", p_str, return_type)
             }
             DataraType::Val => write!(f, "Val"),
-            DataraType::Dec64 => write!(f, "dec64"),
-            DataraType::Dec128 => write!(f, "dec128"),
+            DataraType::Dec64 => write!(f, "Dec64"),
             DataraType::RawPtr => write!(f, "RawPtr"),
             DataraType::Trait(t) => write!(f, "{}", t),
             DataraType::Range { base, min, max } => write!(f, "{}<{}..{}>", base, min, max),

@@ -996,6 +996,7 @@ pub fn substitute_self_in_expr(expr: &mut Expr, target: &str) {
         Expr::ErrorPropagate(inner, _)
         | Expr::Wrapping(inner, _)
         | Expr::Saturating(inner, _)
+        | Expr::Cast { expr: inner, .. }
         | Expr::Comptime { expr: inner, .. } => {
             substitute_self_in_expr(inner, target);
         }

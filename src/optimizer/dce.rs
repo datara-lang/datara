@@ -383,7 +383,7 @@ impl Optimizer {
                 used_values.insert(*object);
                 used_values.insert(*value);
             }
-            Inst::Out { value } | Inst::Err { value } => {
+            Inst::Out { value, .. } | Inst::Err { value } => {
                 used_values.insert(*value);
             }
             Inst::FormatStr { values, .. } => {
@@ -583,6 +583,7 @@ impl Optimizer {
                         | Inst::ConstBool { dest, .. }
                         | Inst::BinOp { dest, .. }
                         | Inst::UnOp { dest, .. }
+                        | Inst::Cast { dest, .. }
                         | Inst::Call { dest, .. }
                         | Inst::LoadVar { dest, .. }
                         | Inst::StructInit { dest, .. }

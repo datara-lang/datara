@@ -16,6 +16,7 @@ unsafe extern "C" {
     pub fn datara_rt_out_bool(v: i64);
     pub fn datara_rt_bool_to_str(v: i64) -> *const c_char;
     pub fn datara_rt_out_float(v: f64);
+    pub fn datara_rt_out_f32(v: f32);
     pub fn datara_rt_float_to_str(v: f64) -> *const c_char;
     pub fn datara_rt_out_str(s: *const c_char);
     pub fn datara_rt_out_dec64(v: i64);
@@ -28,6 +29,8 @@ unsafe extern "C" {
     pub fn datara_rt_print_str(s: *const c_char);
     pub fn datara_rt_print_int(v: i64);
     pub fn datara_rt_print_float(v: f64);
+    pub fn datara_rt_print_f32(v: f32);
+    pub fn datara_rt_print_dec64(v: i64);
     pub fn datara_rt_print_bool(v: i64);
     pub fn datara_rt_print_space();
     pub fn datara_rt_print_newline();
@@ -35,6 +38,7 @@ unsafe extern "C" {
     pub fn datara_rt_print_list(list: *mut ());
     pub fn datara_rt_err_print_str(s: *const c_char);
     pub fn datara_rt_err_print_int(v: i64);
+    pub fn datara_rt_err_print_dec64_str(v: i64);
     pub fn datara_rt_err_print_float(v: f64);
     pub fn datara_rt_err_print_bool(v: i64);
     pub fn datara_rt_err_print_newline();
@@ -79,6 +83,11 @@ unsafe extern "C" {
     pub fn datara_rt_clear_capture();
 
     pub fn datara_rt_int_to_str(v: i64) -> *const c_char;
+    pub fn datara_rt_dec_to_str(v: i64) -> *const c_char;
+    // v1.4.5 W4 fmt specifiers: precision/radix converters.
+    pub fn datara_rt_float_to_str_prec(v: f64, prec: i64) -> *const c_char;
+    pub fn datara_rt_int_to_str_radix(v: i64, radix: i64, upper: i64) -> *const c_char;
+    pub fn datara_rt_dec64_to_str_prec(v: i64, prec: i64) -> *const c_char;
     pub fn datara_rt_str_concat(a: *const c_char, b: *const c_char) -> *const c_char;
     pub fn datara_rt_str_concat_3(
         a: *const c_char,
@@ -249,6 +258,10 @@ unsafe extern "C" {
     pub fn datara_rt_list_set(list: *mut i64, idx: i64, val: i64) -> i64;
     // v1.4.1: checked pop (Outcome<T>) and the full List<T> protocol.
     pub fn datara_rt_list_pop_outcome(list: *mut i64) -> *mut ();
+    // v1.4.5 W1: checked arithmetic returning Outcome<IntN> objects.
+    pub fn datara_rt_checked_add_outcome(bits: i64, a: i64, b: i64) -> *mut ();
+    pub fn datara_rt_checked_sub_outcome(bits: i64, a: i64, b: i64) -> *mut ();
+    pub fn datara_rt_checked_mul_outcome(bits: i64, a: i64, b: i64) -> *mut ();
     pub fn datara_rt_list_first(list: *mut i64) -> *mut ();
     pub fn datara_rt_list_last(list: *mut i64) -> *mut ();
     pub fn datara_rt_list_sort(list: *mut i64, mode: i64, elem_kind: i64) -> i64;
@@ -439,6 +452,7 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_bool_to_str", datara_rt_bool_to_str);
     reg!("bool_to_str", datara_rt_bool_to_str);
     reg!("datara_rt_out_float", datara_rt_out_float);
+    reg!("datara_rt_out_f32", datara_rt_out_f32);
     reg!("datara_rt_float_to_str", datara_rt_float_to_str);
     reg!("float_to_str", datara_rt_float_to_str);
     reg!("datara_rt_out_str", datara_rt_out_str);
@@ -481,6 +495,9 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_print_str", datara_rt_print_str);
     reg!("datara_rt_print_int", datara_rt_print_int);
     reg!("datara_rt_print_float", datara_rt_print_float);
+    reg!("datara_rt_print_f32", datara_rt_print_f32);
+    reg!("datara_rt_print_dec64", datara_rt_print_dec64);
+    reg!("datara_rt_out_dec64", datara_rt_out_dec64);
     reg!("datara_rt_print_bool", datara_rt_print_bool);
     reg!("datara_rt_print_space", datara_rt_print_space);
     reg!("datara_rt_print_newline", datara_rt_print_newline);
@@ -491,6 +508,7 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_eprintln", datara_rt_eprintln);
     reg!("datara_rt_err_print_str", datara_rt_err_print_str);
     reg!("datara_rt_err_print_int", datara_rt_err_print_int);
+    reg!("datara_rt_err_print_dec64_str", datara_rt_err_print_dec64_str);
     reg!("datara_rt_err_print_float", datara_rt_err_print_float);
     reg!("datara_rt_err_print_bool", datara_rt_err_print_bool);
     reg!("datara_rt_err_print_newline", datara_rt_err_print_newline);
@@ -510,6 +528,14 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
 
     reg!("datara_rt_int_to_str", datara_rt_int_to_str);
     reg!("int_to_str", datara_rt_int_to_str);
+    reg!("datara_rt_dec_to_str", datara_rt_dec_to_str);
+    // v1.4.5 W4 fmt specifiers.
+    reg!("datara_rt_float_to_str_prec", datara_rt_float_to_str_prec);
+    reg!("float_to_str_prec", datara_rt_float_to_str_prec);
+    reg!("datara_rt_int_to_str_radix", datara_rt_int_to_str_radix);
+    reg!("int_to_str_radix", datara_rt_int_to_str_radix);
+    reg!("datara_rt_dec64_to_str_prec", datara_rt_dec64_to_str_prec);
+    reg!("dec64_to_str_prec", datara_rt_dec64_to_str_prec);
     reg!("datara_rt_str_concat", datara_rt_str_concat);
     reg!("str_concat", datara_rt_str_concat);
     reg!("datara_rt_str_concat_3", datara_rt_str_concat_3);
@@ -774,6 +800,9 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_list_get", datara_rt_list_get);
     reg!("datara_rt_list_set", datara_rt_list_set);
     reg!("datara_rt_list_pop_outcome", datara_rt_list_pop_outcome);
+    reg!("datara_rt_checked_add_outcome", datara_rt_checked_add_outcome);
+    reg!("datara_rt_checked_sub_outcome", datara_rt_checked_sub_outcome);
+    reg!("datara_rt_checked_mul_outcome", datara_rt_checked_mul_outcome);
     reg!("datara_rt_list_first", datara_rt_list_first);
     reg!("datara_rt_list_last", datara_rt_list_last);
     reg!("datara_rt_list_sort", datara_rt_list_sort);
@@ -984,12 +1013,28 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
 }
 
 pub fn create_jit_module(isa: Arc<dyn TargetIsa>) -> Result<JITModule, String> {
+    create_jit_module_with_bridges(isa, None)
+}
+
+/// v1.4.5: JIT module with bridge-DLL symbol fallback. When `bridges` is
+/// Some and non-empty, any symbol the internal runtime table and the
+/// platform process search cannot resolve is looked up inside the loaded
+/// bridge cdylibs (see `codegen::bridge_loader`).
+pub fn create_jit_module_with_bridges(
+    isa: Arc<dyn TargetIsa>,
+    bridges: Option<crate::codegen::bridge_loader::BridgeLibs>,
+) -> Result<JITModule, String> {
     let mut builder = JITBuilder::with_isa(isa, default_libcall_names());
     #[cfg(target_arch = "x86_64")]
     builder.memory_provider(Box::new(
         crate::codegen::cranelift::near_memory::NearMemoryProvider::new(),
     ));
     register_runtime_symbols(&mut builder);
+    if let Some(libs) = bridges {
+        if !libs.is_empty() {
+            builder.symbol_lookup_fn(Box::new(move |name: &str| libs.lookup(name)));
+        }
+    }
     Ok(JITModule::new(builder))
 }
 

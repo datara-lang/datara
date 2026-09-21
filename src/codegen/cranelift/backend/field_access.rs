@@ -31,12 +31,7 @@ pub fn resolve_field_offset(
 }
 
 pub fn get_field_type_size(fty: &str) -> u32 {
-    match fty {
-        "Byte" | "U8" | "I8" | "Bool" | "Char" => 1,
-        "U16" | "I16" => 2,
-        "U32" | "I32" | "F32" => 4,
-        _ => 8,
-    }
+    crate::dmir::ir::dm_repr_byte_size(fty)
 }
 
 pub fn emit_field_store(
@@ -51,7 +46,7 @@ pub fn emit_field_store(
     let v_ty = builder.func.dfg.value_type(val);
     if is_packed {
         match field_type {
-            "Byte" | "U8" | "I8" | "Bool" | "Char" => {
+            "Byte" | "U8" | "UInt8" | "I8" | "Int8" | "Bool" | "Char" => {
                 let v_i8 = if v_ty == clif_types::I8 {
                     val
                 } else {
@@ -59,7 +54,7 @@ pub fn emit_field_store(
                 };
                 builder.ins().store(flags, v_i8, base_addr, offset);
             }
-            "U16" | "I16" => {
+            "U16" | "UInt16" | "I16" | "Int16" => {
                 let v_i16 = if v_ty == clif_types::I16 {
                     val
                 } else {
@@ -67,7 +62,7 @@ pub fn emit_field_store(
                 };
                 builder.ins().store(flags, v_i16, base_addr, offset);
             }
-            "U32" | "I32" => {
+            "U32" | "UInt32" | "I32" | "Int32" => {
                 let v_i32 = if v_ty == clif_types::I32 {
                     val
                 } else {
@@ -75,7 +70,7 @@ pub fn emit_field_store(
                 };
                 builder.ins().store(flags, v_i32, base_addr, offset);
             }
-            "F32" => {
+            "F32" | "Float32" => {
                 let v_f32 = if v_ty == clif_types::F32 {
                     val
                 } else {
@@ -124,35 +119,37 @@ pub fn emit_field_load(
                 .ins()
                 .load(clif_types::F64, flags, base_addr, offset)
         }
-    } else if is_packed {
+    } else    if is_packed {
         match field_type {
-            "Byte" | "U8" | "Bool" | "Char" => {
+            // v1.4.5 W1: canonical narrow names route identically to the
+            // legacy short reprs via explicit arms below.
+            "Byte" | "U8" | "UInt8" | "Bool" | "Char" => {
                 let raw = builder.ins().load(clif_types::I8, flags, base_addr, offset);
                 builder.ins().uextend(clif_types::I64, raw)
             }
-            "I8" => {
+            "I8" | "Int8" => {
                 let raw = builder.ins().load(clif_types::I8, flags, base_addr, offset);
                 builder.ins().sextend(clif_types::I64, raw)
             }
-            "U16" => {
+            "U16" | "UInt16" => {
                 let raw = builder
                     .ins()
                     .load(clif_types::I16, flags, base_addr, offset);
                 builder.ins().uextend(clif_types::I64, raw)
             }
-            "I16" => {
+            "I16" | "Int16" => {
                 let raw = builder
                     .ins()
                     .load(clif_types::I16, flags, base_addr, offset);
                 builder.ins().sextend(clif_types::I64, raw)
             }
-            "U32" => {
+            "U32" | "UInt32" => {
                 let raw = builder
                     .ins()
                     .load(clif_types::I32, flags, base_addr, offset);
                 builder.ins().uextend(clif_types::I64, raw)
             }
-            "I32" => {
+            "I32" | "Int32" => {
                 let raw = builder
                     .ins()
                     .load(clif_types::I32, flags, base_addr, offset);

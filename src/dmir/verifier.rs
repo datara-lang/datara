@@ -176,6 +176,7 @@ fn instruction_dest(instruction: &Inst) -> Option<ValueId> {
         | Inst::LoadVar { dest, .. }
         | Inst::BinOp { dest, .. }
         | Inst::UnOp { dest, .. }
+        | Inst::Cast { dest, .. }
         | Inst::Call { dest, .. }
         | Inst::MethodCall { dest, .. }
         | Inst::StructInit { dest, .. }
@@ -204,7 +205,7 @@ fn instruction_uses(instruction: &Inst) -> Vec<ValueId> {
                 uses.push(*v);
             }
         }
-        Inst::AssignVar { value, .. } | Inst::Out { value } | Inst::Err { value } => {
+        Inst::AssignVar { value, .. } | Inst::Out { value, .. } | Inst::Err { value } => {
             uses.push(*value)
         }
         Inst::Return { value: Some(value) } => uses.push(*value),
@@ -214,6 +215,7 @@ fn instruction_uses(instruction: &Inst) -> Vec<ValueId> {
             uses.push(*right);
         }
         Inst::UnOp { operand, .. } => uses.push(*operand),
+        Inst::Cast { value, .. } => uses.push(*value),
         Inst::Call { args, .. } => uses.extend(args.iter().copied()),
         Inst::MethodCall { object, args, .. } => {
             uses.push(*object);

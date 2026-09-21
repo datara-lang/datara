@@ -967,6 +967,25 @@ impl<'a> Lowering<'a> {
                 self.in_saturating_mode = prev;
                 res
             }
+            Expr::Cast {
+                expr: inner,
+                target_ty,
+                ..
+            } => {
+                let src = self.lower_expr(inner, cur_block)?;
+                let from_ty = self
+                    .infer_expr_datara_type(inner)
+                    .map(|t| t.to_string())
+                    .unwrap_or_else(|| "Int".to_string());
+                let dest = self.next_val();
+                self.get_block_mut(*cur_block).instructions.push(Inst::Cast {
+                    dest,
+                    value: src,
+                    from_ty,
+                    to_ty: target_ty.clone(),
+                });
+                Some(dest)
+            }
             _ => None,
         }
     }

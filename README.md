@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://github.com/datara-lang/datara"><img src="https://img.shields.io/badge/language-Datara-%23E3B341.svg" alt="Language" /></a>
   <a href="LICENSE-APACHE"><img src="https://img.shields.io/badge/License-Apache_2.0_OR_MIT-blue.svg" alt="License" /></a>
-  <img src="https://img.shields.io/badge/version-1.4.4-blue.svg" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.4.5-blue.svg" alt="Version" />
   <a href="https://github.com/datara-lang/datara/actions/workflows/ci.yml"><img src="https://github.com/datara-lang/datara/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <img src="https://img.shields.io/badge/tests-247%20suites%20%7C%201100%2B%20passing-brightgreen.svg" alt="Tests" />
   <a href="docs/CONFORMANCE_MATRIX.md"><img src="https://img.shields.io/badge/Spec_V1_Conformance-84%2F84_Gates_PASS-brightgreen.svg" alt="Conformance" /></a>
@@ -37,6 +37,11 @@ Datara completely eliminates garbage collection pauses and reference-counting cy
 
 > [!NOTE]
 > **Русскоязычная документация**: [Полная документация по языку Datara на русском языке](README_RU.md) — исчерпывающий перевод со всеми главами, синтаксисом, архитектурными схемами, стандартной библиотекой и тестами производительности.
+
+### v1.4.5 Highlights
+- **Fmt String Specifiers**: `fmt"{x:.2}"` fixed precision, `fmt"{x:x}"` / `X` / `o` / `b` integer radix formatting, and `fmt"{d:.N}"` for `Dec64` — typed runtime calls lowered after resolution, zero typechecker changes, identical behavior on Cranelift JIT/AOT, LLVM, and WASM.
+- **Dec64 Fixed-Point Printing**: `Dec64` values interpolate naturally (`fmt"{19.99d}"` → `19.99`, not the raw mantissa), with overflow diagnostics for out-of-range literals.
+- **WASM Runtime Parity**: fused `out fmt"…"` / `err fmt"…"` streaming and all specifier converters ship as `datara:rt` imports with JS shim implementations — formatted output no longer silently falls back to `0` in the browser.
 
 ### v1.4.4 Highlights
 - **The 4 Abstraction Levels Architecture**: Clear architectural separation across 4 levels with 100% unified ABI backwards compatibility:
@@ -100,7 +105,7 @@ Datara completely eliminates garbage collection pauses and reference-counting cy
    - [Strings, Escapes & String Interpolation](#strings-escapes--string-interpolation)
    - [Control Flow: Conditionals, Loops & Branchless Logic](#control-flow)
    - [Functions, Expression Bodies, UFCS & Pipelines](#functions-expression-bodies-ufcs--pipelines)
-   - [Data-Oriented Programming (`class` & `behavior`)](#data-oriented-programming-class--behavior)
+   - [Data-Oriented Programming (`struct` & `behavior`)](#data-oriented-programming-struct--behavior)
    - [Polymorphic Traits & Inherent Implementations (`trait`, `impl`)](#polymorphic-traits-and-impl)
    - [Affine Ownership, Borrow Regions & Zero-Copy Views (`view`)](#affine-ownership--zero-copy-views)
    - [Dual-Mode Ownership Fixpoint & Graduated Lowering](#dual-mode-ownership-fixpoint)
@@ -457,6 +462,33 @@ Datara includes **44+ verified examples and full-scale showcase projects** locat
 
 Datara was designed around a central philosophy: **"Say what you mean, prove what you execute."** Syntax is clean, concise, and unambiguous, eliminating boilerplate without sacrificing systems-level control.
 
+### The Four Control Levels (One Language, Four Dials of Control)
+
+Every Datara feature belongs to one of four progressive levels. Level 1 is enough to be productive in minutes; each level up trades ergonomics for direct hardware control — and every level compiles to the same native binary with the same ABI.
+
+| Level | Audience | What you get | Key constructs |
+|---|---|---|---|
+| **1 — Scripting & Prototyping** | Beginners, automation | Full type inference, dynamic `val`/`mut val`, `fmt"..."` interpolation, high-level collections, automatic memory management | `let`, `mut`, `val`, `mut val`, `out`, `fmt"..."`, `for`, `if`, `match` |
+| **2 — Application & Enterprise** | Product teams | Design-by-contract, typed errors, affine ownership without annotations, capability sandboxing | `require`/`ensure`, `?`, `or`, `Outcome<T>`, `Result!E`, `view`, `[Net]`/`[FS]` |
+| **3 — Systems & Wire** | Systems engineers | Zero-copy slices, packed memory layout, allocator tiers, network endianness | `SliceView`, `@packed struct`, `@arena`, `@pool(n)`, `hton16/32/64`, `RawPtr` |
+| **4 — Kernel & Hardware** | Driver/kernel authors | Hardware registers, memory barriers, inline assembly | `VolatilePtr`, `atomic_fence_*`, `typed_zero_init`, `asm { ... }` in `unsafe(justification:)` |
+
+### Canonical Syntax (One Spelling per Construct)
+
+Datara keeps exactly one canonical spelling per construct. Legacy synonyms still parse (so old code keeps working) but emit a warning nudging toward the canonical form:
+
+| Construct | Canonical | Accepted synonyms (warned) | Rejected |
+|---|---|---|---|
+| Function | `fn` | `function` (W-SYN-001) | — |
+| Data declaration | `struct` | `record`, `entity` (W-SYN-001) | `class` (E0100) |
+| Conditional | `if` / `else if` / `else` | `select { ... }` (W-SYN-001) | — |
+| Pattern dispatch | `match` | — | — |
+| String type | `Str` | `String` (W-SYN-002) | — |
+| Integers | `Int`, `UInt` | `Int8`-`Int64`, `UInt8`-`UInt64` are aliases (no narrower semantics) | — |
+| String interpolation | `fmt"..."` | `$"..."`, `f"..."` | — |
+| Assignment | `let` / `mut` | — | `:=` (SyntaxError) |
+| Boolean logic | `&&`, `\|\|` on `Bool` only | — | truthy integers in conditions (Gate 5) |
+
 ---
 
 ### Program Structure & Modules
@@ -611,20 +643,11 @@ Datara provides platform-independent, fixed-width primitive types:
 
 | Type | Size | Description | Example |
 |---|---|---|---|
-| `Int` / `Int64` | 64-bit | Signed two's-complement integer | `let x: Int = -42` |
-| `Int32` | 32-bit | Signed 32-bit integer | `let i: Int32 = 1000` |
-| `Int16` | 16-bit | Signed 16-bit integer | `let s: Int16 = 3200` |
-| `Int8` | 8-bit | Signed 8-bit integer | `let b: Int8 = -12` |
-| `UInt` / `UInt64` | 64-bit | Unsigned 64-bit memory counter | `let u: UInt = 18446744073709551615` |
-| `UInt32` | 32-bit | Unsigned 32-bit integer | `let id: UInt32 = 4294967295` |
-| `UInt16` | 16-bit | Unsigned 16-bit network port | `let port: UInt16 = 8080` |
-| `UInt8` | 8-bit | Unsigned 8-bit byte | `let octet: UInt8 = 255` |
-| `Float` / `Float64` | 64-bit | IEEE 754 double-precision float | `let f: Float = 3.1415926535` |
-| `Float32` | 32-bit | IEEE 754 single-precision float | `let s: Float32 = 1.0` |
-| `Dec64` | 64-bit | Exact financial decimal (zero binary rounding error) | `let price: Dec64 = 19.99` |
-| `Dec128` | 128-bit | High-precision banking decimal float | `let bal: Dec128 = 1000000.50` |
+| `Int` | 64-bit | Canonical signed two's-complement integer (narrow aliases `Int8`/`Int16`/`Int32`/`Int64` parse but are aliases of `Int` — values are 64-bit internally) | `let x: Int = -42` |
+| `UInt` | 64-bit | Unsigned 64-bit memory counter (narrow aliases `UInt8`/`UInt16`/`UInt32`/`UInt64` parse but are aliases of `UInt`) | `let u: UInt = 18446744073709551615` |
+| `Float` | 64-bit | Canonical IEEE 754 double-precision float (narrow alias `Float32`/`Float64` parses but is an alias of `Float`) | `let f: Float = 3.1415926535` |
 | `Bool` | 1-bit / 8-bit | Boolean logic | `let is_ready: Bool = true` |
-| `Str` / `String` | 16-byte slice | UTF-8 immutable zero-copy string slice | `let s: Str = "Datara"` |
+| `Str` | 16-byte slice | UTF-8 immutable zero-copy string slice (canonical; `String` accepted as alias with a warning) | `let s: Str = "Datara"` |
 | `Char` | 32-bit | Unicode code point scalar | `let c: Char = 'D'` |
 | `Val` | Dynamic box | Schema evolution dynamic container | `let v: Val = fetch_raw()` |
 | `RawPtr` | Machine word | Low-level pointer (in `unsafe` blocks) | `let p: RawPtr = get_addr()` |
@@ -924,9 +947,9 @@ Supported forms: `x => { ... }`, `(a, b) => { ... }`, and `() => { ... }`. A bod
 
 ---
 
-### Data-Oriented Programming (`class` & `behavior`)
+### Data-Oriented Programming (`struct` & `behavior`)
 
-Datara separates **data memory layout** from **method behavior**, providing clean Data-Oriented Design (DOD):
+Datara separates **data memory layout** from **method behavior**, providing clean Data-Oriented Design (DOD). The canonical declaration keyword is `struct` — legacy synonyms (`record`, `entity`) are accepted with a warning, and `class` is rejected outright (E0100).
 
 #### Struct (Data Structure Definition)
 Structs declare flat, contiguous memory structures with zero object header bloat:

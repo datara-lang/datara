@@ -2,7 +2,7 @@
 // Demonstrates safe file operations through explicit capability tokens,
 // ensuring unauthorized code cannot perform ungranted I/O.
 
-record FileStats {
+struct FileStats {
     bytes_written: Int,
     bytes_read: Int,
     is_matching: Bool,

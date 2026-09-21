@@ -1,7 +1,7 @@
 use crate::ast::*;
 use crate::resolver::Resolver;
 use crate::types::{DataraType, TypeChecker};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::dmir::ir::*;
 
@@ -51,6 +51,12 @@ pub struct Lowering<'a> {
     /// lambda argument can inline the body and bind the lambda to the
     /// parameter name (see lower_expr_call).
     pub inlineable_fns: HashMap<String, InlineableFnBody>,
+    /// v1.4.5 W1: class name → declared field types, in declaration order.
+    /// Powers the comptime `size_of()` builtin without re-walking the AST.
+    pub class_decl_fields: HashMap<String, Vec<String>>,
+    /// v1.4.5 W1: classes annotated `@packed` (lowering-side mirror of
+    /// `Module.packed_classes`, populated before function bodies are lowered).
+    pub packed_classes_lower: HashSet<String>,
     /// By-value capture snapshots for named lambdas: at `let f = <lambda>`
     /// the current SSA value of every free variable is recorded, and at each
     /// inline call the body sees (and mutates) that snapshot, never the
@@ -505,6 +511,8 @@ impl<'a> Lowering<'a> {
             in_saturating_mode: false,
             local_lambdas: HashMap::with_capacity(16),
             inlineable_fns: HashMap::with_capacity(16),
+            class_decl_fields: HashMap::with_capacity(16),
+            packed_classes_lower: HashSet::with_capacity(8),
             lambda_captures: HashMap::with_capacity(16),
             loop_stack: Vec::new(),
             global_vars: HashMap::with_capacity(32),
@@ -663,6 +671,26 @@ impl<'a> Lowering<'a> {
         for decl in &program.declarations {
             if let Decl::Function(f) = decl {
                 self.comptime_functions.insert(f.name.clone(), f.clone());
+            }
+            // v1.4.5 W1: pre-collect class layout info for `size_of()`.
+            if let Decl::Class(c) = decl {
+                if c.attributes.iter().any(|a| a.name == "packed") {
+                    self.packed_classes_lower.insert(c.name.clone());
+                }
+                let fields = c
+                    .body_items
+                    .iter()
+                    .filter_map(|item| match item {
+                        ClassItem::Field(f) => Some(
+                            f.type_node
+                                .as_ref()
+                                .map(|t| t.full_type_name())
+                                .unwrap_or_else(|| "Int".into()),
+                        ),
+                        _ => None,
+                    })
+                    .collect::<Vec<String>>();
+                self.class_decl_fields.insert(c.name.clone(), fields);
             }
         }
         self.comptime_evaluator =

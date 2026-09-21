@@ -304,6 +304,7 @@ pub fn eliminate_sibling_recursion(f: &mut Function) -> bool {
                 | Inst::LoadVar { dest, .. }
                 | Inst::BinOp { dest, .. }
                 | Inst::UnOp { dest, .. }
+                | Inst::Cast { dest, .. }
                 | Inst::Call { dest, .. }
                 | Inst::MethodCall { dest, .. }
                 | Inst::StructInit { dest, .. }
@@ -921,7 +922,7 @@ fn substitute_inst_operands(inst: &mut Inst, subst: &HashMap<ValueId, ValueId>) 
                 *value = new_v;
             }
         }
-        Inst::Out { value } => {
+        Inst::Out { value, .. } => {
             if let Some(&new_v) = subst.get(value) {
                 *value = new_v;
             }
@@ -1180,6 +1181,7 @@ pub fn eliminate_tail_recursion(f: &mut Function) -> bool {
                 | Inst::LoadVar { dest, .. }
                 | Inst::BinOp { dest, .. }
                 | Inst::UnOp { dest, .. }
+                | Inst::Cast { dest, .. }
                 | Inst::Call { dest, .. }
                 | Inst::MethodCall { dest, .. }
                 | Inst::StructInit { dest, .. }

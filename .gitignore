@@ -1,6 +1,9 @@
 target/
 **/target/
 *.exe
+*.dtr.exe
+benchmarks/*.exe
+benches/*.exe
 *.obj
 *.tmp.cs
 *.pdb
@@ -37,6 +40,12 @@ dashboard.html
 # Ad-hoc LLVM IR / bitcode build artifacts from debug runs.
 *.ll
 *.bc
+
+# Compiled Datara outputs from test/example runs (regenerable)
+*.dtr.exe
+benchmarks/*.exe
+scratch/*.exe
+/RELNOTES.md
 
 
 # Per-run scratch sources in tests/
@@ -99,3 +108,6 @@ __pycache__/
 # Logs
 *.log
 
+
+# Session working notes (local only)
+/FIXPLAN_V145.md

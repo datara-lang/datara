@@ -794,7 +794,8 @@ impl VariableUsageTracker {
             Expr::ErrorPropagate(e, _)
             | Expr::Comptime { expr: e, .. }
             | Expr::Wrapping(e, _)
-            | Expr::Saturating(e, _) => {
+            | Expr::Saturating(e, _)
+            | Expr::Cast { expr: e, .. } => {
                 self.analyze_expr(e);
             }
             Expr::OrRecovery { expr, arms, .. } => {

@@ -837,7 +837,7 @@ impl InterproceduralOptimizer {
                     *v = *new_v;
                 }
             }
-            Inst::Out { value } | Inst::Err { value } => {
+            Inst::Out { value, .. } | Inst::Err { value } => {
                 if let Some(new_v) = map.get(value) {
                     *value = *new_v;
                 }
@@ -882,6 +882,14 @@ impl InterproceduralOptimizer {
                 }
                 if let Some(new_op) = map.get(operand) {
                     *operand = *new_op;
+                }
+            }
+            Inst::Cast { dest, value, .. } => {
+                if let Some(new_d) = map.get(dest) {
+                    *dest = *new_d;
+                }
+                if let Some(new_v) = map.get(value) {
+                    *value = *new_v;
                 }
             }
             Inst::Call { dest, args, .. } => {
@@ -1034,7 +1042,7 @@ impl InterproceduralOptimizer {
                     *v = *new_v;
                 }
             }
-            Inst::Out { value } | Inst::Err { value } => {
+            Inst::Out { value, .. } | Inst::Err { value } => {
                 if let Some(new_v) = map.get(value) {
                     *value = *new_v;
                 }
@@ -1058,13 +1066,27 @@ impl InterproceduralOptimizer {
                         op,
                         left,
                         right,
-                        ..
+                        ty,
                     } => {
                         if let (Some(l), Some(r)) = (int_consts.get(left), int_consts.get(right)) {
+                            // v1.4.5 W1: fold at the operand's declared width —
+                            // `Int8 * Int8` folds to the i8-wrapped product,
+                            // never the raw i64 result. WIDE Int keeps the
+                            // SPEC overflow-trap semantics: an overflowing wide
+                            // constexpr must stay unfolded so the backend
+                            // emits the runtime trap.
+                            let narrow_ty = crate::dmir::ir::dm_repr_is_narrow_int(ty);
+                            let wrap = |v: i64| crate::dmir::ir::dm_wrap_i64_to_repr(ty, v);
                             let folded = match op.as_str() {
-                                "+" => Some(l.wrapping_add(*r)),
-                                "-" => Some(l.wrapping_sub(*r)),
-                                "*" => Some(l.wrapping_mul(*r)),
+                                "+" if narrow_ty => Some(wrap(l.wrapping_add(*r))),
+                                "-" if narrow_ty => Some(wrap(l.wrapping_sub(*r))),
+                                "*" if narrow_ty => Some(wrap(l.wrapping_mul(*r))),
+                                "+" if l.checked_add(*r).is_none() => None,
+                                "-" if l.checked_sub(*r).is_none() => None,
+                                "*" if l.checked_mul(*r).is_none() => None,
+                                "+" => Some(l + r),
+                                "-" => Some(l - r),
+                                "*" => Some(l * r),
                                 "/" if *r != 0 => Some(l.wrapping_div(*r)),
                                 _ => None,
                             };

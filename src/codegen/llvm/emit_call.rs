@@ -126,6 +126,10 @@ impl<'a> LlvmEmitter<'a> {
             "file_append" => "datara_rt_file_append",
             "file_exists" => "datara_rt_file_exists",
             "file_read_checked" => "datara_rt_file_read_checked",
+            // v1.4.5 W1: checked arithmetic (Outcome<IntN> result).
+            "checked_add_outcome" => "datara_rt_checked_add_outcome",
+            "checked_sub_outcome" => "datara_rt_checked_sub_outcome",
+            "checked_mul_outcome" => "datara_rt_checked_mul_outcome",
             "exec" => "datara_rt_exec",
             "exec_utf8" => "datara_rt_exec_utf8",
             "env_get" => "datara_rt_env_get",
@@ -148,6 +152,9 @@ impl<'a> LlvmEmitter<'a> {
             "str_to_int" => "datara_rt_str_to_int",
             "int_to_str" => "datara_rt_int_to_str",
             "float_to_str" => "datara_rt_float_to_str",
+            "float_to_str_prec" => "datara_rt_float_to_str_prec",
+            "dec64_to_str_prec" => "datara_rt_dec64_to_str_prec",
+            "int_to_str_radix" => "datara_rt_int_to_str_radix",
             "str_contains" => "datara_rt_str_contains",
             "str_starts_with" => "datara_rt_str_starts_with",
             "str_ends_with" => "datara_rt_str_ends_with",
@@ -217,6 +224,35 @@ impl<'a> LlvmEmitter<'a> {
             "parallel_for" => "parallel_for",
             other => other,
         };
+
+        // v1.4.5 W3: the dec64 printer takes the raw i64 mantissa; slots
+        // hold I64 for Dec64 values, so a plain forward works.
+        if (actual_func == "datara_rt_print_dec64" || actual_func == "datara_rt_out_dec64")
+            && args.len() == 1
+        {
+            let a = args[0];
+            out.push_str(&format!(
+                "  call void @{}(i64 %v{})\n",
+                actual_func, a.0
+            ));
+            return Ok(());
+        }
+
+        // v1.4.5 W2: the f32 printer takes a float; slots hold an F64
+        // double, so demote before the call.
+        if actual_func == "datara_rt_print_f32" && args.len() == 1 {
+            let a = args[0];
+            let tmp = format!("%f32_demote_{}_{}", dest.0, a.0);
+            out.push_str(&format!(
+                "  {} = fptrunc double %v{} to float\n",
+                tmp, a.0
+            ));
+            out.push_str(&format!(
+                "  call void @datara_rt_print_f32(float {})\n",
+                tmp
+            ));
+            return Ok(());
+        }
 
         let is_str_concat = actual_func.starts_with("datara_rt_str_concat");
         let mut converted_args = Vec::new();

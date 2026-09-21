@@ -93,7 +93,7 @@ impl PipelineFusionOptimizer {
                 }
             }
             Inst::AssignVar { value, .. } => f(*value),
-            Inst::Out { value } => f(*value),
+            Inst::Out { value, .. } => f(*value),
             Inst::Err { value } => f(*value),
             Inst::StructInit { fields, .. } => {
                 for (_, v) in fields {
@@ -428,6 +428,7 @@ impl PipelineFusionOptimizer {
             | Inst::LoadVar { dest, .. }
             | Inst::BinOp { dest, .. }
             | Inst::UnOp { dest, .. }
+            | Inst::Cast { dest, .. }
             | Inst::Call { dest, .. }
             | Inst::MethodCall { dest, .. }
             | Inst::StructInit { dest, .. }

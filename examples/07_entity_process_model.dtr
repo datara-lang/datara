@@ -1,8 +1,9 @@
-// 07: Entity / Component / Role / Process model with `then` pipelines.
+// 07: Component / Role / Process model with `then` pipelines.
 //
 // This example demonstrates the Datara domain model:
-//   - `entity` declares a data-bearing type (alias of `class`)
-//   - `component` declares reusable state that is inlined into entities
+//   - `struct` declares a data-bearing type (canonical form; legacy
+//     `entity` spelling still parses with a W-SYN-001 warning)
+//   - `component` declares reusable state that is inlined into structs
 //     at compile time (no runtime objects, zero allocation)
 //   - `role` declares a method contract that the compiler verifies
 //   - `process` declares a named workflow (alias of `flow`)
@@ -18,20 +19,20 @@ role Payable {
     pay(amount: Int) -> Int
 }
 
-entity User with Timestamped {
+struct User with Timestamped {
     name: Str
     balance: Int
-
-    is_adult(age: Int) -> Bool => age >= 18
 }
 
-entity Store with Timestamped {
+struct Store with Timestamped {
     title: Str
     stock: Int
 }
 
 // Satisfies the Payable role contract: `pay(amount: Int) -> Int`.
 behavior User {
+    is_adult(age: Int) -> Bool => age >= 18
+
     pay(amount: Int) -> Int {
         this.balance = this.balance - amount
         return this.balance

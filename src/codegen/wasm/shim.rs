@@ -60,6 +60,50 @@ export async function loadDataraModule(wasmPath, customImports = {{}}) {{
         return BigInt(ptr);
     }};
 
+    // v1.4.5 W4: write a JS string into linear memory using the runtime's
+    // [u32 length][utf8 bytes] layout (same as readString); returns a
+    // BigInt pointer.
+    const writeString = (text) => {{
+        const bytes = new TextEncoder().encode(text);
+        const p = Number(allocateMemory(4 + bytes.length + 1));
+        const dv = new DataView(memoryInstance.buffer);
+        dv.setUint32(p, bytes.length, true);
+        new Uint8Array(memoryInstance.buffer).set(bytes, p + 4);
+        return BigInt(p);
+    }};
+
+    // v1.4.5 W4: fixed-precision formatting matching datara_rt_float_to_str_prec
+    // (negative precision means at least one fractional digit).
+    const formatFixed = (v, prec) => {{
+        if (Number.isNaN(v)) return (Object.is(v, -0) ? '-NaN' : 'NaN');
+        if (!Number.isFinite(v)) return v < 0 ? '-Infinity' : 'Infinity';
+        const p = Math.max(0, Math.min(60, prec));
+        return v.toFixed(p);
+    }};
+
+    // v1.4.5 W4: Dec64 fixed-precision formatting matching
+    // datara_rt_dec64_to_str_prec (scale-10^4 mantissa, round-half-away-from-zero
+    // toward the requested 10^-prec grid, zero padding above 4 digits).
+    const dec64Fixed = (val, prec) => {{
+        let p = Math.max(0, Math.min(40, prec));
+        let scale = 1n;
+        for (let i = 0; i < p; i++) scale *= 10n;
+        let scaled = val * scale;
+        if (p < 4) {{
+            const drop = scaled % 10000n;
+            scaled /= 10000n;
+            if (drop <= -5000n) scaled -= 1n;
+            else if (drop >= 5000n) scaled += 1n;
+        }}
+        const integer = scaled / scale;
+        let frac = scaled % scale;
+        if (frac < 0n) frac = -frac;
+        const fracStr = frac.toString().padStart(p, '0');
+        if (scaled < 0n && integer === 0n) return '-0.' + fracStr;
+        if (p === 0) return integer.toString();
+        return integer.toString() + '.' + fracStr;
+    }};
+
     // In-memory collection storage backed by linear memory pointers
     const listStorage = new Map();
     let nextListHandle = 10000n;
@@ -321,6 +365,48 @@ export async function loadDataraModule(wasmPath, customImports = {{}}) {{
                 }} else {{
                     ownershipStorage.set(val, count);
                 }}
+            }},
+            // v1.4.5 W4 fmt specifiers: precision / radix converters.
+            // Strings are written into linear memory in the runtime's
+            // [u32 length][utf8 bytes] layout so readString/consumers agree.
+            // The float converter receives a real f64 (Wasm operand-stack
+            // type must match), the rest are i64 bit patterns / integers.
+            float_to_str_prec: (v, prec) => {{
+                const text = formatFixed(v, Number(prec));
+                return writeString(text);
+            }},
+            dec64_to_str_prec: (mantissa, prec) => {{
+                const text = dec64Fixed(mantissa, Number(prec));
+                return writeString(text);
+            }},
+            int_to_str_radix: (v, radix, upper) => {{
+                const base = (Number(radix) < 2 || Number(radix) > 16) ? 16 : Number(radix);
+                const digits = (upper !== 0n && upper !== 0)
+                    ? '0123456789ABCDEF'
+                    : '0123456789abcdef';
+                const uv = BigInt.asUintN(64, v);
+                let s = '';
+                let u = uv;
+                do {{
+                    s = digits[Number(u % BigInt(base))] + s;
+                    u /= BigInt(base);
+                }} while (u > 0n);
+                return writeString(s);
+            }},
+            // v1.4.5 W4: fused out/err streaming. The pointer parameter is a
+            // string handle in the [u32 len][utf8] layout, so decode it the
+            // same way readString does.
+            print_str: (ptr) => {{
+                console.log(readString(ptr));
+            }},
+            print_newline: () => {{
+                console.log('');
+            }},
+            err_print_str: (ptr) => {{
+                console.error(readString(ptr));
+            }},
+            err_print_newline: () => {{
+                console.error('');
             }},
         }},
         env: {{

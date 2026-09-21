@@ -52,9 +52,9 @@ fn main() {
     // Агрегированная статистика (SQL AVG, COUNT, MAX)
     let total_applicants = 5
     let total_score = a1.score + a2.score + a3.score + a4.score + a5.score
-    let denom = total_applicants * 1.0
+    let denom = total_applicants.to_float()
     require denom != 0.0
-    let avg_score = (total_score * 1.0) / denom
+    let avg_score = (total_score.to_float()) / denom
 
     mut accepted_count = 0
     if a1.is_accepted() { accepted_count = accepted_count + 1 }
@@ -63,7 +63,7 @@ fn main() {
     if a4.is_accepted() { accepted_count = accepted_count + 1 }
     if a5.is_accepted() { accepted_count = accepted_count + 1 }
 
-    let acceptance_rate = ((accepted_count * 1.0) / denom) * 100.0
+    let acceptance_rate = ((accepted_count.to_float()) / denom) * 100.0
 
     out "--------------------------------------------------------------------------------"
     out fmt"Всего заявлений обработано:         {total_applicants}"

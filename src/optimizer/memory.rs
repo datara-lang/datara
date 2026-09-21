@@ -107,7 +107,7 @@ impl MemoryOptimizer {
                         escaping_structs.insert(orig);
                     }
                 }
-                Inst::Out { value } | Inst::Err { value } => {
+                Inst::Out { value, .. } | Inst::Err { value } => {
                     escaping_structs.insert(*value);
                     if let Some(&orig) = val_alias.get(value) {
                         escaping_structs.insert(orig);

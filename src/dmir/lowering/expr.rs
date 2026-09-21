@@ -35,6 +35,11 @@ impl<'a> Lowering<'a> {
                     LiteralValue::Float(v) => {
                         b.instructions.push(Inst::ConstFloat { dest, value: *v })
                     }
+                    // v1.4.5 W3: Dec64 mantissa rides in an I64 slot; the
+                    // declared type (Dec64) carries the fixed-point scale.
+                    LiteralValue::Dec64(v) => {
+                        b.instructions.push(Inst::ConstInt { dest, value: *v })
+                    }
                     LiteralValue::String(v) => b.instructions.push(Inst::ConstStr {
                         dest,
                         value: v.clone(),
@@ -159,12 +164,61 @@ impl<'a> Lowering<'a> {
                 Some(dest)
             }
             Expr::InterpolatedString {
-                parts, expressions, ..
+                parts, expressions, specs, ..
             } => {
                 let mut vals = Vec::new();
-                for e in expressions {
+                let mut value_tys = Vec::new();
+                for (eidx, e) in expressions.iter().enumerate() {
+                    // v1.4.5 W4: a format specifier (".2", "x", "X", "o",
+                    // "b") routes the value through a precision/radix
+                    // converter FIRST; the FormatStr then interpolates the
+                    // resulting string as-is (no per-backend spec logic).
+                    let spec = specs.get(eidx).map(|s| s.as_str()).unwrap_or("");
+                    if !spec.is_empty() {
+                        if let Some((conv_fn, consts, spec_ty)) = self.fmt_spec_converter(e, spec) {
+                            if let Some(arg_val) = self.lower_expr(e, cur_block) {
+                                // The spec's numeric parameters ride the call
+                                // as constant operands: const-folded, typed,
+                                // and visible to every backend without any
+                                // per-backend spec parsing.
+                                let mut call_args = vec![arg_val];
+                                for c in consts {
+                                    let c_dest = self.next_val();
+                                    self.get_block_mut(*cur_block)
+                                        .instructions
+                                        .push(Inst::ConstInt { dest: c_dest, value: c });
+                                    call_args.push(c_dest);
+                                }
+                                let conv_dest = self.next_val();
+                                self.get_block_mut(*cur_block)
+                                    .instructions
+                                    .push(Inst::Call {
+                                        dest: conv_dest,
+                                        func: conv_fn.into(),
+                                        args: call_args,
+                                        ty: spec_ty.into(),
+                                    });
+                                vals.push(conv_dest);
+                                value_tys.push("Str".to_string());
+                                continue;
+                            }
+                        }
+                    }
                     if let Some(v) = self.lower_expr(e, cur_block) {
                         vals.push(v);
+                        // v1.4.5 W3/W4: carry the declared repr so the backends
+                        // route Dec64 through the fixed-point formatter and
+                        // keep Float32 precision instead of guessing from the
+                        // storage slot (Dec64 shares the I64 slot).
+                        value_tys.push(
+                            if self.is_expr_dec64(e) {
+                                "Dec64".to_string()
+                            } else if self.is_expr_f32(e) {
+                                "Float32".to_string()
+                            } else {
+                                String::new()
+                            },
+                        );
                     }
                 }
                 let dest = self.next_val();
@@ -174,6 +228,7 @@ impl<'a> Lowering<'a> {
                         dest,
                         parts: parts.clone(),
                         values: vals,
+                        value_tys,
                     });
                 Some(dest)
             }
@@ -296,6 +351,7 @@ impl<'a> Lowering<'a> {
                 let l = self.lower_expr(left, cur_block)?;
                 let r = self.lower_expr(right, cur_block)?;
                 let dest = self.next_val();
+                let is_f32 = self.is_expr_f32(left) || self.is_expr_f32(right);
                 let is_float = self.is_expr_float(left) || self.is_expr_float(right);
                 let is_str_concat =
                     (op == "+") && (self.is_expr_str(left) || self.is_expr_str(right));
@@ -327,6 +383,11 @@ impl<'a> Lowering<'a> {
                 } else {
                     op.clone()
                 };
+                let int_width = if is_str_concat || is_str_cmp || is_f32 || is_float {
+                    None
+                } else {
+                    self.int_expr_repr(left).or_else(|| self.int_expr_repr(right))
+                };
                 self.get_block_mut(*cur_block)
                     .instructions
                     .push(Inst::BinOp {
@@ -336,8 +397,12 @@ impl<'a> Lowering<'a> {
                         right: r,
                         ty: if is_str_concat || is_str_cmp {
                             "String".into()
+                        } else if is_f32 {
+                            "Float32".into()
                         } else if is_float {
                             "Float".into()
+                        } else if let Some(w) = int_width {
+                            w.into()
                         } else {
                             "Int".into()
                         },

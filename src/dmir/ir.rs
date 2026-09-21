@@ -93,6 +93,15 @@ pub enum Inst {
         operand: ValueId,
         ty: String,
     },
+    /// Explicit numeric cast (`expr as Type`, Gate 7). Backends emit a real
+    /// conversion between the source and target representations (fptosi,
+    /// fptrunc, widening/narrowing integer moves).
+    Cast {
+        dest: ValueId,
+        value: ValueId,
+        from_ty: String,
+        to_ty: String,
+    },
     Call {
         dest: ValueId,
         func: String,
@@ -124,6 +133,11 @@ pub enum Inst {
     },
     Out {
         value: ValueId,
+        /// v1.4.5 W2: repr string of the printed expression (`Float32`,
+        /// `Int8`, ...). The backend demotes F64 slots that actually hold
+        /// f32 values to the f32 shortest-round-trip printer.
+        #[serde(default)]
+        ty: String,
     },
     Err {
         value: ValueId,
@@ -132,6 +146,14 @@ pub enum Inst {
         dest: ValueId,
         parts: Vec<String>,
         values: Vec<ValueId>,
+        /// v1.4.5 W3/W4: declared repr of each interpolated value, parallel to
+        /// `values`. "Dec64" routes the conversion through the fixed-point
+        /// formatter instead of the plain integer one; "Float32" keeps f32
+        /// precision. Empty entries (and the whole field under `serde(default)`
+        /// for pre-1.4.5 modules) fall back to the repr-based routing that
+        /// already worked for Int/Float/Bool/Str.
+        #[serde(default)]
+        value_tys: Vec<String>,
     },
     Decide {
         dest: ValueId,
@@ -204,6 +226,10 @@ impl Inst {
                 f(dest);
                 f(operand);
             }
+            Inst::Cast { dest, value, .. } => {
+                f(dest);
+                f(value);
+            }
             Inst::Call { dest, args, .. } => {
                 f(dest);
                 for a in args {
@@ -241,7 +267,7 @@ impl Inst {
                 f(addr);
                 f(value);
             }
-            Inst::Out { value } | Inst::Err { value } => f(value),
+            Inst::Out { value, .. } | Inst::Err { value } => f(value),
             Inst::FormatStr { dest, values, .. } => {
                 f(dest);
                 for v in values {
@@ -371,6 +397,17 @@ impl std::hash::Hash for Inst {
                 operand.hash(state);
                 ty.hash(state);
             }
+            Inst::Cast {
+                dest,
+                value,
+                from_ty,
+                to_ty,
+            } => {
+                dest.hash(state);
+                value.hash(state);
+                from_ty.hash(state);
+                to_ty.hash(state);
+            }
             Inst::Call {
                 dest,
                 func,
@@ -424,7 +461,7 @@ impl std::hash::Hash for Inst {
                 field.hash(state);
                 value.hash(state);
             }
-            Inst::Out { value } => {
+            Inst::Out { value, .. } => {
                 value.hash(state);
             }
             Inst::Err { value } => {
@@ -434,10 +471,12 @@ impl std::hash::Hash for Inst {
                 dest,
                 parts,
                 values,
+                value_tys,
             } => {
                 dest.hash(state);
                 parts.hash(state);
                 values.hash(state);
+                value_tys.hash(state);
             }
             Inst::Decide {
                 dest,
@@ -799,6 +838,89 @@ pub struct Module {
     pub endian_classes: HashMap<String, String>,
     #[serde(default)]
     pub component_classes: HashSet<String>,
+}
+
+/// v1.4.5 W1: maps a DMIR type-repr string to its byte size for packed
+/// struct layout. This is the SINGLE source of truth for narrow-type sizes:
+/// both canonical names (`Int8`, `UInt32`, `Float32`) and the legacy
+/// short-repr names (`I8`, `U8`, `F32`, ...) must resolve to the same
+/// byte count, or packed structs get the wrong layout (БАГ-1).
+pub fn dm_repr_byte_size(repr: &str) -> u32 {
+    match repr {
+        "Int8" | "UInt8" | "Byte" | "I8" | "U8" | "Bool" | "Char" => 1,
+        "Int16" | "UInt16" | "I16" | "U16" => 2,
+        "Int32" | "UInt32" | "I32" | "U32" | "Float32" | "F32" => 4,
+        _ => 8,
+    }
+}
+
+/// v1.4.5 W1: true when the repr string names a narrow integer type
+/// (1/2/4 bytes). Backend matchers that must know "is this narrower than
+/// Int64" go through this helper instead of duplicating string lists.
+pub fn dm_repr_is_narrow_int(repr: &str) -> bool {
+    matches!(
+        repr,
+        "Int8"
+            | "Int16"
+            | "Int32"
+            | "UInt8"
+            | "UInt16"
+            | "UInt32"
+            | "Byte"
+            | "I8"
+            | "I16"
+            | "I32"
+            | "U8"
+            | "U16"
+            | "U32"
+    )
+}
+
+/// v1.4.5 W1: true when the repr string names a 32-bit float type.
+pub fn dm_repr_is_f32(repr: &str) -> bool {
+    matches!(repr, "Float32" | "f32" | "F32")
+}
+
+/// v1.4.5 W1: wraps an i64 value to the exact width of the repr type.
+/// Signed narrow: truncate then sign-extend (two's-complement wrapping).
+/// Unsigned narrow: truncate then zero-extend. Wide types: unchanged.
+/// Used by the constant folder so constexpr arithmetic obeys the SAME
+/// wrapping semantics the backend implements (SPEC §overflow).
+pub fn dm_wrap_i64_to_repr(repr: &str, v: i64) -> i64 {
+    match repr {
+        "Int8" | "i8" => (v as i8) as i64,
+        "Int16" | "i16" => (v as i16) as i64,
+        "Int32" | "i32" => (v as i32) as i64,
+        "UInt8" | "Byte" | "u8" => (v as u8) as i64,
+        "UInt16" | "u16" => (v as u16) as i64,
+        "UInt32" | "u32" => (v as u32) as i64,
+        _ => v,
+    }
+}
+
+/// v1.4.5 W1: saturation bounds for a repr type, `None` for 64-bit.
+pub fn dm_repr_sat_bounds(repr: &str) -> Option<(i64, i64)> {
+    match repr {
+        "Int8" | "i8" => Some((i8::MIN as i64, i8::MAX as i64)),
+        "Int16" | "i16" => Some((i16::MIN as i64, i16::MAX as i64)),
+        "Int32" | "i32" => Some((i32::MIN as i64, i32::MAX as i64)),
+        "UInt8" | "Byte" | "u8" => Some((0, u8::MAX as i64)),
+        "UInt16" | "u16" => Some((0, u16::MAX as i64)),
+        "UInt32" | "u32" => Some((0, u32::MAX as i64)),
+        _ => None,
+    }
+}
+
+/// v1.4.5 W1: shift-count domain for a repr type (mask width):
+/// Int8 -> 8, Int32 -> 32, Int/Int64 -> 64. Mirrors the typechecker's
+/// constant-shift validation and the backend's count masking.
+pub fn dm_repr_shift_width(repr: &str) -> i64 {
+    match repr {
+        "Int8" | "i8" | "UInt8" | "Byte" | "u8" => 8,
+        "Int16" | "i16" | "UInt16" | "u16" => 16,
+        "Int32" | "i32" | "UInt32" | "u32" => 32,
+        _ => 64,
+    }
 }
 
 impl Module {

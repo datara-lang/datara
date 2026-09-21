@@ -745,7 +745,63 @@ impl Lexer {
                             self.col,
                             self.file.clone(),
                         );
-                        if is_float {
+                        // v1.4.5 W3: decimal fixed-point literal `19.99d` —
+                        // encoded as i64 mantissa × 10⁴ (Dec64).
+                        if suffix.as_deref() == Some("d") {
+                            let neg = num_str.starts_with('-');
+                            let (int_part, frac_part) = match num_str.split_once('.') {
+                                Some((i, f)) => (i, f),
+                                None => (num_str.as_str(), ""),
+                            };
+                            let clean = |s: &str| s.chars().filter(|c| *c != '_').collect::<String>();
+                            // v1.4.5 D2: a mantissa that does not fit in i64 must
+                            // be diagnosed, not silently clamped to 0 ("999…9d"
+                            // used to print 0 with no error). Overflow beyond
+                            // ±922337203685477 is caught below via checked_mul.
+                            let ip: i64 = match clean(int_part).parse::<i64>() {
+                                Ok(v) => v,
+                                Err(_) => {
+                                    diag.error(
+                                        ErrorCode::SyntaxInvalidNumber,
+                                        format!(
+                                            "Decimal literal '{}' overflows Dec64 (max ±922337203685477.5807)",
+                                            raw_str
+                                        ),
+                                        Some(span.clone()),
+                                    );
+                                    0
+                                }
+                            };
+                            let mut fp_s = clean(frac_part);
+                            // Round half-up at the 5th decimal digit.
+                            let mut carry: i64 = 0;
+                            if fp_s.len() > 4 {
+                                if fp_s.as_bytes()[4] >= b'5' {
+                                    carry = 1;
+                                }
+                                fp_s = fp_s[..4].to_string();
+                            }
+                            while fp_s.len() < 4 {
+                                fp_s.push('0');
+                            }
+                            let fp: i64 = fp_s.parse().unwrap_or(0) + carry;
+                            let mag = ip
+                                .checked_mul(10_000)
+                                .and_then(|v| v.checked_add(fp))
+                                .unwrap_or_else(|| {
+                                    diag.error(
+                                        ErrorCode::SyntaxInvalidNumber,
+                                        format!(
+                                            "Decimal literal '{}' overflows Dec64 (max ±922337203685477.5807)",
+                                            raw_str
+                                        ),
+                                        Some(span.clone()),
+                                    );
+                                    0
+                                });
+                            let val = if neg { -mag } else { mag };
+                            tokens.push(Token::new(TokenType::Dec64Literal(val), raw_str, span));
+                        } else if is_float {
                             match num_str.parse::<f64>() {
                                 Ok(val) => {
                                     tokens.push(Token::new(
@@ -1175,7 +1231,7 @@ impl Lexer {
         let remaining: String = self.chars[self.pos + offset..].iter().take(6).collect();
         for suffix in &[
             "usize", "isize", "u128", "i128", "f64", "f32", "i64", "i32", "i16", "i8", "u64",
-            "u32", "u16", "u8", "byte",
+            "u32", "u16", "u8", "byte", "d",
         ] {
             if remaining.starts_with(suffix) {
                 let next_char = self.chars.get(self.pos + offset + suffix.len());

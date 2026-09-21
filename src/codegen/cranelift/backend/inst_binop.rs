@@ -12,6 +12,22 @@ pub fn compile_binop<M: ClifModule>(
     right: &ValueId,
     ty: &str,
 ) -> Result<(), String> {
+    // v1.4.5 W1: `ty` carries the exact operand type name (Int8, UInt32,
+    // Float32, ...). Narrow-width arithmetic is done in I64 (sign- or
+    // zero-extended per signedness) and the RESULT is then re-wrapped to
+    // the operand width (wrapping semantics; checked overflow is a
+    // typechecker concern — see types/check/binary.rs).
+    let repr = ty;
+    let is_u32 = repr == "UInt32";
+    let is_u16 = repr == "UInt16";
+    let is_u8 = repr == "UInt8";
+    let is_u64 = repr == "UInt" || repr == "UInt64" || repr == "u64" || repr == "usize";
+    let is_unsigned = is_u32 || is_u16 || is_u8 || is_u64;
+    let _is_i8 = repr == "Int8" || repr == "i8";
+    let _is_i16 = repr == "Int16" || repr == "i16";
+    let _is_i32 = repr == "Int32" || repr == "i32";
+    let is_f32 = repr == "Float32" || repr == "f32";
+
     let raw_lv = ctx
         .val_map
         .get(left)
@@ -73,28 +89,69 @@ pub fn compile_binop<M: ClifModule>(
         return Ok(());
     }
 
-    let is_float = lv_ty == clif_types::F64 || rv_ty == clif_types::F64;
+    let is_float =
+        lv_ty == clif_types::F64 || rv_ty == clif_types::F64 || is_f32;
 
     let (lv, rv) = if is_float {
-        let flv = if lv_ty == clif_types::I64 {
-            ctx.builder.ins().fcvt_from_sint(clif_types::F64, raw_lv)
+        if is_f32 {
+            // v1.4.5 W2: true Float32 arithmetic. Operands may arrive as F64
+            // (literal ConstFloat slots or widened loads); demote them to F32
+            // so the math runs at f32 precision (0.1f + 0.2f == 0.3f, not
+            // 0.30000000000000004). Demotion is the assignment conversion a
+            // Float32 local would have applied anyway.
+            let flv = if lv_ty == clif_types::F64 {
+                ctx.builder.ins().fdemote(clif_types::F32, raw_lv)
+            } else {
+                raw_lv
+            };
+            let frv = if rv_ty == clif_types::F64 {
+                ctx.builder.ins().fdemote(clif_types::F32, raw_rv)
+            } else {
+                raw_rv
+            };
+            (flv, frv)
         } else {
-            raw_lv
-        };
-        let frv = if rv_ty == clif_types::I64 {
-            ctx.builder.ins().fcvt_from_sint(clif_types::F64, raw_rv)
-        } else {
-            raw_rv
-        };
-        (flv, frv)
+            let flv = if lv_ty == clif_types::I64 {
+                ctx.builder.ins().fcvt_from_sint(clif_types::F64, raw_lv)
+            } else {
+                raw_lv
+            };
+            let frv = if rv_ty == clif_types::I64 {
+                ctx.builder.ins().fcvt_from_sint(clif_types::F64, raw_rv)
+            } else {
+                raw_rv
+            };
+            (flv, frv)
+        }
     } else {
-        let ilv = if lv_ty == clif_types::I8 || lv_ty == clif_types::I32 {
-            ctx.builder.ins().sextend(clif_types::I64, raw_lv)
+        // Narrow/unsigned integers live in I64 slots, stored as the
+        // canonical representation chosen at load sites: signed narrow ->
+        // sign-extended, unsigned narrow -> zero-extended. Here we only
+        // normalise an operand that arrived with a narrower Cranelift
+        // type (e.g. I8 from a VolatileLoad that did not widen).
+        let ilv = if lv_ty != clif_types::I64 {
+            match (lv_ty, is_unsigned) {
+                (clif_types::I8, true) => ctx.builder.ins().uextend(clif_types::I64, raw_lv),
+                (clif_types::I8, false) => ctx.builder.ins().sextend(clif_types::I64, raw_lv),
+                (clif_types::I16, true) => ctx.builder.ins().uextend(clif_types::I64, raw_lv),
+                (clif_types::I16, false) => ctx.builder.ins().sextend(clif_types::I64, raw_lv),
+                (clif_types::I32, true) => ctx.builder.ins().uextend(clif_types::I64, raw_lv),
+                (clif_types::I32, false) => ctx.builder.ins().sextend(clif_types::I64, raw_lv),
+                _ => raw_lv,
+            }
         } else {
             raw_lv
         };
-        let irv = if rv_ty == clif_types::I8 || rv_ty == clif_types::I32 {
-            ctx.builder.ins().sextend(clif_types::I64, raw_rv)
+        let irv = if rv_ty != clif_types::I64 {
+            match (rv_ty, is_unsigned) {
+                (clif_types::I8, true) => ctx.builder.ins().uextend(clif_types::I64, raw_rv),
+                (clif_types::I8, false) => ctx.builder.ins().sextend(clif_types::I64, raw_rv),
+                (clif_types::I16, true) => ctx.builder.ins().uextend(clif_types::I64, raw_rv),
+                (clif_types::I16, false) => ctx.builder.ins().sextend(clif_types::I64, raw_rv),
+                (clif_types::I32, true) => ctx.builder.ins().uextend(clif_types::I64, raw_rv),
+                (clif_types::I32, false) => ctx.builder.ins().sextend(clif_types::I64, raw_rv),
+                _ => raw_rv,
+            }
         } else {
             raw_rv
         };
@@ -114,12 +171,29 @@ pub fn compile_binop<M: ClifModule>(
 
     let res = if is_float {
         if let (Some(l_val), Some(r_val)) = (c_left, c_right) {
-            let folded = match op {
-                "+" => Some(l_val + r_val),
-                "-" => Some(l_val - r_val),
-                "*" => Some(l_val * r_val),
-                "/" if r_val != 0.0 => Some(l_val / r_val),
-                _ => None,
+            // v1.4.5 W2: constexpr float folding must match the operand
+            // width — Float32 folds at f32 (round after each op), wide
+            // Float stays f64. Folding wide first demote-later produced
+            // f64 artifacts like 0.30000000000000004 for 0.1f + 0.2f.
+            let folded = if is_f32 {
+                let l32 = l_val as f32;
+                let r32 = r_val as f32;
+                let r = match op {
+                    "+" => l32 + r32,
+                    "-" => l32 - r32,
+                    "*" => l32 * r32,
+                    "/" if r32 != 0.0 => l32 / r32,
+                    _ => f32::NAN,
+                };
+                if r.is_nan() { None } else { Some(r as f64) }
+            } else {
+                match op {
+                    "+" => Some(l_val + r_val),
+                    "-" => Some(l_val - r_val),
+                    "*" => Some(l_val * r_val),
+                    "/" if r_val != 0.0 => Some(l_val / r_val),
+                    _ => None,
+                }
             };
             if let Some(val) = folded {
                 ctx.const_float_map.insert(*dest, val);
@@ -655,19 +729,45 @@ pub fn compile_binop<M: ClifModule>(
             "&" | "&&" => ctx.builder.ins().band(lv, rv),
             "|" | "||" => ctx.builder.ins().bor(lv, rv),
             "^" => ctx.builder.ins().bxor(lv, rv),
-            // Shift counts are masked to 0..63: Cranelift leaves ishl/sshr
+            // Shift counts are masked to the operand width (Int8 -> 0..7,
+            // Int32 -> 0..31, Int/Int64 -> 0..63): Cranelift leaves ishl/sshr
             // results undefined for out-of-range counts, and the mask makes
             // the runtime behavior deterministic and identical to the x86
             // native semantics and the WASM i64.shl / i64.shr_s rules.
+            // v1.4.5 W1: the mask width follows the operand type from `ty`.
             "<<" => {
-                let mask = ctx.builder.ins().iconst(clif_types::I64, 63);
+                let shift_mask: i64 = match repr {
+                    "Int8" | "i8" | "UInt8" | "Byte" | "u8" => 7,
+                    "Int16" | "i16" | "UInt16" | "u16" => 15,
+                    "Int32" | "i32" | "UInt32" | "u32" => 31,
+                    _ => 63,
+                };
+                let mask = ctx.builder.ins().iconst(clif_types::I64, shift_mask);
                 let count = ctx.builder.ins().band(rv, mask);
                 ctx.builder.ins().ishl(lv, count)
             }
             ">>" => {
-                let mask = ctx.builder.ins().iconst(clif_types::I64, 63);
+                let shift_mask: i64 = match repr {
+                    "Int8" | "i8" | "UInt8" | "Byte" | "u8" => 7,
+                    "Int16" | "i16" | "UInt16" | "u16" => 15,
+                    "Int32" | "i32" | "UInt32" | "u32" => 31,
+                    _ => 63,
+                };
+                let mask = ctx.builder.ins().iconst(clif_types::I64, shift_mask);
                 let count = ctx.builder.ins().band(rv, mask);
-                ctx.builder.ins().sshr(lv, count)
+                if is_unsigned {
+                    // Logical right shift for unsigned types.
+                    let is_neg = ctx.builder.ins().icmp_imm_s(
+                        cranelift_codegen::ir::condcodes::IntCC::SignedLessThan,
+                        lv,
+                        0,
+                    );
+                    let shr_s = ctx.builder.ins().sshr(lv, count);
+                    let shr_u = ctx.builder.ins().ushr(lv, count);
+                    ctx.builder.ins().select(is_neg, shr_u, shr_s)
+                } else {
+                    ctx.builder.ins().sshr(lv, count)
+                }
             }
             // Used to be a silent `iadd` fallback. That is
             // how `a && b` compiled to `a + b`: the operator
@@ -683,6 +783,102 @@ pub fn compile_binop<M: ClifModule>(
             }
         }
     };
+
+    // v1.4.5 W1: wrap arithmetic results back into the operand width.
+    // Semantics (fixed in SPEC): release = wrapping, and the typechecker
+    // enforces constant overflow at compile time. Integer narrowing uses
+    // `ireduce` (truncating wrap); the value stays in an I64 slot as the
+    // canonical extension of the narrowed result (sign/zero per type).
+    // Float32 results are computed in F32 but stored BACK in an F64 slot
+    // (fpromote) — the same canonical-slot discipline narrow ints use with
+    // I64. This keeps every Cranelift `Variable` monomorphic: a `mut t:
+    // Float32` initialized from an f64 literal and later assigned f32
+    // arithmetic must not flip the variable's declared type (panics in
+    // cranelift-frontend). The f32-ness lives in the DMIR `ty` metadata,
+    // and `Inst::Out` demotes on print.
+    let res = if is_float && is_f32 {
+        match ctx.builder.func.dfg.value_type(res) {
+            // Math ran through the F64 pipe (mixed-width operands).
+            clif_types::F64 => {
+                let demoted = ctx.builder.ins().fdemote(clif_types::F32, res);
+                ctx.builder.ins().fpromote(clif_types::F64, demoted)
+            }
+            // Math already ran in F32 (both operands demoted): promote the
+            // f32 result back into the canonical F64 slot.
+            clif_types::F32 => ctx.builder.ins().fpromote(clif_types::F64, res),
+            // Comparisons yield Bools (I64): untouched.
+            _ => res,
+        }
+    } else if !is_float
+        && !matches!(op, "<" | "<=" | ">" | ">=" | "==" | "!=" | "&&" | "||" | "<<" | ">>")
+    {
+        // Shift counts must NOT be wrapped (they are widths, not values);
+        // comparisons are Bools; everything else is a value op.
+        match repr {
+            "Int8" | "i8" => {
+                let red = ctx.builder.ins().ireduce(clif_types::I8, res);
+                ctx.builder.ins().sextend(clif_types::I64, red)
+            }
+            "Int16" | "i16" => {
+                let red = ctx.builder.ins().ireduce(clif_types::I16, res);
+                ctx.builder.ins().sextend(clif_types::I64, red)
+            }
+            "Int32" | "i32" => {
+                let red = ctx.builder.ins().ireduce(clif_types::I32, res);
+                ctx.builder.ins().sextend(clif_types::I64, red)
+            }
+            "UInt8" | "Byte" | "u8" => {
+                let red = ctx.builder.ins().ireduce(clif_types::I8, res);
+                ctx.builder.ins().uextend(clif_types::I64, red)
+            }
+            "UInt16" | "u16" => {
+                let red = ctx.builder.ins().ireduce(clif_types::I16, res);
+                ctx.builder.ins().uextend(clif_types::I64, red)
+            }
+            "UInt32" | "u32" => {
+                let red = ctx.builder.ins().ireduce(clif_types::I32, res);
+                ctx.builder.ins().uextend(clif_types::I64, red)
+            }
+            _ => res,
+        }
+    } else {
+        res
+    };
+
+    // v1.4.5 W1: unsigned comparisons must be unsigned — the operands are
+    // zero-extended into I64 slots, so a signed `icmp` would rank a small
+    // UInt8 value above a large one once the high bit is involved.
+    if is_unsigned
+        && matches!(op, "<" | "<=" | ">" | ">=" | "==" | "!=")
+        && !ctx.string_vids.contains(left)
+        && !ctx.string_vids.contains(right)
+    {
+        // Re-emit the comparison with the unsigned condition code. The
+        // generic arm already produced a signed one; compute the correct
+        // one and overwrite the mapping below via `res` reassignment is
+        // not possible (moved), so patch the value in place.
+        let cc = match op {
+            "<" => cranelift_codegen::ir::condcodes::IntCC::UnsignedLessThan,
+            "<=" => cranelift_codegen::ir::condcodes::IntCC::UnsignedLessThanOrEqual,
+            ">" => cranelift_codegen::ir::condcodes::IntCC::UnsignedGreaterThan,
+            ">=" => cranelift_codegen::ir::condcodes::IntCC::UnsignedGreaterThanOrEqual,
+            _ => cranelift_codegen::ir::condcodes::IntCC::Equal,
+        };
+        let mask: i64 = match repr {
+            "UInt8" | "Byte" | "u8" => 0xFF,
+            "UInt16" | "u16" => 0xFFFF,
+            "UInt32" | "u32" => 0xFFFF_FFFF,
+            _ => -1, // UInt64: full width, no mask needed
+        };
+        let lm = if mask == -1 { lv } else { ctx.builder.ins().band_imm_u(lv, mask) };
+        let rm = if mask == -1 { rv } else { ctx.builder.ins().band_imm_u(rv, mask) };
+        let c = ctx.builder.ins().icmp(cc, lm, rm);
+        let res_u = ctx.builder.ins().uextend(clif_types::I64, c);
+        ctx.val_map.insert(*dest, res_u);
+        ctx.bool_vids.insert(*dest);
+        return Ok(());
+    }
+
     ctx.val_map.insert(*dest, res);
     // Comparisons and logical operators always produce
     // a Bool; the lowering labels them `ty: "Int"`

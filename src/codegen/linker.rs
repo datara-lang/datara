@@ -734,6 +734,7 @@ pub fn compile_with_llc(
     opt_level: &str,
     target_triple: Option<&str>,
     _debug_info: bool,
+    extra_libs: &[String],
 ) -> Result<(), String> {
     let opt_flag = match opt_level {
         "0" | "debug" => "-O0",
@@ -866,7 +867,7 @@ pub fn compile_with_llc(
     if opt_level == "tiny" || opt_level == "z" || opt_level == "size" {
         extra.push("--tiny".to_string());
     }
-    let args = link_args(&spec, &obj_path, &runtime_lib, &abs_out, &[], &extra);
+    let args = link_args(&spec, &obj_path, &runtime_lib, &abs_out, &[], extra_libs);
     let _guard = linker_lock().lock().unwrap_or_else(|e| e.into_inner());
     let mut link_cmd = Command::new(&spec.program);
     link_cmd.args(&args);
@@ -892,6 +893,7 @@ pub fn compile_with_clang(
     opt_level: &str,
     target_triple: Option<&str>,
     debug_info: bool,
+    extra_libs: &[String],
 ) -> Result<(), String> {
     if let Some(clang) = find_clang() {
         let is_tiny = opt_level == "tiny" || opt_level == "z" || opt_level == "size";
@@ -969,6 +971,12 @@ pub fn compile_with_clang(
             {
                 cmd.arg(rt);
             }
+            // v1.4.5: bridge cdylibs for extern fn resolution. The driver
+            // forwards the actual file paths; both the MSVC and GNU linker
+            // flavors accept dynamic-library inputs directly.
+            for lib in extra_libs {
+                cmd.arg(lib);
+            }
             cmd.arg("-o").arg(output_exe);
             let is_win_target = target_triple
                 .map(|t| t.contains("windows"))
@@ -1042,6 +1050,7 @@ pub fn compile_with_clang(
             opt_level,
             target_triple,
             debug_info,
+            extra_libs,
         );
     }
 
@@ -1126,7 +1135,7 @@ pub fn compile_shared_with_clang(
     }
 
     if let Some(llc) = find_llc() {
-        return compile_with_llc(&llc, ll_path, output_lib, opt_level, None, false);
+        return compile_with_llc(&llc, ll_path, output_lib, opt_level, None, false, &[]);
     }
 
     Err("Neither Clang nor LLC found on system toolchain to build shared library".to_string())

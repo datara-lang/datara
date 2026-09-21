@@ -6,14 +6,23 @@ extern fn regex_replace_all(pattern: String, text: String, rep: String) -> Strin
 
 fn main() {
     let email = "engineer@datara-lang.org"
-    let is_valid = regex_is_match("^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$", email)
+    mut is_valid = false
+    unsafe(justification: "Rust bridge: regex_is_match is a pure Rust crate call") {
+        is_valid = regex_is_match("^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$", email)
+    }
     out "IS_VALID_EMAIL: " + is_valid
 
     let log = "ERROR [2026-09-08 14:30:00] task_id=4299 failed"
-    let match_date = regex_find("[0-9]{4}-[0-9]{2}-[0-9]{2}", log)
+    mut match_date = ""
+    unsafe(justification: "Rust bridge: regex_find is a pure Rust crate call") {
+        match_date = regex_find("[0-9]{4}-[0-9]{2}-[0-9]{2}", log)
+    }
     out "MATCHED_DATE: " + match_date
 
-    let masked = regex_replace_all("[0-9]+", "id=123 token=456", "XXX")
+    mut masked = ""
+    unsafe(justification: "Rust bridge: regex_replace_all is a pure Rust crate call") {
+        masked = regex_replace_all("[0-9]+", "id=123 token=456", "XXX")
+    }
     out "MASKED: " + masked
     out "REGEX_SHOWCASE_OK"
 }

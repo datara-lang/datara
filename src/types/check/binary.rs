@@ -14,18 +14,29 @@ impl<'a> TypeChecker<'a> {
         let lt = self.check_expr(left, diag);
         let rt = self.check_expr(right, diag);
 
-        // --- Shift amount validation (v1.3.2 bitwise operators) ---
-        // `Int` is a signed 64-bit integer, so a constant shift amount must
-        // lie in 0..64. Anything else has no defined result (fail-closed:
-        // reject at compile time instead of silently producing garbage).
+        // --- Shift amount validation (v1.3.2 bitwise operators; widened in
+        // v1.4.5 W1 to the operand's own width). `Int` is a signed 64-bit
+        // integer so its constant shift amount must lie in 0..64; a narrow
+        // operand (Int8, UInt16, ...) masks its shift to its own width —
+        // documented SPEC_V1 behavior — so the constant range check follows
+        // the operand width. ---
         if matches!(op, "<<" | ">>") {
+            let shift_width: i128 = if lt == DataraType::Int8 || lt == DataraType::UInt8 {
+                8
+            } else if lt == DataraType::Int16 || lt == DataraType::UInt16 {
+                16
+            } else if lt == DataraType::Int32 || lt == DataraType::UInt32 {
+                32
+            } else {
+                64
+            };
             if let Expr::Literal(LiteralValue::Int(amount), shift_span) = &**right {
-                if *amount < 0 || *amount >= 64 {
+                if *amount < 0 || (*amount as i128) >= shift_width {
                     diag.error(
                         ErrorCode::RangeViolation,
                         format!(
-                            "Shift amount {} is out of range for Int (64-bit): the shift count must be in 0..64",
-                            amount
+                            "Shift amount {} is out of range for a {}-bit shift: the shift count must be in 0..{} (Datara masks shifts to the operand width)",
+                            amount, shift_width, shift_width
                         ),
                         Some(shift_span.clone()),
                     );
@@ -337,16 +348,35 @@ impl<'a> TypeChecker<'a> {
         let is_numeric = |t: &DataraType| {
             matches!(
                 t,
-                DataraType::Int | DataraType::Float | DataraType::Dec64 | DataraType::Dec128
+                DataraType::Int
+                    | DataraType::UInt
+                    | DataraType::Int8
+                    | DataraType::Int16
+                    | DataraType::Int32
+                    | DataraType::UInt8
+                    | DataraType::UInt16
+                    | DataraType::UInt32
+                    | DataraType::UInt64
+                    | DataraType::Float
+                    | DataraType::Float32
+                    | DataraType::Dec64
             )
         };
         let is_orderable = |t: &DataraType| {
             matches!(
                 t,
                 DataraType::Int
+                    | DataraType::UInt
+                    | DataraType::Int8
+                    | DataraType::Int16
+                    | DataraType::Int32
+                    | DataraType::UInt8
+                    | DataraType::UInt16
+                    | DataraType::UInt32
+                    | DataraType::UInt64
                     | DataraType::Float
+                    | DataraType::Float32
                     | DataraType::Dec64
-                    | DataraType::Dec128
                     | DataraType::String
                     | DataraType::Char
             )
@@ -407,28 +437,74 @@ impl<'a> TypeChecker<'a> {
                         if !is_numeric(&lt) || !is_numeric(&rt) {
                             report_bad_operands(diag);
                         } else if lt != rt {
-                            diag.error_with_help(
-                                ErrorCode::TypeIncomparableOperands,
-                                format!(
-                                    "Arithmetic operator '{}' cannot combine operands of different numeric types '{}' and '{}'",
-                                    op, lt, rt
-                                ),
-                                Some(span.clone()),
-                                Some("Datara never widens numeric types implicitly (SPEC_V1 Gate 7): use explicit cast 'as Float' or 'as Int'.".to_string()),
-                            );
+                            // v1.4.5 W1: an INT LITERAL on one side adopts
+                            // the other operand's integer width — literals
+                            // are compile-time values, not runtime Ints,
+                            // so this is literal labeling, not a Gate-7
+                            // implicit conversion of a runtime value.
+                            let lit_int = |e: &Expr| {
+                                matches!(e, Expr::Literal(LiteralValue::Int(_), _))
+                            };
+                            // v1.4.5 W2: a FLOAT literal adopts the other
+                            // operand's float width the same way an int
+                            // literal adopts an integer width.
+                            let lit_float = |e: &Expr| {
+                                matches!(e, Expr::Literal(LiteralValue::Float(_), _))
+                            };
+                            let mixed = !((lit_int(left)
+                                && DataraType::is_integer_type(&rt)
+                                || lit_int(right)
+                                    && DataraType::is_integer_type(&lt))
+                                || (lit_float(left) && DataraType::is_float_type(&rt))
+                                || (lit_float(right) && DataraType::is_float_type(&lt)));
+                            if mixed {
+                                diag.error_with_help(
+                                    ErrorCode::TypeIncomparableOperands,
+                                    format!(
+                                        "Arithmetic operator '{}' cannot combine operands of different numeric types '{}' and '{}'",
+                                        op, lt, rt
+                                    ),
+                                    Some(span.clone()),
+                                    Some("Datara never widens numeric types implicitly (SPEC_V1 Gate 7): use explicit cast 'as Float' or 'as Int'.".to_string()),
+                                );
+                            }
                         }
                     }
                 }
                 "==" | "!=" => {
-                    // Bool/Int cross-comparisons are intended
-                    // dynamic behavior in Datara (truthy scalars).
+                    // Bool/Int cross-comparisons used to be "intended
+                    // dynamic behavior", but they contradict SPEC_V1
+                    // Gate 5 (no truthy integers) and Gate 7 (no implicit
+                    // numeric conversions). They are now flagged with a
+                    // warning so existing code still compiles while the
+                    // language converges on strict Bool==Bool equality.
+                    let bool_int_cross = (lt == DataraType::Bool && rt == DataraType::Int)
+                        || (lt == DataraType::Int && rt == DataraType::Bool);
+                    if bool_int_cross {
+                        diag.warning(
+                            ErrorCode::BoolIntComparison,
+                            format!(
+                                "Comparing Bool with Int ('{} {} {}') relies on truthy-integer coercion, which Datara forbids elsewhere (Gate 5). Compare Bool with Bool, or convert explicitly.",
+                                lt, op, rt
+                            ),
+                            Some(span.clone()),
+                        );
+                    }
                     let is_truthy_scalar = |t: &DataraType| {
                         matches!(
                             t,
                             DataraType::Int
+                                | DataraType::UInt
+                                | DataraType::Int8
+                                | DataraType::Int16
+                                | DataraType::Int32
+                                | DataraType::UInt8
+                                | DataraType::UInt16
+                                | DataraType::UInt32
+                                | DataraType::UInt64
                                 | DataraType::Float
+                                | DataraType::Float32
                                 | DataraType::Dec64
-                                | DataraType::Dec128
                                 | DataraType::Bool
                         )
                     };
@@ -494,14 +570,31 @@ impl<'a> TypeChecker<'a> {
         match op {
             "+" if lt == DataraType::String || rt == DataraType::String => DataraType::String,
             "+" | "-" | "*" | "/" | "%" => {
-                if lt == DataraType::Float || rt == DataraType::Float {
-                    DataraType::Float
+                // v1.4.5 W1: the result carries the operand's width. Strict
+                // same-type arithmetic (Gate 7) means lt == rt for numeric
+                // operands, so the left operand's type IS the result type.
+                if lt == DataraType::Float
+                    || rt == DataraType::Float
+                    || lt == DataraType::Float32
+                    || rt == DataraType::Float32
+                {
+                    // Float dominates: Float32 op Float stays Float per the
+                    // promotion-free rule (same-type enforcement above makes
+                    // this the un-mixed case anyway).
+                    if lt == DataraType::Float32 || rt == DataraType::Float32 {
+                        DataraType::Float32
+                    } else {
+                        DataraType::Float
+                    }
                 } else {
-                    DataraType::Int
+                    lt
                 }
             }
             "==" | "!=" | "<" | "<=" | ">" | ">=" | "&&" | "||" => DataraType::Bool,
-            "&" | "|" | "^" | "<<" | ">>" => DataraType::Int,
+            "&" | "|" | "^" | "<<" | ">>" => {
+                // Bitwise results keep the operand's integer width too.
+                lt
+            }
             _ => lt,
         }
     }

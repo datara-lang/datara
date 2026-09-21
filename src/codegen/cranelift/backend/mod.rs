@@ -120,7 +120,39 @@ impl RealCraneliftBackend {
         capture: bool,
     ) -> Result<(String, String, i32, u128), String> {
         let (isa, call_conv, frontend_config) = self.build_target_isa(true)?;
-        let mut module = crate::codegen::cranelift::jit::create_jit_module(isa)?;
+        // v1.4.5: load bridge cdylibs so `extern fn` calls unresolved by
+        // the runtime symbol table (rust-bridge trampolines etc.) resolve
+        // through the bridge loader. The search walks the process CWD plus
+        // its `bridges/` and `dpm_packages/` subdirs.
+        let bridges = if !dmir_module.extern_functions.is_empty() {
+            let dirs = crate::codegen::bridge_loader::collect_bridge_search_dirs(None);
+            let mut libs = crate::codegen::bridge_loader::load_bridge_libraries(&dirs);
+            if !libs.is_empty() {
+                // Anchor thunks near the host runtime so the JIT's
+                // PC-relative calls stay inside the ±2 GiB window even when
+                // the bridge DLL itself loads far away.
+                let near_ref =
+                    crate::codegen::cranelift::jit::datara_rt_out_int as *const () as usize;
+                let extern_names: Vec<String> =
+                    dmir_module.extern_functions.keys().cloned().collect();
+                libs.install_thunks(&extern_names, near_ref);
+            }
+            if std::env::var("FORGEN_DEBUG_BRIDGES").is_ok() {
+                eprintln!(
+                    "[bridge-loader] dirs={:?} loaded={}",
+                    dirs,
+                    !libs.is_empty()
+                );
+            }
+            if libs.is_empty() {
+                None
+            } else {
+                Some(libs)
+            }
+        } else {
+            None
+        };
+        let mut module = crate::codegen::cranelift::jit::create_jit_module_with_bridges(isa, bridges)?;
         let artifacts =
             self.compile_into_module(&mut module, dmir_module, frontend_config, call_conv)?;
         module.finalize_definitions().map_err(|e| e.to_string())?;
@@ -170,6 +202,8 @@ impl RealCraneliftBackend {
             rt_out_int_id: core_ids.rt_out_int_id,
             rt_out_bool_id: core_ids.rt_out_bool_id,
             rt_out_flt_id: core_ids.rt_out_flt_id,
+            rt_out_f32_id: core_ids.rt_out_f32_id,
+            rt_out_dec64_id: core_ids.rt_out_dec64_id,
             rt_out_str_id: core_ids.rt_out_str_id,
             rt_err_id: core_ids.rt_err_id,
             rt_concat_id: core_ids.rt_concat_id,
@@ -179,6 +213,7 @@ impl RealCraneliftBackend {
             rt_int_to_str_id: core_ids.rt_int_to_str_id,
             rt_bool_to_str_id: core_ids.rt_bool_to_str_id,
             rt_flt_to_str_id: core_ids.rt_flt_to_str_id,
+            rt_dec_to_str_id: core_ids.rt_dec_to_str_id,
             malloc_id: core_ids.malloc_id,
             rt_list_get_id: core_ids.rt_list_get_id,
             rt_list_create_id: core_ids.rt_list_create_id,

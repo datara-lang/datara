@@ -103,6 +103,10 @@ fn visit_vids(inst: &Inst, f: &mut dyn FnMut(&ValueId)) {
             f(dest);
             f(operand);
         }
+        Inst::Cast { dest, value, .. } => {
+            f(dest);
+            f(value);
+        }
         Inst::Call { dest, args, .. } => {
             f(dest);
             args.iter().for_each(f);
@@ -168,7 +172,7 @@ fn visit_vids(inst: &Inst, f: &mut dyn FnMut(&ValueId)) {
                 f(i);
             }
         }
-        Inst::Out { value } | Inst::Err { value } => f(value),
+        Inst::Out { value, .. } | Inst::Err { value } => f(value),
         Inst::VolatileLoad { dest, addr, .. } => {
             f(dest);
             f(addr);
@@ -809,6 +813,7 @@ fn substitute_inst(
             map(right);
         }
         Inst::UnOp { operand, .. } => map(operand),
+        Inst::Cast { value, .. } => map(value),
         Inst::Call { args, .. } => args.iter_mut().for_each(map),
         Inst::MethodCall { object, args, .. } => {
             map(object);
@@ -840,7 +845,7 @@ fn substitute_inst(
             map(then_val);
             map(else_val);
         }
-        Inst::Out { value } | Inst::Err { value } => map(value),
+        Inst::Out { value, .. } | Inst::Err { value } => map(value),
         Inst::VolatileLoad { addr, .. } => map(addr),
         Inst::VolatileStore { addr, value, .. } => {
             map(addr);

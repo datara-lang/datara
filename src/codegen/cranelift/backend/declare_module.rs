@@ -386,6 +386,14 @@ pub fn declare_module_symbols<M: ClifModule>(
     string_return_funcs.insert("int_to_str".into());
     string_return_funcs.insert("datara_rt_float_to_str".into());
     string_return_funcs.insert("float_to_str".into());
+    // v1.4.5 W4 fmt specifiers: results are string handles and must be
+    // tracked as string vids for later concat/print routing.
+    string_return_funcs.insert("datara_rt_float_to_str_prec".into());
+    string_return_funcs.insert("float_to_str_prec".into());
+    string_return_funcs.insert("datara_rt_int_to_str_radix".into());
+    string_return_funcs.insert("int_to_str_radix".into());
+    string_return_funcs.insert("datara_rt_dec64_to_str_prec".into());
+    string_return_funcs.insert("dec64_to_str_prec".into());
     string_return_funcs.insert("datara_rt_exec".into());
     string_return_funcs.insert("process_output".into());
     string_return_funcs.insert("exec".into());
@@ -461,6 +469,7 @@ pub fn declare_module_symbols<M: ClifModule>(
     };
 
     let mut class_field_offsets: HashMap<String, HashMap<String, i32>> = HashMap::new();
+    let mut class_total_sizes: HashMap<String, i32> = HashMap::new();
     let mut string_fields: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     let mut sorted_cls_names: Vec<&String> = dmir_module.class_fields.keys().collect();
@@ -479,18 +488,19 @@ pub fn declare_module_symbols<M: ClifModule>(
                     .get(&fkey)
                     .map(|s| s.as_str())
                     .unwrap_or("Int");
-                let fsize = match fty {
-                    "Byte" | "U8" | "I8" | "Bool" | "Char" => 1,
-                    "U16" | "I16" => 2,
-                    "U32" | "I32" | "F32" => 4,
-                    _ => 8,
-                };
-                cur_offset += fsize;
+                // v1.4.5 W1 (БАГ-1 fix): layout sizes go through the single
+                // repr-size helper so canonical names (Int8/UInt32/Float32...)
+                // and legacy short reprs (I8/U32/F32...) agree. Previously the
+                // matcher only knew "I8"-style names, so an `Int8` field in a
+                // packed struct was laid out as 8 bytes.
+                cur_offset += crate::dmir::ir::dm_repr_byte_size(fty) as i32;
             }
+            class_total_sizes.insert(cls_name.clone(), cur_offset);
         } else {
             for (idx, fname) in fields.iter().enumerate() {
                 m.insert(fname.clone(), (idx * 8) as i32);
             }
+            class_total_sizes.insert(cls_name.clone(), (fields.len() * 8) as i32);
         }
     }
 
@@ -604,6 +614,7 @@ pub fn declare_module_symbols<M: ClifModule>(
 
     Ok(ModuleDecls {
         class_field_offsets,
+        class_total_sizes,
         string_fields,
         string_literal_map,
         main_entry_info,

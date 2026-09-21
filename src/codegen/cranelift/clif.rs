@@ -480,6 +480,37 @@ impl<'a> ClifEmitter<'a> {
                     format!("    v{} = copy v{}\n", dest.0, operand.0)
                 }
             }
+            Inst::Cast {
+                dest,
+                value,
+                from_ty,
+                to_ty,
+            } => {
+                let is_f32 = |t: &str| t == "Float32";
+                let is_f64 = |t: &str| t == "Float" || t == "Dec64";
+                let is_i = |t: &str| {
+                    matches!(
+                        t,
+                        "Int" | "Int8" | "Int16" | "Int32" | "Int64" | "UInt" | "UInt8"
+                            | "UInt16" | "UInt32" | "UInt64" | "Bool" | "Char"
+                    )
+                };
+                if is_f64(from_ty) && is_i(to_ty) {
+                    format!("    v{} = fcvt_to_sint_sat.i64 v{}\n", dest.0, value.0)
+                } else if is_i(from_ty) && is_f64(to_ty) {
+                    format!("    v{} = sitofp.f64 v{}\n", dest.0, value.0)
+                } else if is_f32(from_ty) && is_i(to_ty) {
+                    format!("    v{} = fcvt_to_sint_sat.i64 v{}\n", dest.0, value.0)
+                } else if is_i(from_ty) && is_f32(to_ty) {
+                    format!("    v{} = sitofp.f32 v{}\n", dest.0, value.0)
+                } else if is_f64(from_ty) && is_f32(to_ty) {
+                    format!("    v{} = fvdemote v{}\n", dest.0, value.0)
+                } else if is_f32(from_ty) && is_f64(to_ty) {
+                    format!("    v{} = fpromote.f64 v{}\n", dest.0, value.0)
+                } else {
+                    format!("    v{} = iadd v{}, 0\n", dest.0, value.0)
+                }
+            }
             Inst::Call {
                 dest, func, args, ..
             } => {
@@ -542,7 +573,7 @@ impl<'a> ClifEmitter<'a> {
             } => {
                 format!("    ; set field {}.{} <= v{}\n", object.0, field, value.0)
             }
-            Inst::Out { value } => {
+            Inst::Out { value, .. } => {
                 format!("    call fn$rt_out(v{})\n", value.0)
             }
             Inst::Err { value } => {

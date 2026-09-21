@@ -31,13 +31,13 @@ fn main() {
     let tx = hit.compute_target_x()
     let ty = hit.compute_target_y()
 
-    println(fmt"Target X: {tx}")
-    println(fmt"Target Y: {ty}")
+    out(fmt"Target X: {tx}")
+    out(fmt"Target Y: {ty}")
 
     // Expected: 10 + 80 = 90, 20 + 60 = 80
     if tx > 89.9 && tx < 90.1 && ty > 79.9 && ty < 80.1 {
-        println("[PASS] DOD struct and behavior flat layout execution verified successfully.")
+        out("[PASS] DOD struct and behavior flat layout execution verified successfully.")
     } else {
-        println("[FAIL] Unexpected coordinates.")
+        out("[FAIL] Unexpected coordinates.")
     }
 }

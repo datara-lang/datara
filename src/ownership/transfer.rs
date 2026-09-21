@@ -465,7 +465,7 @@ impl<'a> DmirOwnershipAnalyzer<'a> {
                 }
             }
 
-            Inst::Out { value } | Inst::Err { value } => {
+            Inst::Out { value, .. } | Inst::Err { value } => {
                 let v_st = state.get_value(value.0).clone();
                 if let Some(ref mut uses) = use_states {
                     uses.insert((bb_id, inst_idx, *value), v_st.to_abstract(interner));
@@ -491,6 +491,7 @@ impl<'a> DmirOwnershipAnalyzer<'a> {
                 dest,
                 parts: _,
                 values,
+                value_tys: _,
             } => {
                 for v in values {
                     let v_st = state.get_value(v.0).clone();

@@ -61,10 +61,21 @@ pub(crate) fn cmd_check(args: &[String]) -> bool {
     let elapsed = start.elapsed().as_millis();
 
     if res.success {
+        // Surface warnings (W-*) even on success so canonical-form nudges
+        // (W-SYN-001/W-SYN-002/W-TYPE-002) are actually visible to users.
+        let warning_records: Vec<&_> = res
+            .diagnostic_records
+            .iter()
+            .filter(|d| d.severity == "WARNING")
+            .collect();
+        if !warning_records.is_empty() {
+            eprintln!("{}", res.diagnostics);
+        }
         println!(
-            "[Forgen check] Verified 100% OK in {}ms ({} modules, 0 errors, valid ownership & effects)",
+            "[Forgen check] Verified 100% OK in {}ms ({} modules, 0 errors, {} warnings, valid ownership & effects)",
             elapsed,
-            layout.source_files.len()
+            layout.source_files.len(),
+            warning_records.len()
         );
     } else {
         eprintln!("{}", res.diagnostics);

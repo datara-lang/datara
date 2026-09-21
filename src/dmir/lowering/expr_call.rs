@@ -213,6 +213,14 @@ impl<'a> Lowering<'a> {
                     let arg_val = self.lower_expr(arg, cur_block)?;
                     let print_func = if self.is_expr_str(arg) {
                         "datara_rt_print_str"
+                    } else if self.is_expr_f32(arg) {
+                        // v1.4.5 W2: f32 values print via the f32 printer so
+                        // LLVM sees f32-precision output matching Cranelift.
+                        "datara_rt_print_f32"
+                    } else if self.is_expr_dec64(arg) {
+                        // v1.4.5 W3: fixed-point decimal prints through the
+                        // dec64 formatter (mantissa ÷ 10⁴, 4 fractional digits).
+                        "datara_rt_print_dec64"
                     } else if self.is_expr_float(arg) {
                         "datara_rt_print_float"
                     } else if self.is_expr_bool(arg) {
@@ -259,14 +267,76 @@ impl<'a> Lowering<'a> {
             }
             if fn_name == "eprintln" && args.len() == 1 {
                 let arg_val = self.lower_expr(&args[0], cur_block)?;
+                // v1.4.5: datara_rt_err takes a string. Convert non-string
+                // values at lowering so both backends see a valid str
+                // handle (previously raw int/float slots were passed as
+                // pointers — segfault on Cranelift, type error on LLVM).
+                let err_val = if self.is_expr_str(&args[0]) {
+                    arg_val
+                } else {
+                    let conv_fn = if self.is_expr_f32(&args[0])
+                        || self.is_expr_float(&args[0])
+                    {
+                        "datara_rt_float_to_str"
+                    } else if self.is_expr_bool(&args[0]) {
+                        "datara_rt_bool_to_str"
+                    } else {
+                        "datara_rt_int_to_str"
+                    };
+                    let conv_dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest: conv_dest,
+                            func: conv_fn.into(),
+                            args: vec![arg_val],
+                            ty: "Str".into(),
+                        });
+                    conv_dest
+                };
                 self.get_block_mut(*cur_block)
                     .instructions
-                    .push(Inst::Err { value: arg_val });
+                    .push(Inst::Err { value: err_val });
                 let dest = self.next_val();
                 self.get_block_mut(*cur_block)
                     .instructions
                     .push(Inst::ConstInt { dest, value: 0 });
                 return Some(dest);
+            }
+            // v1.4.5 W1: `size_of(T)` is a comptime builtin for class/struct
+            // types. Packed layout: sum of the single repr sizes. Unpacked:
+            // field count × 8 (matches backend layout math).
+            if fn_name == "size_of" && args.len() == 1 {
+                // The argument is a type expression (`size_of(Q)`); only the
+                // bare-identifier form is supported.
+                let cls_name = match &args[0] {
+                    Expr::Identifier(name, _) => name.clone(),
+                    _ => String::new(),
+                };
+                if !cls_name.is_empty() && self.class_decl_fields.contains_key(&cls_name) {
+                    let is_packed = self.packed_classes_lower.contains(&cls_name);
+                    let total: i64 = self
+                        .class_decl_fields
+                        .get(&cls_name)
+                        .map(|fields| {
+                            fields
+                                .iter()
+                                .map(|ft| {
+                                    if is_packed {
+                                        crate::dmir::ir::dm_repr_byte_size(ft) as i64
+                                    } else {
+                                        8
+                                    }
+                                })
+                                .sum()
+                        })
+                        .unwrap_or(0);
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::ConstInt { dest, value: total });
+                    return Some(dest);
+                }
             }
             if fn_name == "len" && args.len() == 1 {
                 let arg_val = self.lower_expr(&args[0], cur_block)?;
@@ -358,6 +428,50 @@ impl<'a> Lowering<'a> {
             // build eager result lists, so the list itself is the value.
             if fn_name == "collect" && args.len() == 1 && self.is_expr_list(&args[0]) {
                 return self.lower_expr(&args[0], cur_block);
+            }
+            // v1.4.5 W1: checked arithmetic -> Outcome<IntN> object. The
+            // runtime helper takes the operand width explicitly so the
+            // overflow is detected at the *operand* width, never i64. The
+            // result is an Outcome object in the stdlib Outcome<T> layout:
+            // `?`, is_ok/is_err/unwrap/unwrap_or/err all work on it exactly
+            // like on file_read_checked().
+            if (fn_name == "checked_add" || fn_name == "checked_sub" || fn_name == "checked_mul")
+                && args.len() == 2
+            {
+                let bits = self.expr_int_bits(&args[0]);
+                // v1.4.5: the Outcome payload names the *real* operand type
+                // (e.g. Outcome<Int8>), never a placeholder. Backends key the
+                // payload repr (raw i64 vs pointer) off this type; a fake
+                // generic name makes the monomorphized unwrap/unwrap_or load
+                // the value slot as a pointer (segfault on print).
+                let payload_ty = match self.infer_expr_datara_type(&args[0]) {
+                    Some(DataraType::Int8) => "Int8",
+                    Some(DataraType::Int16) => "Int16",
+                    Some(DataraType::Int32) => "Int32",
+                    Some(DataraType::UInt8) => "UInt8",
+                    Some(DataraType::UInt16) => "UInt16",
+                    Some(DataraType::UInt32) => "UInt32",
+                    _ => "Int",
+                };
+                let l = self.lower_expr(&args[0], cur_block)?;
+                let r = self.lower_expr(&args[1], cur_block)?;
+                let bits_val = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::ConstInt {
+                        dest: bits_val,
+                        value: bits,
+                    });
+                let dest = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::Call {
+                        dest,
+                        func: format!("{}_outcome", fn_name),
+                        args: vec![bits_val, l, r],
+                        ty: format!("Outcome<{}>", payload_ty),
+                    });
+                return Some(dest);
             }
             if fn_name == "wrapping_add" && args.len() == 2 {
                 let l = self.lower_expr(&args[0], cur_block)?;
@@ -1103,6 +1217,13 @@ impl<'a> Lowering<'a> {
                             DataraType::String => "String".into(),
                             DataraType::Bool => "Bool".into(),
                             DataraType::Int => "Int".into(),
+                            DataraType::Int8 => "Int8".into(),
+                            DataraType::Int16 => "Int16".into(),
+                            DataraType::Int32 => "Int32".into(),
+                            DataraType::UInt8 => "UInt8".into(),
+                            DataraType::UInt16 => "UInt16".into(),
+                            DataraType::UInt32 => "UInt32".into(),
+                            DataraType::UInt64 => "UInt64".into(),
                             DataraType::Class(c) => c.clone(),
                             _ => "Int".into(),
                         };
@@ -1113,6 +1234,13 @@ impl<'a> Lowering<'a> {
                         DataraType::String => "String".into(),
                         DataraType::Bool => "Bool".into(),
                         DataraType::Int => "Int".into(),
+                        DataraType::Int8 => "Int8".into(),
+                        DataraType::Int16 => "Int16".into(),
+                        DataraType::Int32 => "Int32".into(),
+                        DataraType::UInt8 => "UInt8".into(),
+                        DataraType::UInt16 => "UInt16".into(),
+                        DataraType::UInt32 => "UInt32".into(),
+                        DataraType::UInt64 => "UInt64".into(),
                         DataraType::Class(c) => c.clone(),
                         _ => "Int".into(),
                     };

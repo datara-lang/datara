@@ -44,7 +44,7 @@ behavior Page {
         return head + nav + this.body_html + footer
     }
 
-    save(path: Str) -> Bool {
+    save(path: Str) -> Bool / IO {
         let content = this.render()
         mut res = 0
         unsafe(justification: "Save generated HTML dashboard to disk") {

@@ -540,6 +540,133 @@ impl ForgenCompiler {
         // file -> module files it imports (for cycle detection)
         let mut deps: Vec<(PathBuf, Vec<PathBuf>)> = Vec::new();
 
+        // v1.4.5 (DX): the Outcome protocol (is_ok/is_err/unwrap/unwrap_or/err)
+        // lives in the stdlib `result` module. Builtins that RETURN an Outcome
+        // object (checked arithmetic, checked I/O) are always available, but
+        // the accessors dispatch as behavior methods and are not unless the
+        // module is loaded — previously this produced an opaque
+        // "unresolved method call 'is_err'" codegen error. If the program uses
+        // an Outcome-returning builtin or an Outcome.ok/err constructor without
+        // importing the module, auto-load it (idempotent: the visited set and
+        // the Behavior dedup below keep a double import harmless).
+        {
+            fn expr_uses_outcome(e: &crate::ast::Expr) -> bool {
+                use crate::ast::Expr;
+                // A method call on an Outcome value, e.g.
+                // `checked_add(a, b).is_err()` parses as
+                // Call { callee: MemberAccess { object: <receiver> } }, so the
+                // callee itself must be scanned, not only matched verbatim.
+                match e {
+                    Expr::Call { callee, args, .. } => {
+                        let callee_hits = match &**callee {
+                            Expr::Identifier(name, _) => matches!(
+                                name.as_str(),
+                                "checked_add"
+                                    | "checked_sub"
+                                    | "checked_mul"
+                                    | "file_read_checked"
+                                    | "env_get_checked"
+                            ),
+                            Expr::MemberAccess { object, member, .. } => {
+                                matches!(member.as_str(), "ok" | "err")
+                                    && matches!(
+                                        &**object,
+                                        Expr::Identifier(n, _) if n == "Outcome"
+                                    )
+                            }
+                            _ => false,
+                        };
+                        callee_hits
+                            || expr_uses_outcome(callee)
+                            || args.iter().any(expr_uses_outcome)
+                    }
+                    Expr::MemberAccess { object, .. } => expr_uses_outcome(object),
+                    Expr::Binary { left, right, .. } => {
+                        expr_uses_outcome(left) || expr_uses_outcome(right)
+                    }
+                    Expr::Unary { expr, .. } => expr_uses_outcome(expr),
+                    _ => false,
+                }
+            }
+            fn stmt_uses_outcome(s: &crate::ast::Stmt) -> bool {
+                use crate::ast::Stmt;
+                match s {
+                    Stmt::Block(stmts, _) => stmts.iter().any(stmt_uses_outcome),
+                    Stmt::Parallel(inner, _) | Stmt::Simd(inner, _) => stmt_uses_outcome(inner),
+                    Stmt::Let { init, .. }
+                    | Stmt::Mut { init, .. }
+                    | Stmt::Const { init, .. }
+                    | Stmt::Val { init, .. }
+                    | Stmt::CompactBind { init, .. }
+                    | Stmt::With { init, .. } => expr_uses_outcome(init),
+                    Stmt::Assign { value, .. } => expr_uses_outcome(value),
+                    Stmt::Expr(e, _) | Stmt::Out(e, _) | Stmt::Err(e, _) => expr_uses_outcome(e),
+                    Stmt::Return(Some(e), _) => expr_uses_outcome(e),
+                    Stmt::If {
+                        condition,
+                        then_branch,
+                        else_branch,
+                        ..
+                    } => {
+                        expr_uses_outcome(condition)
+                            || stmt_uses_outcome(then_branch)
+                            || else_branch
+                                .as_deref()
+                                .map(stmt_uses_outcome)
+                                .unwrap_or(false)
+                    }
+                    Stmt::For {
+                        iterable, body, ..
+                    }
+                    | Stmt::While {
+                        condition: iterable,
+                        body,
+                        ..
+                    }
+                    | Stmt::ParallelFor {
+                        iterable,
+                        body,
+                        ..
+                    } => expr_uses_outcome(iterable) || stmt_uses_outcome(body),
+                    Stmt::Loop { body, .. } | Stmt::Unsafe { body, .. } => stmt_uses_outcome(body),
+                    _ => false,
+                }
+            }
+            let outcome_used = program.declarations.iter().any(|d| match d {
+                Decl::Function(f) => stmt_uses_outcome(&f.body),
+                _ => false,
+            });
+            let already_imported = program.declarations.iter().any(|d| {
+                matches!(d, Decl::Use(u) if u.path.len() >= 2 && u.path[0] == "stdlib" && u.path[1] == "result")
+            });
+            if outcome_used && !already_imported {
+                if let Some(p) = self.stdlib_module_path(
+                    &UseDecl {
+                        path: vec!["stdlib".into(), "result".into(), "result".into()],
+                        group: Vec::new(),
+                        alias: None,
+                        span: crate::diagnostics::SourceSpan::default(),
+                    },
+                    stdlib_dir.as_deref(),
+                ) {
+                    let canon = p.canonicalize().unwrap_or_else(|_| p.clone());
+                    if !visited.contains(&canon) {
+                        visited.insert(canon.clone());
+                        if let Ok(src) = fs::read_to_string(&canon) {
+                            let name = canon.to_str().unwrap_or("result.dtr").to_string();
+                            let mut lexer = Lexer::new(&src, &name);
+                            let tokens = lexer.tokenize(diag);
+                            let mut parser = Parser::new(tokens, diag, &name);
+                            let sub = parser.parse_program();
+                            for d in sub.declarations {
+                                program.declarations.push(d);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
         if !program.file.is_empty() {
             let root_path = PathBuf::from(&program.file);
             let root_canon = root_path

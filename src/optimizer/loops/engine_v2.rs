@@ -973,6 +973,10 @@ impl LoopEngineV2 {
                 remap(operand, v_map);
                 alloc_dest(dest, fresh, v_map);
             }
+            Inst::Cast { dest, value, .. } => {
+                remap(value, v_map);
+                alloc_dest(dest, fresh, v_map);
+            }
             Inst::Call { dest, args, .. } => {
                 for a in args {
                     remap(a, v_map);
@@ -1020,7 +1024,7 @@ impl LoopEngineV2 {
                 remap(else_val, v_map);
                 alloc_dest(dest, fresh, v_map);
             }
-            Inst::Out { value } | Inst::Err { value } => remap(value, v_map),
+            Inst::Out { value, .. } | Inst::Err { value } => remap(value, v_map),
             Inst::Return { value: Some(v) } => remap(v, v_map),
             _ => {}
         }

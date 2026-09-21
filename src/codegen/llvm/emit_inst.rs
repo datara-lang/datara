@@ -18,6 +18,7 @@ impl<'a> LlvmEmitter<'a> {
         value_classes: &mut HashMap<ValueId, String>,
         bool_vids: &mut HashSet<ValueId>,
         bool_vars: &mut HashSet<String>,
+        f32_vids: &mut HashSet<ValueId>,
         out: &mut String,
         fn_name: &str,
         types: &TypeChecker,
@@ -161,6 +162,7 @@ impl<'a> LlvmEmitter<'a> {
                 let l_ty = value_types.get(left).copied().unwrap_or("i64");
                 let r_ty = value_types.get(right).copied().unwrap_or("i64");
                 let is_float = ty == "Float" || l_ty == "double" || r_ty == "double";
+                let is_f32 = ty == "Float32";
                 let is_str = ty == "Str" || ty == "String";
 
                 if (is_str || l_ty == "ptr" || r_ty == "ptr") && op == "+" {
@@ -172,6 +174,10 @@ impl<'a> LlvmEmitter<'a> {
                         let tmp = format!("%str_conv_{}_{}", side, dest.0);
                         let fnc = if ty == "double" {
                             "datara_rt_float_to_str(double"
+                        } else if bool_vids.contains(vid) {
+                            // v1.4.5: Bool values (stored as i64) must print
+                            // as true/false, mirroring the Cranelift backend.
+                            "datara_rt_bool_to_str(i64"
                         } else {
                             "datara_rt_int_to_str(i64"
                         };
@@ -184,6 +190,80 @@ impl<'a> LlvmEmitter<'a> {
                         "  %v{} = call ptr @datara_rt_str_concat(ptr {}, ptr {})\n",
                         dest.0, left_s, right_s
                     ));
+                } else if is_f32 {
+                    // Float32 arithmetic: operate in f32, store back into F64 slots.
+                    let mut dem_ctr = 0usize;
+                    let mut dem = |vid: &ValueId, ty: &str, out: &mut String| -> String {
+                        dem_ctr += 1;
+                        if ty == "double" {
+                            let tmp = format!("%f32dem_{}_{}", vid.0, dem_ctr);
+                            out.push_str(&format!(
+                                "  {} = fptrunc double %v{} to float\n",
+                                tmp, vid.0
+                            ));
+                            tmp
+                        } else if ty == "i64" {
+                            let tmp = format!("%f32conv_{}_{}", vid.0, dem_ctr);
+                            out.push_str(&format!(
+                                "  {} = sitofp i64 %v{} to float\n",
+                                tmp, vid.0
+                            ));
+                            tmp
+                        } else {
+                            format!("%v{}", vid.0)
+                        }
+                    };
+                    let mut o2 = String::new();
+                    let left_v = dem(left, l_ty, &mut o2);
+                    let right_v = dem(right, r_ty, &mut o2);
+                    out.push_str(&o2);
+
+                    match op.as_str() {
+                        "==" | "!=" | "<" | "<=" | ">" | ">=" => {
+                            value_types.insert(*dest, "i64");
+                            bool_vids.insert(*dest);
+                            let fcmp_op = match op.as_str() {
+                                "==" => "oeq",
+                                "!=" => "one",
+                                "<" => "olt",
+                                "<=" => "ole",
+                                ">" => "ogt",
+                                ">=" => "oge",
+                                _ => "oeq",
+                            };
+                            let cmp_temp = format!("%fcmp_{}", dest.0);
+                            out.push_str(&format!(
+                                "  {} = fcmp {} float {}, {}\n",
+                                cmp_temp, fcmp_op, left_v, right_v
+                            ));
+                            out.push_str(&format!(
+                                "  %v{} = zext i1 {} to i64\n",
+                                dest.0, cmp_temp
+                            ));
+                        }
+                        _ => {
+                            let llvm_op = match op.as_str() {
+                                "+" => "fadd",
+                                "-" => "fsub",
+                                "*" => "fmul",
+                                "/" => "fdiv",
+                                _ => "fadd",
+                            };
+                            let res32 = format!("%f32res_{}", dest.0);
+                            out.push_str(&format!(
+                                "  {} = {} float {}, {}\n",
+                                res32, llvm_op, left_v, right_v
+                            ));
+                            // Result goes back into an F64 slot.
+                            let tmp = format!("%v{}", dest.0);
+                            out.push_str(&format!(
+                                "  {} = fpext float {} to double\n",
+                                tmp, res32
+                            ));
+                            value_types.insert(*dest, "double");
+                            f32_vids.insert(*dest);
+                        }
+                    }
                 } else if is_float {
                     let mut fconv = |vid: &ValueId, ty: &str, side: &str| -> String {
                         if ty == "i64" {
@@ -704,9 +784,16 @@ impl<'a> LlvmEmitter<'a> {
                     f_ty, value.0, gep_reg
                 ));
             }
-            Inst::Out { value } => {
+            Inst::Out { value, ty } => {
                 let val_ty = value_types.get(value).copied().unwrap_or("i64");
-                if bool_vids.contains(value) {
+                if ty == "Dec64" || ty == "dec64" {
+                    // v1.4.5 W3: Dec64 rides in an I64 slot; the fixed-point
+                    // formatter prints the exact decimal representation.
+                    out.push_str(&format!(
+                        "  call void @datara_rt_out_dec64(i64 %v{})\n",
+                        value.0
+                    ));
+                } else if bool_vids.contains(value) {
                     out.push_str(&format!(
                         "  call void @datara_rt_out_bool(i64 %v{})\n",
                         value.0
@@ -714,10 +801,24 @@ impl<'a> LlvmEmitter<'a> {
                 } else {
                     match val_ty {
                         "double" => {
-                            out.push_str(&format!(
-                                "  call void @datara_rt_out_float(double %v{})\n",
-                                value.0
-                            ));
+                            if f32_vids.contains(value) {
+                                // Round-trip F64 slot through f32 so printing uses
+                                // true f32 precision (matches the Cranelift backend).
+                                let dem = format!("%f32out_{}", value.0);
+                                out.push_str(&format!(
+                                    "  {} = fptrunc double %v{} to float\n",
+                                    dem, value.0
+                                ));
+                                out.push_str(&format!(
+                                    "  call void @datara_rt_print_f32(float {})\n",
+                                    dem
+                                ));
+                            } else {
+                                out.push_str(&format!(
+                                    "  call void @datara_rt_out_float(double %v{})\n",
+                                    value.0
+                                ));
+                            }
                         }
                         "ptr" => {
                             out.push_str(&format!(
@@ -741,6 +842,7 @@ impl<'a> LlvmEmitter<'a> {
                 dest,
                 parts,
                 values,
+                value_tys,
             } => {
                 value_types.insert(*dest, "ptr");
                 let empty_id = strings.get("").copied().unwrap_or(0);
@@ -759,10 +861,18 @@ impl<'a> LlvmEmitter<'a> {
                     if idx < values.len() {
                         let val_id = &values[idx];
                         let val_ty = value_types.get(val_id).copied().unwrap_or("i64");
+                        // v1.4.5 W3: declared repr decides the converter —
+                        // Dec64 shares the I64 slot with integers.
+                        let declared = value_tys.get(idx).map(|s| s.as_str());
                         let s_val = format!("%fmt_v_{}_{}", dest.0, idx);
                         if val_ty == "ptr" {
                             out.push_str(&format!(
                                 "  {} = getelementptr inbounds i8, ptr %v{}, i64 0\n",
+                                s_val, val_id.0
+                            ));
+                        } else if declared == Some("Dec64") {
+                            out.push_str(&format!(
+                                "  {} = call ptr @datara_rt_dec_to_str(i64 %v{})\n",
                                 s_val, val_id.0
                             ));
                         } else if val_ty == "double" {

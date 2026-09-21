@@ -1,17 +1,17 @@
 // Showcase: Deterministic 60 Hz Fixed-Timestep Game Loop with Accumulator & ECS
 // Demonstrates time_precise_ms, time_delta_ms, accumulator pattern, and SoA ECS.
 
-record TransformStore {
+struct TransformStore {
     xs: List<Float>,
     ys: List<Float>,
 }
 
-record VelocityStore {
+struct VelocityStore {
     vxs: List<Float>,
     vys: List<Float>,
 }
 
-record EcsWorld {
+struct EcsWorld {
     count: Int,
     transforms: TransformStore,
     velocities: VelocityStore,

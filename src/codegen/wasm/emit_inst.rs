@@ -930,7 +930,7 @@ impl WasmEmitter {
                         value.0
                     ));
                 }
-                Inst::Out { value } => {
+                Inst::Out { value, .. } => {
                     let val_loc = local_map.get(value).copied().unwrap_or(0);
                     let is_float = value_types.get(value) == Some(&WasmValType::F64);
                     if let Some(&print_idx) = import_fn_indices.get("datara:rt/print") {

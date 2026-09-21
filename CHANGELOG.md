@@ -4,6 +4,26 @@ All notable changes to the Datara compiler and toolchain (`forgen`) are document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.5] - 2026-09-21
+
+### Added
+- **Fmt string specifiers (v1.4.5 W4)**: `fmt"{x:.2}"` (fixed precision, min 1 fractional digit for `.0`), `fmt"{x:x}"` / `X` / `o` / `b` (integer radix, two's-complement unsigned, uppercase honored) and `fmt"{d:.N}"` for `Dec64` (round-half-away-from-zero from the stored 10⁻⁴ grid, zero padding above 4 digits). Parsed as `expr:spec` inside `{…}` into a new `specs` field on `Expr::InterpolatedString`; lowered to typed runtime calls (`datara_rt_float_to_str_prec`, `datara_rt_dec64_to_str_prec`, `datara_rt_int_to_str_radix`) after name resolution, so the AST/typechecker layers stay untouched. Works in `fmt"…"`, `out fmt"…"` and `err fmt"…"` on all three backends (Cranelift JIT/AOT, LLVM, WASM).
+- **WASM runtime coverage for formatted output**: the fused `out fmt"…"` / `err fmt"…"` streaming primitives (`print_str`, `print_newline`, `err_print_str`, `err_print_newline`) and the three specifier converters are now real `datara:rt` imports with JS shim implementations (linear-memory strings in the `[u32 len][utf8]` layout, `f64` first parameter for `float_to_str_prec`), instead of silently falling back to `0`.
+- **Canonical-form warnings (W-SYN-001/W-SYN-002)**: synonymous spellings of language constructs now emit a warning pointing to the canonical form — `function` → `fn`, `record`/`entity` → `struct`, `select` → `if`, `String` → `Str`. Existing code keeps compiling; `class` remains a hard error (E0100).
+- **`W-TYPE-002` Bool/Int equality warning**: `true == 1` now warns about truthy-integer coercion, aligning `==` with the strict-Bool stance of Gate 5 that `&&`/`||` already enforce.
+- **`forgen check` reports warnings on success**: warning count is included in the success summary line and full diagnostic text is printed.
+
+### Changed
+- **Prelude deduplication**: duplicate 4-Tier memory signature block removed (resolves the conflicting `arena_reset` Int-vs-Unit registration in favor of the runtime-accurate `(Int) -> Unit`); bare `or`/`and`/`xor` prelude functions removed (unreachable: `or` is a keyword); string builtin registrations consolidated into paired canonical/`datara_rt_` loops.
+- **Docs honesty pass**: README/README_RU type tables now state that `Int`/`UInt`/`Float` are the only integer/float types (narrow spellings are aliases, no 8/16/32-bit semantics) and that `Dec64`/`Dec128` do not exist yet; DOD sections document `struct` as canonical with `record`/`entity` warned and `class` rejected.
+
+### Fixed
+- **Dec64 literal overflow diagnostics (v1.4.5 D2)**: a `Dec64` literal whose mantissa does not fit in i64 (`99999999999999999999d`) now emits `E-SYNTAX-004` instead of silently evaluating to `0`.
+- **Compiler warnings**: cargo warning count reduced 8 → 0 (unused variables in the Cranelift binop paths and const-folder, deprecated `band_imm` replaced with zero-extending `band_imm_u`).
+- Repo hygiene: ~200 build artifacts removed from repo root (`*.exe`, `*.obj`, `*.bc`, `*.ll`, `*.lib`, bench logs), `.gitignore` extended, `times.txt` dropped.
+- Examples updated to canonical syntax (`record`/`entity` → `struct` in 7 showcases, `println` → `out` in 6 test fixtures).
+- `examples/12_dynamic_variables_val.dtr` no longer interpolates a `List` into a `fmt` string (now an explicit per-element loop).
+
 ## [1.4.4] - 2026-09-18
 
 ### Added

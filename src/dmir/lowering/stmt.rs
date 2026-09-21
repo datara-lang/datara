@@ -62,10 +62,50 @@ impl<'a> Lowering<'a> {
                         }
                     } else if matches!(
                         tn.name.as_str(),
-                        "Float" | "Float64" | "f64" | "Float32" | "f32"
+                        "Float" | "Float64" | "f64"
                     ) {
                         self.local_var_types.insert(name.clone(), DataraType::Float);
                         self.class_field_types.insert(name.clone(), "Float".into());
+                    } else if matches!(tn.name.as_str(), "Float32" | "f32") {
+                        // v1.4.5 W2: Float32 keeps its own width — collapsing it
+                        // to Float turned annotated f32 vars into f64 ops.
+                        self.local_var_types.insert(name.clone(), DataraType::Float32);
+                        self.class_field_types.insert(name.clone(), "Float32".into());
+                    } else if matches!(
+                        tn.name.as_str(),
+                        "Int8" | "i8"
+                    ) {
+                        self.local_var_types.insert(name.clone(), DataraType::Int8);
+                    } else if matches!(
+                        tn.name.as_str(),
+                        "Int16" | "i16"
+                    ) {
+                        self.local_var_types.insert(name.clone(), DataraType::Int16);
+                    } else if matches!(
+                        tn.name.as_str(),
+                        "Int32" | "i32"
+                    ) {
+                        self.local_var_types.insert(name.clone(), DataraType::Int32);
+                    } else if matches!(
+                        tn.name.as_str(),
+                        "UInt8" | "Byte" | "u8"
+                    ) {
+                        self.local_var_types.insert(name.clone(), DataraType::UInt8);
+                    } else if matches!(
+                        tn.name.as_str(),
+                        "UInt16" | "u16"
+                    ) {
+                        self.local_var_types.insert(name.clone(), DataraType::UInt16);
+                    } else if matches!(
+                        tn.name.as_str(),
+                        "UInt32" | "u32"
+                    ) {
+                        self.local_var_types.insert(name.clone(), DataraType::UInt32);
+                    } else if matches!(
+                        tn.name.as_str(),
+                        "UInt" | "UInt64" | "u64" | "usize"
+                    ) {
+                        self.local_var_types.insert(name.clone(), DataraType::UInt64);
                     } else if matches!(tn.name.as_str(), "String" | "Str") {
                         self.local_var_types
                             .insert(name.clone(), DataraType::String);
@@ -73,7 +113,13 @@ impl<'a> Lowering<'a> {
                         self.local_var_types.insert(name.clone(), DataraType::Bool);
                     }
                 }
-                if let Some(ty) = self.types.symbol_types.get(name) {
+                // v1.4.5 W1/W2: the legacy `symbol_types` map collapses
+                // narrow types (Int8→Int, Float32→Float). It must NOT
+                // overwrite a type already recorded from the explicit type
+                // annotation above, or `let a: Float32` reverts to f64 ops.
+                if !self.local_var_types.contains_key(name)
+                    && let Some(ty) = self.types.symbol_types.get(name)
+                {
                     self.local_var_types.insert(name.clone(), ty.clone());
                 }
                 if let Expr::ObjectInit { class_name, .. } = init {
@@ -127,7 +173,10 @@ impl<'a> Lowering<'a> {
                 } else if self.is_expr_str(init) {
                     self.local_var_types
                         .insert(name.clone(), DataraType::String);
-                } else if self.is_expr_float(init) {
+                } else if self.is_expr_float(init) && !self.local_var_types.contains_key(name) {
+                    // v1.4.5 W2: an explicit annotation wins over init-based
+                    // inference — `let a: Float32 = 0.1` must stay Float32,
+                    // not be re-collapsed to Float by the f64 literal.
                     self.local_var_types.insert(name.clone(), DataraType::Float);
                 } else if self.is_expr_bool(init) {
                     self.local_var_types.insert(name.clone(), DataraType::Bool);

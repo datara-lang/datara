@@ -319,8 +319,14 @@ impl Resolver {
                 self.resolve_expr(expr, diag);
             }
             Expr::Call { callee, args, .. } => {
+                // v1.4.5 W1: `size_of(T)` takes a type name, not a value —
+                // the bare identifier must not be resolved as a variable.
+                let is_size_of = matches!(&**callee, Expr::Identifier(n, _) if n == "size_of");
                 self.resolve_expr(callee, diag);
                 for a in args {
+                    if is_size_of {
+                        continue;
+                    }
                     self.resolve_expr(a, diag);
                 }
             }
@@ -474,6 +480,9 @@ impl Resolver {
                 self.resolve_expr(expr, diag);
             }
             Expr::Wrapping(expr, _) | Expr::Saturating(expr, _) => {
+                self.resolve_expr(expr, diag);
+            }
+            Expr::Cast { expr, .. } => {
                 self.resolve_expr(expr, diag);
             }
             _ => {}

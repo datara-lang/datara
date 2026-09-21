@@ -160,6 +160,62 @@ impl Optimizer {
                         }
                         new_instructions.push(inst.clone());
                     }
+                    Inst::Cast {
+                        dest,
+                        value,
+                        from_ty,
+                        to_ty,
+                    } => {
+                        // A cast of a known constant folds to the target family's
+                        // constant. Integer casts preserve the i64 bit pattern in
+                        // Datara's universal Int64 carrier; float->int truncates;
+                        // int->float widens.
+                        let is_f = |t: &str| t == "Float" || t == "Float32" || t == "Dec64";
+                        let is_i = |t: &str| {
+                            matches!(
+                                t,
+                                "Int" | "Int8" | "Int16" | "Int32" | "Int64" | "UInt"
+                                    | "UInt8" | "UInt16" | "UInt32" | "UInt64" | "Bool"
+                                    | "Char"
+                            )
+                        };
+                        if is_f(from_ty) && is_i(to_ty) {
+                            if let Some(f) = float_constants.get(value).copied() {
+                                int_constants.insert(*dest, f as i64);
+                                new_instructions.push(Inst::ConstInt {
+                                    dest: *dest,
+                                    value: f as i64,
+                                });
+                                self.report.constants_folded += 1;
+                                changed = true;
+                                continue;
+                            }
+                        } else if is_i(from_ty) && is_f(to_ty) {
+                            if let Some(i) = int_constants.get(value).copied() {
+                                let res = i as f64;
+                                float_constants.insert(*dest, res);
+                                new_instructions.push(Inst::ConstFloat {
+                                    dest: *dest,
+                                    value: res,
+                                });
+                                self.report.constants_folded += 1;
+                                changed = true;
+                                continue;
+                            }
+                        } else if is_i(from_ty) && is_i(to_ty) {
+                            if let Some(i) = int_constants.get(value).copied() {
+                                int_constants.insert(*dest, i);
+                                new_instructions.push(Inst::ConstInt {
+                                    dest: *dest,
+                                    value: i,
+                                });
+                                self.report.constants_folded += 1;
+                                changed = true;
+                                continue;
+                            }
+                        }
+                        new_instructions.push(inst.clone());
+                    }
                     Inst::BinOp {
                         dest,
                         op,
@@ -176,27 +232,69 @@ impl Optimizer {
                             // literals already rejected by the type checker.
                             // Fail closed: an out-of-range constant shift has
                             // no defined result, so reject the compilation.
-                            if matches!(op.as_str(), "<<" | ">>") && (*r_val < 0 || *r_val >= 64) {
+                            // v1.4.5 W1: shift-count validation follows the
+                            // operand width (`ty`), not hard-coded 64.
+                            let shift_w = crate::dmir::ir::dm_repr_shift_width(ty);
+                            if matches!(op.as_str(), "<<" | ">>") && (*r_val < 0 || *r_val >= shift_w) {
                                 let diag = crate::diagnostics::Diagnostic::error(
                                     crate::diagnostics::ErrorCode::RangeViolation,
                                     format!(
-                                        "[E0947] Shift amount {} is out of range for Int (64-bit): the shift count must be in 0..64",
-                                        r_val
+                                        "[E0947] Shift amount {} is out of range for a {}-bit shift ({}): the shift count must be in 0..{}",
+                                        r_val, shift_w, ty, shift_w
                                     ),
                                     None,
                                 );
                                 self.diagnostics.push(diag);
                             }
+                            // v1.4.5 W1: narrow types wrap at their own width
+                            // (SPEC overflow semantics), so constexpr folding
+                            // must not reject the very programs the backend
+                            // would run — fold with wrapping at `ty`'s width.
+                            // WIDE Int/Int64 is DIFFERENT: default `+ - *` keeps
+                            // the runtime overflow trap (SPEC v1 semantics, test
+                            // test_spec_integer_default_overflow_traps), so an
+                            // overflowing wide constexpr must NOT fold to the
+                            // wrapped value — leave the instruction alone and
+                            // let the backend emit sadd_overflow/trapnz.
+                            let narrow_ty = crate::dmir::ir::dm_repr_is_narrow_int(ty);
+                            let sat = crate::dmir::ir::dm_repr_sat_bounds(ty);
+                            let wrap_to_width = |v: i64| crate::dmir::ir::dm_wrap_i64_to_repr(ty, v);
                             let folded = match op.as_str() {
-                                "+" => l_val.checked_add(*r_val),
-                                "-" => l_val.checked_sub(*r_val),
-                                "*" => l_val.checked_mul(*r_val),
-                                "wrapping_+" => Some(l_val.wrapping_add(*r_val)),
-                                "wrapping_-" => Some(l_val.wrapping_sub(*r_val)),
-                                "wrapping_*" => Some(l_val.wrapping_mul(*r_val)),
-                                "saturating_+" => Some(l_val.saturating_add(*r_val)),
-                                "saturating_-" => Some(l_val.saturating_sub(*r_val)),
-                                "saturating_*" => Some(l_val.saturating_mul(*r_val)),
+                                "+" | "-" | "*" if !narrow_ty => {
+                                    let (raw, _wrapped) = match op.as_str() {
+                                        "+" => (
+                                            l_val.checked_add(*r_val),
+                                            l_val.wrapping_add(*r_val),
+                                        ),
+                                        "-" => (
+                                            l_val.checked_sub(*r_val),
+                                            l_val.wrapping_sub(*r_val),
+                                        ),
+                                        _ => (
+                                            l_val.checked_mul(*r_val),
+                                            l_val.wrapping_mul(*r_val),
+                                        ),
+                                    };
+                                    match raw {
+                                        Some(v) => Some(v),
+                                        // Overflowing wide constexpr: unfoldable.
+                                        // (The backend will trap at runtime, which
+                                        // is exactly the SPEC-mandated behavior.)
+                                        None => None,
+                                    }
+                                }
+                                "+" | "wrapping_+" => Some(wrap_to_width(l_val.wrapping_add(*r_val))),
+                                "-" | "wrapping_-" => Some(wrap_to_width(l_val.wrapping_sub(*r_val))),
+                                "*" | "wrapping_*" => Some(wrap_to_width(l_val.wrapping_mul(*r_val))),
+                                "saturating_+" => Some(
+                                    l_val.saturating_add(*r_val),
+                                ),
+                                "saturating_-" => Some(
+                                    l_val.saturating_sub(*r_val),
+                                ),
+                                "saturating_*" => Some(
+                                    l_val.saturating_mul(*r_val),
+                                ),
                                 "&" => Some(l_val & r_val),
                                 "|" => Some(l_val | r_val),
                                 "^" => Some(l_val ^ r_val),
@@ -204,17 +302,29 @@ impl Optimizer {
                                 // shift counts; these arms still re-check so
                                 // an invalid count falls through to `_ => None`
                                 // instead of panicking on a negative shift.
-                                "<<" if *r_val >= 0 && *r_val < 64 => {
-                                    Some(l_val.wrapping_shl(*r_val as u32))
+                                "<<" if *r_val >= 0 && *r_val < shift_w => {
+                                    Some(wrap_to_width(l_val.wrapping_shl(*r_val as u32)))
                                 }
-                                ">>" if *r_val >= 0 && *r_val < 64 => Some(l_val >> *r_val),
+                                ">>" if *r_val >= 0 && *r_val < shift_w => {
+                                    Some(l_val >> *r_val)
+                                }
                                 "/" if *r_val != 0 && !(*l_val == i64::MIN && *r_val == -1) => {
-                                    l_val.checked_div(*r_val)
+                                    l_val.checked_div(*r_val).map(wrap_to_width)
                                 }
                                 "%" if *r_val != 0 && !(*l_val == i64::MIN && *r_val == -1) => {
-                                    l_val.checked_rem(*r_val)
+                                    l_val.checked_rem(*r_val).map(wrap_to_width)
                                 }
                                 _ => None,
+                            };
+                            // Saturating ops clamp to the width's bounds
+                            // instead of wrapping.
+                            let folded = if let (true, Some((lo, hi))) = (
+                                op.starts_with("saturating_"),
+                                sat,
+                            ) {
+                                folded.map(|v| v.clamp(lo, hi))
+                            } else {
+                                folded
                             };
                             if let Some(res) = folded {
                                 int_constants.insert(*dest, res);
@@ -251,12 +361,38 @@ impl Optimizer {
                         if let (Some(l_val), Some(r_val)) =
                             (float_constants.get(left), float_constants.get(right))
                         {
-                            let folded = match op.as_str() {
-                                "+" => Some(l_val + r_val),
-                                "-" => Some(l_val - r_val),
-                                "*" => Some(l_val * r_val),
-                                "/" if *r_val != 0.0 => Some(l_val / r_val),
-                                _ => None,
+                            // v1.4.5 W2: Float32 constexpr folds at f32
+                            // precision (each op rounds to f32, matching the
+                            // backend's fdemote path). A wide Float fold stays
+                            // f64. Otherwise `0.1f32 + 0.2f32` would fold to
+                            // the f64 artifact 0.30000000000000004 before the
+                            // backend ever sees the operands.
+                            let is_f32_fold = ty == "Float32" || ty == "f32";
+                            let fold_op =
+                                |a: f64, b: f64| -> f64 {
+                                    match op.as_str() {
+                                        "+" => a + b,
+                                        "-" => a - b,
+                                        "*" => a * b,
+                                        "/" if b != 0.0 => a / b,
+                                        _ => f64::NAN,
+                                    }
+                                };
+                            let folded = if is_f32_fold {
+                                // Fold at f32: convert, compute, round back.
+                                let r = fold_op(*l_val as f32 as f64, *r_val as f32 as f64);
+                                if r.is_nan() {
+                                    None
+                                } else {
+                                    Some((r as f32) as f64)
+                                }
+                            } else {
+                                let r = fold_op(*l_val, *r_val);
+                                if r.is_nan() {
+                                    None
+                                } else {
+                                    Some(r)
+                                }
                             };
                             if let Some(res) = folded {
                                 float_constants.insert(*dest, res);
@@ -512,12 +648,12 @@ impl Optimizer {
                             }
                         }
                         new_instructions.push(inst.clone());
-                    }
-                    Inst::FormatStr {
-                        dest,
-                        parts,
-                        values,
-                    } => {
+                    }                        Inst::FormatStr {
+                            dest,
+                            parts,
+                            values,
+                            value_tys: _,
+                        } => {
                         let all_known = values.iter().all(|v| {
                             int_constants.contains_key(v)
                                 || float_constants.contains_key(v)

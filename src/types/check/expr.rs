@@ -75,6 +75,7 @@ impl<'a> TypeChecker<'a> {
             Expr::Literal(lit, _) => match lit {
                 LiteralValue::Int(_) => DataraType::Int,
                 LiteralValue::Float(_) => DataraType::Float,
+                LiteralValue::Dec64(_) => DataraType::Dec64,
                 LiteralValue::String(_) => DataraType::String,
                 LiteralValue::Bool(_) => DataraType::Bool,
                 LiteralValue::Char(_) => DataraType::Char,
@@ -398,7 +399,16 @@ impl<'a> TypeChecker<'a> {
                             if let Some(expected_tn) = &fld_sym.type_node {
                                 let expected_ty = self.resolve_type_node(expected_tn, diag);
                                 if let Some(actual_ty) = field_types.get(fname) {
-                                    if !matches!(expected_ty, DataraType::TypeParam(_))
+                                    // v1.4.5 W1: an int literal adopts the field's
+                                    // narrow width when its value fits (same
+                                    // compile-time labeling as declarations).
+                                    let lit_fits = if let Expr::Literal(LiteralValue::Int(n), _) = val {
+                                        DataraType::narrow_literal_fits(&expected_ty, *n)
+                                    } else {
+                                        false
+                                    };
+                                    if !lit_fits
+                                        && !matches!(expected_ty, DataraType::TypeParam(_))
                                         && !actual_ty.is_compatible_with_args(
                                             &expected_ty,
                                             Some(self.resolver),
@@ -1048,6 +1058,55 @@ impl<'a> TypeChecker<'a> {
             }
             Expr::Comptime { expr, .. } => self.check_expr(expr, diag),
             Expr::Wrapping(expr, _) | Expr::Saturating(expr, _) => self.check_expr(expr, diag),
+            Expr::Cast { expr: inner, target_ty, span } => {
+                let src_ty = self.check_expr(inner, diag);
+                let dst_ty = self.resolve_type_node(
+                    &TypeNode {
+                        name: target_ty.clone(),
+                        generic_args: Vec::new(),
+                        is_option: false,
+                        error_type: None,
+                        refinement: None,
+                        span: span.clone(),
+                    },
+                    diag,
+                );
+                // Gate 7: casts are the sanctioned explicit conversions. Numeric
+                // families interconvert freely (narrowing is value-checked by
+                // the runtime); Str <-> numeric and Bool <-> numeric are also
+                // defined. Class/pointer casts are rejected as unsound.
+                let numeric = |t: &DataraType| matches!(
+                    t,
+                    DataraType::Int
+                        | DataraType::UInt
+                        | DataraType::Int8
+                        | DataraType::Int16
+                        | DataraType::Int32
+                        | DataraType::UInt8
+                        | DataraType::UInt16
+                        | DataraType::UInt32
+                        | DataraType::UInt64
+                        | DataraType::Float
+                        | DataraType::Float32
+                        | DataraType::Dec64
+                );
+                let src_ok = numeric(&src_ty)
+                    || matches!(src_ty, DataraType::String | DataraType::Bool | DataraType::Char);
+                let dst_ok = numeric(&dst_ty)
+                    || matches!(dst_ty, DataraType::String | DataraType::Bool | DataraType::Char);
+                if !src_ok || !dst_ok {
+                    diag.error(
+                        ErrorCode::TypeMismatch,
+                        format!(
+                            "Cast from {:?} to {:?} is not supported; use explicit conversion methods for non-numeric types",
+                            src_ty, target_ty
+                        ),
+                        Some(span.clone()),
+                    );
+                    return DataraType::Unit;
+                }
+                dst_ty
+            }
             Expr::Block(stmts, value, _) => {
                 // Lexical scope: declarations inside the block must not leak
                 // into sibling arms or the enclosing scope (same pattern as

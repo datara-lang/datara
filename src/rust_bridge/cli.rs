@@ -441,10 +441,15 @@ fn generate_shim_lib_rs(crate_name: &str, functions: &[BridgeFunction]) -> Resul
     code.push_str("}\n\n");
 
     for f in functions {
+        // v1.4.5: the Datara ABI passes Bool as a full 64-bit slot (the
+        // Cranelift/LLVM backends map Bool onto I64). A Rust `bool` return
+        // only populates the low byte of RAX, so upper bits would be
+        // garbage in the caller. Bridge trampolines therefore return i64
+        // 0/1 and the Datara side tests the full slot.
         let ret_c = match f.return_type.as_str() {
             "Int" => "i64",
             "Float" => "f64",
-            "Bool" => "bool",
+            "Bool" => "i64",
             "String" | "Str" => "*const c_char",
             "Pointer" | "RawPtr" => "*const u8",
             _ => "()",
@@ -522,8 +527,8 @@ fn generate_shim_lib_rs(crate_name: &str, functions: &[BridgeFunction]) -> Resul
             code.push_str("        Ok(res) => res as f64,\n");
             code.push_str("        Err(_) => 0.0,\n");
         } else if f.return_type == "Bool" {
-            code.push_str("        Ok(res) => res,\n");
-            code.push_str("        Err(_) => false,\n");
+            code.push_str("        Ok(res) => res as i64,\n");
+            code.push_str("        Err(_) => 0,\n");
         } else if f.return_type == "Pointer" || f.return_type == "RawPtr" {
             code.push_str("        Ok(res) => res as *const u8,\n");
             code.push_str("        Err(_) => std::ptr::null(),\n");

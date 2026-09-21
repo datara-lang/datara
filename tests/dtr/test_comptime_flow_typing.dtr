@@ -13,14 +13,14 @@ fn main() {
     dyn_reg = 1000
     let checkpoint_2 = dyn_reg + checkpoint_1
 
-    println(fmt"Initial base:    {initial_base}")
-    println(fmt"Checkpoint 1:    {checkpoint_1}")
-    println(fmt"Checkpoint 2:    {checkpoint_2}")
+    out(fmt"Initial base:    {initial_base}")
+    out(fmt"Checkpoint 1:    {checkpoint_1}")
+    out(fmt"Checkpoint 2:    {checkpoint_2}")
 
     // Expected: checkpoint_1 = 150 * 2 = 300, checkpoint_2 = 1000 + 300 = 1300
     if checkpoint_2 == 1300 {
-        println("[PASS] Comptime adaptive flow-typing specialized to registers successfully.")
+        out("[PASS] Comptime adaptive flow-typing specialized to registers successfully.")
     } else {
-        println("[FAIL] Unexpected checkpoint_2 value.")
+        out("[FAIL] Unexpected checkpoint_2 value.")
     }
 }

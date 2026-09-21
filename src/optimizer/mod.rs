@@ -1062,7 +1062,7 @@ impl Optimizer {
                             }
                         }
                     }
-                    Inst::Out { value } | Inst::Err { value } => {
+                    Inst::Out { value, .. } | Inst::Err { value } => {
                         if let Some(s_id) = val_to_struct.get(value) {
                             escaping_structs.insert(*s_id);
                         }
