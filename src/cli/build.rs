@@ -71,11 +71,37 @@ pub(crate) fn cmd_check(args: &[String]) -> bool {
         if !warning_records.is_empty() {
             eprintln!("{}", res.diagnostics);
         }
+
+        // Dead-code lint (S1): report never-used top-level functions.
+        // `--allow-dead` silences the whole dead_code:: family.
+        let allow_dead = args.iter().any(|a| a == "--allow-dead");
+        let mut dead_count = 0usize;
+        if !allow_dead {
+            // Whole-program dead-code analysis: all module files are merged
+            // into one program so a function used from another module is not
+            // reported as unused. Per-file linting cannot see cross-module
+            // references. On parse failure the compiler check above has
+            // already reported it, so the lint is silently skipped.
+            if let Ok(diags) =
+                crate::lint::lint_files_with_profile(&layout.source_files, crate::lint::LintProfile::Standard)
+            {
+                for d in &diags {
+                    if d.code.starts_with("dead_code::") {
+                        eprintln!(
+                            "warning[{}]: {}\n  --> {}:{}:{}\n  help: {}",
+                            d.code, d.message, d.span.file, d.span.start_line, d.span.start_col, d.help.clone().unwrap_or_default()
+                        );
+                        dead_count += 1;
+                    }
+                }
+            }
+        }
+
         println!(
             "[Forgen check] Verified 100% OK in {}ms ({} modules, 0 errors, {} warnings, valid ownership & effects)",
             elapsed,
             layout.source_files.len(),
-            warning_records.len()
+            warning_records.len() + dead_count
         );
     } else {
         eprintln!("{}", res.diagnostics);
@@ -593,6 +619,15 @@ pub(crate) fn cmd_build(command: &str, args: &[String]) -> bool {
     let is_tiny = args
         .iter()
         .any(|a| a == "--tiny" || a == "-Oz" || a == "--profile=tiny");
+    if is_tiny {
+        // Propagate the tiny profile to codegen: `link_args()` switches to the
+        // ultra-compact link line (/NODEFAULTLIB + /FILEALIGN:512) when
+        // FORGEN_TINY is set. The CLI runs single-threaded at this point, so
+        // the unsafe env write is safe (same pattern as DATARA_SANDBOX above).
+        unsafe {
+            std::env::set_var("FORGEN_TINY", "1");
+        }
+    }
     let is_embed = args.iter().any(|a| a == "--embed");
     let debug_info = command == "debug" || args.iter().any(|a| a == "-g" || a == "--debug");
     let mode = if is_tiny {

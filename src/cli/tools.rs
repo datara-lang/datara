@@ -290,30 +290,60 @@ pub(crate) fn cmd_lint(command: &str, args: &[String]) -> bool {
     let mut total_errors = 0;
     let mut total_fixes = 0;
 
-    for file_path in &layout.source_files {
-        match crate::lint::lint_file_with_profile(file_path, lint_profile) {
-            Ok(diags) => {
-                if !diags.is_empty() {
-                    for diag in &diags {
-                        print!("{}", diag.render(None));
-                        if diag.severity == crate::lint::LintSeverity::Error {
-                            total_errors += 1;
-                        } else {
-                            total_warnings += 1;
-                        }
-                    }
+    // Lint the whole program at once so cross-module references are visible
+    // to the dead-code analysis: a helper defined in `a.dtr` and called from
+    // `main` in `b.dtr` must not be reported as unused. Diagnostics keep
+    // their per-file spans; they are grouped back per file below so
+    // per-file --fix keeps working.
+    let all_diags = match crate::lint::lint_files_with_profile(&layout.source_files, lint_profile)
+    {
+        Ok(diags) => diags,
+        Err(e) => {
+            eprintln!("Error checking project: {}", e);
+            Vec::new()
+        }
+    };
 
-                    if is_fix && let Ok(source) = fs::read_to_string(file_path) {
-                        let fixed = crate::lint::apply_fixes(&source, &diags);
-                        if fixed != source {
-                            let _ = fs::write(file_path, fixed);
-                            total_fixes += diags.iter().filter(|d| d.fix.is_some()).count();
-                        }
-                    }
+    let mut reported_files: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for diag in &all_diags {
+        reported_files.insert(diag.span.file.as_str());
+    }
+    for file_path in &layout.source_files {
+        let key = file_path.to_string_lossy();
+        reported_files.remove(key.as_ref());
+        let diags: Vec<crate::lint::LintDiagnostic> = all_diags
+            .iter()
+            .filter(|d| d.span.file == key)
+            .cloned()
+            .collect();
+        if !diags.is_empty() {
+            for diag in &diags {
+                print!("{}", diag.render(None));
+                if diag.severity == crate::lint::LintSeverity::Error {
+                    total_errors += 1;
+                } else {
+                    total_warnings += 1;
                 }
             }
-            Err(e) => {
-                eprintln!("Error checking {}: {}", file_path.display(), e);
+
+            if is_fix && let Ok(source) = fs::read_to_string(file_path) {
+                let fixed = crate::lint::apply_fixes(&source, &diags);
+                if fixed != source {
+                    let _ = fs::write(file_path, fixed);
+                    total_fixes += diags.iter().filter(|d| d.fix.is_some()).count();
+                }
+            }
+        }
+    }
+    // Diagnostics attributed to files outside the discovery layout are still
+    // reported (defensive: should not happen, but losing output is worse).
+    for diag in &all_diags {
+        if reported_files.contains(diag.span.file.as_str()) {
+            print!("{}", diag.render(None));
+            if diag.severity == crate::lint::LintSeverity::Error {
+                total_errors += 1;
+            } else {
+                total_warnings += 1;
             }
         }
     }

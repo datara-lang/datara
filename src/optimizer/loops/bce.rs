@@ -189,13 +189,7 @@ impl LoopOptimizer {
                         right,
                         ..
                     } => {
-                        if op == "|" || op == "or" || op == "wrapping_|" {
-                            if consts.get(right) == Some(&0) {
-                                copy_of.insert(*dest, *left);
-                            } else if consts.get(left) == Some(&0) {
-                                copy_of.insert(*dest, *right);
-                            }
-                        } else if op == "+" || op == "wrapping_+" {
+                        if op == "|" || op == "or" || op == "wrapping_|" || op == "+" || op == "wrapping_+" {
                             if consts.get(right) == Some(&0) {
                                 copy_of.insert(*dest, *left);
                             } else if consts.get(left) == Some(&0) {
@@ -980,8 +974,8 @@ impl LoopOptimizer {
                 }
 
                 // Step block must be a latch
-                let step_is_latch = step_block.map_or(false, |sb| {
-                    f.get_block(sb).map_or(false, |b| {
+                let step_is_latch = step_block.is_some_and(|sb| {
+                    f.get_block(sb).is_some_and(|b| {
                         matches!(&b.terminator, Terminator::Branch { target, .. } if *target == lp.header)
                     })
                 });

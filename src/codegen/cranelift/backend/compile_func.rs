@@ -1137,7 +1137,7 @@ pub fn compile_all_functions<M: ClifModule>(
                         };
                         builder.ins().store(flags, truncated, a_val, 0);
                     }
-                    Inst::WhileLoop { .. } | Inst::TryCatch { .. } | Inst::Return { .. } => {}
+                    Inst::WhileLoop { .. } | Inst::Return { .. } => {}
                 }
             }
             // Handle terminator

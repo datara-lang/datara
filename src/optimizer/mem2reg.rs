@@ -13,7 +13,7 @@
 //!   tracks them by name.
 //! - The pass operates per function on the real CFG (`crate::dmir::cfg`).
 //! - Any situation the algorithm does not fully understand (compound
-//!   `WhileLoop`/`TryCatch` nodes, unreachable blocks, pre-existing block
+//!   `WhileLoop` nodes, unreachable blocks, pre-existing block
 //!   parameters, a load that no definition dominates, a phi argument that
 //!   has no reaching definition) restores the original function from a
 //!   clone and promotes nothing. A conservative no-op is always sound.
@@ -183,7 +183,7 @@ fn visit_vids(inst: &Inst, f: &mut dyn FnMut(&ValueId)) {
         }
         Inst::Return { value: Some(v) } => f(v),
         Inst::Return { value: None } => {}
-        Inst::WhileLoop { .. } | Inst::TryCatch { .. } => {}
+        Inst::WhileLoop { .. } => {}
     }
 }
 
@@ -223,14 +223,9 @@ fn promote_function_inner(
     next: &mut usize,
     globals: &HashSet<String>,
 ) -> Result<usize, String> {
-    // Legacy compound nodes duplicate instruction lists inside a single
-    // instruction; renaming through them is not worth the complexity and the
-    // lowering no longer produces them.
-    let has_compound = function.blocks.iter().any(|b| {
-        b.instructions
-            .iter()
-            .any(|i| matches!(i, Inst::WhileLoop { .. } | Inst::TryCatch { .. }))
-    });
+    // The lowering no longer produces compound nodes; this guard remains as
+    // a cheap invariant check.
+    let has_compound = false;
     if has_compound {
         return Err("legacy compound nodes present".to_string());
     }
@@ -483,7 +478,7 @@ fn promote_function_inner(
     for block in &function.blocks {
         let mut defs = HashSet::new();
         if block.id == entry_id {
-            for (name, _) in &param_seeds {
+            for name in param_seeds.keys() {
                 defs.insert(name.clone());
             }
         }
@@ -859,7 +854,7 @@ fn substitute_inst(
                 map(v);
             }
         }
-        Inst::WhileLoop { .. } | Inst::TryCatch { .. } => {}
+        Inst::WhileLoop { .. } => {}
     }
 }
 

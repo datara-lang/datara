@@ -145,8 +145,7 @@ impl<T: Clone + Send> ChaseLevDeque<T> {
             // More than 1 item remains: uncontended pop
             // SAFETY: b > t means no stealer can reach slot `b` (stealers
             // advance from the top). The owner has exclusive access here.
-            let task = unsafe { buf.read(b) };
-            task
+            unsafe { buf.read(b) }
         } else {
             // Exactly 1 item remains: compete with concurrent stealers via CAS
             // SAFETY: We read the slot before the CAS so that both the owner

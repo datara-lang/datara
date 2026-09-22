@@ -1,11 +1,11 @@
 // Datara Showcase: Production CLI Application
 // Demonstrates command-line argument parsing, capability-guarded file I/O, and JSON stream inspection.
 
-fn is_whitespace(ch: String) -> Bool {
+fn is_whitespace(ch: Str) -> Bool {
     return ch == " " || ch == "\t" || ch == "\n" || ch == "\r"
 }
 
-fn is_digit(ch: String) -> Bool {
+fn is_digit(ch: Str) -> Bool {
     return ch == "0" || ch == "1" || ch == "2" || ch == "3" || ch == "4" ||
            ch == "5" || ch == "6" || ch == "7" || ch == "8" || ch == "9"
 }
@@ -18,7 +18,7 @@ struct JsonStats {
     numbers_count: Int,
 }
 
-fn analyze_json(input: String) -> JsonStats {
+fn analyze_json(input: Str) -> JsonStats {
     let len = str_len(input)
     mut idx = 0
     mut tokens = 0
@@ -90,11 +90,11 @@ fn print_help() {
     out "  --help           Show this help message"
 }
 
-fn read_user_file(path: String, sys_caps: SystemCapabilities) -> String {
+fn read_user_file(path: Str, sys_caps: SystemCapabilities) -> Str {
     return file_read(path)
 }
 
-fn write_user_file(path: String, content: String, sys_caps: SystemCapabilities) -> Int {
+fn write_user_file(path: Str, content: Str, sys_caps: SystemCapabilities) -> Int {
     return file_write(path, content)
 }
 

@@ -1,15 +1,15 @@
 // Deterministic JSON Tokenizer and Validator in pure Datara
 
-fn is_whitespace(ch: String) -> Bool {
+fn is_whitespace(ch: Str) -> Bool {
     return ch == " " || ch == "\t" || ch == "\n" || ch == "\r"
 }
 
-fn is_digit(ch: String) -> Bool {
+fn is_digit(ch: Str) -> Bool {
     return ch == "0" || ch == "1" || ch == "2" || ch == "3" || ch == "4" ||
            ch == "5" || ch == "6" || ch == "7" || ch == "8" || ch == "9"
 }
 
-fn tokenize_json(input: String) -> Int {
+fn tokenize_json(input: Str) -> Int {
     let len = str_len(input)
     mut idx = 0
     mut tokens_count = 0

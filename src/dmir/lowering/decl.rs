@@ -132,7 +132,7 @@ impl<'a> Lowering<'a> {
                     .instructions
                     .push(Inst::ConstStr {
                         dest: msg_val,
-                        value: msg_str.into(),
+                        value: msg_str,
                     });
                 let dest = self.next_val();
                 self.get_block_mut(entry_id).instructions.push(Inst::Call {
@@ -167,7 +167,7 @@ impl<'a> Lowering<'a> {
                         .instructions
                         .push(Inst::ConstStr {
                             dest: msg_val,
-                            value: msg_str.into(),
+                            value: msg_str,
                         });
                     let dest = self.next_val();
                     self.get_block_mut(cur_block).instructions.push(Inst::Call {
@@ -421,7 +421,7 @@ impl<'a> Lowering<'a> {
                     .instructions
                     .push(Inst::ConstStr {
                         dest: msg_val,
-                        value: msg_str.into(),
+                        value: msg_str,
                     });
                 let dest = self.next_val();
                 self.get_block_mut(entry_id).instructions.push(Inst::Call {
@@ -456,7 +456,7 @@ impl<'a> Lowering<'a> {
                         .instructions
                         .push(Inst::ConstStr {
                             dest: msg_val,
-                            value: msg_str.into(),
+                            value: msg_str,
                         });
                     let dest = self.next_val();
                     self.get_block_mut(cur_block).instructions.push(Inst::Call {
@@ -592,14 +592,6 @@ impl<'a> Lowering<'a> {
             Stmt::Loop { body, .. } => {
                 Self::subst_stmt(body, type_substs);
             }
-            Stmt::TryCatch {
-                try_block,
-                catch_block,
-                ..
-            } => {
-                Self::subst_stmt(try_block, type_substs);
-                Self::subst_stmt(catch_block, type_substs);
-            }
             Stmt::Parallel(s, _) | Stmt::Unsafe { body: s, .. } => {
                 Self::subst_stmt(s, type_substs);
             }
@@ -729,7 +721,7 @@ impl<'a> Lowering<'a> {
                     .instructions
                     .push(Inst::ConstStr {
                         dest: msg_val,
-                        value: msg_str.into(),
+                        value: msg_str,
                     });
                 let dest = self.next_val();
                 self.get_block_mut(entry_id).instructions.push(Inst::Call {
@@ -768,7 +760,7 @@ impl<'a> Lowering<'a> {
                         .instructions
                         .push(Inst::ConstStr {
                             dest: msg_val,
-                            value: msg_str.into(),
+                            value: msg_str,
                         });
                     let dest = self.next_val();
                     self.get_block_mut(cur_block).instructions.push(Inst::Call {

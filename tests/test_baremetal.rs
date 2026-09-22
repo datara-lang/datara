@@ -85,7 +85,7 @@ fn test_io() -> Int {
     let mut found_volatile_load = false;
     let mut found_volatile_store = false;
 
-    for (_name, func) in &dmir_module.functions {
+    for func in dmir_module.functions.values() {
         for block in &func.blocks {
             for inst in &block.instructions {
                 match inst {

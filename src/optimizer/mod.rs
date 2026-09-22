@@ -171,7 +171,7 @@ impl Optimizer {
     pub fn optimize_module(
         &mut self,
         module: &mut Module,
-    ) -> Result<(), crate::diagnostics::Diagnostic> {
+    ) -> Result<(), Box<crate::diagnostics::Diagnostic>> {
         if let Err(error) = crate::dmir::verify_module(module) {
             let diag = crate::diagnostics::Diagnostic::error(
                 crate::diagnostics::ErrorCode::InternalVerification,
@@ -182,7 +182,7 @@ impl Optimizer {
                 None,
             );
             self.diagnostics.push(diag.clone());
-            return Err(diag);
+            return Err(Box::new(diag));
         }
         self.report.symbols_analyzed = module.functions.len();
         self.module_globals = module.globals.keys().cloned().collect();
@@ -208,7 +208,7 @@ impl Optimizer {
         self.report.adaptation_records = self.sae.log.records.clone();
         // Adaptation gates (e.g. E-OPT-001 layout-sensitivity) emit WARNING
         // diagnostics, surfaced without failing compilation.
-        self.diagnostics.extend(self.sae.pending_warnings.drain(..));
+        self.diagnostics.append(&mut self.sae.pending_warnings);
 
         let max_iterations = if self.mode == "domain" || self.mode == "release" {
             3
@@ -375,7 +375,7 @@ impl Optimizer {
                 None,
             );
             self.diagnostics.push(diag.clone());
-            return Err(diag);
+            return Err(Box::new(diag));
         }
 
         if std::env::var("DATARA_DUMP_IR").is_ok() {
@@ -409,7 +409,7 @@ impl Optimizer {
         label: &str,
         module: &mut Module,
         pass: F,
-    ) -> Result<(), crate::diagnostics::Diagnostic>
+    ) -> Result<(), Box<crate::diagnostics::Diagnostic>>
     where
         F: FnOnce(&mut Self, &mut Module),
     {
@@ -429,7 +429,7 @@ impl Optimizer {
                 None,
             );
             self.diagnostics.push(diag.clone());
-            return Err(diag);
+            return Err(Box::new(diag));
         }
 
         let after = evidence::ir_fingerprint(module);
@@ -592,11 +592,7 @@ impl Optimizer {
 
                             if then_unvisited && else_unvisited {
                                 // If loop header, prioritize entering loop body as fallthrough
-                                if loop_headers.contains(&current_id) {
-                                    Some(*then_block)
-                                } else {
-                                    Some(*then_block)
-                                }
+                                Some(*then_block)
                             } else if then_unvisited {
                                 Some(*then_block)
                             } else if else_unvisited {
@@ -1096,26 +1092,6 @@ impl Optimizer {
                         }
                         for bi in body_insts {
                             self.visit_inst_vids(bi, &mut |v| {
-                                if let Some(s_id) = val_to_struct.get(v) {
-                                    escaping_structs.insert(*s_id);
-                                }
-                            });
-                        }
-                    }
-                    Inst::TryCatch {
-                        try_insts,
-                        catch_insts,
-                        ..
-                    } => {
-                        for ti in try_insts {
-                            self.visit_inst_vids(ti, &mut |v| {
-                                if let Some(s_id) = val_to_struct.get(v) {
-                                    escaping_structs.insert(*s_id);
-                                }
-                            });
-                        }
-                        for ci in catch_insts {
-                            self.visit_inst_vids(ci, &mut |v| {
                                 if let Some(s_id) = val_to_struct.get(v) {
                                     escaping_structs.insert(*s_id);
                                 }

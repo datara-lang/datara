@@ -146,7 +146,7 @@ impl IncrementalCache {
             })
             .collect();
         matching.sort();
-        matching.first().map(|k| PathBuf::from(k))
+        matching.first().map(|k| PathBuf::from(k.as_str()))
     }
 
     pub fn update_module(&mut self, path: &Path, content: &str, dependencies: Vec<String>) {

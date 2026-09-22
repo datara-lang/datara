@@ -1,8 +1,8 @@
 // Datara Rust Bridge Showcase: Regex Search & Match
 
-extern fn regex_is_match(pattern: String, text: String) -> Bool
-extern fn regex_find(pattern: String, text: String) -> String
-extern fn regex_replace_all(pattern: String, text: String, rep: String) -> String
+extern fn regex_is_match(pattern: Str, text: Str) -> Bool
+extern fn regex_find(pattern: Str, text: Str) -> Str
+extern fn regex_replace_all(pattern: Str, text: Str, rep: Str) -> Str
 
 fn main() {
     let email = "engineer@datara-lang.org"

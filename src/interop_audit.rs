@@ -6,11 +6,10 @@
 //! 1. `roundtrip`       - call through the boundary with 2 args, check return
 //! 2. `primitives`      - int + float + bool + string argument transfer
 //! 3. `aggregate`       - a composite value across the boundary (C: heap
-//!                        list ABI; Python/JS: call-arg list / JSON string)
+//!    list ABI; Python/JS: call-arg list / JSON string)
 //! 4. `error_transfer`  - a failing callee is observed by Datara
 //! 5. `leak_smoke`      - 1000 boundary allocations must return the live
-//!                        allocator counter (`datara_rt_heap_live`) to its
-//!                        baseline
+//!    allocator counter (`datara_rt_heap_live`) to its baseline
 //!
 //! Every probe also measures per-call overhead over a hot loop with
 //! `datara_rt_now_ns` and reports `ns_per_call`.

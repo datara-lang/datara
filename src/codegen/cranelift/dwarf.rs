@@ -135,7 +135,7 @@ impl DwarfLineEmitter {
 
         // Collect only functions defined in this DMIR module (exclude runtime imports)
         let mut defined_funcs = Vec::new();
-        for (fn_name, _) in &dmir_module.functions {
+        for fn_name in dmir_module.functions.keys() {
             if let Some(&func_id) = artifacts.func_ids.get(fn_name) {
                 if let Some(Some((symbol_id, _))) = functions.get(func_id) {
                     let sym = obj.symbol(*symbol_id);

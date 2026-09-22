@@ -32,7 +32,7 @@ impl AndroidAbi {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s.trim().to_ascii_lowercase().as_str() {
             "arm64" | "arm64-v8a" | "aarch64" => Some(Self::Arm64V8a),
             "arm" | "armv7" | "armeabi-v7a" => Some(Self::ArmeabiV7a),

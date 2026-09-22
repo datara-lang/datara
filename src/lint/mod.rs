@@ -59,6 +59,71 @@ pub fn lint_file(path: &Path) -> Result<Vec<LintDiagnostic>, String> {
     lint_file_with_profile(path, LintProfile::Standard)
 }
 
+/// Lint a set of source files as ONE merged program.
+///
+/// Cross-module references (`main` in `b.dtr` calling a helper in `a.dtr`)
+/// are only visible when the declarations of every module are analyzed
+/// together; linting files in isolation produces false
+/// `dead_code::unused_function` reports. This parses every file and runs the
+/// rules over the union of their declarations. Diagnostics keep their
+/// original per-file spans, so attribution and rendering are unchanged.
+///
+/// Fails with the first file that cannot be read or parsed (matching the
+/// per-file behavior of [`lint_file_with_profile`]).
+pub fn lint_files_with_profile(
+    paths: &[std::path::PathBuf],
+    profile: LintProfile,
+) -> Result<Vec<LintDiagnostic>, String> {
+    let mut merged: Option<crate::ast::Program> = None;
+    for path in paths {
+        let source = fs::read_to_string(path)
+            .map_err(|e| format!("Cannot read file {}: {}", path.display(), e))?;
+        let file_str = path.to_string_lossy().to_string();
+        let mut diag_engine = DiagnosticEngine::new("en");
+        diag_engine.set_source(&file_str, &source);
+
+        let mut lexer = Lexer::new(&source, &file_str);
+        let tokens = lexer.tokenize(&mut diag_engine);
+        if diag_engine.has_errors() {
+            return Err(diag_engine.format_all());
+        }
+
+        let mut parser = Parser::new(tokens, &mut diag_engine, &file_str);
+        let program = parser.parse_program();
+        if diag_engine.has_errors() {
+            return Err(diag_engine.format_all());
+        }
+
+        match &mut merged {
+            None => merged = Some(program),
+            Some(m) => m.declarations.extend(program.declarations),
+        }
+    }
+
+    let mut diags = match &merged {
+        Some(program) => rules::run_all_rules(program),
+        None => Vec::new(),
+    };
+
+    // Apply profile rules: filter suppressed and escalate errors
+    diags.retain(|d| !profile.should_suppress(d.code));
+    for d in &mut diags {
+        if profile.should_escalate_to_error(d.code) {
+            d.severity = LintSeverity::Error;
+        }
+    }
+
+    // Sort diagnostics by line and column
+    diags.sort_by(|a, b| {
+        a.span
+            .start_line
+            .cmp(&b.span.start_line)
+            .then_with(|| a.span.start_col.cmp(&b.span.start_col))
+    });
+
+    Ok(diags)
+}
+
 pub fn lint_file_with_profile(
     path: &Path,
     profile: LintProfile,

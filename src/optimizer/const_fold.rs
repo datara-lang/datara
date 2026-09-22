@@ -284,13 +284,10 @@ impl Optimizer {
                                             (l_val.checked_mul(*r_val), l_val.wrapping_mul(*r_val))
                                         }
                                     };
-                                    match raw {
-                                        Some(v) => Some(v),
-                                        // Overflowing wide constexpr: unfoldable.
-                                        // (The backend will trap at runtime, which
-                                        // is exactly the SPEC-mandated behavior.)
-                                        None => None,
-                                    }
+                                    // Overflowing wide constexpr: unfoldable.
+                                    // (The backend will trap at runtime, which
+                                    // is exactly the SPEC-mandated behavior.)
+                                    raw
                                 }
                                 "+" | "wrapping_+" => {
                                     Some(wrap_to_width(l_val.wrapping_add(*r_val)))

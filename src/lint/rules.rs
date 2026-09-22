@@ -65,7 +65,336 @@ pub fn run_all_rules(program: &Program) -> Vec<LintDiagnostic> {
     let mut diags = Vec::new();
     check_declarations(program, &mut diags);
     check_string_concat_loops(program, &mut diags);
+    check_dead_code(program, &mut diags);
     diags
+}
+
+/// Dead-code detection for top-level functions (S1).
+///
+/// A top-level function is reported when its name is never referenced
+/// anywhere in the program: no `Expr::Identifier(name)`, no direct call, and
+/// no method call whose member matches the name. `main` (the entry point),
+/// exported functions, attributed functions, and underscore-prefixed names
+/// are roots and never reported. The check is intentionally conservative to
+/// keep false positives at zero: if the AST references a name anywhere -
+/// even in an unreachable branch - the function is considered live.
+///
+/// The reference scan is exhaustive over the whole AST: expression bodies,
+/// `require`/`ensure`/`decreases` contracts, global initializers, class
+/// invariants and field defaults, trait default bodies, match guards, and
+/// closures are all scanned, so a function used only inside any of these is
+/// never reported. Call this once per whole program (see
+/// `lint::lint_files_with_profile`), not once per file - per-file calls
+/// cannot see cross-module references and produce false positives.
+fn check_dead_code(program: &Program, diags: &mut Vec<LintDiagnostic>) {
+    // 1. Collect candidate definitions.
+    let mut defined: HashMap<String, SourceSpan> = HashMap::new();
+    for decl in &program.declarations {
+        match decl {
+            Decl::Function(f) | Decl::Flow(f) | Decl::Task(f) => {
+                let is_root = f.name == "main"
+                    || f.is_export
+                    || !f.attributes.is_empty()
+                    || f.name.starts_with('_');
+                if !is_root {
+                    defined.insert(f.name.clone(), f.span.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+    if defined.is_empty() {
+        return;
+    }
+
+    // 2. Collect every referenced name across the whole program.
+    let mut referenced: HashSet<String> = HashSet::new();
+    for decl in &program.declarations {
+        scan_decl_for_references(decl, &mut referenced);
+    }
+
+    // 3. Report defined-but-never-referenced functions.
+    let mut dead: Vec<(String, SourceSpan)> = defined
+        .into_iter()
+        .filter(|(name, _)| !referenced.contains(name))
+        .collect();
+    dead.sort_by_key(|a| a.1.start_line);
+    for (name, span) in dead {
+        diags.push(
+            LintDiagnostic::new(
+                "dead_code::unused_function",
+                format!("function `{}` is never used", name),
+                span,
+            )
+            .with_help(format!(
+                "remove it, rename to `_{}` if intentionally unused, or mark #[export]",
+                name
+            ))
+            .with_note(
+                "this function is never called and its name is never referenced".into(),
+            ),
+        );
+    }
+}
+
+fn scan_decl_for_references(decl: &Decl, referenced: &mut HashSet<String>) {
+    match decl {
+        Decl::Function(f) | Decl::Flow(f) | Decl::Task(f) => scan_function(f, referenced),
+        Decl::Class(c) => {
+            for item in &c.body_items {
+                scan_class_item(item, referenced);
+            }
+            for inv in &c.invariants {
+                scan_expr(inv, referenced);
+            }
+        }
+        Decl::Component(c) => {
+            for item in &c.body_items {
+                scan_class_item(item, referenced);
+            }
+        }
+        Decl::Behavior(b) => {
+            for item in &b.body_items {
+                scan_class_item(item, referenced);
+            }
+        }
+        Decl::Role(r) => {
+            for m in &r.methods {
+                scan_method_decl(m, referenced);
+            }
+        }
+        Decl::Trait(t) => {
+            for m in &t.methods {
+                if let Some(body) = m.default_body.as_ref() {
+                    scan_stmt(body, referenced);
+                }
+            }
+        }
+        Decl::Impl(i) => {
+            for m in &i.methods {
+                scan_function(m, referenced);
+            }
+        }
+        Decl::Global(g) => scan_expr(&g.init, referenced),
+        _ => {}
+    }
+}
+
+/// Scans a `FunctionDecl` (also used for `impl` methods): body plus all
+/// contract clauses (`require`/`ensure`/`decreases`).
+fn scan_function(f: &FunctionDecl, referenced: &mut HashSet<String>) {
+    scan_stmt(&f.body, referenced);
+    for c in &f.requires {
+        scan_expr(&c.condition, referenced);
+    }
+    for c in &f.ensures {
+        scan_expr(&c.condition, referenced);
+    }
+    if let Some(d) = f.decreases.as_ref() {
+        scan_expr(d, referenced);
+    }
+}
+
+/// Scans a `MethodDecl` (class/component/behavior/role methods): optional
+/// body plus all contract clauses.
+fn scan_method_decl(m: &MethodDecl, referenced: &mut HashSet<String>) {
+    if let Some(body) = m.body.as_ref() {
+        scan_stmt(body, referenced);
+    }
+    for c in &m.requires {
+        scan_expr(&c.condition, referenced);
+    }
+    for c in &m.ensures {
+        scan_expr(&c.condition, referenced);
+    }
+    if let Some(d) = m.decreases.as_ref() {
+        scan_expr(d, referenced);
+    }
+}
+
+fn scan_class_item(item: &ClassItem, referenced: &mut HashSet<String>) {
+    match item {
+        ClassItem::Method(m) => scan_method_decl(m, referenced),
+        ClassItem::Field(f) => {
+            if let Some(init) = f.default_value.as_ref() {
+                scan_expr(init, referenced);
+            }
+        }
+        ClassItem::Invariant(e, _) => scan_expr(e, referenced),
+        ClassItem::Using(_, _) => {}
+    }
+}
+
+fn scan_stmt(stmt: &Stmt, referenced: &mut HashSet<String>) {
+    match stmt {
+        Stmt::Block(stmts, _) => {
+            for s in stmts {
+                scan_stmt(s, referenced);
+            }
+        }
+        Stmt::Let { init, .. }
+        | Stmt::Mut { init, .. }
+        | Stmt::Const { init, .. }
+        | Stmt::Val { init, .. }
+        | Stmt::CompactBind { init, .. } => scan_expr(init, referenced),
+        Stmt::Assign { target, value, .. } => {
+            scan_expr(target, referenced);
+            scan_expr(value, referenced);
+        }
+        Stmt::Expr(e, _) | Stmt::Out(e, _) | Stmt::Err(e, _) => scan_expr(e, referenced),
+        Stmt::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            scan_expr(condition, referenced);
+            scan_stmt(then_branch, referenced);
+            if let Some(els) = else_branch.as_ref() {
+                scan_stmt(els, referenced);
+            }
+        }
+        Stmt::For {
+            iterable, body, ..
+        }
+        | Stmt::ParallelFor {
+            iterable, body, ..
+        } => {
+            scan_expr(iterable, referenced);
+            scan_stmt(body, referenced);
+        }
+        Stmt::While {
+            condition, body, ..
+        } => {
+            scan_expr(condition, referenced);
+            scan_stmt(body, referenced);
+        }
+        Stmt::Loop { body, .. } => scan_stmt(body, referenced),
+        Stmt::Break(_) | Stmt::Continue(_) => {}
+        Stmt::Parallel(inner, _) | Stmt::Simd(inner, _) => scan_stmt(inner, referenced),
+        Stmt::With {
+            init, body, ..
+        } => {
+            scan_expr(init, referenced);
+            scan_stmt(body, referenced);
+        }
+        Stmt::Unsafe { body, .. } => scan_stmt(body, referenced),
+        Stmt::Asm { .. } => {}
+        Stmt::Return(Some(e), _) => scan_expr(e, referenced),
+        Stmt::Return(None, _) => {}
+    }
+}
+
+/// Exhaustive reference scan over an expression tree. Every `Expr` variant
+/// is handled explicitly (no catch-all), so adding a new AST node breaks
+/// compilation here instead of silently regressing the analysis.
+fn scan_expr(expr: &Expr, referenced: &mut HashSet<String>) {
+    match expr {
+        Expr::Literal(..) => {}
+        Expr::Identifier(name, _) => {
+            referenced.insert(name.clone());
+        }
+        Expr::InterpolatedString { expressions, .. } => {
+            for e in expressions {
+                scan_expr(e, referenced);
+            }
+        }
+        Expr::Binary { left, right, .. } => {
+            scan_expr(left, referenced);
+            scan_expr(right, referenced);
+        }
+        Expr::Unary { expr, .. } => scan_expr(expr, referenced),
+        Expr::Call { callee, args, .. } => {
+            // A method call `obj.name(...)` makes `name` a used symbol.
+            if let Expr::MemberAccess { member, .. } = callee.as_ref() {
+                referenced.insert(member.clone());
+            }
+            scan_expr(callee, referenced);
+            for a in args {
+                scan_expr(a, referenced);
+            }
+        }
+        Expr::MemberAccess { object, .. } => scan_expr(object, referenced),
+        Expr::IndexAccess { object, index, .. } => {
+            scan_expr(object, referenced);
+            scan_expr(index, referenced);
+        }
+        Expr::Range { start, end, .. } => {
+            scan_expr(start, referenced);
+            scan_expr(end, referenced);
+        }
+        Expr::Tuple(items, _) | Expr::ListLiteral(items, _) => {
+            for e in items {
+                scan_expr(e, referenced);
+            }
+        }
+        Expr::MapLiteral(entries, _) => {
+            for (k, v) in entries {
+                scan_expr(k, referenced);
+                scan_expr(v, referenced);
+            }
+        }
+        Expr::ArrayRepeatLiteral { elem, .. } => scan_expr(elem, referenced),
+        Expr::ObjectInit { fields, .. } => {
+            for (_, e) in fields {
+                scan_expr(e, referenced);
+            }
+        }
+        Expr::Pipeline { stages, .. } => {
+            for s in stages {
+                scan_expr(s, referenced);
+            }
+        }
+        Expr::Decide { arms, else_arm, .. } => {
+            for arm in arms {
+                scan_expr(&arm.condition, referenced);
+                scan_expr(&arm.body, referenced);
+            }
+            if let Some(ea) = else_arm.as_ref() {
+                scan_expr(ea, referenced);
+            }
+        }
+        Expr::Match { value, arms, .. } => {
+            scan_expr(value, referenced);
+            for arm in arms {
+                if let Some(g) = arm.guard.as_ref() {
+                    scan_expr(g, referenced);
+                }
+                scan_expr(&arm.body, referenced);
+            }
+        }
+        Expr::Select { arms, else_arm, .. } => {
+            for arm in arms {
+                scan_expr(&arm.body, referenced);
+            }
+            if let Some(ea) = else_arm.as_ref() {
+                scan_expr(ea, referenced);
+            }
+        }
+        Expr::Lambda { body, .. } => scan_expr(body, referenced),
+        Expr::ErrorPropagate(e, _) | Expr::Wrapping(e, _) | Expr::Saturating(e, _) => {
+            scan_expr(e, referenced)
+        }
+        Expr::OrRecovery { expr, arms, .. } => {
+            scan_expr(expr, referenced);
+            for arm in arms {
+                if let Some(g) = arm.guard.as_ref() {
+                    scan_expr(g, referenced);
+                }
+                scan_expr(&arm.body, referenced);
+            }
+        }
+        Expr::Comptime { expr, .. } => scan_expr(expr, referenced),
+        Expr::Cast { expr, .. } => scan_expr(expr, referenced),
+        Expr::Block(stmts, trailing, _) => {
+            for s in stmts {
+                scan_stmt(s, referenced);
+            }
+            if let Some(t) = trailing.as_ref() {
+                scan_expr(t, referenced);
+            }
+        }
+    }
 }
 
 /// v1.4.0 (L1401): detects `s = s + <string>` self-concatenation inside
@@ -134,14 +463,6 @@ fn scan_loops_for_concat(stmt: &Stmt, diags: &mut Vec<LintDiagnostic>) {
             if let Some(e) = else_branch {
                 scan_loops_for_concat(e, diags);
             }
-        }
-        Stmt::TryCatch {
-            try_block,
-            catch_block,
-            ..
-        } => {
-            scan_loops_for_concat(try_block, diags);
-            scan_loops_for_concat(catch_block, diags);
         }
         Stmt::Unsafe { body, .. } | Stmt::Parallel(body, _) | Stmt::With { body, .. } => {
             scan_loops_for_concat(body, diags)
@@ -222,14 +543,6 @@ fn scan_concat_assigns(stmt: &Stmt, diags: &mut Vec<LintDiagnostic>) {
         | Stmt::Unsafe { body, .. }
         | Stmt::Parallel(body, _)
         | Stmt::With { body, .. } => scan_concat_assigns(body, diags),
-        Stmt::TryCatch {
-            try_block,
-            catch_block,
-            ..
-        } => {
-            scan_concat_assigns(try_block, diags);
-            scan_concat_assigns(catch_block, diags);
-        }
         _ => {}
     }
 }

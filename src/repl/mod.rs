@@ -297,7 +297,7 @@ impl ReplSession {
         if trimmed.starts_with("let ") || trimmed.starts_with("mut ") || trimmed.starts_with("val ")
         {
             let res = self.execute_expression(trimmed);
-            if !res.as_ref().map_or(false, |r| r.contains("error[")) {
+            if !res.as_ref().is_some_and(|r| r.contains("error[")) {
                 // Extract variable name
                 let parts: Vec<&str> = trimmed.split_whitespace().collect();
                 if parts.len() >= 2 {

@@ -671,6 +671,12 @@ impl<'a> TypeChecker<'a> {
                     } else if opt_e.is_some()
                         && expected != DataraType::Unit
                         && !matches!(expected, DataraType::TypeParam(_))
+                        // v1.4.5 W1 parity with `let`: an in-range INT
+                        // LITERAL coerces to a narrow integer return type
+                        // (`fn f() -> UInt8 { return 0 }`). The actual range
+                        // proof lives in the literal match below; a runtime
+                        // Int value never narrows implicitly (Gate 7).
+                        && !Self::return_is_narrow_literal(opt_e.as_ref(), &expected)
                         && !t.is_compatible_with_args(&expected, Some(self.resolver))
                     {
                         let help_msg = Self::suggest_type_fix(&expected, &t);
@@ -864,32 +870,6 @@ impl<'a> TypeChecker<'a> {
                 }
                 DataraType::Never
             }
-            Stmt::TryCatch {
-                try_block,
-                err_var,
-                catch_block,
-                ..
-            } => {
-                self.check_stmt(try_block, diag);
-                let prev = self
-                    .symbol_types
-                    .insert(err_var.clone(), DataraType::String);
-                let prev_mut = self
-                    .symbol_mutability
-                    .insert(err_var.clone(), MutabilityKind::Immutable);
-                self.check_stmt(catch_block, diag);
-                if let Some(p) = prev {
-                    self.symbol_types.insert(err_var.clone(), p);
-                } else {
-                    self.symbol_types.remove(err_var);
-                }
-                if let Some(m) = prev_mut {
-                    self.symbol_mutability.insert(err_var.clone(), m);
-                } else {
-                    self.symbol_mutability.remove(err_var);
-                }
-                DataraType::Unit
-            }
             Stmt::Parallel(body, _) => {
                 self.check_stmt(body, diag);
                 DataraType::Unit
@@ -1024,13 +1004,6 @@ impl<'a> TypeChecker<'a> {
                 body,
                 ..
             } => !Self::stmt_can_break(body),
-            Stmt::TryCatch {
-                try_block,
-                catch_block,
-                ..
-            } => {
-                Self::stmt_guarantees_return(try_block) && Self::stmt_guarantees_return(catch_block)
-            }
             Stmt::With { body, .. } | Stmt::Unsafe { body, .. } => {
                 Self::stmt_guarantees_return(body)
             }
@@ -1056,11 +1029,6 @@ impl<'a> TypeChecker<'a> {
                         .as_ref()
                         .is_some_and(|s| Self::stmt_can_break(s))
             }
-            Stmt::TryCatch {
-                try_block,
-                catch_block,
-                ..
-            } => Self::stmt_can_break(try_block) || Self::stmt_can_break(catch_block),
             Stmt::With { body, .. } | Stmt::Unsafe { body, .. } | Stmt::Parallel(body, _) => {
                 Self::stmt_can_break(body)
             }
@@ -1076,7 +1044,7 @@ impl<'a> TypeChecker<'a> {
         &mut self,
         var_name: &str,
         iterable: &Expr,
-        body: &Box<Stmt>,
+        body: &Stmt,
         diag: &mut DiagnosticEngine,
     ) -> DataraType {
         let iter_type = self.check_expr(iterable, diag);
@@ -1196,6 +1164,32 @@ impl<'a> TypeChecker<'a> {
                 }
             }
             _ => {}
+        }
+    }
+
+    /// v1.4.5 W1 parity with `let`: is the returned expression an INT
+    /// LITERAL that fits the declared narrow integer return type?
+    /// Literal-only coercibility — a runtime `Int` value never narrows
+    /// implicitly (Gate 7 preserved). Negative literals arrive as
+    /// `Unary('-', lit)` and are peeled the same way as in `Stmt::Let`.
+    fn return_is_narrow_literal(expr: Option<&Expr>, expected: &DataraType) -> bool {
+        let Some(e) = expr else {
+            return false;
+        };
+        let v = match e {
+            Expr::Literal(LiteralValue::Int(v), _) => Some(*v),
+            Expr::Unary { op, expr, .. } if op == "-" => match expr.as_ref() {
+                Expr::Literal(LiteralValue::Int(v), _) => Some(-v),
+                _ => None,
+            },
+            _ => None,
+        };
+        match v {
+            Some(v) => {
+                DataraType::is_compatible_narrow_literal(expected, &DataraType::Int, true)
+                    && DataraType::narrow_literal_fits(expected, v)
+            }
+            None => false,
         }
     }
 }

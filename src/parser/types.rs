@@ -79,6 +79,42 @@ impl<'a> Parser<'a> {
         let start_span = self.peek().span.clone();
         let name = self.consume_ident("Expected type name")?;
 
+        // W-SYN-002: canonical type spelling. Legacy C-style aliases and a
+        // few historical names compile identically (see `types::resolve`),
+        // but the language defines exactly one canonical spelling per type;
+        // warn so codebases converge instead of carrying every synonym.
+        const CANONICAL_SPELLINGS: &[(&str, &str)] = &[
+            ("i8", "Int8"),
+            ("i16", "Int16"),
+            ("i32", "Int32"),
+            ("i64", "Int"),
+            ("isize", "Int"),
+            ("u8", "UInt8"),
+            ("u16", "UInt16"),
+            ("u32", "UInt32"),
+            ("u64", "UInt"),
+            ("usize", "UInt"),
+            ("byte", "UInt8"),
+            ("Byte", "UInt8"),
+            ("f16", "Float32"),
+            ("f32", "Float32"),
+            ("f64", "Float"),
+            ("i128", "Int"),
+            ("u128", "UInt"),
+            ("String", "Str"),
+            ("char", "Char"),
+        ];
+        if let Some((_, canonical)) = CANONICAL_SPELLINGS.iter().find(|(l, _)| *l == name) {
+            self.diag.warning(
+                crate::diagnostics::ErrorCode::CanonicalTypeSpelling,
+                format!(
+                    "type '{}' uses a legacy spelling; the canonical name is '{}'.",
+                    name, canonical
+                ),
+                Some(start_span.clone()),
+            );
+        }
+
         let mut generic_args = Vec::new();
         let mut refinement = None;
         if self.match_token(&TokenType::Less) {

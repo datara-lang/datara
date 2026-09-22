@@ -1,8 +1,8 @@
 // Datara Rust Bridge Showcase: serde_json Parse & Serialize
 
-extern fn json_get_string(json_str: String, key: String) -> String
-extern fn json_get_int(json_str: String, key: String) -> Int
-extern fn json_create_pair(k1: String, v1: String, k2: String, v2: Int) -> String
+extern fn json_get_string(json_str: Str, key: Str) -> Str
+extern fn json_get_int(json_str: Str, key: Str) -> Int
+extern fn json_create_pair(k1: Str, v1: Str, k2: Str, v2: Int) -> Str
 
 fn main() {
     let payload = "{\"compiler\":\"forgen\",\"tests_passing\":625,\"status\":\"verified\"}"

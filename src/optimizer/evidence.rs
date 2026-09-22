@@ -128,7 +128,7 @@ pub fn gate_pass<F: FnOnce(&mut Module)>(
     report: &mut crate::optimizer::OptimizationReport,
     trace: &mut crate::optimizer::cost_model::OptimizationDecisionTrace,
     pass: F,
-) -> Result<PassEvidence, crate::diagnostics::Diagnostic> {
+) -> Result<PassEvidence, Box<crate::diagnostics::Diagnostic>> {
     let before = ir_fingerprint(module);
     let records_start = trace.records.len();
     let counters = CountersSnapshot::capture(report);
@@ -136,14 +136,14 @@ pub fn gate_pass<F: FnOnce(&mut Module)>(
     pass(module);
 
     if let Err(error) = crate::dmir::verify_module(module) {
-        return Err(crate::diagnostics::Diagnostic::error(
+        return Err(Box::new(crate::diagnostics::Diagnostic::error(
             crate::diagnostics::ErrorCode::InternalVerification,
             format!(
                 "[E0901] DMIR verification failed after optimizer pass '{}': {}",
                 label, error
             ),
             None,
-        ));
+        )));
     }
 
     let after = ir_fingerprint(module);

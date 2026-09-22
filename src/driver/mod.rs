@@ -452,7 +452,7 @@ impl ForgenCompiler {
                         "2" => "2",
                         _ => "3",
                     };
-                    let is_shared_lib = target_exe.extension().map_or(false, |ext| {
+                    let is_shared_lib = target_exe.extension().is_some_and(|ext| {
                         let s = ext.to_string_lossy().to_lowercase();
                         s == "dll" || s == "so" || s == "dylib"
                     });

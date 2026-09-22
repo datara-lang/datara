@@ -7,11 +7,13 @@
 <p align="center">
   <a href="https://github.com/datara-lang/datara"><img src="https://img.shields.io/badge/language-Datara-%23E3B341.svg" alt="Язык" /></a>
   <a href="LICENSE-APACHE"><img src="https://img.shields.io/badge/License-Apache_2.0_OR_MIT-blue.svg" alt="Лицензия" /></a>
-  <img src="https://img.shields.io/badge/версия-1.4.2-blue.svg" alt="Версия" />
+  <img src="https://img.shields.io/badge/версия-1.4.5-blue.svg" alt="Версия" />
   <a href="https://github.com/datara-lang/datara/actions/workflows/ci.yml"><img src="https://github.com/datara-lang/datara/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <img src="https://img.shields.io/badge/тесты-243%20набора%20%7C%201092%2B%20пройдено-brightgreen.svg" alt="Тесты" />
+  <img src="https://img.shields.io/badge/тесты-285%20набора%20%7C%201332%20пройдено-brightgreen.svg" alt="Тесты" />
+  <a href="https://datara-lang.github.io/datara/ru/"><img src="https://img.shields.io/badge/документация-GitHub_Pages-blue.svg" alt="Документация" /></a>
   <a href="docs/CONFORMANCE_MATRIX.md"><img src="https://img.shields.io/badge/Соответствие_Спецификации_V1-84%2F84_Врат_ПРОЙДЕНО-brightgreen.svg" alt="Соответствие" /></a>
   <img src="https://img.shields.io/badge/целевая_архитектура-x86__64_native-orange.svg" alt="Архитектура" />
+
   <img src="https://img.shields.io/badge/кодогенерация-Cranelift_%2B_LLVM_%2B_Wasm-purple.svg" alt="Кодогенерация" />
   <img src="https://img.shields.io/badge/evidence_gate-DMIR_SSA_верен-brightgreen.svg" alt="Evidence Gate" />
   <img src="https://img.shields.io/badge/рантайм-нулевые_паузы_GC-success.svg" alt="Zero GC" />
@@ -19,8 +21,8 @@
 
 <p align="center">
   <a href="#1-установка-и-настройка"><b>Быстрый старт за 60 секунд</b></a> &bull;
+  <a href="https://datara-lang.github.io/datara/ru/"><b>📚 Портал документации</b></a> &bull;
   <a href="#2-полное-руководство-по-синтаксису-и-мастерству-языка"><b>Руководство по синтаксису</b></a> &bull;
-  <a href="#2-полное-руководство-по-синтаксису-и-мастерству"><b>Полное руководство по синтаксису</b></a> &bull;
   <a href="docs/PERFORMANCE_GOALS.md"><b>Матрица производительности</b></a> &bull;
   <a href="README.md"><b>English Documentation</b></a>
 </p>
@@ -43,6 +45,7 @@ Datara полностью исключает паузы сборки мусор�
 - **Спецификаторы fmt-строк**: `fmt"{x:.2}"` — фиксированная точность, `fmt"{x:x}"` / `X` / `o` / `b` — системы счисления для целых, `fmt"{d:.N}"` для `Dec64` — типизированные вызовы рантайма после резолва, без изменений в typechecker, идентичное поведение на Cranelift JIT/AOT, LLVM и WASM.
 - **Печать Dec64**: значения `Dec64` естественно интерполируются (`fmt"{19.99d}"` → `19.99`, а не сырая мантисса), с диагностикой переполнения для выходящих за диапазон литералов.
 - **Паритет WASM-рантайма**: слитный вывод `out fmt"…"` / `err fmt"…"` и все конвертеры спецификаторов поставляются как импорты `datara:rt` с JS-реализациями — форматированный вывод больше не падает в `0` в браузере.
+- **Проход сопровождения**: whole-program dead-code lint (ноль ложных срабатываний между модулями; сканируются `Match`/`Decide`/замыкания/контракты), реализованы предупреждения `W-SYN-002` о канонических написаниях, clippy-предупреждения 92 → 0, легаси-инфраструктура `try`/`catch` полностью удалена из AST, исправлена унификация целочисленных литералов в `return`, восстановлены документированные алиасы `and`/`xor`.
 
 ### Главные нововведения v1.4.4
 - **Архитектура 4 уровней абстракции с полной обратной совместимостью**:
@@ -219,10 +222,10 @@ Datara поставляется через проверенные официал
 Официальные нативные пакеты, собираемые в CI для Debian/Ubuntu и Fedora/RHEL:
 ```bash
 # Debian / Ubuntu / Pop!_OS / Linux Mint (загрузить из GitHub Releases):
-sudo dpkg -i datara_1.4.1_amd64.deb
+sudo dpkg -i datara_1.4.5_amd64.deb
 
 # Fedora / RHEL / CentOS / openSUSE:
-sudo rpm -ivh datara-1.4.1-1.x86_64.rpm
+sudo rpm -ivh datara-1.4.5-1.x86_64.rpm
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/windows.svg" height="20" valign="middle" alt="Windows" /> Windows: Графический установщик (Setup.exe) и Scoop
@@ -252,18 +255,18 @@ docker run -it --rm -v $(pwd):/workspace ghcr.io/datara-lang/datara:latest run m
 ```bash
 cargo install --git https://github.com/datara-lang/datara.git forgen
 ```
-*(Архив крейта `forgen-1.4.1.crate` также доступен для прямой загрузки из GitHub Releases).*
+*(Архив крейта `forgen-1.4.5.crate` также доступен для прямой загрузки из GitHub Releases).*
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/vscode.svg" height="20" valign="middle" alt="VS Code" /> Расширение для VS Code и Cursor (.vsix)
 Установка расширения с подсветкой синтаксиса, типизацией и темами напрямую из ассетов релиза:
 ```bash
-code --install-extension datara-language-1.4.1.vsix
+code --install-extension datara-language-1.4.5.vsix
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/python.svg" height="20" valign="middle" alt="Python" /> Python Wheel (`pip install`)
 Установка CLI и FFI-биндингов для Python напрямую из официального wheel-архива:
 ```bash
-pip install https://github.com/datara-lang/datara/releases/download/v1.4.1/datara-1.4.1-py3-none-any.whl
+pip install https://github.com/datara-lang/datara/releases/download/v1.4.5/datara-1.4.5-py3-none-any.whl
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/npm.svg" height="20" valign="middle" alt="NPM" /> NPM и GitHub Packages

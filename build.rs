@@ -264,7 +264,7 @@ fn collect_rs_files(dir: &PathBuf, out: &mut Vec<PathBuf>) {
             let p = entry.path();
             if p.is_dir() {
                 collect_rs_files(&p, out);
-            } else if p.extension().map_or(false, |ext| ext == "rs") {
+            } else if p.extension().is_some_and(|ext| ext == "rs") {
                 out.push(p);
             }
         }

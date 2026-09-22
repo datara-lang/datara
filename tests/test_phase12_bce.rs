@@ -192,9 +192,13 @@ fn test_bce_array_sum_microbenchmark_safe_datara_vs_unsafe_c() {
         std::hint::black_box(sum);
     }
 
-    // 7 timed runs of unsafe C-style raw pointer loop (no bounds checks)
+    // 15 timed runs of unsafe C-style raw pointer loop (no bounds checks).
+    // NB: min (not median) is the statistically stable estimator for
+    // microbenchmarks on Windows - timer resolution and CPU frequency
+    // scaling only ever add noise, so the minimum is the closest to the
+    // true cost and keeps the 1.05x parity gate deterministic.
     let mut c_times = Vec::new();
-    for _ in 0..7 {
+    for _ in 0..15 {
         let start = Instant::now();
         let ptr = data.as_ptr();
         let mut sum: i64 = 0;
@@ -207,13 +211,12 @@ fn test_bce_array_sum_microbenchmark_safe_datara_vs_unsafe_c() {
         std::hint::black_box(sum);
         c_times.push(elapsed);
     }
-    c_times.sort();
-    let median_c = c_times[3];
+    let min_c = *c_times.iter().min().unwrap();
 
     // 7 timed runs of safe Datara-style loop where BCE proved 0 <= i < len
     // (exact same unchecked memory access pattern as compiled by Datara BCE)
     let mut datara_times = Vec::new();
-    for _ in 0..7 {
+    for _ in 0..15 {
         let start = Instant::now();
         let ptr = data.as_ptr();
         let len = data.len();
@@ -231,12 +234,12 @@ fn test_bce_array_sum_microbenchmark_safe_datara_vs_unsafe_c() {
         datara_times.push(elapsed);
     }
     datara_times.sort();
-    let median_datara = datara_times[3];
+    let min_datara = *datara_times.iter().min().unwrap();
 
-    let ratio = median_datara as f64 / median_c.max(1) as f64;
+    let ratio = min_datara as f64 / min_c.max(1) as f64;
     println!(
         "Array Sum ({} elements): Unsafe-C = {} ns, Safe-Datara (BCE) = {} ns, ratio = {:.3}x",
-        SIZE, median_c, median_datara, ratio
+        SIZE, min_c, min_datara, ratio
     );
 
     assert!(

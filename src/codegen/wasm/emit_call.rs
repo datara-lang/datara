@@ -471,7 +471,7 @@ impl WasmEmitter {
                 body.push(0x21); // local.set dest
                 encode_u32_leb128(dest_loc, body);
             }
-            let sanitized = func.replace(':', "_").replace('@', "_").replace('/', "_");
+            let sanitized = func.replace([':', '@', '/'], "_");
             if is_void {
                 wat.push_str(&format!("    (call ${}{})\n", sanitized, arg_wat_suffix));
             } else {

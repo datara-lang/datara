@@ -96,15 +96,15 @@ fn test_mobile_ios_swift_generation() {
 
 #[test]
 fn test_mobile_abi_mapping() {
-    let arm64 = AndroidAbi::from_str("arm64-v8a").expect("must parse arm64");
+    let arm64 = AndroidAbi::parse("arm64-v8a").expect("must parse arm64");
     assert_eq!(arm64, AndroidAbi::Arm64V8a);
     assert_eq!(arm64.target_triple(), "aarch64-linux-android");
 
-    let armv7 = AndroidAbi::from_str("armeabi-v7a").expect("must parse armv7");
+    let armv7 = AndroidAbi::parse("armeabi-v7a").expect("must parse armv7");
     assert_eq!(armv7, AndroidAbi::ArmeabiV7a);
     assert_eq!(armv7.target_triple(), "armv7-linux-androideabi");
 
-    let x86 = AndroidAbi::from_str("x86_64").expect("must parse x86_64");
+    let x86 = AndroidAbi::parse("x86_64").expect("must parse x86_64");
     assert_eq!(x86, AndroidAbi::X86_64);
     assert_eq!(x86.target_triple(), "x86_64-linux-android");
 }

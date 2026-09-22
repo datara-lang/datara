@@ -5,6 +5,7 @@
 //! 3. behavior: State-free (rejects fields E-BEH-001), pure by default (E-BEH-002 on unannotated side effects), 2x inlining multiplier.
 //! 4. role: Behavioral contract with typed capability bounds (E-ROLE-001).
 //! 5. trait/impl: Coherence (single impl E-IMPL-001, super-traits E-IMPL-002), single-impl devirtualization.
+//!
 //! Complete eradication of `class` keyword (E0100).
 
 use forgen::codegen::TargetInfo;

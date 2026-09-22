@@ -23,7 +23,7 @@ impl<'a> LlvmEmitter<'a> {
             || module
                 .functions
                 .get(func)
-                .map_or(false, |f| f.return_type == "Bool")
+                .is_some_and(|f| f.return_type == "Bool")
         {
             bool_vids.insert(*dest);
         }

@@ -526,14 +526,6 @@ impl<'a> SecurityVerifier<'a> {
             Stmt::Parallel(body, _) | Stmt::ParallelFor { body, .. } | Stmt::With { body, .. } => {
                 Self::collect_assignments(body, out);
             }
-            Stmt::TryCatch {
-                try_block,
-                catch_block,
-                ..
-            } => {
-                Self::collect_assignments(try_block, out);
-                Self::collect_assignments(catch_block, out);
-            }
             Stmt::Unsafe { body, .. } => {
                 Self::collect_assignments(body, out);
             }
@@ -671,14 +663,6 @@ impl<'a> SecurityVerifier<'a> {
             | Stmt::With { body, .. } => {
                 Self::check_loops_termination(body, is_pure, diag);
             }
-            Stmt::TryCatch {
-                try_block,
-                catch_block,
-                ..
-            } => {
-                Self::check_loops_termination(try_block, is_pure, diag);
-                Self::check_loops_termination(catch_block, is_pure, diag);
-            }
             Stmt::Unsafe { body, .. } => {
                 Self::check_loops_termination(body, is_pure, diag);
             }
@@ -729,14 +713,6 @@ impl<'a> SecurityVerifier<'a> {
             Stmt::With { init, body, .. } => {
                 Self::collect_expr_calls(init, fn_name, out);
                 Self::collect_recursive_calls(body, fn_name, out);
-            }
-            Stmt::TryCatch {
-                try_block,
-                catch_block,
-                ..
-            } => {
-                Self::collect_recursive_calls(try_block, fn_name, out);
-                Self::collect_recursive_calls(catch_block, fn_name, out);
             }
             Stmt::Loop { body, .. } => {
                 Self::collect_recursive_calls(body, fn_name, out);
@@ -1156,20 +1132,6 @@ impl<'a> SecurityVerifier<'a> {
                 if is_non_zero_literal(init) {
                     ctx.proven_non_zero.insert(name.clone());
                 }
-            }
-            Stmt::TryCatch {
-                try_block,
-                err_var,
-                catch_block,
-                ..
-            } => {
-                self.verify_stmt(try_block, ctx, diag);
-                let mut catch_ctx = ctx.clone();
-                catch_ctx
-                    .symbols
-                    .insert(err_var.clone(), DataraType::String);
-                catch_ctx.outer_vars.insert(err_var.clone());
-                self.verify_stmt(catch_block, &mut catch_ctx, diag);
             }
             Stmt::Break(_) | Stmt::Continue(_) => {}
             Stmt::Asm {

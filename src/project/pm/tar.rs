@@ -111,12 +111,12 @@ pub fn create_tar(files: &HashMap<String, Vec<u8>>) -> Result<Vec<u8>, String> {
         let remainder = data.len() % BLOCK_SIZE;
         if remainder != 0 {
             let padding = BLOCK_SIZE - remainder;
-            out.extend(std::iter::repeat(0).take(padding));
+            out.extend(std::iter::repeat_n(0, padding));
         }
     }
 
     // Two 512-byte blocks of zeros mark end of archive
-    out.extend(std::iter::repeat(0).take(BLOCK_SIZE * 2));
+    out.extend(std::iter::repeat_n(0, BLOCK_SIZE * 2));
     Ok(out)
 }
 

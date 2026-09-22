@@ -69,7 +69,9 @@ impl<'a> TypeChecker<'a> {
                 Decl::Impl(i) => {
                     if let Some(tr) = &i.trait_name {
                         let key = (tr.clone(), i.target_type.clone());
-                        if self.impls.contains_key(&key) {
+                        if let std::collections::hash_map::Entry::Vacant(e) = self.impls.entry(key.clone()) {
+                            e.insert(i.clone());
+                        } else {
                             diag.error(
                                 ErrorCode::ImplCoherenceViolation,
                                 format!(
@@ -78,8 +80,6 @@ impl<'a> TypeChecker<'a> {
                                 ),
                                 Some(i.span.clone()),
                             );
-                        } else {
-                            self.impls.insert(key, i.clone());
                         }
                     }
                 }

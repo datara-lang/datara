@@ -125,7 +125,7 @@ pub fn sha256_hexdigest(data: &[u8]) -> String {
 }
 pub fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, String> {
     let clean = hex.trim().strip_prefix("0x").unwrap_or(hex.trim());
-    if clean.len() % 2 != 0 {
+    if !clean.len().is_multiple_of(2) {
         return Err(format!("Hex string '{}' has invalid odd length", clean));
     }
     (0..clean.len())

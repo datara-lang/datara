@@ -343,7 +343,7 @@ impl LayoutAdapter {
         if module.extern_sysv.contains_key(class_name) {
             return true;
         }
-        for (_name, (params, ret)) in &module.extern_functions {
+        for (params, ret) in module.extern_functions.values() {
             if ret == class_name || params.iter().any(|p| p == class_name) {
                 return true;
             }

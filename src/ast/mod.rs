@@ -150,14 +150,6 @@ fn stmt_has_asm_kind(stmt: &Stmt, structured_only: bool) -> bool {
         | Stmt::Parallel(body, _)
         | Stmt::Simd(body, _)
         | Stmt::Unsafe { body, .. } => stmt_has_asm_kind(body, structured_only),
-        Stmt::TryCatch {
-            try_block,
-            catch_block,
-            ..
-        } => {
-            stmt_has_asm_kind(try_block, structured_only)
-                || stmt_has_asm_kind(catch_block, structured_only)
-        }
         Stmt::With { init, body, .. } => {
             expr_has_asm_kind(init, structured_only) || stmt_has_asm_kind(body, structured_only)
         }
@@ -716,15 +708,10 @@ pub enum Stmt {
     Loop {
         body: Box<Stmt>,
         span: SourceSpan,
-    },
-    Break(SourceSpan),
+    },    Break(SourceSpan),
     Continue(SourceSpan),
-    TryCatch {
-        try_block: Box<Stmt>,
-        err_var: String,
-        catch_block: Box<Stmt>,
-        span: SourceSpan,
-    },
+
+
     Parallel(Box<Stmt>, SourceSpan),
     ParallelFor {
         var_name: String,
@@ -776,7 +763,6 @@ impl Stmt {
             | Stmt::Loop { span: s, .. }
             | Stmt::Break(s)
             | Stmt::Continue(s)
-            | Stmt::TryCatch { span: s, .. }
             | Stmt::Parallel(_, s)
             | Stmt::ParallelFor { span: s, .. }
             | Stmt::Simd(_, s)

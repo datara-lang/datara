@@ -202,16 +202,6 @@ fn collect_locals(stmt: &Stmt, out: &mut HashSet<String>) {
         | Stmt::Loop { body, .. }
         | Stmt::Parallel(body, _)
         | Stmt::Unsafe { body, .. } => collect_locals(body, out),
-        Stmt::TryCatch {
-            try_block,
-            err_var,
-            catch_block,
-            ..
-        } => {
-            collect_locals(try_block, out);
-            out.insert(err_var.clone());
-            collect_locals(catch_block, out);
-        }
         Stmt::With {
             resource_name,
             body,
@@ -327,14 +317,6 @@ fn check_escape(
         Stmt::Parallel(body, _) | Stmt::Unsafe { body, .. } => {
             check_escape(fn_name, tier, body, locals, alloc_locals, diag);
         }
-        Stmt::TryCatch {
-            try_block,
-            catch_block,
-            ..
-        } => {
-            check_escape(fn_name, tier, try_block, locals, alloc_locals, diag);
-            check_escape(fn_name, tier, catch_block, locals, alloc_locals, diag);
-        }
         Stmt::With { body, .. } => {
             check_escape(fn_name, tier, body, locals, alloc_locals, diag);
         }
@@ -376,11 +358,6 @@ fn count_provable_allocs(stmt: &Stmt) -> u64 {
         }
         Stmt::While { condition, .. } => count_expr_allocs(condition),
         Stmt::Loop { .. } => 0,
-        Stmt::TryCatch {
-            try_block,
-            catch_block,
-            ..
-        } => count_provable_allocs(try_block) + count_provable_allocs(catch_block),
         Stmt::Parallel(body, _) | Stmt::Unsafe { body, .. } => count_provable_allocs(body),
         Stmt::With { init, body, .. } => count_expr_allocs(init) + count_provable_allocs(body),
         Stmt::Return(Some(e), _) => count_expr_allocs(e),
@@ -505,14 +482,6 @@ fn collect_oversized_class_inits(
         | Stmt::Unsafe { body, .. }
         | Stmt::With { body, .. } => {
             collect_oversized_class_inits(body, class_field_counts, out);
-        }
-        Stmt::TryCatch {
-            try_block,
-            catch_block,
-            ..
-        } => {
-            collect_oversized_class_inits(try_block, class_field_counts, out);
-            collect_oversized_class_inits(catch_block, class_field_counts, out);
         }
         Stmt::Return(Some(e), _) => scan_expr(e, class_field_counts, out),
         _ => {}

@@ -153,7 +153,7 @@ impl LintDiagnostic {
 /// whether the output *was* a terminal (so `forgen lint | grep` got escapes), and
 /// its name claimed it did. The decision is shared with the diagnostic engine now
 /// - see `crate::diagnostics::engine::color_enabled` - so the two paths cannot
-/// answer the same question differently, which they did.
+///   answer the same question differently, which they did.
 fn is_terminal() -> bool {
     crate::diagnostics::engine::color_enabled()
 }

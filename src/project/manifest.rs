@@ -189,16 +189,14 @@ pub fn matches_glob(pattern: &str, target: &str, kind: CapabilityKind) -> bool {
 
     if is_path {
         if let Some(prefix) = p_norm.strip_suffix("/**") {
-            if t_norm.starts_with(prefix) {
-                let rem = &t_norm[prefix.len()..];
+            if let Some(rem) = t_norm.strip_prefix(prefix) {
                 if rem.is_empty() || rem.starts_with('/') {
                     return true;
                 }
             }
         }
         if let Some(prefix) = p_norm.strip_suffix("/*") {
-            if t_norm.starts_with(prefix) {
-                let rem = &t_norm[prefix.len()..];
+            if let Some(rem) = t_norm.strip_prefix(prefix) {
                 if rem.starts_with('/') && !rem[1..].contains('/') {
                     return true;
                 }

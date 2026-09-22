@@ -73,7 +73,7 @@ fn stdout_is_terminal() -> bool {
     unsafe extern "system" {
         fn GetConsoleMode(h: *mut std::ffi::c_void, mode: *mut u32) -> i32;
     }
-    let h = std::io::stdout().as_raw_handle() as *mut std::ffi::c_void;
+    let h = std::io::stdout().as_raw_handle();
     let mut mode: u32 = 0;
     // SAFETY: both pointers are valid for the duration of the call; the handle
     // comes from `stdout()` and the out-param is a local. When stdout is

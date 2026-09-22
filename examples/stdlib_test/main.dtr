@@ -24,7 +24,7 @@ fn main() {
     let val = opt.unwrap_or(0)
     out "Option: " + val
 
-    let res = Outcome<String> { is_success: true, value: "OK", error_msg: "" }
+    let res = Outcome<Str> { is_success: true, value: "OK", error_msg: "" }
     let msg = res.unwrap()
     out "Result: " + msg
 

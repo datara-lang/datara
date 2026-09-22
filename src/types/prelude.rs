@@ -209,7 +209,8 @@ impl<'a> TypeChecker<'a> {
             );
         }
         for name in &[
-            "math_shr", "shr", "math_shl", "shl", "math_xor", "math_and", "math_or",
+            "math_shr", "shr", "math_shl", "shl", "math_xor", "xor", "math_and", "and", "math_or",
+            "or",
         ] {
             function_signatures.insert(
                 name.to_string(),
@@ -1128,10 +1129,13 @@ impl<'a> TypeChecker<'a> {
             "shl",
             "math_xor",
             "datara_rt_math_xor",
+            "xor",
             "math_and",
             "datara_rt_math_and",
+            "and",
             "math_or",
             "datara_rt_math_or",
+            "or",
             "math_bitwise_and",
             "math_bitwise_or",
             "math_bitwise_xor",

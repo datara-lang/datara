@@ -6,8 +6,8 @@ impl<'a> TypeChecker<'a> {
     pub(crate) fn check_binary(
         &mut self,
         op: &str,
-        left: &Box<Expr>,
-        right: &Box<Expr>,
+        left: &Expr,
+        right: &Expr,
         span: &SourceSpan,
         diag: &mut DiagnosticEngine,
     ) -> DataraType {
@@ -30,7 +30,7 @@ impl<'a> TypeChecker<'a> {
             } else {
                 64
             };
-            if let Expr::Literal(LiteralValue::Int(amount), shift_span) = &**right {
+            if let Expr::Literal(LiteralValue::Int(amount), shift_span) = right {
                 if *amount < 0 || (*amount as i128) >= shift_width {
                     diag.error(
                         ErrorCode::RangeViolation,
@@ -145,7 +145,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 "==" | "!=" | "<" | "<=" | ">" | ">=" => {
                     if matches!(
-                        &**right,
+                        right,
                         Expr::Literal(LiteralValue::Int(_) | LiteralValue::Float(_), _)
                     ) {
                         return DataraType::Bool;
@@ -191,7 +191,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 "==" | "!=" | "<" | "<=" | ">" | ">=" => {
                     if matches!(
-                        &**left,
+                        left,
                         Expr::Literal(LiteralValue::Int(_) | LiteralValue::Float(_), _)
                     ) {
                         return DataraType::Bool;
@@ -263,7 +263,7 @@ impl<'a> TypeChecker<'a> {
                 _ => {}
             }
         } else if let DataraType::Range { base, min, max } = &lt {
-            if let Expr::Literal(LiteralValue::Int(n), _) = &**right {
+            if let Expr::Literal(LiteralValue::Int(n), _) = right {
                 let val = *n as i128;
                 match op {
                     "+" => {
@@ -296,7 +296,7 @@ impl<'a> TypeChecker<'a> {
                 }
             }
         } else if let DataraType::Range { base, min, max } = &rt
-            && let Expr::Literal(LiteralValue::Int(n), _) = &**left
+            && let Expr::Literal(LiteralValue::Int(n), _) = left
         {
             let val = *n as i128;
             match op {

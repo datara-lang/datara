@@ -434,14 +434,6 @@ impl<'a> OwnershipTracker<'a> {
             Stmt::Loop { body, .. } => {
                 self.check_stmt(body, diag, false);
             }
-            Stmt::TryCatch {
-                try_block,
-                catch_block,
-                ..
-            } => {
-                self.check_stmt(try_block, diag, false);
-                self.check_stmt(catch_block, diag, false);
-            }
             Stmt::Parallel(body, _) => {
                 self.check_stmt(body, diag, false);
             }

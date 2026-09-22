@@ -531,10 +531,8 @@ impl<'a> SecurityVerifier<'a> {
             } if op == "*" => {
                 if is_non_zero_literal(right) {
                     self.verify_division_gate(left, span, ctx, diag);
-                    return;
                 } else if is_non_zero_literal(left) {
                     self.verify_division_gate(right, span, ctx, diag);
-                    return;
                 }
             }
             Expr::Literal(LiteralValue::Int(n), _) => {

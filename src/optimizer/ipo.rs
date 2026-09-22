@@ -587,17 +587,6 @@ impl InterproceduralOptimizer {
                         .map(Self::count_instruction)
                         .sum::<usize>()
             }
-            Inst::TryCatch {
-                try_insts,
-                catch_insts,
-                ..
-            } => {
-                1 + try_insts.iter().map(Self::count_instruction).sum::<usize>()
-                    + catch_insts
-                        .iter()
-                        .map(Self::count_instruction)
-                        .sum::<usize>()
-            }
             _ => 1,
         }
     }
@@ -813,18 +802,6 @@ impl InterproceduralOptimizer {
                     Self::substitute_inst_uses(i, map);
                 }
             }
-            Inst::TryCatch {
-                try_insts,
-                catch_insts,
-                ..
-            } => {
-                for i in try_insts {
-                    Self::substitute_inst_uses(i, map);
-                }
-                for i in catch_insts {
-                    Self::substitute_inst_uses(i, map);
-                }
-            }
             Inst::InlineAsm { inputs, .. } => {
                 for (_, i) in inputs {
                     if let Some(new_i) = map.get(i) {
@@ -1008,18 +985,6 @@ impl InterproceduralOptimizer {
                     Self::substitute_inst_vids(i, map);
                 }
                 for i in body_insts {
-                    Self::substitute_inst_vids(i, map);
-                }
-            }
-            Inst::TryCatch {
-                try_insts,
-                catch_insts,
-                ..
-            } => {
-                for i in try_insts {
-                    Self::substitute_inst_vids(i, map);
-                }
-                for i in catch_insts {
                     Self::substitute_inst_vids(i, map);
                 }
             }

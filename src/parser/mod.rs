@@ -7,30 +7,30 @@ use crate::lexer::{Lexer, Token, TokenType};
 ///
 /// Stack usage measurements & analysis:
 /// - Prior mutual-recursion ladder:
-///     Each nesting level traversed 11-13 stack frames:
-///     `parse_expression` -> `parse_pipeline` -> `parse_logical_or` ->
-///     `parse_logical_and` -> `parse_equality` -> `parse_comparison` ->
-///     `parse_range` -> `parse_term` -> `parse_factor` -> `parse_unary` ->
-///     `parse_postfix` -> `parse_primary`.
-///     In unoptimized debug builds (`opt-level = 0`), each frame allocated
-///     ~120-160 bytes of stack (spill slots, locals, `SourceSpan` structs),
-///     leading to ~1.4 - 1.8 KB consumed per nesting level. On a standard
-///     Windows/libtest thread with a 2 MiB stack, recursion depth of ~29
-///     exhausted available stack space, prompting the original conservative
-///     cap of 16.
+///   Each nesting level traversed 11-13 stack frames:
+///   `parse_expression` -> `parse_pipeline` -> `parse_logical_or` ->
+///   `parse_logical_and` -> `parse_equality` -> `parse_comparison` ->
+///   `parse_range` -> `parse_term` -> `parse_factor` -> `parse_unary` ->
+///   `parse_postfix` -> `parse_primary`.
+///   In unoptimized debug builds (`opt-level = 0`), each frame allocated
+///   ~120-160 bytes of stack (spill slots, locals, `SourceSpan` structs),
+///   leading to ~1.4 - 1.8 KB consumed per nesting level. On a standard
+///   Windows/libtest thread with a 2 MiB stack, recursion depth of ~29
+///   exhausted available stack space, prompting the original conservative
+///   cap of 16.
 ///
 /// - Precedence-climbing / Pratt parser:
-///     The mutual recursion ladder is collapsed into a single climbing loop
-///     `parse_binary_climbing(min_prec)`. A nested expression level now only traverses:
-///     `parse_expression` -> `parse_pipeline` -> `parse_binary_climbing` ->
-///     `parse_unary` -> `parse_postfix` -> `parse_primary`.
-///     This reduces frame count per nesting level from 12 frames to 5 frames
-///     (a ~60% reduction in call depth). Furthermore, long chains of binary
-///     operators (e.g., `a + b + c + ...`) execute iteratively within the
-///     climbing `while` loop rather than allocating stack frames for every term.
-///     In debug builds, each nesting level now uses ~450-600 bytes. At depth 64,
-///     peak stack consumption is ~35-40 KB, leaving >98% headroom on a standard
-///     2 MiB stack (and easily within 1 MiB fiber stacks).
+///   The mutual recursion ladder is collapsed into a single climbing loop
+///   `parse_binary_climbing(min_prec)`. A nested expression level now only traverses:
+///   `parse_expression` -> `parse_pipeline` -> `parse_binary_climbing` ->
+///   `parse_unary` -> `parse_postfix` -> `parse_primary`.
+///   This reduces frame count per nesting level from 12 frames to 5 frames
+///   (a ~60% reduction in call depth). Furthermore, long chains of binary
+///   operators (e.g., `a + b + c + ...`) execute iteratively within the
+///   climbing `while` loop rather than allocating stack frames for every term.
+///   In debug builds, each nesting level now uses ~450-600 bytes. At depth 64,
+///   peak stack consumption is ~35-40 KB, leaving >98% headroom on a standard
+///   2 MiB stack (and easily within 1 MiB fiber stacks).
 ///
 /// We safely lift `MAX_PARSE_DEPTH` from 16 to 64.
 pub(crate) const MAX_PARSE_DEPTH: usize = 64;

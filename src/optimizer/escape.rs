@@ -293,7 +293,7 @@ impl EscapeAnalyzer {
                             let obj_escapes = val_to_alloc_root
                                 .get(object)
                                 .and_then(|obj_root| result.allocations.get(obj_root))
-                                .map_or(true, |a| a.state != EscapeState::NonEscaping);
+                                .is_none_or(|a| a.state != EscapeState::NonEscaping);
 
                             if obj_escapes {
                                 if let Some(alloc) = result.allocations.get_mut(&val_root) {

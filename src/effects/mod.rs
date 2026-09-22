@@ -463,18 +463,6 @@ impl EffectAnalyzer {
                 let mut body_locals = local_vars.clone();
                 self.analyze_stmt(body, effects, &mut body_locals);
             }
-            Stmt::TryCatch {
-                try_block,
-                catch_block,
-                err_var,
-                ..
-            } => {
-                let mut try_locals = local_vars.clone();
-                self.analyze_stmt(try_block, effects, &mut try_locals);
-                let mut catch_locals = local_vars.clone();
-                catch_locals.insert(err_var.clone());
-                self.analyze_stmt(catch_block, effects, &mut catch_locals);
-            }
             Stmt::Parallel(body, _) => {
                 effects.add(Effect::Parallel);
                 let mut par_locals = local_vars.clone();

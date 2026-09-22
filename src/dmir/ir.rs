@@ -166,11 +166,6 @@ pub enum Inst {
         cond_val: ValueId,
         body_insts: Vec<Inst>,
     },
-    TryCatch {
-        try_insts: Vec<Inst>,
-        err_var: String,
-        catch_insts: Vec<Inst>,
-    },
     Return {
         value: Option<ValueId>,
     },
@@ -311,18 +306,6 @@ impl Inst {
                     i.visit_vids(f);
                 }
                 for i in body_insts {
-                    i.visit_vids(f);
-                }
-            }
-            Inst::TryCatch {
-                try_insts,
-                catch_insts,
-                ..
-            } => {
-                for i in try_insts {
-                    i.visit_vids(f);
-                }
-                for i in catch_insts {
                     i.visit_vids(f);
                 }
             }
@@ -497,15 +480,6 @@ impl std::hash::Hash for Inst {
                 condition_insts.hash(state);
                 cond_val.hash(state);
                 body_insts.hash(state);
-            }
-            Inst::TryCatch {
-                try_insts,
-                err_var,
-                catch_insts,
-            } => {
-                try_insts.hash(state);
-                err_var.hash(state);
-                catch_insts.hash(state);
             }
             Inst::Return { value } => {
                 value.hash(state);

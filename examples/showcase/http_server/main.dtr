@@ -1,6 +1,6 @@
 // Pure Datara HTTP/1.1 Request Router and Protocol Showcase
 
-fn handle_http_request(raw_request: String) -> String {
+fn handle_http_request(raw_request: Str) -> Str {
     if str_starts_with(raw_request, "GET /health") {
         let body = "{\"status\":\"healthy\",\"uptime\":3600,\"version\":\"1.0.0\"}"
         let body_len = str_len(body)

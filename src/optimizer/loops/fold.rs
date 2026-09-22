@@ -810,9 +810,6 @@ impl LoopOptimizer {
             // Legacy nested-instruction wrappers hide their operands from the
             // visitor below; their presence bails.
             for inst in &b.instructions {
-                if matches!(inst, Inst::WhileLoop { .. } | Inst::TryCatch { .. }) {
-                    return false;
-                }
                 let mut ok = true;
                 Self::for_each_vid(inst, &mut |v: &ValueId| {
                     if !Self::outside_use_allowed(v, loop_defs, p_sum, exit, b.id, cfg) {

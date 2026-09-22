@@ -207,11 +207,14 @@ fn run_watch_iteration(subcmd: &str, args: &[String]) {
         }
         "lint" => {
             if let Ok(layout) = ProjectDiscovery::discover(target_opt) {
-                for file_path in &layout.source_files {
-                    if let Ok(diags) = crate::lint::lint_file(file_path) {
-                        for diag in diags {
-                            print!("{}", diag.render(None));
-                        }
+                // Whole-program lint so cross-module references are visible
+                // to the dead-code analysis.
+                if let Ok(diags) = crate::lint::lint_files_with_profile(
+                    &layout.source_files,
+                    crate::lint::LintProfile::Standard,
+                ) {
+                    for diag in diags {
+                        print!("{}", diag.render(None));
                     }
                 }
             }

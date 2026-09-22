@@ -694,10 +694,7 @@ impl WasmEmitter {
                 "  (import \"{}\" \"{}\" (func ${}_{} (param{}){}))\n",
                 mod_name,
                 fn_name,
-                mod_name
-                    .replace(':', "_")
-                    .replace('@', "_")
-                    .replace('.', "_"),
+                mod_name.replace([':', '@', '.'], "_"),
                 fn_name,
                 params_str,
                 results_str
@@ -1288,10 +1285,10 @@ impl WasmEmitter {
         if bytes.len() < 8 {
             return Err("Wasm binary is less than 8 bytes".into());
         }
-        if &bytes[0..4] != &[0x00, 0x61, 0x73, 0x6D] {
+        if bytes[0..4] != [0x00, 0x61, 0x73, 0x6D] {
             return Err("Invalid Wasm magic number header".into());
         }
-        if &bytes[4..8] != &[0x01, 0x00, 0x00, 0x00] {
+        if bytes[4..8] != [0x01, 0x00, 0x00, 0x00] {
             return Err("Invalid Wasm version (expected 1)".into());
         }
 

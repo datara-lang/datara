@@ -374,12 +374,7 @@ pub fn compile_call<M: ClifModule>(
         let offset = ctx.builder.ins().iadd_imm_s(idx_scaled, 8);
         let addr = ctx.builder.ins().iadd(list_ptr, offset);
         let flags = cranelift_codegen::ir::MachMemFlags::new();
-        let val_ty = ctx.builder.func.dfg.value_type(val);
-        if val_ty == clif_types::F64 {
-            ctx.builder.ins().store(flags, val, addr, 0);
-        } else {
-            ctx.builder.ins().store(flags, val, addr, 0);
-        }
+        ctx.builder.ins().store(flags, val, addr, 0);
         ctx.val_map.insert(*dest, list_ptr);
         return Ok(());
     }
@@ -519,12 +514,7 @@ pub fn compile_call<M: ClifModule>(
         let idx_scaled = ctx.builder.ins().ishl_imm_u(idx_val, 3);
         let offset = ctx.builder.ins().iadd_imm_s(idx_scaled, 8);
         let addr = ctx.builder.ins().iadd(list_ptr, offset);
-        let val_ty = ctx.builder.func.dfg.value_type(val);
-        if val_ty == clif_types::F64 {
-            ctx.builder.ins().store(flags, val, addr, 0);
-        } else {
-            ctx.builder.ins().store(flags, val, addr, 0);
-        }
+        ctx.builder.ins().store(flags, val, addr, 0);
         ctx.builder.ins().jump(merge_block, &[]);
 
         ctx.builder.switch_to_block(merge_block);

@@ -185,18 +185,6 @@ impl Resolver {
             Stmt::Loop { body, .. } => {
                 self.resolve_stmt(body, diag);
             }
-            Stmt::TryCatch {
-                try_block,
-                err_var,
-                catch_block,
-                span,
-            } => {
-                self.resolve_stmt(try_block, diag);
-                self.enter_scope("catch");
-                self.define_local(err_var, SymbolKind::Variable, false, span);
-                self.resolve_stmt(catch_block, diag);
-                self.exit_scope();
-            }
             Stmt::Parallel(body, _) => {
                 self.resolve_stmt(body, diag);
             }

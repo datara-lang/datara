@@ -8,11 +8,11 @@ struct FileStats {
     is_matching: Bool,
 }
 
-fn secure_write(path: String, data: String, sys_caps: SystemCapabilities) -> Int {
+fn secure_write(path: Str, data: Str, sys_caps: SystemCapabilities) -> Int {
     return file_write(path, data)
 }
 
-fn secure_read(path: String, sys_caps: SystemCapabilities) -> String {
+fn secure_read(path: Str, sys_caps: SystemCapabilities) -> Str {
     return file_read(path)
 }
 

@@ -100,7 +100,6 @@ impl Optimizer {
             | Inst::Err { .. }
             | Inst::Return { .. }
             | Inst::WhileLoop { .. }
-            | Inst::TryCatch { .. }
             | Inst::VolatileStore { .. } => {}
         }
         match inst {
@@ -174,18 +173,6 @@ impl Optimizer {
                     Self::substitute_operands(bi, subst);
                 }
                 fix(cond_val);
-            }
-            Inst::TryCatch {
-                try_insts,
-                catch_insts,
-                ..
-            } => {
-                for ti in try_insts.iter_mut() {
-                    Self::substitute_operands(ti, subst);
-                }
-                for ci in catch_insts.iter_mut() {
-                    Self::substitute_operands(ci, subst);
-                }
             }
             Inst::Return { value: Some(v) } => fix(v),
             Inst::InlineAsm { inputs, .. } => {

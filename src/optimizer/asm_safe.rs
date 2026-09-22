@@ -97,14 +97,6 @@ fn validate_stmt(fn_name: &str, stmt: &Stmt, diag: &mut DiagnosticEngine) {
         | Stmt::Parallel(body, _)
         | Stmt::Unsafe { body, .. }
         | Stmt::With { body, .. } => validate_stmt(fn_name, body, diag),
-        Stmt::TryCatch {
-            try_block,
-            catch_block,
-            ..
-        } => {
-            validate_stmt(fn_name, try_block, diag);
-            validate_stmt(fn_name, catch_block, diag);
-        }
         _ => {}
     }
 }

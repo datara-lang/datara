@@ -118,7 +118,7 @@ impl StrView {
     }
 
     #[inline(always)]
-    pub fn from_str(s: &str) -> Self {
+    pub fn new_view(s: &str) -> Self {
         Self {
             ptr: s.as_ptr(),
             len: s.len(),

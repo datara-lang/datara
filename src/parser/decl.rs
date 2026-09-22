@@ -762,12 +762,8 @@ impl<'a> Parser<'a> {
                 let mut fields = Vec::new();
                 if self.match_token(&TokenType::LParen) {
                     if !self.check(&TokenType::RParen) {
-                        loop {
-                            if let Some(ty) = self.parse_type() {
-                                fields.push(ty);
-                            } else {
-                                break;
-                            }
+                        while let Some(ty) = self.parse_type() {
+                            fields.push(ty);
                             if !self.match_token(&TokenType::Comma) {
                                 break;
                             }

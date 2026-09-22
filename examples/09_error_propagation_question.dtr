@@ -2,7 +2,7 @@
 use stdlib.result.option.Maybe
 
 // 1. Функция с возвратом Result-типа Outcome<Int>
-fn parse_port(s: String) -> Outcome<Int> {
+fn parse_port(s: Str) -> Outcome<Int> {
     if s == "8080" {
         return Outcome<Int> { is_success: true, value: 8080, error_msg: "" }
     }
@@ -13,7 +13,7 @@ fn parse_port(s: String) -> Outcome<Int> {
 }
 
 // 2. Функция использует оператор `?` для безопасного проброса ошибок
-fn start_server(port_str: String) -> Outcome<Int> {
+fn start_server(port_str: Str) -> Outcome<Int> {
     // Оператор ? распаковывает Int при успехе,
     // либо МГНОВЕННО делает early return ошибки наружу!
     let port = parse_port(port_str)?
@@ -23,14 +23,14 @@ fn start_server(port_str: String) -> Outcome<Int> {
 }
 
 // 3. Функция работы с Option / Maybe через `?`
-fn find_user_id(username: String) -> Maybe<Int> {
+fn find_user_id(username: Str) -> Maybe<Int> {
     if username == "admin" {
         return Maybe<Int> { is_some: true, value: 1001 }
     }
     return Maybe<Int> { is_some: false, value: 0 }
 }
 
-fn calculate_permission_level(username: String) -> Maybe<Int> {
+fn calculate_permission_level(username: Str) -> Maybe<Int> {
     let uid = find_user_id(username)?
     return Maybe<Int> { is_some: true, value: uid * 2 }
 }

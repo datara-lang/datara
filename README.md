@@ -9,7 +9,8 @@
   <a href="LICENSE-APACHE"><img src="https://img.shields.io/badge/License-Apache_2.0_OR_MIT-blue.svg" alt="License" /></a>
   <img src="https://img.shields.io/badge/version-1.4.5-blue.svg" alt="Version" />
   <a href="https://github.com/datara-lang/datara/actions/workflows/ci.yml"><img src="https://github.com/datara-lang/datara/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <img src="https://img.shields.io/badge/tests-247%20suites%20%7C%201100%2B%20passing-brightgreen.svg" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-285%20suites%20%7C%201332%20passing-brightgreen.svg" alt="Tests" />
+  <a href="https://datara-lang.github.io/datara/"><img src="https://img.shields.io/badge/docs-GitHub_Pages-blue.svg" alt="Docs" /></a>
   <a href="docs/CONFORMANCE_MATRIX.md"><img src="https://img.shields.io/badge/Spec_V1_Conformance-84%2F84_Gates_PASS-brightgreen.svg" alt="Conformance" /></a>
   <img src="https://img.shields.io/badge/target-x86__64_native-orange.svg" alt="Target" />
   <img src="https://img.shields.io/badge/codegen-Cranelift_%2B_LLVM_%2B_Wasm-purple.svg" alt="Codegen" />
@@ -19,6 +20,7 @@
 
 <p align="center">
   <a href="#1-installation--setup"><b>Quickstart in 60s</b></a> &bull;
+  <a href="https://datara-lang.github.io/datara/"><b>📚 Documentation Portal</b></a> &bull;
   <a href="#2-complete-language-syntax--mastery-guide"><b>Complete Syntax Guide</b></a> &bull;
   <a href="docs/PERFORMANCE_GOALS.md"><b>Benchmark Matrix</b></a> &bull;
   <a href="README_RU.md"><b>Русская документация</b></a>
@@ -42,6 +44,7 @@ Datara completely eliminates garbage collection pauses and reference-counting cy
 - **Fmt String Specifiers**: `fmt"{x:.2}"` fixed precision, `fmt"{x:x}"` / `X` / `o` / `b` integer radix formatting, and `fmt"{d:.N}"` for `Dec64` — typed runtime calls lowered after resolution, zero typechecker changes, identical behavior on Cranelift JIT/AOT, LLVM, and WASM.
 - **Dec64 Fixed-Point Printing**: `Dec64` values interpolate naturally (`fmt"{19.99d}"` → `19.99`, not the raw mantissa), with overflow diagnostics for out-of-range literals.
 - **WASM Runtime Parity**: fused `out fmt"…"` / `err fmt"…"` streaming and all specifier converters ship as `datara:rt` imports with JS shim implementations — formatted output no longer silently falls back to `0` in the browser.
+- **Maintenance Pass**: whole-program dead-code lint (zero false positives across modules; `Match`/`Decide`/closures/contracts now scanned), implemented `W-SYN-002` canonical-spelling warnings, clippy warnings 92 → 0, legacy `try`/`catch` AST plumbing fully removed, integer-literal `return` unification fixed, and the documented `and`/`xor` prelude aliases restored.
 
 ### v1.4.4 Highlights
 - **The 4 Abstraction Levels Architecture**: Clear architectural separation across 4 levels with 100% unified ABI backwards compatibility:
@@ -228,10 +231,10 @@ Datara is distributed through verified official packages, container images, and 
 Official native system packages built directly in CI for Debian/Ubuntu and Fedora/RHEL:
 ```bash
 # Debian / Ubuntu / Pop!_OS / Linux Mint (download from GitHub Releases):
-sudo dpkg -i datara_1.4.3_amd64.deb
+sudo dpkg -i datara_1.4.5_amd64.deb
 
 # Fedora / RHEL / CentOS / openSUSE:
-sudo rpm -ivh datara-1.4.3-1.x86_64.rpm
+sudo rpm -ivh datara-1.4.5-1.x86_64.rpm
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/windows.svg" height="20" valign="middle" alt="Windows" /> Windows: Standalone GUI Setup, WinGet & Scoop
@@ -252,18 +255,18 @@ Build and install the latest Forgen native compiler directly from source:
 ```bash
 cargo install --git https://github.com/datara-lang/datara.git forgen
 ```
-*(Crates.io package tarball `forgen-1.4.1.crate` is also downloadable directly from GitHub Releases).*
+*(Crates.io package tarball `forgen-1.4.5.crate` is also downloadable directly from GitHub Releases).*
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/vscode.svg" height="20" valign="middle" alt="VS Code" /> VS Code & Cursor Extension (.vsix)
 Install syntax highlighting, type hover, and icon themes directly from the release bundle:
 ```bash
-code --install-extension datara-language-1.4.3.vsix
+code --install-extension datara-language-1.4.5.vsix
 ```
 
 #### <img src="https://raw.githubusercontent.com/datara-lang/datara/main/assets/icons/python.svg" height="20" valign="middle" alt="Python" /> Python Wheel (`pip install`)
 Install CLI runners and Python FFI bindings directly from the official release wheel:
 ```bash
-pip install https://github.com/datara-lang/datara/releases/download/v1.4.1/datara-1.4.1-py3-none-any.whl
+pip install https://github.com/datara-lang/datara/releases/download/v1.4.5/datara-1.4.5-py3-none-any.whl
 ```
 Or from a local clone: `pip install ./packages/pypi`.
 
@@ -308,8 +311,8 @@ sudo apt install ./datara_amd64.deb
 #### Fedora / RHEL / openSUSE (.rpm native package)
 
 ```bash
-wget https://github.com/datara-lang/datara/releases/latest/download/datara-1.4.3-1.x86_64.rpm
-sudo dnf install ./datara-1.4.3-1.x86_64.rpm
+wget https://github.com/datara-lang/datara/releases/latest/download/datara-1.4.5-1.x86_64.rpm
+sudo dnf install ./datara-1.4.5-1.x86_64.rpm
 ```
 
 ---
@@ -2101,7 +2104,7 @@ forgen repl
 ```
 ```datara
 ================================================================================
- Datara Interactive REPL (Zero-Latency In-Process JIT Console v1.4.3)
+ Datara Interactive REPL (Zero-Latency In-Process JIT Console v1.4.5)
  Type ':help' for commands, ':exit' or Ctrl+C to quit.
 ================================================================================
 >> let x = 10

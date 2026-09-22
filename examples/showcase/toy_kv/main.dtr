@@ -1,7 +1,7 @@
 // Pure Datara Append-Only Key-Value Store Showcase
 // Features: WAL log replay, point lookup, rolling Adler32-style checksum, and log compaction.
 
-fn compute_checksum(log_entry: String, prev_acc: Int) -> Int {
+fn compute_checksum(log_entry: Str, prev_acc: Int) -> Int {
     let len = str_len(log_entry)
     mut acc = prev_acc
     mut i = 0

@@ -196,12 +196,14 @@ fn test_alloc_heavy_microbenchmark() {
     const ITERATIONS: usize = 200_000;
 
     // 1. Baseline: libc malloc + free
+    // NB: black_box prevents LLVM from recognizing and eliminating
+    // dead malloc/free pairs (which would make baseline measure ~0).
     let t0 = Instant::now();
     for _ in 0..ITERATIONS {
-        let p = unsafe { libc_malloc(32) };
-        unsafe { libc_free(p) };
-        let m = unsafe { libc_malloc(96) };
-        unsafe { libc_free(m) };
+        let p = std::hint::black_box(unsafe { libc_malloc(32) });
+        unsafe { libc_free(std::hint::black_box(p)) };
+        let m = std::hint::black_box(unsafe { libc_malloc(96) });
+        unsafe { libc_free(std::hint::black_box(m)) };
     }
     let baseline_duration = t0.elapsed();
 

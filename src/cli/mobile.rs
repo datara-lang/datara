@@ -260,7 +260,7 @@ fn handle_mobile_build(args: &[String]) -> bool {
 
     match target.to_ascii_lowercase().as_str() {
         "android" => {
-            let abi = AndroidAbi::from_str(abi_str).unwrap_or(AndroidAbi::Arm64V8a);
+            let abi = AndroidAbi::parse(abi_str).unwrap_or(AndroidAbi::Arm64V8a);
             let jni_c = generate_jni_c_bridge(package, class_name, &funcs);
             let lib_name = class_name.to_lowercase();
             let kotlin = generate_kotlin_wrapper(package, class_name, &lib_name, &funcs);

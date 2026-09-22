@@ -77,7 +77,7 @@ impl CheckCache {
 
     pub fn is_disabled() -> bool {
         std::env::var("FORGEN_NO_CACHE")
-            .map_or(false, |v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
     }
 
     pub fn get(source: &str, file: &str, abi: StructReturnAbi) -> Option<CompilationResult> {

@@ -73,15 +73,18 @@ pub fn run_dpm_cli_args(args: &[String]) {
             let name_arg = args
                 .get(2)
                 .filter(|s| !s.starts_with("-"))
-                .map(|s| s.as_str());
+                .map(|s| s.to_string());
             let is_lib = args.iter().any(|a| a == "--lib");
-            let project_name = name_arg.unwrap_or_else(|| {
-                std::env::current_dir()
+            // Named init creates `<name>/…` (cargo-new style); in-place init
+            // (no name) uses the current directory and its basename.
+            let project_name = match name_arg {
+                Some(name) => name,
+                None => std::env::current_dir()
                     .ok()
                     .and_then(|p| p.file_name().map(|s| s.to_string_lossy().to_string()))
-                    .unwrap_or_else(|| "my_app".into())
-                    .leak()
-            });
+                    .unwrap_or_else(|| "my_app".into()),
+            };
+            let project_name: &str = &project_name;
 
             println!(
                 ":: [DPM] Initializing Datara {} '{}'...",
@@ -273,7 +276,6 @@ pub fn run_dpm_cli_args(args: &[String]) {
                 ) {
                     Ok(_) => {
                         println!("[DONE] Installed {} from tarball", pkg_name);
-                        return;
                     }
                     Err(e) => {
                         eprintln!("[FAIL] {}", e);

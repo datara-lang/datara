@@ -142,18 +142,6 @@ impl PipelineFusionOptimizer {
                     Self::for_each_inst_use_dyn(bi, f);
                 }
             }
-            Inst::TryCatch {
-                try_insts,
-                catch_insts,
-                ..
-            } => {
-                for ti in try_insts {
-                    Self::for_each_inst_use_dyn(ti, f);
-                }
-                for ci in catch_insts {
-                    Self::for_each_inst_use_dyn(ci, f);
-                }
-            }
             Inst::Return { value: Some(v) } => f(*v),
             _ => {}
         }
@@ -452,18 +440,6 @@ impl PipelineFusionOptimizer {
                 }
                 for bi in body_insts {
                     Self::for_each_inst_dest(bi, f);
-                }
-            }
-            Inst::TryCatch {
-                try_insts,
-                catch_insts,
-                ..
-            } => {
-                for ti in try_insts {
-                    Self::for_each_inst_dest(ti, f);
-                }
-                for ci in catch_insts {
-                    Self::for_each_inst_dest(ci, f);
                 }
             }
             _ => {}

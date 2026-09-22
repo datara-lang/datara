@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 impl<'a> TypeChecker<'a> {
     pub(crate) fn check_call(
         &mut self,
-        callee: &Box<Expr>,
+        callee: &Expr,
         args: &[Expr],
         span: &SourceSpan,
         diag: &mut DiagnosticEngine,
@@ -16,7 +16,7 @@ impl<'a> TypeChecker<'a> {
             arg_types.push(self.check_expr(a, diag));
         }
 
-        if let Expr::Identifier(fn_name, _) = &**callee {
+        if let Expr::Identifier(fn_name, _) = callee {
             if fn_name == "view" || fn_name == "mut_view" || fn_name == "mutView" {
                 return arg_types.first().cloned().unwrap_or(DataraType::Unit);
             }
@@ -421,7 +421,7 @@ impl<'a> TypeChecker<'a> {
             }
         }
 
-        if let Expr::MemberAccess { object, member, .. } = &**callee {
+        if let Expr::MemberAccess { object, member, .. } = callee {
             // Outcome.ok(v) / Outcome.err(msg) static constructors: the
             // receiver is the generic class name itself, never a value, so
             // this is a constructor call rather than a method dispatch.

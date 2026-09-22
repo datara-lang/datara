@@ -264,15 +264,6 @@ fn instruction_uses(instruction: &Inst) -> Vec<ValueId> {
             }
             uses.push(*cond_val);
         }
-        Inst::TryCatch {
-            try_insts,
-            catch_insts,
-            ..
-        } => {
-            for nested in try_insts.iter().chain(catch_insts) {
-                uses.extend(instruction_uses(nested));
-            }
-        }
     }
     uses
 }

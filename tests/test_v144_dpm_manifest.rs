@@ -1,6 +1,6 @@
 //! v1.4.4: Unified multi-language dependency manifest (dpm.toml) tests.
 
-use forgen::project::dpm::{DpmDepValue, DpmManifest};
+use forgen::project::dpm::DpmManifest;
 
 #[test]
 fn test_v144_dpm_manifest_parsing_all_ecosystems() {
@@ -51,21 +51,18 @@ fastmath = { path = "./dotnet/FastMath.csproj", aot = true }
     assert!(manifest.go_dependencies.contains_key("cryptoutil"));
     assert!(manifest.dotnet_dependencies.contains_key("fastmath"));
 
-    if let Some(DpmDepValue::Detailed {
-        version, features, ..
-    }) = manifest.rust_dependencies.get("tokio")
-    {
-        assert_eq!(version.as_deref(), Some("1.35"));
-        assert_eq!(features.as_deref(), Some(&["full".to_string()][..]));
-    } else {
-        panic!("expected detailed tokio dependency");
-    }
+    let tokio_dep = manifest
+        .rust_dependencies
+        .get("tokio")
+        .and_then(|v| v.detailed())
+        .expect("expected detailed tokio dependency");
+    assert_eq!(tokio_dep.version.as_deref(), Some("1.35"));
+    assert_eq!(tokio_dep.features.as_deref(), Some(&["full".to_string()][..]));
 
-    if let Some(DpmDepValue::Detailed { buildmode, .. }) =
-        manifest.go_dependencies.get("cryptoutil")
-    {
-        assert_eq!(buildmode.as_deref(), Some("c-shared"));
-    } else {
-        panic!("expected detailed go dependency");
-    }
+    let go_dep = manifest
+        .go_dependencies
+        .get("cryptoutil")
+        .and_then(|v| v.detailed())
+        .expect("expected detailed go dependency");
+    assert_eq!(go_dep.buildmode.as_deref(), Some("c-shared"));
 }

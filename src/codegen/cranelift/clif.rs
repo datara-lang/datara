@@ -117,33 +117,6 @@ impl<'a> ClifEmitter<'a> {
                         );
                     }
                 }
-                Inst::TryCatch {
-                    try_insts,
-                    catch_insts,
-                    ..
-                } => {
-                    *branches += 1;
-                    for ti in try_insts {
-                        inspect_inst(
-                            ti,
-                            inst_count,
-                            direct_calls,
-                            branches,
-                            heap_allocs,
-                            all_vars,
-                        );
-                    }
-                    for ci in catch_insts {
-                        inspect_inst(
-                            ci,
-                            inst_count,
-                            direct_calls,
-                            branches,
-                            heap_allocs,
-                            all_vars,
-                        );
-                    }
-                }
                 Inst::Decide { arms, .. } => {
                     *branches += arms.len();
                 }
@@ -252,18 +225,6 @@ impl<'a> ClifEmitter<'a> {
                     }
                     for bi in body_insts {
                         collect_vars(bi, all_vars);
-                    }
-                }
-                Inst::TryCatch {
-                    try_insts,
-                    catch_insts,
-                    ..
-                } => {
-                    for ti in try_insts {
-                        collect_vars(ti, all_vars);
-                    }
-                    for ci in catch_insts {
-                        collect_vars(ci, all_vars);
                     }
                 }
                 _ => {}
@@ -629,22 +590,6 @@ impl<'a> ClifEmitter<'a> {
                 }
                 out.push_str("    jump loop_header\n");
                 out.push_str("  loop_exit:\n");
-                out
-            }
-            Inst::TryCatch {
-                try_insts,
-                catch_insts,
-                ..
-            } => {
-                let mut out = String::new();
-                out.push_str("    ;; try-catch block begin\n");
-                for ti in try_insts {
-                    out.push_str(&self.emit_instruction(ti, module, f, _vars)?);
-                }
-                for ci in catch_insts {
-                    out.push_str(&self.emit_instruction(ci, module, f, _vars)?);
-                }
-                out.push_str("    ;; try-catch block end\n");
                 out
             }
             Inst::Return { value } => {

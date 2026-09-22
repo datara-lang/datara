@@ -507,14 +507,6 @@ fn fold_stmt_comptime(stmt: &mut Stmt) {
         Stmt::Loop { body, .. } | Stmt::Parallel(body, ..) | Stmt::Unsafe { body, .. } => {
             fold_stmt_comptime(body);
         }
-        Stmt::TryCatch {
-            try_block,
-            catch_block,
-            ..
-        } => {
-            fold_stmt_comptime(try_block);
-            fold_stmt_comptime(catch_block);
-        }
         Stmt::With { init, body, .. } => {
             fold_expr_comptime(init);
             fold_stmt_comptime(body);
@@ -1088,14 +1080,6 @@ pub fn substitute_self_in_stmt(stmt: &mut Stmt, target: &str) {
         }
         Stmt::Loop { body, .. } => {
             substitute_self_in_stmt(body, target);
-        }
-        Stmt::TryCatch {
-            try_block,
-            catch_block,
-            ..
-        } => {
-            substitute_self_in_stmt(try_block, target);
-            substitute_self_in_stmt(catch_block, target);
         }
         Stmt::Parallel(body, _) | Stmt::Simd(body, _) | Stmt::Unsafe { body, .. } => {
             substitute_self_in_stmt(body, target);

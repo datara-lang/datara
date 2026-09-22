@@ -298,12 +298,12 @@ pub fn compile_method_call<M: ClifModule>(
         match method {
             "sort" => {
                 let mode = ctx.builder.ins().iconst(clif_types::I64, 0);
-                let kind = ctx.builder.ins().iconst(clif_types::I64, elem_kind as i64);
+                let kind = ctx.builder.ins().iconst(clif_types::I64, elem_kind);
                 all_args.push(mode);
                 all_args.push(kind);
             }
             "remove_value" | "contains" | "index_of" => {
-                let kind = ctx.builder.ins().iconst(clif_types::I64, elem_kind as i64);
+                let kind = ctx.builder.ins().iconst(clif_types::I64, elem_kind);
                 all_args.push(kind);
             }
             _ => {}

@@ -60,7 +60,7 @@ fn main() -> Int {
     let dmir_mod = res.dmir_module.expect("DMIR module");
 
     // Verify format fusion: no Inst::FormatStr was emitted in the DMIR function!
-    for (_name, func) in &dmir_mod.functions {
+    for func in dmir_mod.functions.values() {
         for block in &func.blocks {
             for inst in &block.instructions {
                 assert!(
@@ -136,7 +136,7 @@ fn main() -> Int {
     let dmir_mod = res.dmir_module.expect("DMIR module");
 
     // Verify format fusion: no Inst::FormatStr was emitted in the DMIR function!
-    for (_name, func) in &dmir_mod.functions {
+    for func in dmir_mod.functions.values() {
         for block in &func.blocks {
             for inst in &block.instructions {
                 assert!(

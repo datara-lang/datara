@@ -53,7 +53,7 @@ impl NearMemory {
         let align =
             usize::try_from(align).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
         let align = align.max(1);
-        if self.position % align != 0 {
+        if !self.position.is_multiple_of(align) {
             self.position += align - (self.position % align);
         }
 
@@ -100,6 +100,12 @@ pub struct NearMemoryProvider {
 
 unsafe impl Send for NearMemoryProvider {}
 
+impl Default for NearMemoryProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NearMemoryProvider {
     pub fn new() -> Self {
         Self {
@@ -132,7 +138,7 @@ impl JITMemoryProvider for NearMemoryProvider {
         for alloc in &self.code.allocations[self.code.already_finalized..] {
             unsafe {
                 make_executable(alloc.ptr, alloc.len).map_err(|e| ModuleError::Allocation {
-                    err: io::Error::new(io::ErrorKind::Other, e),
+                    err: io::Error::other(e),
                 })?;
             }
         }
@@ -142,7 +148,7 @@ impl JITMemoryProvider for NearMemoryProvider {
         for alloc in &self.readonly.allocations[self.readonly.already_finalized..] {
             unsafe {
                 make_readonly(alloc.ptr, alloc.len).map_err(|e| ModuleError::Allocation {
-                    err: io::Error::new(io::ErrorKind::Other, e),
+                    err: io::Error::other(e),
                 })?;
             }
         }

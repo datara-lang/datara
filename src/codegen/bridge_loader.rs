@@ -322,7 +322,7 @@ fn make_executable(ptr: *mut u8, len: usize) -> Result<(), String> {
     const PAGE_EXECUTE_READ: u32 = 0x20;
     let mut old_prot = 0u32;
     if unsafe { VirtualProtect(ptr as *mut _, len, PAGE_EXECUTE_READ, &mut old_prot) } == 0 {
-        return Err(format!("VirtualProtect failed",));
+        return Err("VirtualProtect failed".to_string());
     }
     Ok(())
 }
@@ -339,7 +339,7 @@ fn bridge_mmap_near(target: usize, len: usize) -> Option<(usize, usize)> {
         target as *mut std::ffi::c_void
     };
     let ptr = unsafe {
-        bridge_mmap(
+        mmap(
             hint,
             len,
             PROT_READ | PROT_WRITE,

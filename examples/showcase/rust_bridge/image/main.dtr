@@ -1,6 +1,6 @@
 // Datara Rust Bridge Showcase: Zero-Copy Buffer View & PNG Encoding
 
-extern fn encode_rgb_png(buf_ptr: RawPtr, buf_len: Int, width: Int, height: Int) -> String
+extern fn encode_rgb_png(buf_ptr: RawPtr, buf_len: Int, width: Int, height: Int) -> Str
 
 fn main() {
     // Allocate 2x2 RGB image buffer in linear frame arena (12 bytes)

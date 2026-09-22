@@ -23,19 +23,33 @@ pub struct DpmPackageMeta {
 #[serde(untagged)]
 pub enum DpmDepValue {
     Simple(String),
-    Detailed {
-        version: Option<String>,
-        path: Option<String>,
-        git: Option<String>,
-        header: Option<String>,
-        link: Option<String>,
-        windows: Option<String>,
-        linux: Option<String>,
-        macos: Option<String>,
-        buildmode: Option<String>,
-        aot: Option<bool>,
-        features: Option<Vec<String>>,
-    },
+    Detailed(Box<DpmDepDetailed>),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DpmDepDetailed {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub git: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub header: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub windows: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linux: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub macos: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub buildmode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aot: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub features: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -112,12 +126,9 @@ impl DpmManifest {
                 self.rust_dependencies.len()
             );
             for (crate_name, dep) in &self.rust_dependencies {
-                let ver_arg = match dep {
-                    DpmDepValue::Simple(v) => format!("{}@{}", crate_name, v),
-                    DpmDepValue::Detailed {
-                        version: Some(v), ..
-                    } => format!("{}@{}", crate_name, v),
-                    _ => crate_name.clone(),
+                let ver_arg = match dep.version() {
+                    Some(v) => format!("{}@{}", crate_name, v),
+                    None => crate_name.clone(),
                 };
                 let res = Command::new("cargo")
                     .args(["add", &ver_arg])
@@ -143,28 +154,17 @@ impl DpmManifest {
                 self.python_dependencies.len()
             );
             for (pkg_name, dep) in &self.python_dependencies {
-                let req_spec = match dep {
-                    DpmDepValue::Simple(v) => format!(
+                let req_spec = match dep.version() {
+                    Some(v) => format!(
                         "{}{}",
                         pkg_name,
                         if v.starts_with(|c: char| c.is_ascii_punctuation()) {
-                            v.clone()
+                            v.to_string()
                         } else {
                             format!("=={}", v)
                         }
                     ),
-                    DpmDepValue::Detailed {
-                        version: Some(v), ..
-                    } => format!(
-                        "{}{}",
-                        pkg_name,
-                        if v.starts_with(|c: char| c.is_ascii_punctuation()) {
-                            v.clone()
-                        } else {
-                            format!("=={}", v)
-                        }
-                    ),
-                    _ => pkg_name.clone(),
+                    None => pkg_name.clone(),
                 };
                 let res = Command::new("python")
                     .args(["-m", "pip", "install", &req_spec])
@@ -196,12 +196,9 @@ impl DpmManifest {
                 self.npm_dependencies.len()
             );
             for (pkg_name, dep) in &self.npm_dependencies {
-                let spec = match dep {
-                    DpmDepValue::Simple(v) => format!("{}@{}", pkg_name, v),
-                    DpmDepValue::Detailed {
-                        version: Some(v), ..
-                    } => format!("{}@{}", pkg_name, v),
-                    _ => pkg_name.clone(),
+                let spec = match dep.version() {
+                    Some(v) => format!("{}@{}", pkg_name, v),
+                    None => pkg_name.clone(),
                 };
                 let res = Command::new(if cfg!(windows) { "npm.cmd" } else { "npm" })
                     .args(["install", &spec])
@@ -225,11 +222,7 @@ impl DpmManifest {
                 self.go_dependencies.len()
             );
             for (lib_name, dep) in &self.go_dependencies {
-                if let DpmDepValue::Detailed {
-                    path: Some(src_path),
-                    ..
-                } = dep
-                {
+                if let Some(src_path) = dep.path() {
                     let out_name = if cfg!(windows) {
                         format!("{}.dll", lib_name)
                     } else {
@@ -260,11 +253,7 @@ impl DpmManifest {
                 self.dotnet_dependencies.len()
             );
             for (lib_name, dep) in &self.dotnet_dependencies {
-                if let DpmDepValue::Detailed {
-                    path: Some(proj_path),
-                    ..
-                } = dep
-                {
+                if let Some(proj_path) = dep.path() {
                     let res = Command::new("dotnet")
                         .args(["publish", "-c", "Release", "/p:PublishAot=true", proj_path])
                         .current_dir(project_dir)
@@ -291,10 +280,8 @@ impl DpmManifest {
             );
             for (lib_name, dep) in &self.c_dependencies {
                 match dep {
-                    DpmDepValue::Detailed {
-                        path: Some(src_path),
-                        ..
-                    } => {
+                    DpmDepValue::Detailed(_) if dep.path().is_some() => {
+                        let src_path = dep.path().unwrap();
                         let src = project_dir.join(src_path);
                         let out_name = if cfg!(windows) {
                             format!("{}.dll", lib_name)
@@ -332,7 +319,8 @@ impl DpmManifest {
                             );
                         }
                     }
-                    DpmDepValue::Detailed { link: Some(l), .. } | DpmDepValue::Simple(l) => {
+                    DpmDepValue::Detailed(_) if dep.link().is_some() => {
+                        let l = dep.link().unwrap();
                         println!("[DONE] Linked system C library '{}'", l);
                         summary.c_compiled += 1;
                     }
@@ -352,10 +340,8 @@ impl DpmManifest {
             );
             for (lib_name, dep) in &self.cpp_dependencies {
                 match dep {
-                    DpmDepValue::Detailed {
-                        path: Some(src_path),
-                        ..
-                    } => {
+                    DpmDepValue::Detailed(_) if dep.path().is_some() => {
+                        let src_path = dep.path().unwrap();
                         let src = project_dir.join(src_path);
                         let out_name = if cfg!(windows) {
                             format!("{}.dll", lib_name)
@@ -393,7 +379,8 @@ impl DpmManifest {
                             );
                         }
                     }
-                    DpmDepValue::Detailed { link: Some(l), .. } | DpmDepValue::Simple(l) => {
+                    DpmDepValue::Detailed(_) if dep.link().is_some() => {
+                        let l = dep.link().unwrap();
                         println!("[DONE] Linked system C++ library '{}'", l);
                         summary.cpp_compiled += 1;
                     }
@@ -412,11 +399,7 @@ impl DpmManifest {
                 self.zig_dependencies.len()
             );
             for (lib_name, dep) in &self.zig_dependencies {
-                if let DpmDepValue::Detailed {
-                    path: Some(src_path),
-                    ..
-                } = dep
-                {
+                if let Some(src_path) = dep.path() {
                     let out_name = if cfg!(windows) {
                         format!("{}.dll", lib_name)
                     } else {
@@ -457,12 +440,8 @@ impl DpmManifest {
                 self.jvm_dependencies.len()
             );
             for (lib_name, dep) in &self.jvm_dependencies {
-                if let DpmDepValue::Detailed {
-                    path: Some(proj_path),
-                    aot: Some(true),
-                    ..
-                } = dep
-                {
+                if dep.aot() == Some(true) {
+                    if let Some(proj_path) = dep.path() {
                     let out_name = if cfg!(windows) {
                         format!("{}.dll", lib_name)
                     } else {
@@ -489,6 +468,7 @@ impl DpmManifest {
                     println!("[DONE] Registered JVM dependency '{}'", lib_name);
                     summary.jvm_compiled += 1;
                 }
+                }
             }
         }
 
@@ -507,4 +487,32 @@ pub struct InstallSummary {
     pub cpp_compiled: usize,
     pub zig_compiled: usize,
     pub jvm_compiled: usize,
+}
+
+
+impl DpmDepValue {
+    pub fn detailed(&self) -> Option<&DpmDepDetailed> {
+        match self {
+            DpmDepValue::Detailed(d) => Some(d),
+            _ => None,
+        }
+    }
+    pub fn version(&self) -> Option<&str> {
+        match self {
+            DpmDepValue::Simple(v) => Some(v),
+            DpmDepValue::Detailed(d) => d.version.as_deref(),
+        }
+    }
+    pub fn link(&self) -> Option<&str> {
+        match self {
+            DpmDepValue::Simple(v) => Some(v),
+            DpmDepValue::Detailed(d) => d.link.as_deref(),
+        }
+    }
+    pub fn path(&self) -> Option<&str> {
+        self.detailed().and_then(|d| d.path.as_deref())
+    }
+    pub fn aot(&self) -> Option<bool> {
+        self.detailed().and_then(|d| d.aot)
+    }
 }

@@ -2,7 +2,7 @@
 // Demonstrates Datara's primitive types and explicit mutability.
 
 fn main() {
-    let name: String = "Datara"
+    let name: Str = "Datara"
     let version: Int = 1
     let pi_approx: Float = 3.14159
     let is_fast: Bool = true

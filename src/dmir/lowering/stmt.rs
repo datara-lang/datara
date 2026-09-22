@@ -925,7 +925,6 @@ impl<'a> Lowering<'a> {
                 }
                 (cur_block, None)
             }
-            Stmt::TryCatch { try_block, .. } => self.lower_stmt_cfg(try_block, cur_block),
             Stmt::Parallel(body, _) => {
                 if let Stmt::Block(stmts, _) = body.as_ref() {
                     let get_call_info = |s: &Stmt| -> Option<(String, Option<Expr>)> {

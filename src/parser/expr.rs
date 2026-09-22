@@ -1359,9 +1359,7 @@ fn split_fmt_spec(expr_str: &str) -> (&str, &str) {
                 '"' => in_string = true,
                 '{' => depth += 1,
                 '}' => {
-                    if depth > 0 {
-                        depth -= 1;
-                    }
+                    depth = depth.saturating_sub(1);
                 }
                 ':' if depth == 0 => {
                     let split_at: usize = chars[..byte_idx].iter().map(|c| c.len_utf8()).sum();

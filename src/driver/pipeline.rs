@@ -422,7 +422,7 @@ pub(super) fn run_check_pipeline(
         if !diag.has_errors() {
             let mut optimizer = crate::optimizer::Optimizer::new("release");
             if let Err(err_diag) = optimizer.optimize_module(&mut dmir_module) {
-                diag.error_raw(err_diag);
+                diag.error_raw(*err_diag);
             } else if std::env::var("FORGEN_CHECK_VERIFY_BACKEND")
                 .map(|v| v != "0")
                 .unwrap_or(true)
@@ -744,7 +744,7 @@ pub(super) fn run_analysis_and_lower<R>(
         return Err(CompilationResult::failure_with_diagnostics(
             msg.clone(),
             msg,
-            vec![diag],
+            vec![*diag],
             Some(program),
             timings,
         ));

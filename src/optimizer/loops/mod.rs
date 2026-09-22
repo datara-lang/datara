@@ -212,15 +212,6 @@ impl LoopOptimizer {
                         inspect_inst(i, facts, extra_pure);
                     }
                 }
-                Inst::TryCatch {
-                    try_insts,
-                    catch_insts,
-                    ..
-                } => {
-                    for i in try_insts.iter().chain(catch_insts.iter()) {
-                        inspect_inst(i, facts, extra_pure);
-                    }
-                }
                 _ => {}
             }
         }
@@ -320,7 +311,6 @@ impl LoopOptimizer {
             | Inst::Err { .. }
             | Inst::Return { .. }
             | Inst::WhileLoop { .. }
-            | Inst::TryCatch { .. }
             | Inst::VolatileStore { .. } => None,
         }
     }
@@ -590,12 +580,10 @@ impl LoopOptimizer {
             .get_block(header)
             .map(|h| h.params.clone())
             .unwrap_or_default();
-        let mut fresh = Self::max_vid(f) + 1;
         let mut forwarded_args = Vec::with_capacity(header_params.len());
         let mut preheader_params = Vec::with_capacity(header_params.len());
-        for p in &header_params {
+        for (fresh, p) in (Self::max_vid(f) + 1..).zip(header_params.iter()) {
             let v = ValueId(fresh);
-            fresh += 1;
             forwarded_args.push(v);
             preheader_params.push(crate::dmir::BlockParam {
                 val: v,
@@ -1051,7 +1039,7 @@ impl LoopOptimizer {
                     map(v);
                 }
             }
-            Inst::WhileLoop { .. } | Inst::TryCatch { .. } => {}
+            Inst::WhileLoop { .. } => {}
         }
     }
 
@@ -1192,18 +1180,6 @@ impl LoopOptimizer {
                 }
                 f(cond_val);
                 for i in body_insts {
-                    Self::for_each_vid(i, f);
-                }
-            }
-            Inst::TryCatch {
-                try_insts,
-                catch_insts,
-                ..
-            } => {
-                for i in try_insts {
-                    Self::for_each_vid(i, f);
-                }
-                for i in catch_insts {
                     Self::for_each_vid(i, f);
                 }
             }

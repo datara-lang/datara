@@ -1,5 +1,5 @@
 // Helper module for Step 6
 
-fn greeting(name: String) -> String {
+fn greeting(name: Str) -> Str {
     return "Greetings from helper module, " + name + "!"
 }

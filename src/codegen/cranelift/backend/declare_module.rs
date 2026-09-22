@@ -593,14 +593,14 @@ pub fn declare_module_symbols<M: ClifModule>(
         string_literal_map.insert(super::alloc_tier::POOL_OVERFLOW_MSG.to_string(), id);
     }
     for s in all_literals {
-        if !string_literal_map.contains_key(&s) {
+        if let std::collections::hash_map::Entry::Vacant(e) = string_literal_map.entry(s.clone()) {
             let id = add_str_literal(&s, module)?;
-            string_literal_map.insert(s, id);
+            e.insert(id);
         }
     }
 
     let mut global_data_map: HashMap<String, cranelift_module::DataId> = HashMap::new();
-    for (gname, _) in &dmir_module.globals {
+    for gname in dmir_module.globals.keys() {
         let mut data_ctx = DataDescription::new();
         data_ctx.define_zeroinit(8);
         let data_id = module

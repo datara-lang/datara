@@ -4,7 +4,7 @@
     Point,
 }
 
-fn describe(s: Shape) -> String {
+fn describe(s: Shape) -> Str {
     match s {
         Shape.Circle(r) => "Circle",
         Shape.Rect(w, h) => "Rectangle",

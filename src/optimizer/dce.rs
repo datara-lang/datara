@@ -310,32 +310,6 @@ impl Optimizer {
                         var_to_class,
                     );
                 }
-                Inst::TryCatch {
-                    try_insts,
-                    catch_insts,
-                    ..
-                } => {
-                    self.collect_calls(
-                        try_insts,
-                        module,
-                        user_methods,
-                        reachable,
-                        worklist,
-                        used_externs,
-                        val_to_class,
-                        var_to_class,
-                    );
-                    self.collect_calls(
-                        catch_insts,
-                        module,
-                        user_methods,
-                        reachable,
-                        worklist,
-                        used_externs,
-                        val_to_class,
-                        var_to_class,
-                    );
-                }
                 _ => {}
             }
         }
@@ -423,18 +397,6 @@ impl Optimizer {
                     self.collect_used_values(bi, used_values, loaded_vars);
                 }
             }
-            Inst::TryCatch {
-                try_insts,
-                catch_insts,
-                ..
-            } => {
-                for ti in try_insts {
-                    self.collect_used_values(ti, used_values, loaded_vars);
-                }
-                for ci in catch_insts {
-                    self.collect_used_values(ci, used_values, loaded_vars);
-                }
-            }
             Inst::Return { value: Some(v) } => {
                 used_values.insert(*v);
             }
@@ -472,18 +434,6 @@ impl Optimizer {
                     }
                     for bi in body_insts {
                         scan_loads(bi, loaded);
-                    }
-                }
-                Inst::TryCatch {
-                    try_insts,
-                    catch_insts,
-                    ..
-                } => {
-                    for ti in try_insts {
-                        scan_loads(ti, loaded);
-                    }
-                    for ci in catch_insts {
-                        scan_loads(ci, loaded);
                     }
                 }
                 _ => {}

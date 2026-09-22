@@ -116,8 +116,8 @@ pub fn eliminate_sibling_recursion(f: &mut Function) -> bool {
                 } => {
                     if func == &f.name && args.len() == f.params.len() {
                         let mut invariant = true;
-                        for j in 1..f.params.len() {
-                            let arg_j = alias_map.get(&args[j]).copied().unwrap_or(args[j]);
+                        for (j, arg) in args.iter().enumerate().take(f.params.len()).skip(1) {
+                            let arg_j = alias_map.get(arg).copied().unwrap_or(*arg);
                             if arg_j != f.params[j].2 {
                                 invariant = false;
                                 break;

@@ -456,11 +456,7 @@ fn generate_shim_lib_rs(crate_name: &str, functions: &[BridgeFunction]) -> Resul
         };
 
         code.push_str("#[unsafe(no_mangle)]\n");
-        if ret_c == "()" {
-            code.push_str(&format!("pub extern \"C\" fn {}(", f.name));
-        } else {
-            code.push_str(&format!("pub extern \"C\" fn {}(", f.name));
-        }
+        code.push_str(&format!("pub extern \"C\" fn {}(", f.name));
 
         let mut param_decls = Vec::new();
         for p in &f.params {

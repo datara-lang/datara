@@ -236,30 +236,6 @@ impl<'a> SecurityVerifier<'a> {
                     writes,
                 );
             }
-            Stmt::TryCatch {
-                try_block,
-                err_var,
-                catch_block,
-                ..
-            } => {
-                let mut try_declared = local_declared.clone();
-                self.collect_branch_reads_writes(
-                    try_block,
-                    outer_vars,
-                    &mut try_declared,
-                    reads,
-                    writes,
-                );
-                let mut catch_declared = local_declared.clone();
-                catch_declared.insert(err_var.clone());
-                self.collect_branch_reads_writes(
-                    catch_block,
-                    outer_vars,
-                    &mut catch_declared,
-                    reads,
-                    writes,
-                );
-            }
             Stmt::Return(Some(e), _) => {
                 collect_expr_reads(e, outer_vars, local_declared, reads);
             }
@@ -379,22 +355,6 @@ impl<'a> SecurityVerifier<'a> {
             }
             Stmt::CompactBind { name, .. } => {
                 inner_declared.insert(name.clone());
-            }
-            Stmt::TryCatch {
-                try_block,
-                err_var,
-                catch_block,
-                ..
-            } => {
-                self.collect_and_check_data_race(try_block, outer_vars, inner_declared, diag);
-                let mut catch_declared = inner_declared.clone();
-                catch_declared.insert(err_var.clone());
-                self.collect_and_check_data_race(
-                    catch_block,
-                    outer_vars,
-                    &mut catch_declared,
-                    diag,
-                );
             }
             Stmt::Expr(_, _)
             | Stmt::Return(_, _)

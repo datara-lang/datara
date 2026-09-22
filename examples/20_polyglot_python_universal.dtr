@@ -31,7 +31,7 @@ fn main() {
     // 4. In-Memory String Processing / Transformation
     py.exec("text = 'datara meets python with zero latency'\nuppercase = text.upper()")
     let upper_res = py.eval("uppercase")
-    out fmt"Transformed String:    {upper_res.value}"
+    out fmt"Transformed Str:    {upper_res.value}"
 
     out "=========================================================="
     out "All arbitrary Python libraries executed with zero latency."

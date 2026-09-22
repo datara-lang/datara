@@ -67,15 +67,14 @@ fn test_simd_block() {
     // Check that AST contains Stmt::Simd
     let mut has_simd_stmt = false;
     for decl in &prog.declarations {
-        if let Decl::Function(f) = decl {
-            if let Stmt::Block(stmts, _) = &*f.body {
+        if let Decl::Function(f) = decl
+            && let Stmt::Block(stmts, _) = &*f.body {
                 for s in stmts {
-                    if let Stmt::Simd(..) = s {
+                    if matches!(s, Stmt::Simd(..)) {
                         has_simd_stmt = true;
                     }
                 }
             }
-        }
     }
     assert!(has_simd_stmt, "AST must contain Stmt::Simd");
 

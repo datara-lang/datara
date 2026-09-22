@@ -1282,11 +1282,23 @@ behavior Matrix2x2 {
                 name
             ));
         }
-        fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-        let src_dir = dir.join("src");
+        // CLI `dpm init <name>` scaffolds `<name>/…` inside the working
+        // directory (cargo-new style). The library API and tests pass the
+        // project root itself as `dir`, so scaffold in place whenever the
+        // caller already points at the project root (manifest present) or at
+        // a directory that does not exist yet under an existing parent.
+        let project_dir = if dir.join("datara.toml").exists() {
+            dir.to_path_buf()
+        } else if dir.exists() {
+            dir.join(name)
+        } else {
+            dir.to_path_buf()
+        };
+        fs::create_dir_all(&project_dir).map_err(|e| e.to_string())?;
+        let src_dir = project_dir.join("src");
         fs::create_dir_all(&src_dir).map_err(|e| e.to_string())?;
 
-        let manifest_path = dir.join("datara.toml");
+        let manifest_path = project_dir.join("datara.toml");
         if !manifest_path.exists() {
             let entry = if is_lib {
                 "src/lib.dtr"
@@ -1336,7 +1348,7 @@ fn main() {
             fs::write(&entry_file, code).map_err(|e| e.to_string())?;
         }
 
-        let gitignore = dir.join(".gitignore");
+        let gitignore = project_dir.join(".gitignore");
         if !gitignore.exists() {
             let gi = "target/\npackages/\n*.exe\n*.obj\n*.bc\n*.ll\n";
             let _ = fs::write(&gitignore, gi);

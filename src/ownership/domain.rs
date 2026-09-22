@@ -114,6 +114,12 @@ pub struct FunctionDataflowState {
     pub val_origins: HashMap<ValueId, String>,
 }
 
+impl Default for FunctionDataflowState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FunctionDataflowState {
     pub fn new() -> Self {
         Self {
