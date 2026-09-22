@@ -69,7 +69,9 @@ impl<'a> TypeChecker<'a> {
                 Decl::Impl(i) => {
                     if let Some(tr) = &i.trait_name {
                         let key = (tr.clone(), i.target_type.clone());
-                        if let std::collections::hash_map::Entry::Vacant(e) = self.impls.entry(key.clone()) {
+                        if let std::collections::hash_map::Entry::Vacant(e) =
+                            self.impls.entry(key.clone())
+                        {
                             e.insert(i.clone());
                         } else {
                             diag.error(

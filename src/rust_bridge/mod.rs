@@ -125,7 +125,9 @@ pub fn expand_rust_dependencies(
         if let Decl::Use(u) = decl {
             if u.path.first().map(|s| s.as_str()) == Some("rust") && u.path.len() > 1 {
                 let crate_name = u.path[1].clone();
-                if let std::collections::hash_map::Entry::Vacant(e) = rust_deps.entry(crate_name.clone()) {
+                if let std::collections::hash_map::Entry::Vacant(e) =
+                    rust_deps.entry(crate_name.clone())
+                {
                     let candidate_paths = [
                         project_root
                             .join("tests")
@@ -145,12 +147,10 @@ pub fn expand_rust_dependencies(
                     }
 
                     if let Some(path) = found_path {
-                        e.insert(
-                            RustCrateConfig {
-                                path: Some(path.to_string_lossy().to_string()),
-                                ..Default::default()
-                            },
-                        );
+                        e.insert(RustCrateConfig {
+                            path: Some(path.to_string_lossy().to_string()),
+                            ..Default::default()
+                        });
                     }
                 }
             }

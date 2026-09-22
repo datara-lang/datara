@@ -708,9 +708,9 @@ pub enum Stmt {
     Loop {
         body: Box<Stmt>,
         span: SourceSpan,
-    },    Break(SourceSpan),
+    },
+    Break(SourceSpan),
     Continue(SourceSpan),
-
 
     Parallel(Box<Stmt>, SourceSpan),
     ParallelFor {

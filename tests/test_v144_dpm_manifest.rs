@@ -57,7 +57,10 @@ fastmath = { path = "./dotnet/FastMath.csproj", aot = true }
         .and_then(|v| v.detailed())
         .expect("expected detailed tokio dependency");
     assert_eq!(tokio_dep.version.as_deref(), Some("1.35"));
-    assert_eq!(tokio_dep.features.as_deref(), Some(&["full".to_string()][..]));
+    assert_eq!(
+        tokio_dep.features.as_deref(),
+        Some(&["full".to_string()][..])
+    );
 
     let go_dep = manifest
         .go_dependencies

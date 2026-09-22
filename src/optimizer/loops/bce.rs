@@ -189,7 +189,12 @@ impl LoopOptimizer {
                         right,
                         ..
                     } => {
-                        if op == "|" || op == "or" || op == "wrapping_|" || op == "+" || op == "wrapping_+" {
+                        if op == "|"
+                            || op == "or"
+                            || op == "wrapping_|"
+                            || op == "+"
+                            || op == "wrapping_+"
+                        {
                             if consts.get(right) == Some(&0) {
                                 copy_of.insert(*dest, *left);
                             } else if consts.get(left) == Some(&0) {

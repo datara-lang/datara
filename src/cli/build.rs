@@ -82,14 +82,20 @@ pub(crate) fn cmd_check(args: &[String]) -> bool {
             // reported as unused. Per-file linting cannot see cross-module
             // references. On parse failure the compiler check above has
             // already reported it, so the lint is silently skipped.
-            if let Ok(diags) =
-                crate::lint::lint_files_with_profile(&layout.source_files, crate::lint::LintProfile::Standard)
-            {
+            if let Ok(diags) = crate::lint::lint_files_with_profile(
+                &layout.source_files,
+                crate::lint::LintProfile::Standard,
+            ) {
                 for d in &diags {
                     if d.code.starts_with("dead_code::") {
                         eprintln!(
                             "warning[{}]: {}\n  --> {}:{}:{}\n  help: {}",
-                            d.code, d.message, d.span.file, d.span.start_line, d.span.start_col, d.help.clone().unwrap_or_default()
+                            d.code,
+                            d.message,
+                            d.span.file,
+                            d.span.start_line,
+                            d.span.start_col,
+                            d.help.clone().unwrap_or_default()
                         );
                         dead_count += 1;
                     }

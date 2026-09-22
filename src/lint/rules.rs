@@ -130,9 +130,7 @@ fn check_dead_code(program: &Program, diags: &mut Vec<LintDiagnostic>) {
                 "remove it, rename to `_{}` if intentionally unused, or mark #[export]",
                 name
             ))
-            .with_note(
-                "this function is never called and its name is never referenced".into(),
-            ),
+            .with_note("this function is never called and its name is never referenced".into()),
         );
     }
 }
@@ -254,12 +252,7 @@ fn scan_stmt(stmt: &Stmt, referenced: &mut HashSet<String>) {
                 scan_stmt(els, referenced);
             }
         }
-        Stmt::For {
-            iterable, body, ..
-        }
-        | Stmt::ParallelFor {
-            iterable, body, ..
-        } => {
+        Stmt::For { iterable, body, .. } | Stmt::ParallelFor { iterable, body, .. } => {
             scan_expr(iterable, referenced);
             scan_stmt(body, referenced);
         }
@@ -272,9 +265,7 @@ fn scan_stmt(stmt: &Stmt, referenced: &mut HashSet<String>) {
         Stmt::Loop { body, .. } => scan_stmt(body, referenced),
         Stmt::Break(_) | Stmt::Continue(_) => {}
         Stmt::Parallel(inner, _) | Stmt::Simd(inner, _) => scan_stmt(inner, referenced),
-        Stmt::With {
-            init, body, ..
-        } => {
+        Stmt::With { init, body, .. } => {
             scan_expr(init, referenced);
             scan_stmt(body, referenced);
         }

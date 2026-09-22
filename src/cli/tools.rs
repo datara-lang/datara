@@ -295,8 +295,7 @@ pub(crate) fn cmd_lint(command: &str, args: &[String]) -> bool {
     // `main` in `b.dtr` must not be reported as unused. Diagnostics keep
     // their per-file spans; they are grouped back per file below so
     // per-file --fix keeps working.
-    let all_diags = match crate::lint::lint_files_with_profile(&layout.source_files, lint_profile)
-    {
+    let all_diags = match crate::lint::lint_files_with_profile(&layout.source_files, lint_profile) {
         Ok(diags) => diags,
         Err(e) => {
             eprintln!("Error checking project: {}", e);

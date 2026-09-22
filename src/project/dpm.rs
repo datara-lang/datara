@@ -442,32 +442,32 @@ impl DpmManifest {
             for (lib_name, dep) in &self.jvm_dependencies {
                 if dep.aot() == Some(true) {
                     if let Some(proj_path) = dep.path() {
-                    let out_name = if cfg!(windows) {
-                        format!("{}.dll", lib_name)
-                    } else {
-                        format!("lib{}.so", lib_name)
-                    };
-                    let res = Command::new("native-image")
-                        .args(["--shared", "-o", lib_name, "-jar", proj_path])
-                        .current_dir(project_dir)
-                        .status();
-                    if let Ok(st) = res {
-                        if st.success() {
-                            println!(
-                                "[DONE] Compiled GraalVM Native Image for '{}' -> {}",
-                                lib_name, out_name
+                        let out_name = if cfg!(windows) {
+                            format!("{}.dll", lib_name)
+                        } else {
+                            format!("lib{}.so", lib_name)
+                        };
+                        let res = Command::new("native-image")
+                            .args(["--shared", "-o", lib_name, "-jar", proj_path])
+                            .current_dir(project_dir)
+                            .status();
+                        if let Ok(st) = res {
+                            if st.success() {
+                                println!(
+                                    "[DONE] Compiled GraalVM Native Image for '{}' -> {}",
+                                    lib_name, out_name
+                                );
+                                summary.jvm_compiled += 1;
+                            }
+                        } else {
+                            eprintln!(
+                                "[WARN] 'native-image' not found in PATH. Install GraalVM to compile JVM libraries to native shared libraries."
                             );
-                            summary.jvm_compiled += 1;
                         }
                     } else {
-                        eprintln!(
-                            "[WARN] 'native-image' not found in PATH. Install GraalVM to compile JVM libraries to native shared libraries."
-                        );
+                        println!("[DONE] Registered JVM dependency '{}'", lib_name);
+                        summary.jvm_compiled += 1;
                     }
-                } else {
-                    println!("[DONE] Registered JVM dependency '{}'", lib_name);
-                    summary.jvm_compiled += 1;
-                }
                 }
             }
         }
@@ -488,7 +488,6 @@ pub struct InstallSummary {
     pub zig_compiled: usize,
     pub jvm_compiled: usize,
 }
-
 
 impl DpmDepValue {
     pub fn detailed(&self) -> Option<&DpmDepDetailed> {
