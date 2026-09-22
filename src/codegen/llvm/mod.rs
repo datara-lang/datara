@@ -759,6 +759,12 @@ impl<'a> LlvmEmitter<'a> {
                 let vty = match dt {
                     DataraType::Float => "double",
                     DataraType::Int | DataraType::Bool | DataraType::Char => "i64",
+                    // Native SIMD types must map to their vector form here:
+                    // a `ptr`-typed alloca (8 bytes) cannot hold a 16-byte
+                    // <4 x float>, and SROA silently replaces the mismatched
+                    // store/load pair with `undef` (regression: dot() == 0).
+                    DataraType::SimdF32x4 => "<4 x float>",
+                    DataraType::SimdI32x4 => "<4 x i32>",
                     DataraType::Class(cls) => match cls.as_str() {
                         "Float4" | "float4" | "f32x4" => "<4 x float>",
                         "Float8" | "float8" | "f32x8" => "<8 x float>",
