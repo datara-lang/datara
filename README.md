@@ -20,7 +20,7 @@
 
 <p align="center">
   <a href="#1-installation--setup"><b>Quickstart in 60s</b></a> &bull;
-  <a href="https://datara-lang.github.io/datara/"><b>📚 Documentation Portal</b></a> &bull;
+  <a href="https://datara-lang.github.io/datara/"><b>Documentation Portal</b></a> &bull;
   <a href="#2-complete-language-syntax--mastery-guide"><b>Complete Syntax Guide</b></a> &bull;
   <a href="docs/PERFORMANCE_GOALS.md"><b>Benchmark Matrix</b></a> &bull;
   <a href="README_RU.md"><b>Русская документация</b></a>

@@ -3,7 +3,7 @@ import re
 import sys
 
 def check_readme_links():
-    readme_path = os.path.join("docs", "README.md")
+    readme_path = os.path.join("docs", "DOCUMENTATION.md")
     if not os.path.exists(readme_path):
         print(f"Error: {readme_path} does not exist")
         return False
@@ -21,16 +21,21 @@ def check_readme_links():
         clean_target = target.split("#")[0]
         if not clean_target:
             continue
-        full_path = os.path.join("docs", clean_target)
+        # Published pages use .html URLs; resolve them to the .md source.
+        # index.html is a hand-written landing page, not a Markdown source.
+        if clean_target == "index.html":
+            continue
+        repo_target = re.sub(r"\.html$", ".md", clean_target)
+        full_path = os.path.join("docs", repo_target)
         if not os.path.exists(full_path):
             missing.append((label, target, full_path))
 
     if missing:
-        print("Missing documentation links in docs/README.md:")
+        print("Missing documentation links in docs/DOCUMENTATION.md:")
         for label, target, full_path in missing:
             print(f"  - '{label}': {target} -> {full_path} not found")
         return False
-    print("All links in docs/README.md exist!")
+    print("All links in docs/DOCUMENTATION.md exist!")
     return True
 
 def extract_lexer_keywords():

@@ -2461,6 +2461,20 @@ The optimizer must never use a performance heuristic as a replacement for a sema
 For example:
 
 ```text
+proven:      backed by a structural proof obligation
+unsupported: heuristic only, never used to weaken a check
+```
+
+---
+
+# 135. PRESERVING SEMANTIC GATES
+
+Every normative gate must survive optimization.
+
+If a transform cannot prove that it preserves a gate, it is rejected,
+regardless of its measured performance benefit.
+
+---
 
 # 194. FRONTEND PARSER ARCHITECTURE
 

@@ -1,0 +1,33 @@
+# Jekyll configuration for the Datara documentation portal (GitHub Pages).
+#
+# Every Markdown page uses the shared `docs` layout so pages render with
+# consistent styling and cross-page navigation instead of bare unstyled HTML.
+# `kramdown` is the default Markdown engine; GFM-style tables and fenced code
+# blocks are enabled via the input option below.
+
+title: Datara Documentation
+description: Official documentation for the Datara systems programming language and the Forgen compiler toolchain.
+url: https://datara-lang.github.io
+baseurl: /datara
+
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+
+defaults:
+  - scope:
+      path: ""
+      type: "pages"
+    values:
+      layout: default
+
+# Keep generated .html URLs (FOO.md -> FOO.html), matching internal links.
+permalink: pretty
+
+exclude:
+  - data
+  - img
+  - Gemfile
+  - Gemfile.lock

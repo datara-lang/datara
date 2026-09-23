@@ -21,7 +21,7 @@
 
 <p align="center">
   <a href="#1-установка-и-настройка"><b>Быстрый старт за 60 секунд</b></a> &bull;
-  <a href="https://datara-lang.github.io/datara/ru/"><b>📚 Портал документации</b></a> &bull;
+  <a href="https://datara-lang.github.io/datara/ru/"><b>Портал документации</b></a> &bull;
   <a href="#2-полное-руководство-по-синтаксису-и-мастерству-языка"><b>Руководство по синтаксису</b></a> &bull;
   <a href="docs/PERFORMANCE_GOALS.md"><b>Матрица производительности</b></a> &bull;
   <a href="README.md"><b>English Documentation</b></a>

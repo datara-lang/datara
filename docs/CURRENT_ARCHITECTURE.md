@@ -139,12 +139,12 @@ Each transformation intended for `Applied` status must document:
 
 ## 4. Continuous Integration, Benchmarks & Quality (Wave 6)
 
-- **Normative Conformance Suite (84 / 84 PASS)**: `tests/test_conformance_suite.rs` validates 100% compliance across all 13 normative gates of [`docs/SPEC_V1.md`](docs/SPEC_V1.md) (see [`docs/CONFORMANCE_MATRIX.md`](docs/CONFORMANCE_MATRIX.md)).
+- **Normative Conformance Suite (84 / 84 PASS)**: `tests/test_conformance_suite.rs` validates 100% compliance across all 13 normative gates of [SPEC_V1](SPEC_V1.md) (see the [Conformance Matrix](CONFORMANCE_MATRIX.md)).
 - **Zero Stubs Policy**: Strict 0 TODO, 0 FIXME, and 0 unmapped call count across the entire `src/` codebase.
 - **148 Test Targets / 668 Passing Tests**: Full regression, verification, differential cross-backend execution, and end-to-end integration coverage with 0 test failures. 7 long-running multi-language stress benchmarks are ignored by default and executed on demand (`cargo test -- --ignored`).
 - **Hardware-Measured Performance Report**: Complete automated provenance and benchmark suite in [`docs/PERFORMANCE.md`](PERFORMANCE.md) with 7 datasets in [`docs/data/`](data/) covering AOT compile times, runtime workloads, JSON parsing, ownership proof distribution, and deterministic lockstep simulation.
 - **Differential Cross-Backend Testing**: Dedicated 10-program differential suite (`tests/test_backend_differential.rs`) executing identically across Cranelift, WebAssembly (via Node.js), and LLVM.
-- **Criterion Phase Benchmarks**: Comprehensive micro-benchmarks (`benches/compiler_phases.rs`) tracking latencies for Lexer, Parser, Typecheck, Ownership Dataflow, Cranelift, and WASM phases (see [`docs/BASELINES.md`](docs/BASELINES.md)).
+- **Criterion Phase Benchmarks**: Comprehensive micro-benchmarks (`benches/compiler_phases.rs`) tracking latencies for Lexer, Parser, Typecheck, Ownership Dataflow, Cranelift, and WASM phases (see [Performance](PERFORMANCE.md)).
 - **MSRV Verification**: Minimum Supported Rust Version pinned to `1.85.0` (2024 edition compatible).
 - **AddressSanitizer (ASan) & WASM Runtime Jobs**: Dedicated `.github/workflows/ci.yml` CI jobs verifying memory safety under `-fsanitize=address` and automated headless WebAssembly execution.
 

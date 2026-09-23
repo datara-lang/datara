@@ -667,7 +667,7 @@ incrementally.
  2a. derive + comptime rewrite        (unchanged, driver/pipeline.rs:319 / :535)
  2b. attribute validation             (unchanged: inline / alloc / asm)
  3. resolver.resolve_program          (unchanged)
- 3b. ★ expand phase                   <-- NEW
+ 3b. expand phase                     <-- NEW
      ├─ collect: scan resolved program for instantiation sites
      ├─ interpret: run each ExpandDecl body in the comptime sandbox
      ├─ emit: ExpandNode -> ast::Decl, appended to program.declarations
@@ -1760,7 +1760,7 @@ zero-copy Python-бридж; L1–L4 с единым ABI; контракты `re
 **Версия 1.4.4 — это не набор фич. Это утверждение: системный язык может быть одновременно самым простым
 для входа, самым быстрым в сборке и самым доказуемым в проде. Остальное — исполнение по плану выше.**
 
-> ⚠️ **ДОКУМЕНТ НЕ ЗАКАНЧИВАЕТСЯ ЗДЕСЬ.** Ниже — продолжение Части III (исполнение):
+> **ВНИМАНИЕ: ДОКУМЕНТ НЕ ЗАКАНЧИВАЕТСЯ ЗДЕСЬ.** Ниже — продолжение Части III (исполнение):
 > **§31 (продолжение): WP-4…WP-9**, **§32: готовые промпты-исполнители**, **§33: Definition of Done**.
 > Читатель/исполнитель обязан дойти до `<!-- END OF SPEC -->`. Порядок чтения: §29 → §30 → §31 (WP-0…WP-3,
 > выше) → §27–§28 (приложение, только что прочитаны) → §31 (продолжение, WP-4…WP-9) → §32 → §33 →

@@ -29,9 +29,9 @@
 
 ## 2. Формальная грамматика и синтаксическая спецификация (Concrete Syntax & EBNF)
 
-### 2.1. Лексическая структура и токенизация ([`src/lexer/`](file:///d:/DATARA/datara%20+%20forgen/src/lexer/))
+### 2.1. Лексическая структура и токенизация (`src/lexer/`)
 
-Лексер осуществляет линейный разбор UTF-8 потока байтов в последовательность типизированных токенов [`Token`](file:///d:/DATARA/datara%20+%20forgen/src/lexer/tokens.rs) с точным сохранением диапазона в исходном коде ([`SourceSpan`](file:///d:/DATARA/datara%20+%20forgen/src/diagnostics/mod.rs)).
+Лексер осуществляет линейный разбор UTF-8 потока байтов в последовательность типизированных токенов `Token` с точным сохранением диапазона в исходном коде (`SourceSpan`).
 
 #### Запрещенные устаревшие конструкции (Strict Deprecation Policy)
 Попытка использовать синтаксис из других языков или устаревших версий Datara блокируется на этапе лексического/синтаксического анализа с генерацией понятной диагностической подсказки:
@@ -60,7 +60,7 @@ ValDecl   ::= "val"   Identifier ( ":" TypeNode )? "=" Expr ;
 | `const X: T = v` | **Константа времени компиляции** | Строгая явная | Прямая подстановка константы (Constant Folding / Inlining). |
 | `val x = v` | **Динамическая** | Выводится компилятором | **Type Promotion**: если переменная иммутабельна, поднимается до SSA-скаляра. Если динамическая — 64-битный NaN-boxing. |
 
-### 2.3. Data-Oriented Programming (DOP) и классы ([`src/parser/`](file:///d:/DATARA/datara%20+%20forgen/src/parser/))
+### 2.3. Data-Oriented Programming (DOP) и классы (`src/parser/`)
 
 Классы в Datara являются легковесными контейнерами данных без наследования:
 
@@ -107,7 +107,7 @@ Offset 24: health (8 байт, Int)
 
 ---
 
-## 3. Математическая модель и система типов ([`src/types/`](file:///d:/DATARA/datara%20+%20forgen/src/types/))
+## 3. Математическая модель и система типов (`src/types/`)
 
 ### 3.1. Сетка примитивных типов
 
@@ -149,7 +149,7 @@ fn compute(val: Int?) -> Int {
     return 0
 }
 ```
-**Механика в компиляторе** ([`src/types/mod.rs:758-790`](file:///d:/DATARA/datara%20+%20forgen/src/types/mod.rs)):
+**Механика в компиляторе** (`src/types/mod.rs:758-790`):
 При входе в блок `then` компилятор переопределяет тип символа в локальной таблице типов `symbol_types.insert(var, inner_type)`. При выходе из блока восстанавливается исходный `Option(inner_type)`.
 
 ### 3.3. 64-битный IEEE-754 NaN-Boxing для динамического типа `val`
@@ -175,7 +175,7 @@ fn compute(val: Int?) -> Int {
 
 ## 4. Анализ эффектов и Ownership Engine
 
-### 4.1. Решётка эффектов (Effects Lattice) ([`src/effects/`](file:///d:/DATARA/datara%20+%20forgen/src/effects/))
+### 4.1. Решётка эффектов (Effects Lattice) (`src/effects/`)
 
 Каждая функция и выражение в Datara классифицируются по системе эффектов:
 ```
@@ -193,7 +193,7 @@ fn compute(val: Int?) -> Int {
   - Могут безопасно выноситься из циклов оптимизатором LICM.
   - При повторных вызовах с идентичными аргументами сворачиваются через CSE или преобразуются в константы во время компиляции.
 
-### 4.2. Ownership Tracker и регионы заимствования ([`src/ownership/`](file:///d:/DATARA/datara%20+%20forgen/src/ownership/))
+### 4.2. Ownership Tracker и регионы заимствования (`src/ownership/`)
 
 Компилятор Forgen гарантирует безопасность памяти без сборщика мусора:
 - **Линейное владение**: Каждое значение имеет ровно одного владельца. Передача значения в другую функцию без заимствования осуществляет перемещение (`move`).
@@ -202,7 +202,7 @@ fn compute(val: Int?) -> Int {
 
 ---
 
-## 5. DMIR: Datara Mid-level Intermediate Representation ([`src/dmir/`](file:///d:/DATARA/datara%20+%20forgen/src/dmir/))
+## 5. DMIR: Datara Mid-level Intermediate Representation (`src/dmir/`)
 
 DMIR — это каноническое промежуточное представление компилятора Forgen, организованное в виде ориентированного графа потока управления (**Control Flow Graph, CFG**).
 
@@ -252,7 +252,7 @@ pub struct BasicBlock {
 
 ---
 
-## 6. Архитектура пакета SSA-оптимизаторов Forgen ([`src/optimizer/`](file:///d:/DATARA/datara%20+%20forgen/src/optimizer/))
+## 6. Архитектура пакета SSA-оптимизаторов Forgen (`src/optimizer/`)
 
 Пакет оптимизаторов Forgen является одним из самых продвинутых среди современных компиляторов нового поколения. Оптимизации выполняются в строгом порядке, гарантирующем сходимость:
 
@@ -313,10 +313,10 @@ $$\text{result} = \frac{(N - 1) \cdot N}{2}$$
 
 ---
 
-## 7. Кодогенерация Cranelift и компоновка MSVC ([`src/codegen/cranelift/`](file:///d:/DATARA/datara%20+%20forgen/src/codegen/cranelift/))
+## 7. Кодогенерация Cranelift и компоновка MSVC (`src/codegen/cranelift/`)
 
 ### 7.1. Маппинг типов на Cranelift IR (`clif`)
-[`src/codegen/cranelift/backend.rs`](file:///d:/DATARA/datara%20+%20forgen/src/codegen/cranelift/backend.rs):
+`src/codegen/cranelift/backend.rs`:
 ```rust
 fn clif_type(&self, ty_str: &str) -> ClifType {
     match ty_str {
@@ -349,12 +349,12 @@ fn clif_type(&self, ty_str: &str) -> ClifType {
 
 ---
 
-## 8. Сверхбыстрый строковый рантайм SSO и Core Prelude ([`src/runtime/`](file:///d:/DATARA/datara%20+%20forgen/src/runtime/))
+## 8. Сверхбыстрый строковый рантайм SSO и Core Prelude (`src/runtime/`)
 
 ### 8.1. Small String Optimization (SSO) до 23 байт без аллокаций
 В большинстве программ до 80% строк имеют малую длину (имена, идентификаторы, статусы, короткие сообщения). Традиционное выделение строк через `malloc` вызывает сильную фрагментацию кучи и замедляет работу в десятки раз.
 
-В [`src/runtime/datara_runtime.c`](file:///d:/DATARA/datara%20+%20forgen/src/runtime/datara_runtime.c) реализован высокоскоростной SSO-движок:
+В `src/runtime/datara_runtime.c` реализован высокоскоростной SSO-движок:
 ```c
 #define SSO_MAX_LEN 23
 #define SSO_SLOTS 64
@@ -455,7 +455,7 @@ stdlib/
 ```
 
 ### 10.2. Разрешение импортов (`use`)
-Компилятор [`src/driver.rs`](file:///d:/DATARA/datara%20+%20forgen/src/driver.rs) при обработке директивы `use`:
+Компилятор `src/driver.rs` при обработке директивы `use`:
 1. Ищет модуль в базовых каталогах проекта (относительно компилируемого файла).
 2. Ищет модуль в системном каталоге стандартной библиотеки `stdlib/`.
 3. Парсит импортируемый файл, проводит анализ зависимостей и склеивает AST в единую трансляционную единицу с изоляцией пространств имен.
@@ -469,10 +469,10 @@ stdlib/
 - **Базовые модульные тесты компилятора (`cargo test --lib`)**: **6 passed, 0 failed**.
 - **Существующие комплексные тест-сьюты репозитория**: **67 passed, 0 failed out of 67**.
 - **Целевые интеграционные сьюты новейшей спецификации (v2.0)**:
-  - [`tests/test_variable_triad.rs`](file:///d:/DATARA/datara%20+%20forgen/tests/test_variable_triad.rs): 6 тестов (мутабельность, триада, блокировка типов, промоутинг `val`).
-  - [`tests/test_dop_classes.rs`](file:///d:/DATARA/datara%20+%20forgen/tests/test_dop_classes.rs): 3 теста (методы в классах, flat composition `using`, UFCS).
-  - [`tests/test_collections_builtins.rs`](file:///d:/DATARA/datara%20+%20forgen/tests/test_collections_builtins.rs): 5 тестов (`List.pop/push/len`, срезы `[start..end]`, `ArrayRepeat [x; n]`, `Map`, Prelude).
-  - [`tests/test_flow_pipeline.rs`](file:///d:/DATARA/datara%20+%20forgen/tests/test_flow_pipeline.rs): 5 тестов (конвейеры `|> flow`, цепочки UFCS, Smart Narrowing `Type?`, Native C FFI).
+  - `tests/test_variable_triad.rs`: 6 тестов (мутабельность, триада, блокировка типов, промоутинг `val`).
+  - `tests/test_dop_classes.rs`: 3 теста (методы в классах, flat composition `using`, UFCS).
+  - `tests/test_collections_builtins.rs`: 5 тестов (`List.pop/push/len`, срезы `[start..end]`, `ArrayRepeat [x; n]`, `Map`, Prelude).
+  - `tests/test_flow_pipeline.rs`: 5 тестов (конвейеры `|> flow`, цепочки UFCS, Smart Narrowing `Type?`, Native C FFI).
 
 ### 11.2. Сводная таблица производительности
 По результатам бенчмарков в `benchmarks/`:

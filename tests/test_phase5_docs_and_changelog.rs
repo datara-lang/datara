@@ -52,19 +52,21 @@ fn test_phase5_glossary_and_changelog() {
 
 #[test]
 fn test_phase5_readme_navigation() {
-    let readme_path = Path::new("docs/README.md");
-    assert!(readme_path.exists(), "missing docs/README.md");
-    let readme = fs::read_to_string(readme_path).expect("read docs/README.md");
+    // The documentation portal page is `docs/DOCUMENTATION.md`; `docs/README.md`
+    // was renamed because GitHub Pages does not publish README files.
+    let docs_path = Path::new("docs/DOCUMENTATION.md");
+    assert!(docs_path.exists(), "missing docs/DOCUMENTATION.md");
+    let docs = fs::read_to_string(docs_path).expect("read docs/DOCUMENTATION.md");
     assert!(
-        readme.contains("TUTORIAL.md"),
-        "missing TUTORIAL.md in docs/README.md"
+        docs.contains("TUTORIAL.md"),
+        "missing TUTORIAL.md in docs/DOCUMENTATION.md"
     );
     assert!(
-        readme.contains("GLOSSARY.md"),
-        "missing GLOSSARY.md in docs/README.md"
+        docs.contains("GLOSSARY.md"),
+        "missing GLOSSARY.md in docs/DOCUMENTATION.md"
     );
     assert!(
-        readme.contains("Historical & Archival Specifications"),
+        docs.contains("Historical & Archival Specifications"),
         "missing archival specs section"
     );
 }
