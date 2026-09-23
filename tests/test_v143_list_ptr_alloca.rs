@@ -62,16 +62,17 @@ fn main() {
     let compiler = ForgenCompiler::new("release").with_llvm(true);
     let res = compiler.compile_source(source, "simd_app.dtr", None);
     let llvm = res.llvm_source.expect("LLVM IR source must be generated");
-    // v1.4.5 LLVM 15+ opaque-pointer style: allocas use `ptr`, but the SIMD
-    // element type and 16-byte alignment must survive in typed loads/stores.
+    // v1.4.5 LLVM 15+ opaque-pointer style with typed vector allocas: a SIMD
+    // local is backed by a typed `<4 x float>` alloca (16-byte aligned), and
+    // the SIMD type must survive in typed loads/stores through that slot.
     assert!(
-        llvm.contains("%var_a = alloca ptr, align 8"),
-        "Expected %var_a to be alloca ptr, align 8, got:\n{}",
+        llvm.contains("%var_a = alloca <4 x float>, align 16"),
+        "Expected %var_a to be alloca <4 x float>, align 16, got:\n{}",
         llvm
     );
     assert!(
-        llvm.contains("%var_b = alloca ptr, align 8"),
-        "Expected %var_b to be alloca ptr, align 8, got:\n{}",
+        llvm.contains("%var_b = alloca <4 x float>, align 16"),
+        "Expected %var_b to be alloca <4 x float>, align 16, got:\n{}",
         llvm
     );
     assert!(
