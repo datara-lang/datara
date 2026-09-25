@@ -143,6 +143,11 @@
 
 > Аудит 2026-09-25: stdlib = 707 строк тонких обёрток над C-рантаймом
 > (статик-методы, `StringUtils.contains(s, sub)`). Срез №1 сделан:
+> Срез №5 сделан: `stdlib/diagnostics/diagnostic.dtr` — rich Diagnostic
+> {code, message, line, col, help, severity} с behavior-рендером в формате
+> компилятора; приёмочное демо M1 «парсер ini-файла» целиком на stdlib
+> (examples/showcase/ini_parser) — Map-записи + 3 вида диагностик со
+> span/help, все проверки пройдены запуском.
 > Срез №4 сделан: HashMap-индекс — рантайм map получил robin-hood
 > open-addressing индекс (FNV-1a, slot = entry+1, load factor ≤ 3/4,
 > ленивое построение с 16 элементов, ниже — линейный скан); insertion-order

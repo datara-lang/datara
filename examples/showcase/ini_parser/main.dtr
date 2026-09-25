@@ -1,0 +1,91 @@
+use stdlib.text.string.StringUtils
+use stdlib.diagnostics.diagnostic.Diagnostic
+
+// M1 acceptance demo: an INI-file parser written entirely on the Datara
+// stdlib (no FFI, no C calls beyond the runtime primitives). Produces a
+// Map<Str, Str> plus compiler-grade diagnostics for malformed lines.
+
+struct IniFile {
+    entries: Map<Str, Str>
+    errors: List<Diagnostic>
+}
+
+behavior IniFile {
+    get(section: Str, key: Str) -> Str {
+        return this.entries.get(fmt"{section}.{key}")
+    }
+
+    error_count() -> Int {
+        return this.errors.len()
+    }
+}
+
+fn parse_ini(source: Str) -> IniFile {
+    val result = IniFile {
+        entries: {},
+        errors: []
+    }
+    val lines = StringUtils.split(source, "\n")
+    mut section = ""
+    mut idx = 0
+    while idx < lines.len() {
+        val line = StringUtils.trim(lines.get(idx))
+        if line != "" {
+            if StringUtils.starts_with(line, "[") {
+                if StringUtils.ends_with(line, "]") {
+                    section = StringUtils.slice(line, 1, StringUtils.len(line) - 2)
+                } else {
+                    result.errors.push(Diagnostic.error_at(
+                        "E-INI-001",
+                        fmt"unterminated section header: '{line}'",
+                        idx + 1, 1,
+                        "close the header with ']'"
+                    ))
+                }
+            } else if StringUtils.contains(line, "=") {
+                val eq = StringUtils.find(line, "=")
+                val key = StringUtils.trim(StringUtils.slice(line, 0, eq))
+                val value = StringUtils.trim(StringUtils.slice(line, eq + 1, StringUtils.len(line) - eq - 1))
+                if key == "" {
+                    result.errors.push(Diagnostic.error_at(
+                        "E-INI-002",
+                        fmt"empty key in line '{line}'",
+                        idx + 1, 1,
+                        "write 'key = value'"
+                    ))
+                } else {
+                    mut full_key = key
+                    if section != "" {
+                        full_key = fmt"{section}.{key}"
+                    }
+                    result.entries.insert(full_key, value)
+                }
+            } else {
+                result.errors.push(Diagnostic.error_at(
+                    "E-INI-003",
+                    fmt"malformed line: '{line}'",
+                    idx + 1, 1,
+                    "expected '[section]' or 'key = value'"
+                ))
+            }
+        }
+        idx = idx + 1
+    }
+    return result
+}
+
+fn main() {
+    val ini = parse_ini(
+        "[server]\nport = 8080\nhost = localhost\n\n[logging]\nlevel = debug\nthis line is broken\n= novalue\n[bad\n"
+    )
+    out fmt"entries: {ini.entries.len()}, errors: {ini.error_count()}"
+    out fmt"server.port = {ini.get(\"server\", \"port\")}"
+    out fmt"server.host = {ini.get(\"server\", \"host\")}"
+    out fmt"logging.level = {ini.get(\"logging\", \"level\")}"
+    mut i = 0
+    while i < ini.errors.len() {
+        val d = ini.errors.get(i)
+        out d.render()
+        i = i + 1
+    }
+}

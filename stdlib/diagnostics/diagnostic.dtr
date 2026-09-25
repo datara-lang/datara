@@ -1,0 +1,56 @@
+//! stdlib.diagnostics — compiler-grade diagnostic records.
+//!
+//! The structured shape shared by compiler backends, LSP publishers and
+//! self-hosted tooling (PLAN_V150 M1/M2).
+
+struct Diagnostic {
+    code: Str
+    message: Str
+    line: Int
+    col: Int
+    help: Str
+    severity: Str
+}
+
+behavior Diagnostic {
+    /// A plain warning with no positional information.
+    warning(code: Str, message: Str) -> Diagnostic {
+        return Diagnostic {
+            code: code,
+            message: message,
+            line: 0,
+            col: 0,
+            help: "",
+            severity: "warning"
+        }
+    }
+
+    /// A located error with a fix suggestion.
+    error_at(code: Str, message: Str, line: Int, col: Int, help: Str) -> Diagnostic {
+        return Diagnostic {
+            code: code,
+            message: message,
+            line: line,
+            col: col,
+            help: help,
+            severity: "error"
+        }
+    }
+
+    is_error() -> Bool {
+        return this.severity == "error"
+    }
+
+    /// One-line rendering in the compiler's own format.
+    render() -> Str {
+        mut loc = ""
+        if this.line > 0 {
+            loc = fmt"{this.line}:{this.col}: "
+        }
+        mut h = ""
+        if this.help != "" {
+            h = fmt"\n  help: {this.help}"
+        }
+        return fmt"{loc}{this.severity}[{this.code}]: {this.message}{h}"
+    }
+}
