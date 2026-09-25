@@ -161,14 +161,57 @@ pub fn apply_fixes(source: &str, diags: &[LintDiagnostic]) -> String {
     });
 
     for diag in fixable {
-        if diag.code != "perf::unnecessary_mut" {
-            continue;
-        }
         let line_idx = diag.span.start_line.saturating_sub(1);
         if line_idx >= lines.len() {
             continue;
         }
         let line = &lines[line_idx];
+        // style::unused_variable: the fix replacement is the NEW name
+        // (prefixed with `_`); the old name is the replacement minus the
+        // leading underscore. Rename the declaration occurrence only - the
+        // variable is never read, so no other site can reference it.
+        if diag.code == "style::unused_variable" {
+            let Some(fix) = diag.fix.as_ref() else {
+                continue;
+            };
+            let new_name = fix.replacement.as_str();
+            let Some(old_name) = new_name.strip_prefix('_') else {
+                continue;
+            };
+            if old_name.is_empty() {
+                continue;
+            }
+            // Find the declaration keyword, then the first exact-name
+            // occurrence after it, and insert the underscore before it.
+            let keywords = ["val ", "let ", "mut ", "let mut ", "val mut "];
+            let mut search_from = 0usize;
+            for kw in keywords {
+                if let Some(pos) = line.find(kw) {
+                    search_from = search_from.max(pos + kw.len());
+                }
+            }
+            if search_from == 0 {
+                continue;
+            }
+            let after = &line[search_from..];
+            let Some(name_off) = after.find(old_name) else {
+                continue;
+            };
+            let before_name = search_from + name_off;
+            let exact_boundary = before_name + old_name.len() <= line.len()
+                && !line[before_name..before_name + old_name.len()].contains(char::is_whitespace);
+            if !exact_boundary {
+                continue;
+            }
+            let mut fixed = line[..before_name].to_string();
+            fixed.push('_');
+            fixed.push_str(&line[before_name..]);
+            lines[line_idx] = fixed;
+            continue;
+        }
+        if diag.code != "perf::unnecessary_mut" {
+            continue;
+        }
         // The diagnostic span points at the declaration. Replace the exact
         // `mut ` (or `let mut `) token at that column instead of the first
         // occurrence anywhere in the line — the former `line.find("mut ")`

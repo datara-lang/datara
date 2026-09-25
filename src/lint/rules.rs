@@ -896,7 +896,10 @@ fn check_body(stmt: &Stmt, diags: &mut Vec<LintDiagnostic>) {
                 .with_note(format!(
                     "`{}` is defined but its value is never evaluated",
                     name
-                )),
+                ))
+                // Machine-applicable (M2): the variable is never read, so
+                // renaming only the declaration cannot break any use.
+                .with_fix(format!("_{name}")),
             );
         }
 
