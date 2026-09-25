@@ -201,7 +201,7 @@
 - [ ] Аудит всех ErrorCode: каждому — код, сообщение (en/ru), span с подсветкой, до 2 подсказок
 - [ ] `forgen explain <code>`: расширенное объяснение + ПРИМЕР ПРАВИЛЬНОГО КОДА
 - [ ] Автотест: для каждого кода объяснение непусто и содержит пример
-- [~] Machine-applicable fixes — частично 2026-09-25: инфраструктура готова — `forgen fix` (+ `--suggestions`, формат {file, line, col, message, code, replacement}); fix 1/5 unused variable (префикс `_`, безопасно по построению — переменная нигде не читается), также применим исторический perf::unnecessary_mut. Регресс-тест test_lint_machine_fixes. ОСТАЛОСЬ 4/5: missing `mut`, to_int/to_float-подсказка, semicolon (спорно — синтаксис newline-based), `?`-подсказка.
+- [~] Machine-applicable fixes — частично 2026-09-25: инфраструктура готова — `forgen fix` (+ `--suggestions`, формат {file, line, col, message, code, replacement}); fix 1/5 unused variable (префикс `_`, безопасно по построению — переменная нигде не читается), также применим исторический perf::unnecessary_mut. Регресс-тест test_lint_machine_fixes. ОСТАЛОСЬ 4/5: missing `mut`, to_int/to_float-подсказка, semicolon (спорно — синтаксис newline-based), `?`-подсказка. Координаты для реализации: immutable-assign диагностикa — src/types/check/stmt.rs:512 (E-BORROW-002, MutabilityKind::Dynamic{is_mut:false}); для machine-fix нужно расширить DiagnosticEngine (src/diagnostics/) полем fix {span, replacement} — сейчас его имеют только LintDiagnostic; semicolon-кейс скорее [-] (язык newline-based, синтаксис без `;`).
 - [ ] Тесты: фиксы применяются и результат компилируется
 - [ ] `forgen doc` без ошибок на полном прелюде + stdlib; докстринги у всех встроенных функций (аудит prelude)
 
