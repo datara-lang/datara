@@ -45,17 +45,13 @@
       }
     ],
     "configuration": {
-      "title": "Datara Language Server",
+      "type": "object",
+      "title": "Datara",
       "properties": {
-        "datara.lsp.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable Datara Language Server (forgen lsp) for real-time diagnostics and completions."
-        },
-        "datara.lsp.command": {
+        "datara.serverPath": {
           "type": "string",
-          "default": "forgen lsp",
-          "description": "Command used to launch the Datara LSP server."
+          "default": "forgen",
+          "description": "Path to the forgen binary (the extension runs '<path> lsp' over stdio)."
         }
       }
     }
@@ -64,5 +60,9 @@
     "type": "git",
     "url": "https://github.com/datara-lang/datara.git"
   },
-  "license": "Apache-2.0 OR MIT"
+  "license": "Apache-2.0 OR MIT",
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:datara"
+  ]
 }
