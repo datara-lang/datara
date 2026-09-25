@@ -289,7 +289,7 @@ impl<'a> LlvmEmitter<'a> {
                     || actual_func == "datara_rt_list_append_unchecked")
                     && idx == 1)
                     || (actual_func == "datara_rt_list_set" && idx == 2)
-                    || (actual_func == "datara_rt_list_create_repeat" && idx == 1)
+                    || (actual_func == "datara_rt_list_create_repeat" && idx == 0)
                     || (actual_func.starts_with("datara_rt_list_create_")
                         && actual_func != "datara_rt_list_create_repeat"
                         && actual_func != "datara_rt_list_create_capacity"));

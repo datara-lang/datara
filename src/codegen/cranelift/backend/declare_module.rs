@@ -340,6 +340,7 @@ pub fn declare_module_symbols<M: ClifModule>(
     string_return_funcs.insert("datara_rt_float_to_str".into());
     string_return_funcs.insert("float_to_str".into());
     string_return_funcs.insert("datara_rt_str_concat".into());
+    string_return_funcs.insert("datara_rt_str_concat_mut".into());
     string_return_funcs.insert("datara_rt_str_concat_3".into());
     string_return_funcs.insert("datara_rt_str_concat_4".into());
     string_return_funcs.insert("datara_rt_str_concat_5".into());

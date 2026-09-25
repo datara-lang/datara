@@ -80,8 +80,22 @@ pub fn compile_call<M: ClifModule>(
             };
             f_operands.push(fval);
         }
-        let prod = ctx.builder.ins().fmul(f_operands[0], f_operands[1]);
-        let res = ctx.builder.ins().fadd(prod, f_operands[2]);
+        // v1.4.6 P3: hardware fused multiply-add when the host supports it
+        // (single instruction, single rounding). Falls back to mul+add so
+        // every machine keeps working; the +1-ulp difference vs the fallback
+        // is within the language's documented FP tolerance for fused math.
+        // v1.4.6 P3: emit the single-instruction fused multiply-add when the
+        // host CPU has FMA (the ISA builder in opts.rs already sets has_fma
+        // for the target). Cranelift does NOT fuse separate fmul+fadd ops on
+        // its own, so the explicit opcode is required for hardware FMA.
+        // Fallback keeps mul+add for FMA-less hosts (two roundings, same
+        // shape as before — bit-identical to the historical lowering).
+        let res = if std::is_x86_feature_detected!("fma") {
+            ctx.builder.ins().fma(f_operands[0], f_operands[1], f_operands[2])
+        } else {
+            let prod = ctx.builder.ins().fmul(f_operands[0], f_operands[1]);
+            ctx.builder.ins().fadd(prod, f_operands[2])
+        };
         ctx.val_map.insert(*dest, res);
         return Ok(());
     }
@@ -326,14 +340,13 @@ pub fn compile_call<M: ClifModule>(
             .copied()
             .unwrap_or_else(|| ctx.builder.ins().iconst(clif_types::I64, 0));
         let idx_scaled = ctx.builder.ins().ishl_imm_u(idx_val, 3);
-        let offset = ctx.builder.ins().iadd_imm_s(idx_scaled, 8);
-        let addr = ctx.builder.ins().iadd(list_ptr, offset);
+        let addr = ctx.builder.ins().iadd(list_ptr, idx_scaled);
         let flags = cranelift_codegen::ir::MachMemFlags::new();
         let is_float = ty == "Float" || ty == "f64" || func == "datara_rt_list_get_f64_unchecked";
         let elem = if is_float {
-            ctx.builder.ins().load(clif_types::F64, flags, addr, 0)
+            ctx.builder.ins().load(clif_types::F64, flags, addr, 8)
         } else {
-            ctx.builder.ins().load(clif_types::I64, flags, addr, 0)
+            ctx.builder.ins().load(clif_types::I64, flags, addr, 8)
         };
         ctx.val_map.insert(*dest, elem);
         // Record the element's class so GetField on the result resolves
@@ -371,10 +384,9 @@ pub fn compile_call<M: ClifModule>(
             .copied()
             .unwrap_or_else(|| ctx.builder.ins().iconst(clif_types::I64, 0));
         let idx_scaled = ctx.builder.ins().ishl_imm_u(idx_val, 3);
-        let offset = ctx.builder.ins().iadd_imm_s(idx_scaled, 8);
-        let addr = ctx.builder.ins().iadd(list_ptr, offset);
+        let addr = ctx.builder.ins().iadd(list_ptr, idx_scaled);
         let flags = cranelift_codegen::ir::MachMemFlags::new();
-        ctx.builder.ins().store(flags, val, addr, 0);
+        ctx.builder.ins().store(flags, val, addr, 8);
         ctx.val_map.insert(*dest, list_ptr);
         return Ok(());
     }
@@ -586,7 +598,16 @@ pub fn compile_call<M: ClifModule>(
         ));
     }
 
+    // Runtime-value print specialization: the lowering picks a print_*
+    // function from static type inference, which can miss (e.g. a field of
+    // a polyglot result object infers Int while the SSA slot is F64). The
+    // resolved VALUE type is authoritative, so swap both the callee id AND
+    // the callee name — the arg bitcast loop below keys off the DECLARED
+    // signature, and a stale name would bitcast an F64 slot value to I64
+    // and then pass it into the F64 parameter (regalloc2 class mismatch:
+    // `Float vs Int` panic in debug, silently wrong output in release).
     let mut resolved_callee_id = callee_id;
+    let mut resolved_callee_name = callee_name.clone();
     if func.starts_with("datara_rt_print_")
         && func != "datara_rt_print_f32"
         && args.len() == 1
@@ -594,22 +615,23 @@ pub fn compile_call<M: ClifModule>(
         && let Some(&av) = ctx.val_map.get(&first_arg_id)
     {
         let v_ty = ctx.builder.func.dfg.value_type(av);
-        if v_ty == clif_types::F64 {
-            if let Some(target) = ctx.func_ids.get("datara_rt_print_float") {
-                resolved_callee_id = target.0;
-            }
+        let (want_id, want_name): (Option<cranelift_module::FuncId>, &str) = if v_ty == clif_types::F64 {
+            (ctx.func_ids.get("datara_rt_print_float").map(|t| t.0), "datara_rt_print_float")
         } else if ctx.string_vids.contains(&first_arg_id) {
-            if let Some(target) = ctx.func_ids.get("datara_rt_print_str") {
-                resolved_callee_id = target.0;
-            }
+            (ctx.func_ids.get("datara_rt_print_str").map(|t| t.0), "datara_rt_print_str")
         } else if ctx.bool_vids.contains(&first_arg_id) {
-            if let Some(target) = ctx.func_ids.get("datara_rt_print_bool") {
-                resolved_callee_id = target.0;
-            }
-        } else if ctx.list_vids.contains(&first_arg_id)
-            && let Some(target) = ctx.func_ids.get("datara_rt_print_list")
-        {
-            resolved_callee_id = target.0;
+            (ctx.func_ids.get("datara_rt_print_bool").map(|t| t.0), "datara_rt_print_bool")
+        } else if ctx.list_vids.contains(&first_arg_id) {
+            (
+                ctx.func_ids.get("datara_rt_print_list").map(|t| t.0),
+                "datara_rt_print_list",
+            )
+        } else {
+            (None, "")
+        };
+        if let Some(id) = want_id {
+            resolved_callee_id = id;
+            resolved_callee_name = want_name.to_string();
         }
     }
 
@@ -660,7 +682,9 @@ pub fn compile_call<M: ClifModule>(
     // floats as their IEEE bit pattern). An F64 value
     // passed against an I64 param fails Cranelift
     // verification, so bitcast per the declared sig.
-    if let Some((_, callee_sig)) = ctx.func_ids.get(&callee_name) {
+    // NB: use the RESOLVED name — print specialization may have
+    // swapped the callee after `callee_name` was fixed.
+    if let Some((_, callee_sig)) = ctx.func_ids.get(&resolved_callee_name) {
         for (i, av) in arg_vals.iter_mut().enumerate() {
             if ctx.builder.func.dfg.value_type(*av) == clif_types::F64
                 && callee_sig
@@ -689,16 +713,20 @@ pub fn compile_call<M: ClifModule>(
     }
     let call_inst = ctx.builder.ins().call(callee_ref, &arg_vals);
     let results = ctx.builder.inst_results(call_inst);
+    // ret_ty lookup: resolved name first (print specialization may have
+    // swapped it), then the original, then the raw lowering name.
     let ret_ty = ctx
         .dmir_module
         .functions
-        .get(&callee_name)
+        .get(&resolved_callee_name)
+        .or_else(|| ctx.dmir_module.functions.get(&callee_name))
         .or_else(|| ctx.dmir_module.functions.get(func))
         .map(|f| f.return_type.as_str())
         .or_else(|| {
             ctx.dmir_module
                 .extern_functions
-                .get(&callee_name)
+                .get(&resolved_callee_name)
+                .or_else(|| ctx.dmir_module.extern_functions.get(&callee_name))
                 .or_else(|| ctx.dmir_module.extern_functions.get(func))
                 .map(|(_, ret)| ret.as_str())
         })

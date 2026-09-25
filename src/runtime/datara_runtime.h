@@ -172,6 +172,15 @@ void        datara_rt_clear_capture(void);
 // String Operations
 const char* datara_rt_int_to_str(int64_t v);
 const char* datara_rt_str_concat(const char* a, const char* b);
+/* P1: unique-owner in-place append. The optimizer only emits this when it
+   proved the previous LHS value dead (use-count == 1); the runtime still
+   falls back to the copy path if the buffer is not a live growable block. */
+const char* datara_rt_str_concat_mut(const char* dst, const char* b);
+/* P1 test surface: growable-buffer ownership semantics. */
+int64_t     datara_rt_strbuf_test_growable(const char* s);
+int64_t     datara_rt_strbuf_test_cap(const char* s);
+int64_t     datara_rt_strbuf_test_len(const char* s);
+void        datara_rt_strbuf_test_consume(const char* s);
 const char* datara_rt_str_concat_3(const char* a, const char* b, const char* c);
 const char* datara_rt_str_concat_4(const char* a, const char* b, const char* c, const char* d);
 const char* datara_rt_str_concat_5(const char* a, const char* b, const char* c, const char* d, const char* e);

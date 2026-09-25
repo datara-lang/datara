@@ -640,7 +640,7 @@ pub(crate) fn cmd_build(command: &str, args: &[String]) -> bool {
         "tiny"
     } else if args.iter().any(|a| a == "--domain") {
         "domain"
-    } else if command == "build" {
+    } else if command == "build" || command == "run" {
         if debug_info { "debug" } else { "release" }
     } else {
         command

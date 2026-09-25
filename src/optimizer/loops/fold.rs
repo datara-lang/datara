@@ -61,6 +61,33 @@ pub(crate) struct FoldPlan {
     is_float: bool,
 }
 
+/// The string-build loop fold plan: `s = s + piece` accumulation loop.
+pub(crate) struct StringFoldPlan {
+    pub(super) header: BasicBlockId,
+    pub(super) body: BasicBlockId,
+    pub(super) exit: BasicBlockId,
+    pub(super) preheader: BasicBlockId,
+    /// The accumulator's header parameter.
+    pub(super) p_s: ValueId,
+    /// Initial accumulator value (defined outside the loop).
+    pub(super) s0: ValueId,
+    /// The loop bound `n` in `i < n` (defined outside the loop).
+    pub(super) n: ValueId,
+    /// The invariant appended piece (defined outside the loop).
+    pub(super) piece: ValueId,
+    /// Induction start: 0 or 1.
+    pub(super) start: i64,
+    pub(super) is_le: bool,
+    /// Number of `concat` appends executed per loop iteration (the latch
+    /// may be unrolled, so one iteration can append the piece more than
+    /// once). The closed form repeats the piece
+    /// `appends_per_iter * trips` times.
+    pub(super) appends_per_iter: usize,
+    /// Var-form accumulator variable name (None for the param form). The
+    /// exit write-back `AssignVar(name, s_final)` uses it.
+    pub(super) acc_var: Option<String>,
+}
+
 impl LoopOptimizer {
     pub(crate) fn match_countable_loop(
         f: &Function,
@@ -795,7 +822,7 @@ impl LoopOptimizer {
         !loop_defs.contains(v)
     }
 
-    fn outside_uses_ok(
+    pub(super) fn outside_uses_ok(
         f: &Function,
         cfg: &ControlFlowGraph,
         lp: &crate::dmir::cfg::NaturalLoop,
@@ -1420,7 +1447,7 @@ impl LoopOptimizer {
         }
     }
 
-    fn rewrite_term_uses(term: &mut Terminator, from: ValueId, to: ValueId) {
+    pub(super) fn rewrite_term_uses(term: &mut Terminator, from: ValueId, to: ValueId) {
         match term {
             Terminator::Branch { args, .. } => {
                 for a in args {

@@ -5,6 +5,6 @@ fn greet(name: Str) -> Str {
 
 fn main() {
     let msg = greet("World")
-    println(msg)
-    println("Datara is a high-performance post-OOP systems language.")
+    out msg
+    out "Datara is a high-performance post-OOP systems language."
 }

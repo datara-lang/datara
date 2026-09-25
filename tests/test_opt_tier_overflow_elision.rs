@@ -255,16 +255,22 @@ fn runtime_bound_loop_is_never_marked_even_at_speed() {
         "a runtime bound gives no static proof; the increment must stay checked"
     );
 
-    // Constant bound: the same shape IS provable and gets marked.
+    // Constant bound: the same shape IS provable. The induction increment
+    // itself is marked (legacy path), and the v1.4.7 range pass also marks
+    // the body sum `s + i` (its range [0, 100+99] fits i64) — so the pass
+    // reports 2 markings total.
     let mut constant = build(true);
     let mut trace2 = forgen::optimizer::cost_model::OptimizationDecisionTrace::new();
     assert_eq!(
         ovf_elide::elide_induction_overflow(&mut constant, &mut trace2),
-        1,
-        "constant bound 100 with step 1 is provable; the increment must be marked"
+        2,
+        "constant bound 100 with step 1 is provable; the increment and the bounded body sum must be marked"
     );
     let f = constant.functions.get("loop_fn").unwrap();
     assert!(f.proven_no_overflow.contains(&ValueId(9)));
+    // The runtime-bound variant above proved nothing, so its body sum must
+    // also stay unmarked — double-check the exact ValueId set here.
+    assert!(!constant.functions.get("loop_fn").unwrap().proven_no_overflow.contains(&ValueId(8)));
 }
 
 #[test]

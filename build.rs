@@ -20,39 +20,72 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
-    println!("cargo:rerun-if-changed=src/runtime/datara_runtime.c");
     println!("cargo:rerun-if-changed=src/runtime/datara_runtime.h");
-    println!("cargo:rerun-if-changed=src/runtime/datara_js.h");
-    println!("cargo:rerun-if-changed=src/runtime/datara_js.c");
-    println!("cargo:rerun-if-changed=src/runtime/datara_napi.h");
-    println!("cargo:rerun-if-changed=src/runtime/datara_napi.c");
-    println!("cargo:rerun-if-changed=src/runtime/datara_py.c");
-    println!("cargo:rerun-if-changed=src/runtime/datara_py.h");
-    println!("cargo:rerun-if-changed=src/runtime/datara_rt_scheduler.c");
-    println!("cargo:rerun-if-changed=src/runtime/datara_rt_scheduler.h");
-    println!("cargo:rerun-if-changed=src/runtime/datara_polyglot.c");
-    println!("cargo:rerun-if-changed=src/runtime/datara_polyglot.h");
-    println!("cargo:rerun-if-changed=src/runtime/datara_thread.c");
-    println!("cargo:rerun-if-changed=src/runtime/datara_thread.h");
-    println!("cargo:rerun-if-changed=src/runtime/datara_systems.c");
-    println!("cargo:rerun-if-changed=src/runtime/datara_systems.h");
+    println!("cargo:rerun-if-changed=src/runtime/datara_rt_internal.h");
+    println!("cargo:rerun-if-changed=src/runtime/datara_alloc.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_core.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_crypto.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_fs.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_guard.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_list.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_map.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_math.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_mem.c");
     println!("cargo:rerun-if-changed=src/runtime/datara_memprofile.c");
     println!("cargo:rerun-if-changed=src/runtime/datara_memprofile.h");
+    println!("cargo:rerun-if-changed=src/runtime/datara_napi.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_napi.h");
+    println!("cargo:rerun-if-changed=src/runtime/datara_net.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_parallel.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_pgo.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_polyglot.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_polyglot.h");
+    println!("cargo:rerun-if-changed=src/runtime/datara_print.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_py.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_py.h");
+    println!("cargo:rerun-if-changed=src/runtime/datara_js.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_js.h");
+    println!("cargo:rerun-if-changed=src/runtime/datara_rt_scheduler.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_rt_scheduler.h");
+    println!("cargo:rerun-if-changed=src/runtime/datara_simd.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_string.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_systems.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_systems.h");
+    println!("cargo:rerun-if-changed=src/runtime/datara_thread.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_thread.h");
+    println!("cargo:rerun-if-changed=src/runtime/datara_ui.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_value.c");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()));
     let runtime_dir = manifest_dir.join("src").join("runtime");
 
     let mut build = cc::Build::new();
     build
-        .file(runtime_dir.join("datara_runtime.c"))
-        .file(runtime_dir.join("datara_rt_scheduler.c"))
+        .file(runtime_dir.join("datara_alloc.c"))
+        .file(runtime_dir.join("datara_core.c"))
+        .file(runtime_dir.join("datara_crypto.c"))
+        .file(runtime_dir.join("datara_fs.c"))
+        .file(runtime_dir.join("datara_guard.c"))
+        .file(runtime_dir.join("datara_list.c"))
+        .file(runtime_dir.join("datara_map.c"))
+        .file(runtime_dir.join("datara_math.c"))
+        .file(runtime_dir.join("datara_mem.c"))
+        .file(runtime_dir.join("datara_memprofile.c"))
+        .file(runtime_dir.join("datara_napi.c"))
+        .file(runtime_dir.join("datara_net.c"))
+        .file(runtime_dir.join("datara_parallel.c"))
+        .file(runtime_dir.join("datara_pgo.c"))
+        .file(runtime_dir.join("datara_polyglot.c"))
+        .file(runtime_dir.join("datara_print.c"))
         .file(runtime_dir.join("datara_py.c"))
         .file(runtime_dir.join("datara_js.c"))
-        .file(runtime_dir.join("datara_napi.c"))
-        .file(runtime_dir.join("datara_polyglot.c"))
-        .file(runtime_dir.join("datara_thread.c"))
+        .file(runtime_dir.join("datara_rt_scheduler.c"))
+        .file(runtime_dir.join("datara_simd.c"))
+        .file(runtime_dir.join("datara_string.c"))
         .file(runtime_dir.join("datara_systems.c"))
-        .file(runtime_dir.join("datara_memprofile.c"))
+        .file(runtime_dir.join("datara_thread.c"))
+        .file(runtime_dir.join("datara_ui.c"))
+        .file(runtime_dir.join("datara_value.c"))
         .include(&runtime_dir)
         .opt_level(3)
         .cargo_metadata(true);

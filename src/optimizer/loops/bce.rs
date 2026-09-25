@@ -5,6 +5,153 @@ use crate::dmir::{BasicBlockId, Function, Inst, Terminator, ValueId};
 use crate::optimizer::cost_model::{CostModel, OptimizationDecisionTrace};
 use std::collections::{HashMap, HashSet};
 
+/// Whole-function length value lattice, shared with `bce_affine2d`.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(super) enum LenVal {
+    Const(i64),
+    Vid(ValueId),
+}
+
+/// Immutable view of the analysis maps `bce_pass` builds, handed to the
+/// extracted 2D-affine phase (`bce_affine2d::eliminate_affine_2d`). The
+/// phase only rewrites call targets in `f`, so all maps stay shared,
+/// read-only references.
+pub(super) struct BceCtxt<'a> {
+    pub(super) cfg: &'a ControlFlowGraph,
+    pub(super) consts: &'a HashMap<ValueId, i64>,
+    pub(super) list_len: &'a HashMap<ValueId, LenVal>,
+    pub(super) val_to_name: &'a HashMap<ValueId, String>,
+    pub(super) var_of_val: &'a HashMap<ValueId, String>,
+    pub(super) copy_of: &'a HashMap<ValueId, ValueId>,
+    pub(super) var_len: &'a HashMap<String, LenVal>,
+    pub(super) var_const: &'a HashMap<String, i64>,
+    pub(super) mul_map: &'a HashMap<ValueId, (ValueId, ValueId)>,
+    pub(super) add_map: &'a HashMap<ValueId, (ValueId, ValueId)>,
+    pub(super) block_param_incoming: &'a HashMap<ValueId, Vec<ValueId>>,
+}
+
+impl<'a> BceCtxt<'a> {
+    pub(super) fn resolve_vid_fn(
+        &self,
+    ) -> impl Fn(ValueId) -> ValueId + '_ {
+        let copy_of = self.copy_of;
+        move |mut v: ValueId| {
+            for _ in 0..32 {
+                match copy_of.get(&v) {
+                    Some(&next) if next != v => v = next,
+                    _ => return v,
+                }
+            }
+            v
+        }
+    }
+
+    pub(super) fn resolve_name_fn(
+        &self,
+    ) -> impl Fn(ValueId) -> Option<String> + '_ {
+        let copy_of = self.copy_of;
+        let val_to_name = self.val_to_name;
+        move |mut v: ValueId| {
+            for _ in 0..32 {
+                if let Some(n) = val_to_name.get(&v) {
+                    return Some(n.clone());
+                }
+                match copy_of.get(&v) {
+                    Some(&next) if next != v => v = next,
+                    _ => return None,
+                }
+            }
+            None
+        }
+    }
+
+    pub(super) fn resolve_name_deep_fn(
+        &self,
+    ) -> impl Fn(ValueId) -> Option<String> + '_ {
+        let val_to_name = self.val_to_name;
+        let var_of_val = self.var_of_val;
+        let copy_of = self.copy_of;
+        let block_param_incoming = self.block_param_incoming;
+        move |v: ValueId| {
+            let mut visited = HashSet::new();
+            let mut queue = vec![v];
+            while let Some(curr) = queue.pop() {
+                if let Some(n) = val_to_name.get(&curr).or_else(|| var_of_val.get(&curr)) {
+                    return Some(n.clone());
+                }
+                let mut resolved = curr;
+                for _ in 0..32 {
+                    match copy_of.get(&resolved) {
+                        Some(&next) if next != resolved => resolved = next,
+                        _ => break,
+                    }
+                }
+                if let Some(n) = val_to_name
+                    .get(&resolved)
+                    .or_else(|| var_of_val.get(&resolved))
+                {
+                    return Some(n.clone());
+                }
+                if !visited.insert(resolved) {
+                    continue;
+                }
+                if let Some(incomings) = block_param_incoming.get(&resolved) {
+                    for &inc in incomings {
+                        queue.push(inc);
+                    }
+                }
+            }
+            None
+        }
+    }
+
+    pub(super) fn const_val_fn(&self) -> impl Fn(ValueId) -> Option<i64> + '_ {
+        let consts = self.consts;
+        let copy_of = self.copy_of;
+        move |vid: ValueId| {
+            let mut r = vid;
+            for _ in 0..32 {
+                match copy_of.get(&r) {
+                    Some(&next) if next != r => r = next,
+                    _ => break,
+                }
+            }
+            consts.get(&r).copied().or_else(|| consts.get(&vid).copied())
+        }
+    }
+
+    pub(super) fn find_mul_fn(&self) -> impl Fn(ValueId) -> Option<ValueId> + '_ {
+        let mul_map = self.mul_map;
+        let copy_of = self.copy_of;
+        let block_param_incoming = self.block_param_incoming;
+        move |v: ValueId| {
+            let mut visited = HashSet::new();
+            let mut queue = vec![v];
+            while let Some(curr) = queue.pop() {
+                let mut resolved = curr;
+                for _ in 0..32 {
+                    match copy_of.get(&resolved) {
+                        Some(&next) if next != resolved => resolved = next,
+                        _ => break,
+                    }
+                }
+                if mul_map.contains_key(&resolved) {
+                    return Some(resolved);
+                }
+                if !visited.insert(resolved) {
+                    continue;
+                }
+                if let Some(incomings) = block_param_incoming.get(&resolved) {
+                    for &inc in incomings {
+                        queue.push(inc);
+                    }
+                }
+            }
+            None
+        }
+    }
+}
+
 impl LoopOptimizer {
     pub fn bce_pass(
         f: &mut Function,
@@ -13,13 +160,6 @@ impl LoopOptimizer {
     ) -> usize {
         let mut eliminated = 0;
         let cfg = ControlFlowGraph::build(f);
-
-        // Whole-function value lattice
-        #[derive(Clone, Copy, PartialEq, Debug)]
-        enum LenVal {
-            Const(i64),
-            Vid(ValueId),
-        }
 
         let mut consts: HashMap<ValueId, i64> = HashMap::new();
         let mut list_len: HashMap<ValueId, LenVal> = HashMap::new();
@@ -31,6 +171,7 @@ impl LoopOptimizer {
         let mut assigned: HashSet<String> = HashSet::new();
         let mut var_len_of_arr: HashMap<String, String> = HashMap::new();
         let mut var_len: HashMap<String, LenVal> = HashMap::new();
+        let mut var_const: HashMap<String, i64> = HashMap::new();
 
         for (p_name, _ty, p_val) in &f.params {
             name_to_val.insert(p_name.clone(), *p_val);
@@ -144,6 +285,12 @@ impl LoopOptimizer {
                         } else if let Some(&c) = consts.get(value) {
                             var_len.insert(name.clone(), LenVal::Const(c));
                         }
+                        let resolved_val = resolve_vid(*value, &copy_of);
+                        if let Some(&c) = consts.get(&resolved_val).or_else(|| consts.get(value)) {
+                            var_const.insert(name.clone(), c);
+                        } else {
+                            var_const.remove(name);
+                        }
                         if let Some(prev) = name_to_val.get(name) {
                             if *prev != *value {
                                 val_to_name.remove(prev);
@@ -162,6 +309,9 @@ impl LoopOptimizer {
                         }
                         if let Some(&l) = var_len.get(name) {
                             list_len.insert(*dest, l);
+                        }
+                        if let Some(&c) = var_const.get(name) {
+                            consts.insert(*dest, c);
                         }
                     }
                     Inst::UnOp {
@@ -280,7 +430,10 @@ impl LoopOptimizer {
             None
         }
 
-        let const_val = |vid: ValueId| -> Option<i64> { consts.get(&vid).copied() };
+        let const_val = |vid: ValueId| -> Option<i64> {
+            let r = resolve_vid(vid, &copy_of);
+            consts.get(&r).copied().or_else(|| consts.get(&vid).copied())
+        };
 
         let mut block_param_incoming: HashMap<ValueId, Vec<ValueId>> = HashMap::new();
         for blk in &f.blocks {
@@ -390,25 +543,7 @@ impl LoopOptimizer {
             }
         }
 
-        let find_mul = |v: ValueId| -> Option<ValueId> {
-            let mut visited = HashSet::new();
-            let mut queue = vec![v];
-            while let Some(curr) = queue.pop() {
-                let resolved = resolve_vid(curr, &copy_of);
-                if mul_map.contains_key(&resolved) {
-                    return Some(resolved);
-                }
-                if !visited.insert(resolved) {
-                    continue;
-                }
-                if let Some(incomings) = block_param_incoming.get(&resolved) {
-                    for &inc in incomings {
-                        queue.push(inc);
-                    }
-                }
-            }
-            None
-        };
+        // find_mul moved to BceCtxt::find_mul_fn (used by bce_affine2d too)
 
         // Track list lengths populated in countable loops: `while i < bound { list.push(...) }`
         for lp in &cfg.loops {
@@ -1127,181 +1262,21 @@ impl LoopOptimizer {
         }
 
         // --- 2D Row-Major Affine Index Bounds Check Elimination ---
-        // Proves: 0 <= (I * N + J) < len(arr) when I < N, J < N, and len(arr) >= N * N.
-        // Applicable to all matrix operations, 2D convolutions, image processing, and grids.
-        let mut loop_bounds: Vec<(
-            ValueId,
-            Option<String>,
-            ValueId,
-            Option<String>,
-            HashSet<BasicBlockId>,
-        )> = Vec::new();
-        for lp in &cfg.loops {
-            let header_block = match f.get_block(lp.header) {
-                Some(b) => b,
-                None => continue,
-            };
-            if let Terminator::CondBranch { cond, .. } = &header_block.terminator {
-                for inst in &header_block.instructions {
-                    if let Inst::BinOp {
-                        dest,
-                        op,
-                        left,
-                        right,
-                        ..
-                    } = inst
-                    {
-                        if dest == cond && op == "<" {
-                            let left_res = resolve_vid(*left, &copy_of);
-                            let right_res = resolve_vid(*right, &copy_of);
-                            let left_name = resolve_name(*left, &copy_of, &val_to_name);
-                            let right_name = resolve_name(*right, &copy_of, &val_to_name);
-                            let loop_blocks: HashSet<_> = lp.blocks.iter().copied().collect();
-                            loop_bounds.push((
-                                left_res,
-                                left_name,
-                                right_res,
-                                right_name,
-                                loop_blocks,
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-
-        let mut affine_2d_eliminated = 0;
-        for blk in &mut f.blocks {
-            let blk_id = blk.id;
-            for inst in &mut blk.instructions {
-                if let Inst::Call { func, args, .. } = inst {
-                    if (func == "datara_rt_list_get" || func == "datara_rt_list_set")
-                        && args.len() >= 2
-                    {
-                        let arr_vid = resolve_vid(args[0], &copy_of);
-                        let arr_name = resolve_name_deep(args[0]);
-                        let idx_vid = resolve_vid(args[1], &copy_of);
-
-                        if let Some(&(add_l, add_r)) = add_map.get(&idx_vid) {
-                            let pairs = [(add_l, add_r), (add_r, add_l)];
-                            for (mul_cand, off_cand) in pairs {
-                                if let Some(resolved_mul) = find_mul(mul_cand) {
-                                    if let Some(&(m1, m2)) = mul_map.get(&resolved_mul) {
-                                        let factor_choices = [(m1, m2), (m2, m1)];
-                                        for (i_val, n_val) in factor_choices {
-                                            let j_val = off_cand;
-                                            let is_bounded =
-                                                |val: ValueId, bound: ValueId| -> bool {
-                                                    let v_name = resolve_name_deep(val);
-                                                    let b_name = resolve_name_deep(bound);
-                                                    let v_res = resolve_vid(val, &copy_of);
-                                                    let b_res = resolve_vid(bound, &copy_of);
-                                                    loop_bounds.iter().any(
-                                                        |(lv, ln, rv, rn, blocks)| {
-                                                            if !blocks.contains(&blk_id) {
-                                                                return false;
-                                                            }
-                                                            let var_matches = *lv == val
-                                                                || *lv == v_res
-                                                                || (ln.is_some() && ln == &v_name);
-                                                            let bound_matches = *rv == bound
-                                                                || *rv == b_res
-                                                                || (rn.is_some() && rn == &b_name);
-                                                            var_matches && bound_matches
-                                                        },
-                                                    )
-                                                };
-
-                                            if is_bounded(i_val, n_val) && is_bounded(j_val, n_val)
-                                            {
-                                                let arr_len_match = {
-                                                    let mut ok = false;
-                                                    let check_len_vid = |len_v: ValueId| -> bool {
-                                                        if let Some(resolved_len) = find_mul(len_v)
-                                                        {
-                                                            if let Some(&(ml, mr)) =
-                                                                mul_map.get(&resolved_len)
-                                                            {
-                                                                let ml_res =
-                                                                    resolve_vid(ml, &copy_of);
-                                                                let mr_res =
-                                                                    resolve_vid(mr, &copy_of);
-                                                                let n_res =
-                                                                    resolve_vid(n_val, &copy_of);
-                                                                let ml_name = resolve_name_deep(ml);
-                                                                let mr_name = resolve_name_deep(mr);
-                                                                let n_name =
-                                                                    resolve_name_deep(n_val);
-                                                                let m_ok =
-                                                                    |r, n: &Option<String>| {
-                                                                        r == n_res
-                                                                            || (n.is_some()
-                                                                                && n == &n_name)
-                                                                    };
-                                                                if m_ok(ml_res, &ml_name)
-                                                                    && m_ok(mr_res, &mr_name)
-                                                                {
-                                                                    return true;
-                                                                }
-                                                            }
-                                                        }
-                                                        if let (Some(nc), Some(lc)) =
-                                                            (const_val(n_val), const_val(len_v))
-                                                        {
-                                                            if nc * nc <= lc {
-                                                                return true;
-                                                            }
-                                                        }
-                                                        false
-                                                    };
-                                                    let len_cand =
-                                                        list_len.get(&arr_vid).or_else(|| {
-                                                            arr_name
-                                                                .as_ref()
-                                                                .and_then(|an| var_len.get(an))
-                                                        });
-                                                    if let Some(&LenVal::Vid(v)) = len_cand {
-                                                        ok = check_len_vid(v);
-                                                    }
-                                                    ok
-                                                };
-
-                                                if arr_len_match {
-                                                    *func = format!("{}_unchecked", func);
-                                                    eliminated += 1;
-                                                    affine_2d_eliminated += 1;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                if func.ends_with("_unchecked") {
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if affine_2d_eliminated > 0 {
-            trace.record(
-                "Affine2D:BCE",
-                &format!("{}:matrix_indexing", f.name),
-                "Applied",
-                &format!(
-                    "+{} BCE proven 2D row-major unchecked access",
-                    affine_2d_eliminated
-                ),
-                "0",
-                &format!(
-                    "BCE proven: 0 <= i * N + j < N * N <= arr.len() for {} accesses",
-                    affine_2d_eliminated
-                ),
-            );
-        }
+        // (moved to bce_affine2d.rs — P7 module split, keeps bce.rs < 60 KB)
+        let ctx = BceCtxt {
+            cfg: &cfg,
+            consts: &consts,
+            list_len: &list_len,
+            val_to_name: &val_to_name,
+            var_of_val: &var_of_val,
+            copy_of: &copy_of,
+            var_len: &var_len,
+            var_const: &var_const,
+            mul_map: &mul_map,
+            add_map: &add_map,
+            block_param_incoming: &block_param_incoming,
+        };
+        eliminated += super::bce_affine2d::eliminate_affine_2d(f, &ctx, trace);
 
         eliminated
     }

@@ -87,6 +87,8 @@ pub struct RuntimeIds {
     pub rt_out_str_id: FuncId,
     pub rt_err_id: FuncId,
     pub rt_concat_id: FuncId,
+    // P1: unique-owner in-place append.
+    pub rt_concat_mut_id: FuncId,
     pub rt_concat_3_id: FuncId,
     pub rt_concat_4_id: FuncId,
     pub rt_concat_5_id: FuncId,
@@ -146,6 +148,8 @@ pub struct CoreRuntimeIds {
     pub rt_out_str_id: FuncId,
     pub rt_err_id: FuncId,
     pub rt_concat_id: FuncId,
+    // P1: unique-owner in-place append.
+    pub rt_concat_mut_id: FuncId,
     pub rt_concat_3_id: FuncId,
     pub rt_concat_4_id: FuncId,
     pub rt_concat_5_id: FuncId,

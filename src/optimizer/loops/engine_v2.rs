@@ -16,7 +16,7 @@
 #![allow(clippy::all)]
 
 use crate::dmir::cfg::ControlFlowGraph;
-use crate::dmir::{BasicBlock, BasicBlockId, Function, Inst, Terminator, ValueId};
+use crate::dmir::{BasicBlock, BasicBlockId, BlockParam, Function, Inst, Terminator, ValueId};
 use crate::optimizer::cost_model::{CostModel, OptimizationDecisionTrace};
 use std::collections::{HashMap, HashSet};
 
@@ -788,6 +788,20 @@ impl LoopEngineV2 {
                         unroll_factor, body_len
                     ),
                 );
+                // FP-latency split (P3): the chained unroll above replicates a
+                // float reduction onto ONE serial fadd chain, which still runs
+                // at the fadd latency and gains no instruction-level
+                // parallelism. Split the two copies onto two independent
+                // accumulator lanes (what a 2-lane vectorizer does); the loop
+                // exit combines them. Fully guarded — no-op when unproven.
+                crate::optimizer::loops::reduce_lanes::split_float_reduction_lanes(
+                    f,
+                    &lp.blocks,
+                    header_id,
+                    body_id,
+                    &mut fresh,
+                    trace,
+                );
                 unrolled += 1;
                 break;
             }
@@ -796,6 +810,32 @@ impl LoopEngineV2 {
         unrolled
     }
 
+    /// FP-latency split for 2-way unrolled float reductions (P3).
+    ///
+    /// After the chained factor-2 unroll, a float reduction exists as TWO
+    /// copies feeding ONE serial fadd chain (copy 2 consumes copy 1's
+    /// result), so the unroll still runs at the fadd latency and gains no
+    /// ILP. This pass detects that shape and splits the reduction onto two
+    /// independent accumulator lanes, adding one F64 block param to the
+    /// loop header:
+    ///
+    ///   before:  c1 = mul ; s1 = acc + c1 ; c2 = mul ; s2 = s1 + c2
+    ///            back-edge args = [... s2 ...]
+    ///   after:   c1 = mul ; c2 = mul
+    ///            s1 = acc  + c1
+    ///            s2 = acc2 + c2
+    ///            back-edge args = [... s1 ... s2 ]  (acc2 slot appended)
+    ///
+    /// The loop exit gains acc2 as an extra block argument (initial 0.0 on
+    /// every preheader edge) and combines the lanes once:
+    /// `acc_final = acc + acc2`; uses of acc in the exit block are rewritten
+    /// to acc_final.
+    ///
+    /// Soundness: both lanes sum the same pairs in the same per-lane order;
+    /// combining once at the end is exactly what a 2-lane vectorized
+    /// reduction does (PLAN P3 acceptance allows the combined summation
+    /// tree). Every step is guarded; any unproven precondition makes the
+    /// pass a no-op.
     /// Resolves a ValueId to a compile-time integer constant, if it was
     /// defined as a `ConstInt` anywhere in the function.
     fn const_int_value(f: &Function, vid: ValueId) -> Option<i64> {
@@ -938,6 +978,13 @@ impl LoopEngineV2 {
     }
 
     /// Remaps all destination and source ValueIds in an instruction.
+    fn visit_dest_of(inst: &Inst) -> Option<ValueId> {
+        match inst {
+            Inst::ConstInt { dest, .. } | Inst::ConstFloat { dest, .. } => Some(*dest),
+            _ => None,
+        }
+    }
+
     fn remap_inst_vids(inst: &mut Inst, fresh: &mut usize, v_map: &mut HashMap<ValueId, ValueId>) {
         let remap = |v: &mut ValueId, map: &HashMap<ValueId, ValueId>| {
             if let Some(&new_v) = map.get(v) {

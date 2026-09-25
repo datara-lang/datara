@@ -19,7 +19,7 @@ fn main() {
     let r = Shape.Rect(10.0, 4.0)
     let p = Shape.Point
 
-    println(fmt"Circle area: {area(c)}")
-    println(fmt"Rect area: {area(r)}")
-    println(fmt"Point area: {area(p)}")
+    out fmt"Circle area: {area(c)}"
+    out fmt"Rect area: {area(r)}"
+    out fmt"Point area: {area(p)}"
 }

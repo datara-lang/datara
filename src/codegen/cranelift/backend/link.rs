@@ -110,7 +110,7 @@ impl RealCraneliftBackend {
         };
 
         if output.status.success() && abs_out.exists() {
-            let _ = fs::remove_file(&obj_path);
+            // KEEP-OBJ (debug):            let _ = fs::remove_file(&obj_path);
             let _ = fs::remove_file(abs_out.with_extension("ilk"));
             let is_shared = abs_out
                 .extension()

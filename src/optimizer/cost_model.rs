@@ -69,7 +69,7 @@ impl CostModel {
                 parallel_dispatch_threshold: 50_000,
                 vectorization_width: 4,
             },
-            "release" => Self {
+            "release" | "run" => Self {
                 inlining_threshold: 20,
                 sroa_max_fields: 8,
                 cse_max_expressions: 64,

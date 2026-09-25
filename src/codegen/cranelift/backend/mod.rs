@@ -204,6 +204,7 @@ impl RealCraneliftBackend {
             rt_out_str_id: core_ids.rt_out_str_id,
             rt_err_id: core_ids.rt_err_id,
             rt_concat_id: core_ids.rt_concat_id,
+            rt_concat_mut_id: core_ids.rt_concat_mut_id,
             rt_concat_3_id: core_ids.rt_concat_3_id,
             rt_concat_4_id: core_ids.rt_concat_4_id,
             rt_concat_5_id: core_ids.rt_concat_5_id,

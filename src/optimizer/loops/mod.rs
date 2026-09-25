@@ -1,9 +1,12 @@
 pub(crate) mod bce;
+pub(crate) mod bce_affine2d;
 pub(crate) mod bce_helpers;
 pub(crate) mod engine_v2;
 pub(crate) mod fold;
+pub(crate) mod string_fold;
 pub mod ovf_elide;
 pub mod polyhedral;
+pub(crate) mod reduce_lanes;
 pub(crate) mod unswitch;
 
 use crate::dmir::cfg::ControlFlowGraph;
@@ -121,6 +124,14 @@ impl LoopOptimizer {
         _cost_model: &CostModel,
         trace: &mut OptimizationDecisionTrace,
     ) -> usize {
+        // String-build loops first: `s = s + piece` accumulation folds to a
+        // single str_repeat allocation. Runs before the sum fold because the
+        // string shape also matches the generic countable pattern (Int/String
+        // param pair) and the sum matcher rejects it anyway — trying string
+        // first gives the specialized fold priority.
+        if Self::fold_string_build_loops(f, trace) > 0 {
+            return 1;
+        }
         let cfg = ControlFlowGraph::build(f);
         for lp in &cfg.loops {
             if let Some(plan) = Self::match_countable_loop(f, &cfg, lp) {

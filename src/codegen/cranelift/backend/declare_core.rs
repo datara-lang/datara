@@ -86,6 +86,11 @@ pub fn declare_runtime_core<M: ClifModule>(
         .declare_function("datara_rt_str_concat", Linkage::Import, &rt_concat_sig)
         .map_err(|e| e.to_string())?;
 
+    // P1: unique-owner in-place append (same signature as str_concat).
+    let rt_concat_mut_id = module
+        .declare_function("datara_rt_str_concat_mut", Linkage::Import, &rt_concat_sig)
+        .map_err(|e| e.to_string())?;
+
     let mut rt_concat_3_sig = Signature::new(call_conv);
     rt_concat_3_sig.params.push(AbiParam::new(clif_types::I64));
     rt_concat_3_sig.params.push(AbiParam::new(clif_types::I64));
@@ -336,6 +341,10 @@ pub fn declare_runtime_core<M: ClifModule>(
     func_ids.insert(
         "datara_rt_str_concat".into(),
         (rt_concat_id, rt_concat_sig.clone()),
+    );
+    func_ids.insert(
+        "datara_rt_str_concat_mut".into(),
+        (rt_concat_mut_id, rt_concat_sig.clone()),
     );
     func_ids.insert(
         "datara_rt_str_concat_3".into(),
@@ -1604,6 +1613,7 @@ pub fn declare_runtime_core<M: ClifModule>(
         rt_out_str_id,
         rt_err_id,
         rt_concat_id,
+        rt_concat_mut_id,
         rt_concat_3_id,
         rt_concat_4_id,
         rt_concat_5_id,

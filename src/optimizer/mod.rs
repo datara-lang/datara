@@ -173,6 +173,14 @@ impl Optimizer {
         module: &mut Module,
     ) -> Result<(), Box<crate::diagnostics::Diagnostic>> {
         if let Err(error) = crate::dmir::verify_module(module) {
+            if std::env::var("DATARA_DEBUG_VERIF").is_ok() {
+                if let Some(mf) = module.functions.get("main") {
+                    for b in &mf.blocks {
+                        eprintln!("DBG BLOCK {} params {:?} label={}", b.id.0, b.params.iter().map(|p| p.val.0).collect::<Vec<_>>(), b.label);
+                    }
+                }
+                eprintln!("DBG error: {}", error);
+            }
             let diag = crate::diagnostics::Diagnostic::error(
                 crate::diagnostics::ErrorCode::InternalVerification,
                 format!(
@@ -366,6 +374,14 @@ impl Optimizer {
         }
 
         if let Err(error) = crate::dmir::verify_module(module) {
+            if std::env::var("DATARA_DEBUG_VERIF").is_ok() {
+                if let Some(mf) = module.functions.get("main") {
+                    for b in &mf.blocks {
+                        eprintln!("DBG BLOCK {} params {:?} label={}", b.id.0, b.params.iter().map(|p| p.val.0).collect::<Vec<_>>(), b.label);
+                    }
+                }
+                eprintln!("DBG error: {}", error);
+            }
             let diag = crate::diagnostics::Diagnostic::error(
                 crate::diagnostics::ErrorCode::InternalVerification,
                 format!(
@@ -386,6 +402,11 @@ impl Optimizer {
                         eprintln!("  {:?}", inst);
                     }
                     eprintln!("  terminator: {:?}", b.terminator);
+                }
+                if std::env::var("DATARA_DUMP_PROVEN").is_ok() {
+                    let mut proven: Vec<_> = main_fn.proven_no_overflow.iter().copied().collect();
+                    proven.sort();
+                    eprintln!("PROVEN_NO_OVERFLOW: {:?}", proven);
                 }
             }
         }
@@ -420,6 +441,14 @@ impl Optimizer {
         pass(self, module);
 
         if let Err(error) = crate::dmir::verify_module(module) {
+            if std::env::var("DATARA_DEBUG_VERIF").is_ok() {
+                if let Some(mf) = module.functions.get("main") {
+                    for b in &mf.blocks {
+                        eprintln!("DBG BLOCK {} params {:?} label={}", b.id.0, b.params.iter().map(|p| p.val.0).collect::<Vec<_>>(), b.label);
+                    }
+                }
+                eprintln!("DBG error: {}", error);
+            }
             let diag = crate::diagnostics::Diagnostic::error(
                 crate::diagnostics::ErrorCode::InternalVerification,
                 format!(
@@ -508,7 +537,13 @@ impl Optimizer {
             {
                 changed = true;
             }
-            if PipelineFusionOptimizer::fuse_pipelines(f, &self.cost_model, &mut self.trace) > 0 {
+            if PipelineFusionOptimizer::fuse_pipelines_with_globals(
+                f,
+                &self.cost_model,
+                &mut self.trace,
+                &self.module_mutable_globals,
+            ) > 0
+            {
                 changed = true;
             }
             if polyhedral::PolyhedralOptimizer::optimize(f, &self.cost_model, &mut self.trace) > 0 {

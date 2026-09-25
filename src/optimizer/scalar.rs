@@ -361,6 +361,7 @@ impl ScalarOptimizer {
         let mut int_consts: HashMap<ValueId, i64> = HashMap::new();
         let mut const_to_val: HashMap<i64, ValueId> = HashMap::new();
         let mut non_negatives: HashSet<ValueId> = HashSet::new();
+        let mut bool_consts: HashMap<ValueId, bool> = HashMap::new();
 
         let mut max_id = 0;
         for (_, _, p_val) in &f.params {
@@ -428,6 +429,8 @@ impl ScalarOptimizer {
                     if *value >= 0 {
                         non_negatives.insert(*dest);
                     }
+                } else if let Inst::ConstBool { dest, value } = inst {
+                    bool_consts.insert(*dest, *value);
                 }
             }
         }
@@ -646,6 +649,55 @@ impl ScalarOptimizer {
                                 left,
                                 right,
                                 ty,
+                            });
+                        }
+                    }
+                    // Degenerate select folds: `select(true, a, b) => a`,
+                    // `select(false, a, b) => b`, `select(c, a, a) => a`.
+                    // These survive unroll/invariant-forwarding as garbage
+                    // `select(true, k, k)` nodes on the induction chain; each
+                    // one costs a real `cmov` in the hot loop body.
+                    Inst::Select {
+                        dest,
+                        cond,
+                        then_val,
+                        else_val,
+                        ty,
+                    } => {
+                        let fold_to = if then_val == else_val {
+                            Some(then_val)
+                        } else if let Some(&b) = bool_consts.get(&cond) {
+                            Some(if b { then_val } else { else_val })
+                        } else {
+                            None
+                        };
+                        if let Some(v) = fold_to {
+                            new_instructions.push(Inst::UnOp {
+                                dest,
+                                op: "copy".into(),
+                                operand: v,
+                                ty: ty.clone(),
+                            });
+                            simplified += 1;
+                            trace.record(
+                                "StrengthReduction",
+                                &format!("{}:bb{}:v{}", f.name, bi, dest.0),
+                                "Applied",
+                                if then_val == else_val {
+                                    "select(c, x, x) => x"
+                                } else {
+                                    "select(const, a, b) => chosen"
+                                },
+                                "None",
+                                "degenerate select",
+                            );
+                        } else {
+                            new_instructions.push(Inst::Select {
+                                dest,
+                                cond,
+                                then_val,
+                                else_val,
+                                ty: ty.clone(),
                             });
                         }
                     }

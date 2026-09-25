@@ -89,6 +89,7 @@ unsafe extern "C" {
     pub fn datara_rt_int_to_str_radix(v: i64, radix: i64, upper: i64) -> *const c_char;
     pub fn datara_rt_dec64_to_str_prec(v: i64, prec: i64) -> *const c_char;
     pub fn datara_rt_str_concat(a: *const c_char, b: *const c_char) -> *const c_char;
+    pub fn datara_rt_str_concat_mut(a: *const c_char, b: *const c_char) -> *const c_char;
     pub fn datara_rt_str_concat_3(
         a: *const c_char,
         b: *const c_char,
@@ -541,6 +542,8 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("dec64_to_str_prec", datara_rt_dec64_to_str_prec);
     reg!("datara_rt_str_concat", datara_rt_str_concat);
     reg!("str_concat", datara_rt_str_concat);
+    reg!("datara_rt_str_concat_mut", datara_rt_str_concat_mut);
+    reg!("str_concat_mut", datara_rt_str_concat_mut);
     reg!("datara_rt_str_concat_3", datara_rt_str_concat_3);
     reg!("datara_rt_str_concat_4", datara_rt_str_concat_4);
     reg!("datara_rt_str_concat_5", datara_rt_str_concat_5);
