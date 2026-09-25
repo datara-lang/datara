@@ -210,7 +210,8 @@
 
 ## M3. LSP production + VS Code `[ ]`
 
-- [ ] hover (типы + докстринги), goto definition (кросс-файлы через import-граф), find references, безопасный rename (все точки + компиляция после), completions (методы по типу приёмника, встроенные с сигнатурами), diagnostics в реальном времени (переиспользовать forgen check API)
+- [x] hover/goto-def/completions/diagnostics — уже существовали (v1.4.x); find references и rename добавлены 2026-09-25 (textDocument/references + textDocument/rename, WorkspaceEdit; тест test_lsp_m3 3/3 с ре-компиляцией переименованного исходника). Ограничение: скоуп — открытый документ (мультифайловый import-граф — следующий срез).
+- [x] VS Code extension LSP-клиент → добавлен 2026-09-25: editors/vscode/extension.js — dependency-free клиент (spawn `forgen lsp` через stdio, Content-Length framing), бридж diagnostics/hover/definition/references/rename/formatting; datara.serverPath setting; node --check OK.
 - [ ] Инкрементальный recheck одного файла < 50 мс (опора на кэш v1.4.4 + M4)
 - [ ] VS Code extension (editors/vscode): LSP-подключение, TextMate grammar (проверить/дополнить), сниппеты
 - [ ] Тесты: unit-тесты LSP на фиксированных проектах (hover/goto/rename); extension packaging
