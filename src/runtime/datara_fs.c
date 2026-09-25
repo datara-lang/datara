@@ -819,6 +819,69 @@ void* datara_rt_str_to_float_checked(const char* s) {
     return datara_rt_outcome_build_raw(1, bits, "");
 }
 
+// M1 UTF-8 codepoint indexing: translate a codepoint index to a byte
+// offset (clamped to the string length). Non-characters (continuation
+// bytes) never start a codepoint, so a codepoint index always lands on a
+// lead byte.
+int64_t datara_rt_str_cp_to_byte(const char* s, int64_t cp_index) {
+    if (!s || cp_index <= 0) return 0;
+    int64_t count = 0;
+    const unsigned char* p = (const unsigned char*)s;
+    while (*p) {
+        if ((*p & 0xC0) != 0x80) {
+            if (count == cp_index) {
+                return (int64_t)(p - (const unsigned char*)s);
+            }
+            count++;
+        }
+        p++;
+    }
+    return (int64_t)(p - (const unsigned char*)s);
+}
+
+// Inverse mapping: byte offset -> how many codepoints precede it. Used to
+// report find() results as codepoint indices.
+int64_t datara_rt_str_byte_to_cp(const char* s, int64_t byte_off) {
+    if (!s || byte_off <= 0) return 0;
+    int64_t count = 0;
+    const unsigned char* p = (const unsigned char*)s;
+    const unsigned char* limit = p + byte_off;
+    while (p < limit && *p) {
+        if ((*p & 0xC0) != 0x80) {
+            count++;
+        }
+        p++;
+    }
+    return count;
+}
+
+// Codepoint-indexed slice: [cp_start, cp_start+cp_len) clamped.
+const char* datara_rt_str_substring_cp(const char* s, int64_t cp_start, int64_t cp_len) {
+    if (!s || cp_start < 0 || cp_len <= 0) return "";
+    int64_t byte_start = datara_rt_str_cp_to_byte(s, cp_start);
+    if (s[byte_start] == 0) return "";
+    const unsigned char* p = (const unsigned char*)s + byte_start;
+    int64_t taken = 0;
+    while (*p) {
+        if ((*p & 0xC0) != 0x80) {
+            // A lead byte starts the NEXT codepoint: once cp_len codepoints
+            // are inside the slice, stop here. Continuation bytes of the
+            // last included codepoint fall through the loop untouched, so
+            // the cut always lands on a codepoint boundary.
+            if (taken == cp_len) break;
+            taken++;
+        }
+        p++;
+    }
+    int64_t byte_len = (int64_t)(p - (const unsigned char*)s) - byte_start;
+    if (byte_len <= 0) return "";
+    char* buf = datara_str_scratch_alloc((size_t)byte_len);
+    if (!buf) return "";
+    memcpy(buf, s + byte_start, (size_t)byte_len);
+    buf[byte_len] = 0;
+    return buf;
+}
+
 const char* datara_rt_str_substring(const char* s, int64_t start, int64_t len) {
     if (!s || start < 0 || len <= 0) return "";
     int64_t total_len = (int64_t)strlen(s);

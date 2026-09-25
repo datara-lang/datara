@@ -116,6 +116,17 @@ impl<'a> Lowering<'a> {
         // value, never as a raw string/list/map.
         function_return_types.insert("file_read_checked".into(), "Outcome<Str>".into());
         function_return_types.insert("datara_rt_file_read_checked".into(), "Outcome<Str>".into());
+        for f in [
+            "str_cp_to_byte",
+            "datara_rt_str_cp_to_byte",
+            "str_byte_to_cp",
+            "datara_rt_str_byte_to_cp",
+        ] {
+            function_return_types.insert((*f).into(), "Int".into());
+        }
+        for f in ["str_substring_cp", "datara_rt_str_substring_cp"] {
+            function_return_types.insert((*f).into(), "String".into());
+        }
         function_return_types.insert("parse_int".into(), "Outcome<Int>".into());
         function_return_types.insert("datara_rt_str_to_int_checked".into(), "Outcome<Int>".into());
         function_return_types.insert("parse_float".into(), "Outcome<Float>".into());

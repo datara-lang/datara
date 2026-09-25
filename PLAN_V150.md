@@ -143,6 +143,12 @@
 
 > Аудит 2026-09-25: stdlib = 707 строк тонких обёрток над C-рантаймом
 > (статик-методы, `StringUtils.contains(s, sub)`). Срез №1 сделан:
+> Срез №3 сделан: UTF-8-корректность — рантайм `datara_rt_str_cp_to_byte`/
+> `datara_rt_str_byte_to_cp`/`datara_rt_str_substring_cp` (перевод
+> кодпоинт-индекс ↔ байтовые смещения, срез строго по границам кодпоинтов);
+> stdlib find/slice/len теперь кодпоинтные. Верификация байт-в-байт
+> (python-декод stdout): slice("привет мир",0,6)="привет", ("日本語abc",1,2)="本語",
+> клэмп и смешанные строки корректны.
 > Срез №2 сделан: `parse_int`/`parse_float` с checked-семантикой →
 > `Outcome<Int>`/`Outcome<Float>` (рантайм datara_rt_str_to_int/float_checked
 > поверх strtoll/strtod с ERANGE и trailing-garbage детектом, ABI

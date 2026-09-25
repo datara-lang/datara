@@ -71,24 +71,28 @@ behavior StringUtils {
     }
 
     // --- M1 canonical text API (PLAN_V150) -------------------------------
-    // NOTE: the runtime primitives are currently BYTE-based. For ASCII
-    // payloads the semantics equal codepoint semantics; multi-byte UTF-8
-    // correctness (per-codepoint split/slice/index) is a dedicated runtime
-    // task tracked in PLAN_V150 M1 and must not be claimed done until the
-    // runtime pass lands.
+    // find/slice/len operate on CODEPOINTS, not bytes: the runtime
+    // translates codepoint indices to byte offsets internally, so
+    // "привет".slice(0, 2) is "пр" and find() reports codepoint positions.
+    // The raw str_index_of/str_substring builtins stay byte-based for
+    // low-level use.
 
-    /// First index of `sub` in `s`, or -1 when absent (the "find" verb).
+    /// First index of `sub` in `s` as a CODEPOINT index, or -1.
     find(s: Str, sub: Str) -> Int {
-        return str_index_of(s, sub)
+        val byte_pos = str_index_of(s, sub)
+        if byte_pos < 0 {
+            return -1
+        }
+        return str_byte_to_cp(s, byte_pos)
     }
 
-    /// Byte slice `[start, start+len)` clamped to the string bounds.
+    /// Codepoint slice `[start, start+len)` clamped to the string bounds.
     slice(s: Str, start: Int, len: Int) -> Str {
-        return str_substring(s, start, len)
+        return str_substring_cp(s, start, len)
     }
 
-    /// Byte length of the string (char_len counts decoded codepoints).
+    /// Codepoint length of the string (decoded UTF-8).
     len(s: Str) -> Int {
-        return str_len(s)
+        return str_chars(s)
     }
 }

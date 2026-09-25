@@ -191,6 +191,40 @@ pub fn declare_runtime_ext<M: ClifModule>(
     rt_str_substring_sig
         .returns
         .push(AbiParam::new(clif_types::I64));
+    // M1 UTF-8 codepoint indexing helpers (ptr,i64)->i64 and
+    // (ptr,i64,i64)->ptr, mirroring the substring signature shape.
+    let mut rt_str_cp_sig = Signature::new(call_conv);
+    rt_str_cp_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_str_cp_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_str_cp_sig.returns.push(AbiParam::new(clif_types::I64));
+    for (sym, alias) in [
+        ("datara_rt_str_cp_to_byte", "str_cp_to_byte"),
+        ("datara_rt_str_byte_to_cp", "str_byte_to_cp"),
+    ] {
+        let id = module
+            .declare_function(sym, Linkage::Import, &rt_str_cp_sig)
+            .map_err(|e| e.to_string())?;
+        func_ids.insert(sym.into(), (id, rt_str_cp_sig.clone()));
+        func_ids.insert(alias.into(), (id, rt_str_cp_sig.clone()));
+    }
+
+    let rt_str_substring_cp_sig = rt_str_substring_sig.clone();
+    let rt_str_substring_cp_id = module
+        .declare_function(
+            "datara_rt_str_substring_cp",
+            Linkage::Import,
+            &rt_str_substring_cp_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_str_substring_cp".into(),
+        (rt_str_substring_cp_id, rt_str_substring_cp_sig.clone()),
+    );
+    func_ids.insert(
+        "str_substring_cp".into(),
+        (rt_str_substring_cp_id, rt_str_substring_cp_sig),
+    );
+
     let rt_str_substring_id = module
         .declare_function(
             "datara_rt_str_substring",

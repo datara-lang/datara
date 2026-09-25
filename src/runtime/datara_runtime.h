@@ -36,6 +36,11 @@ void        datara_rt_eprintln(const char* s);
 void        datara_rt_assert(int64_t cond, const char* msg);
 int64_t     datara_rt_len(const char* s);
 /* M1 checked parsing (Outcome-returning) */
+/* M1 UTF-8 codepoint indexing */
+int64_t     datara_rt_str_cp_to_byte(const char* s, int64_t cp_index);
+int64_t     datara_rt_str_byte_to_cp(const char* s, int64_t byte_off);
+const char* datara_rt_str_substring_cp(const char* s, int64_t cp_start, int64_t cp_len);
+/* M1 checked parsing (Outcome-returning) */
 void*       datara_rt_str_to_int_checked(const char* s);
 void*       datara_rt_str_to_float_checked(const char* s);
 const char* datara_rt_input(const char* prompt);

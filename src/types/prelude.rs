@@ -543,6 +543,32 @@ impl<'a> TypeChecker<'a> {
                 Vec::new(),
             ),
         );
+        // M1 UTF-8 codepoint indexing helpers.
+        for f in &[
+            "str_cp_to_byte",
+            "datara_rt_str_cp_to_byte",
+            "str_byte_to_cp",
+            "datara_rt_str_byte_to_cp",
+        ] {
+            function_signatures.insert(
+                (*f).to_string(),
+                (
+                    vec![DataraType::String, DataraType::Int],
+                    DataraType::Int,
+                    Vec::new(),
+                ),
+            );
+        }
+        for f in &["str_substring_cp", "datara_rt_str_substring_cp"] {
+            function_signatures.insert(
+                (*f).to_string(),
+                (
+                    vec![DataraType::String, DataraType::Int, DataraType::Int],
+                    DataraType::String,
+                    Vec::new(),
+                ),
+            );
+        }
         for f in &[
             "str_len",
             "datara_rt_str_len",
