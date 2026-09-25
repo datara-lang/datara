@@ -73,7 +73,8 @@ behavior StringUtils {
     // --- M1 canonical text API (PLAN_V150) -------------------------------
     // find/slice/len operate on CODEPOINTS, not bytes: the runtime
     // translates codepoint indices to byte offsets internally, so
-    // "привет".slice(0, 2) is "пр" and find() reports codepoint positions.
+    // Slicing a 10-codepoint Cyrillic string at (0, 6) yields its first
+    // 6 letters, and find() reports CODEPOINT positions.
     // The raw str_index_of/str_substring builtins stay byte-based for
     // low-level use.
 

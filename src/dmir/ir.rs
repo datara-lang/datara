@@ -818,7 +818,7 @@ pub struct Module {
 /// struct layout. This is the SINGLE source of truth for narrow-type sizes:
 /// both canonical names (`Int8`, `UInt32`, `Float32`) and the legacy
 /// short-repr names (`I8`, `U8`, `F32`, ...) must resolve to the same
-/// byte count, or packed structs get the wrong layout (БАГ-1).
+/// byte count, or packed structs get the wrong layout (BUG-1).
 pub fn dm_repr_byte_size(repr: &str) -> u32 {
     match repr {
         "Int8" | "UInt8" | "Byte" | "I8" | "U8" | "Bool" | "Char" => 1,

@@ -489,7 +489,7 @@ pub fn declare_module_symbols<M: ClifModule>(
                     .get(&fkey)
                     .map(|s| s.as_str())
                     .unwrap_or("Int");
-                // v1.4.5 W1 (БАГ-1 fix): layout sizes go through the single
+                // v1.4.5 W1 (BUG-1 fix): layout sizes go through the single
                 // repr-size helper so canonical names (Int8/UInt32/Float32...)
                 // and legacy short reprs (I8/U32/F32...) agree. Previously the
                 // matcher only knew "I8"-style names, so an `Int8` field in a

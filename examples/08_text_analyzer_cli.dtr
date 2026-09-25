@@ -1,5 +1,5 @@
 ﻿// ============================================================================
-// CLI-УТИЛИТА 1: Анализатор текста и метрик читаемости (Text Analysis Engine)
+// CLI UTILITY 1: Text analyzer and readability metrics (Text Analysis Engine)
 // ============================================================================
 
 struct TextMetrics {
@@ -36,10 +36,10 @@ behavior TextMetrics {
     }
 
     complexity_grade(score: Float) -> Str => decide {
-        score >= 12.0 => "Университетский уровень (Сложный)",
-        score >= 9.0  => "Старшая школа (Средняя сложность)",
-        score >= 6.0  => "Средняя школа (Легко читается)",
-        else => "Начальный уровень (Очень просто)"
+        score >= 12.0 => "University level (Complex)",
+        score >= 9.0  => "High school (Medium complexity)",
+        score >= 6.0  => "Middle school (Easy to read)",
+        else => "Beginner level (Very simple)"
     }
 }
 
@@ -60,7 +60,7 @@ fn print_progress_bar(label: Str, value: Int, max_val: Int) {
 
 fn main() {
     out "================================================================="
-    out "      DATARA TEXT ENGINE: СТАТИСТИЧЕСКИЙ АНАЛИЗАТОР ТЕКСТА       "
+    out "      DATARA TEXT ENGINE: STATISTICAL TEXT ANALYZER       "
     out "================================================================="
 
     let metrics = TextMetrics {
@@ -77,19 +77,19 @@ fn main() {
     let read_idx = metrics.readability_index()
     let grade = metrics.complexity_grade(read_idx)
 
-    out fmt"Общее количество символов:       {metrics.total_chars}"
-    out fmt"Количество буквенных символов:    {metrics.letter_chars}"
-    out fmt"Количество слов в документе:      {metrics.word_count}"
-    out fmt"Количество предложений:           {metrics.sentence_count}"
+    out fmt"Total characters:               {metrics.total_chars}"
+    out fmt"Letter characters:              {metrics.letter_chars}"
+    out fmt"Words in document:              {metrics.word_count}"
+    out fmt"Sentences:                      {metrics.sentence_count}"
     out "-----------------------------------------------------------------"
-    out fmt"Средняя длина слова:              {avg_word} символов"
-    out fmt"Средняя длина предложения:        {avg_sent} слов"
-    out fmt"Индекс читаемости (Coleman-Liau): {read_idx}"
-    out fmt"Оценка сложности восприятия:      {grade}"
+    out fmt"Average word length:            {avg_word} characters"
+    out fmt"Average sentence length:        {avg_sent} words"
+    out fmt"Readability index (Coleman-Liau): {read_idx}"
+    out fmt"Comprehension grade:            {grade}"
     out "-----------------------------------------------------------------"
-    out "Фонетическое распределение (Гласные vs Согласные):"
-    print_progress_bar("Гласные  ", metrics.vowel_count, metrics.letter_chars)
-    print_progress_bar("Согласные", metrics.consonant_count, metrics.letter_chars)
+    out "Phonetic distribution (Vowels vs Consonants):"
+    print_progress_bar("Vowels   ", metrics.vowel_count, metrics.letter_chars)
+    print_progress_bar("Consonants", metrics.consonant_count, metrics.letter_chars)
     out "================================================================="
-    out "  Анализ завершен успешно за 0.00 мс (Вычислено нативно)."
+    out "  Analysis completed successfully in 0.00 ms (computed natively)."
 }

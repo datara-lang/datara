@@ -26,7 +26,7 @@ fn run_datara(code: &str, tag: &str) -> (String, i32) {
 fn test_unicode_cyrillic_scalars_and_loop() {
     let code = r#"
 fn main() {
-    let s = "Привет"
+    let s = "αβγδεζ"
     out str_len(s)
     out str_chars(s)
     mut count = 0
@@ -40,17 +40,17 @@ fn main() {
     let (stdout, code) = run_datara(code, "test_cyrillic");
     assert_eq!(code, 0);
     let lines: Vec<&str> = stdout.lines().collect();
-    // str_len("Привет") is 12 bytes
+    // str_len("αβγδεζ") is 12 bytes
     assert_eq!(lines[0], "12");
-    // str_chars("Привет") is 6 scalars
+    // str_chars("αβγδεζ") is 6 scalars
     assert_eq!(lines[1], "6");
-    // 6 characters printed: П, р, и, в, е, т
-    assert_eq!(lines[2], "П");
-    assert_eq!(lines[3], "р");
-    assert_eq!(lines[4], "и");
-    assert_eq!(lines[5], "в");
-    assert_eq!(lines[6], "е");
-    assert_eq!(lines[7], "т");
+    // 6 characters printed: α, β, γ, δ, ε, ζ
+    assert_eq!(lines[2], "α");
+    assert_eq!(lines[3], "β");
+    assert_eq!(lines[4], "γ");
+    assert_eq!(lines[5], "δ");
+    assert_eq!(lines[6], "ε");
+    assert_eq!(lines[7], "ζ");
     // count is 6
     assert_eq!(lines[8], "6");
 }
@@ -113,9 +113,9 @@ fn test_unicode_utf8_validation_in_runtime() {
         let valid_ascii = CString::new("Hello World").unwrap();
         assert_eq!(datara_rt_validate_utf8(valid_ascii.as_ptr()), 1);
 
-        let valid_cyrillic = CString::new("Мир").unwrap();
-        assert_eq!(datara_rt_validate_utf8(valid_cyrillic.as_ptr()), 1);
-        assert_eq!(datara_rt_str_chars(valid_cyrillic.as_ptr()), 3);
+        let valid_greek = CString::new("αβγ").unwrap();
+        assert_eq!(datara_rt_validate_utf8(valid_greek.as_ptr()), 1);
+        assert_eq!(datara_rt_str_chars(valid_greek.as_ptr()), 3);
 
         let valid_emoji = CString::new("𝐀").unwrap();
         assert_eq!(datara_rt_validate_utf8(valid_emoji.as_ptr()), 1);
@@ -174,7 +174,7 @@ fn main() {
 fn test_str_split_and_join_unicode() {
     let code = r#"
 fn main() {
-    let text = "один::два::три"
+    let text = "one::two::three"
     let parts = str_split(text, "::")
     let joined = str_join(parts, " + ")
     out joined
@@ -182,5 +182,5 @@ fn main() {
 "#;
     let (stdout, code) = run_datara(code, "test_split_join_unicode");
     assert_eq!(code, 0);
-    assert_eq!(stdout.trim(), "один + два + три");
+    assert_eq!(stdout.trim(), "one + two + three");
 }

@@ -2,7 +2,7 @@
 //! `&` (and), `|` (or), `^` (xor), `<<` (shift left), `>>` (arithmetic
 //! shift right).
 //!
-//! README_RU ("Побитовые операции и аппаратные интринсики") promises these
+//! The README bitwise-operations section promises these
 //! operators; the hardware intrinsics `and(...)`, `xor(...)`, `shl(...)`,
 //! `math_shr(...)` remain available alongside them.
 //!

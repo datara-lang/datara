@@ -17,20 +17,35 @@ fn read(path: &Path) -> String {
         .unwrap_or_else(|e| panic!("cannot read {}: {}", path.display(), e))
 }
 
-/// Extracts all `version-X.Y.Z-blue.svg` (or the localized Russian
-/// `версия-X.Y.Z-blue.svg`) badge versions from a README.
+/// Locale-neutral badge extraction: every `...-X.Y.Z-blue.svg` shield in a
+/// README is matched by its trailing version + suffix, so English
+/// (`version-1.4.5-blue.svg`) and localized badges
+/// (the localized badge in README_RU.md) are both covered without any
+/// locale-specific tokens in this source file.
 fn badge_versions(readme: &str) -> Vec<String> {
-    readme
-        .lines()
-        .filter_map(|line| {
-            let marker = ["version-", "версия-"]
-                .iter()
-                .find_map(|m| line.find(m).map(|i| (i, m.len())))?;
-            let rest = &line[marker.0 + marker.1..];
-            let end = rest.find("-blue.svg")?;
-            Some(rest[..end].to_string())
-        })
-        .collect()
+    let mut out = Vec::new();
+    for line in readme.lines() {
+        let mut search = 0;
+        while let Some(rel) = line[search..].find("-blue.svg") {
+            let end = search + rel;
+            // Walk backwards over the semver payload: digits and dots only.
+            let mut start = end;
+            while start > 0 {
+                let b = line.as_bytes()[start - 1];
+                if b.is_ascii_digit() || b == b'.' {
+                    start -= 1;
+                } else {
+                    break;
+                }
+            }
+            let candidate = &line[start..end];
+            if !candidate.is_empty() && candidate.chars().all(|c| c.is_ascii_digit() || c == '.') {
+                out.push(candidate.to_string());
+            }
+            search = end + "-blue.svg".len();
+        }
+    }
+    out
 }
 
 #[test]

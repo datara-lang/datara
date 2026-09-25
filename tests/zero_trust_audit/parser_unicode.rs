@@ -67,10 +67,10 @@ fn audit_parser_depth_at_boundary_63_64_65() {
 }
 
 #[test]
-fn audit_unicode_cyrillic_emoji_and_iteration() {
+fn audit_unicode_multibyte_emoji_and_iteration() {
     let source = r#"
 fn main() {
-    let cyr = "Привет"
+    let cyr = "αβγδεζ"
     out str_len(cyr)
     out str_chars(cyr)
 
@@ -96,12 +96,12 @@ fn main() {
     assert_eq!(code, 0);
 
     let lines: Vec<&str> = stdout.trim().lines().collect();
-    assert_eq!(lines[0], "12", "Cyrillic byte length must be 12");
-    assert_eq!(lines[1], "6", "Cyrillic scalar count must be 6");
+    assert_eq!(lines[0], "12", "2-byte script byte length must be 12");
+    assert_eq!(lines[1], "6", "2-byte script scalar count must be 6");
     assert_eq!(lines[2], "12", "3 emoji bytes (4 each) must be 12");
     assert_eq!(lines[3], "3", "3 emoji scalars must be 3");
     assert_eq!(
         lines[4], "6",
-        "Iteration over Cyrillic must iterate 6 times"
+        "Iteration over the 2-byte script must iterate 6 times"
     );
 }

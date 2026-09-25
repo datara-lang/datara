@@ -1,4 +1,4 @@
-//! Phase 7 Test Suite: Ultra-Compact Embed Profile (СТОЛП 6)
+//! Phase 7 Test Suite: Ultra-Compact Embed Profile (PILLAR 6)
 //!
 //! Validates:
 //! 1. `--tiny` profile compilation, minimal size footprint, and clean execution.

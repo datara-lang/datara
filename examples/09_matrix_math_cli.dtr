@@ -1,6 +1,6 @@
 ﻿// ============================================================================
-// CLI-УТИЛИТА 2: Пакет линейной алгебры и 3D-матриц (Matrix Engine 3x3)
-// Демонстрирует: структуры, векторную математику, определители и преобразования
+// CLI UTILITY 2: Linear algebra and 3D matrix package (Matrix Engine 3x3)
+// Demonstrates: structs, vector math, determinants and transformations
 // ============================================================================
 
 struct Matrix3x3 {
@@ -32,7 +32,7 @@ behavior Matrix3x3 {
     }
 
     print_matrix(name: Str) / IO {
-        out fmt"Матрица [{name}]:"
+        out fmt"Matrix [{name}]:"
         out fmt"  | {m00}  {m01}  {m02} |"
         out fmt"  | {m10}  {m11}  {m12} |"
         out fmt"  | {m20}  {m21}  {m22} |"
@@ -73,7 +73,7 @@ fn multiply_matrices(a: Matrix3x3, b: Matrix3x3) -> Matrix3x3 {
 
 fn main() {
     out "================================================================="
-    out "       DATARA LINEAR ALGEBRA: ВЫЧИСЛИТЕЛЬНЫЙ МОДУЛЬ 3D           "
+    out "       DATARA LINEAR ALGEBRA: 3D COMPUTE MODULE           "
     out "================================================================="
 
     let a = Matrix3x3 {
@@ -90,28 +90,28 @@ fn main() {
 
     a.print_matrix("A")
     out ""
-    b.print_matrix("I (Единичная)")
+    b.print_matrix("I (Identity)")
     out "-----------------------------------------------------------------"
 
     let det_a = a.determinant()
     let trace_a = a.trace()
     let can_invert = a.is_invertible(det_a)
 
-    out fmt"След матрицы Tr(A):              {trace_a}"
-    out fmt"Определитель матрицы det(A):     {det_a}"
-    out fmt"Существование обратной матрицы:  {can_invert}"
+    out fmt"Matrix trace Tr(A):              {trace_a}"
+    out fmt"Matrix determinant det(A):       {det_a}"
+    out fmt"Invertibility:                   {can_invert}"
     out "-----------------------------------------------------------------"
 
     let c = multiply_matrices(a, b)
-    out "Результат умножения C = A * I:"
+    out "Result of multiplication C = A * I:"
     c.print_matrix("C")
 
     out "-----------------------------------------------------------------"
     let v1 = Vector3 { x: 3.0, y: 4.0, z: 0.0 }
     let dot_prod = v1.dot(1.0, 2.0, 3.0)
     let len_sq = v1.length_squared()
-    out fmt"Скалярное произведение Vector3:  {dot_prod}"
-    out fmt"Квадрат длины вектора ||V||^2:   {len_sq}"
+    out fmt"Vector3 dot product:             {dot_prod}"
+    out fmt"Vector length squared ||V||^2:   {len_sq}"
     out "================================================================="
-    out "  Все матричные преобразования вычислены нативно за 0.00 мс."
+    out "  All matrix transformations computed natively in 0.00 ms."
 }

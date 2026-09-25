@@ -131,11 +131,11 @@ fn test_v120_cross_compilation_e0980_diagnostic_code() {
     let code = ErrorCode::CrossCompilationMissingToolchain;
     assert_eq!(code.as_str(), "E0980");
 
+    // Diagnostics are English-only (owner decision 2026-09-25): every
+    // locale argument returns the same English description.
     let desc_en = code.description("en");
     assert!(desc_en.contains("Cross-compilation toolchain not found"));
-
-    let desc_ru = code.description("ru");
-    assert!(desc_ru.contains("Отсутствует инструментарий кросс-компиляции"));
+    assert_eq!(code.description("ru"), desc_en);
 }
 
 #[test]

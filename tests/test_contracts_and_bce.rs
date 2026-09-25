@@ -4,7 +4,7 @@ use forgen::driver::ForgenCompiler;
 fn test_contracts_and_evidence_gate_bce() {
     let source = r#"
 fn safe_array_access(arr: List<Int>, idx: Int in 0..<arr.len()) -> Int
-    require arr.len() > 0, "Список не должен быть пустым"
+    require arr.len() > 0, "list must not be empty"
     ensure result >= 0
 {
     return arr[idx]
@@ -77,7 +77,7 @@ fn main() {
 fn test_contract_precondition_failure() {
     let source = r#"
 fn safe_array_access(arr: List<Int>, idx: Int in 0..<arr.len()) -> Int
-    require arr.len() > 0, "Список не должен быть пустым"
+    require arr.len() > 0, "list must not be empty"
     ensure result >= 0
 {
     return arr[idx]
@@ -106,7 +106,7 @@ fn main() {
         "Runtime precondition failure must yield non-zero exit code"
     );
     assert!(
-        err.contains("Список не должен быть пустым"),
+        err.contains("list must not be empty"),
         "Error output must contain custom contract failure message, got: {}",
         err
     );

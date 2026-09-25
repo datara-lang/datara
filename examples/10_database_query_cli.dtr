@@ -1,6 +1,6 @@
 ﻿// ============================================================================
-// CLI-УТИЛИТА 3: Встраиваемая база данных абитуриентов (In-Memory Database Engine)
-// Демонстрирует: реляционные структуры, фильтрацию, агрегацию и форматирование таблиц
+// CLI UTILITY 3: Embedded applicant database (In-Memory Database Engine)
+// Demonstrates: relational structures, filtering, aggregation and table formatting
 // ============================================================================
 
 struct Applicant {
@@ -12,9 +12,9 @@ struct Applicant {
 
 behavior Applicant {
     admission_status() -> Str => decide {
-        this.score >= 85 => "Бюджет (Грант)",
-        this.score >= 70 => "Коммерция (Платное)",
-        else => "Не прошел по конкурсу"
+        this.score >= 85 => "Budget (Grant)",
+        this.score >= 70 => "Self-funded (Paid)",
+        else => "Not admitted"
     }
 
     is_accepted() -> Bool {
@@ -28,17 +28,17 @@ fn print_row(id: Int, name: Str, faculty: Str, score: Int, status: Str) {
 
 fn main() {
     out "================================================================================"
-    out "           DATARA DB: ИНФОРМАЦИОННАЯ СИСТЕМА ПРИЕМНОЙ КОМИССИИ          "
+    out "           DATARA DB: ADMISSIONS OFFICE INFORMATION SYSTEM          "
     out "================================================================================"
 
-    let a1 = Applicant { id: 101, name: "Смирнов А.", faculty: "Информатика", score: 96 }
-    let a2 = Applicant { id: 102, name: "Иванова М.", faculty: "Приклад. мат.", score: 88 }
-    let a3 = Applicant { id: 103, name: "Кузнецов Д.", faculty: "Робототехника", score: 76 }
-    let a4 = Applicant { id: 104, name: "Попова Е.  ", faculty: "Кибербезопас.", score: 64 }
-    let a5 = Applicant { id: 105, name: "Васильев К.", faculty: "Искусств. инт.", score: 92 }
+    let a1 = Applicant { id: 101, name: "A. Smirnov", faculty: "Computer Sci.", score: 96 }
+    let a2 = Applicant { id: 102, name: "M. Ivanova", faculty: "Applied Math.", score: 88 }
+    let a3 = Applicant { id: 103, name: "D. Kuznetsov", faculty: "Robotics", score: 76 }
+    let a4 = Applicant { id: 104, name: "E. Popova  ", faculty: "Cybersec.", score: 64 }
+    let a5 = Applicant { id: 105, name: "K. Vasiliev", faculty: "AI Systems", score: 92 }
 
     out " +-----+--------------+----------------------+-------+-------------------------+"
-    out " | ID  | Абитуриент   | Направление          | Балл  | Решение комиссии        |"
+    out " | ID  | Applicant    | Program              | Score | Admission Decision      |"
     out " +-----+--------------+----------------------+-------+-------------------------+"
 
     print_row(a1.id, a1.name, a1.faculty, a1.score, a1.admission_status())
@@ -49,7 +49,7 @@ fn main() {
 
     out " +-----+--------------+----------------------+-------+-------------------------+"
 
-    // Агрегированная статистика (SQL AVG, COUNT, MAX)
+    // Aggregated statistics (SQL AVG, COUNT, MAX)
     let total_applicants = 5
     let total_score = a1.score + a2.score + a3.score + a4.score + a5.score
     let denom = total_applicants.to_float()
@@ -66,10 +66,10 @@ fn main() {
     let acceptance_rate = ((accepted_count.to_float()) / denom) * 100.0
 
     out "--------------------------------------------------------------------------------"
-    out fmt"Всего заявлений обработано:         {total_applicants}"
-    out fmt"Количество зачисленных студентов:   {accepted_count}"
-    out fmt"Процент успешного поступления:       {acceptance_rate}%"
-    out fmt"Средний балл по потоку (AVG Score): {avg_score}"
+    out fmt"Total applications processed:       {total_applicants}"
+    out fmt"Students admitted:                  {accepted_count}"
+    out fmt"Acceptance rate:                    {acceptance_rate}%"
+    out fmt"Average score (AVG Score):          {avg_score}"
     out "================================================================================"
-    out "  Запрос SELECT/AGGREGATE выполнен нативно за 0.00 мс."
+    out "  SELECT/AGGREGATE query completed natively in 0.00 ms."
 }

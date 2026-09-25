@@ -170,43 +170,50 @@ impl ReplSession {
         match trimmed {
             "input" => {
                 return Some(
-                    "=> <built-in function input(prompt: String = \"\") -> String>\n   (Чтобы вызвать функцию ввода, используйте круглые скобки: input() или input(\"подсказка\"))"
+                    "=> <built-in function input(prompt: String = \"\") -> String>
+   (Call the input function with parentheses: input() or input(\"prompt\"))"
                         .to_string(),
                 );
             }
             "input_int" => {
                 return Some(
-                    "=> <built-in function input_int(prompt: String = \"\") -> Int>\n   (Используйте круглые скобки для ввода целого числа: input_int(\"Введите число: \"))"
+                    "=> <built-in function input_int(prompt: String = \"\") -> Int>
+   (Use parentheses for integer input: input_int(\"Enter a number: \"))"
                         .to_string(),
                 );
             }
             "input_float" => {
                 return Some(
-                    "=> <built-in function input_float(prompt: String = \"\") -> Float>\n   (Используйте круглые скобки для ввода дробного числа: input_float(\"Введите баланс: \"))"
+                    "=> <built-in function input_float(prompt: String = \"\") -> Float>
+   (Use parentheses for float input: input_float(\"Enter balance: \"))"
                         .to_string(),
                 );
             }
             "print" => {
                 return Some(
-                    "=> <built-in function print(...) -> Unit>\n   (Печать аргументов без переноса строки: print(\"текст\", x))"
+                    "=> <built-in function print(...) -> Unit>
+   (Print arguments without a trailing newline: print(\"text\", x))"
                         .to_string(),
                 );
             }
             "println" => {
                 return Some(
-                    "=> <built-in function println(...) -> Unit>\n   (Печать аргументов с переводом строки в конце: println(\"текст\", x))"
+                    "=> <built-in function println(...) -> Unit>
+   (Print arguments with a trailing newline: println(\"text\", x))"
                         .to_string(),
                 );
             }
             "len" => {
                 return Some(
-                    "=> <built-in function len(collection) -> Int>\n   (Получение длины строки или списка: len(items))"
+                    "=> <built-in function len(collection) -> Int>
+   (Get the length of a string or list: len(items))"
                         .to_string(),
                 );
             }
             "now" => {
                 return Some(
-                    "=> <built-in function now() -> Int>\n   (Текущий Unix timestamp в миллисекундах: now())"
+                    "=> <built-in function now() -> Int>
+   (Current Unix timestamp in milliseconds: now())"
                         .to_string(),
                 );
             }

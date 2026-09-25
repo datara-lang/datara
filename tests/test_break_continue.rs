@@ -1,7 +1,7 @@
 //! End-to-end tests for `break` and `continue` (v1.3.2).
 //!
-//! README_RU promises loop early-exit control flow ("Бесконечный цикл loop
-//! с break и continue"). `break` leaves the innermost loop; `continue` jumps
+//! README promises loop early-exit control flow (the `loop` construct with
+//! `break` and `continue`). `break` leaves the innermost loop; `continue` jumps
 //! to the next iteration — for counted `for` loops it targets the increment
 //! block, so the induction variable still advances. `break` / `continue`
 //! outside any loop body are a compile-time error (E0312).

@@ -1,4 +1,4 @@
-//! Datara & Forgen v1.2.0 - Phase 6: Auto SoA Transformer (СТОЛП 5)
+//! Datara & Forgen v1.2.0 - Phase 6: Auto SoA Transformer (PILLAR 5)
 //!
 //! Validates:
 //! 1. Auto SoA transformation of `{x, y, z, vx, vy, vz, mass}` based on loop field selectivity
