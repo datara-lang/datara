@@ -99,6 +99,10 @@ impl<'a> TypeChecker<'a> {
                 init,
                 span,
             } => {
+                // M2 machine fixes: remember where the binding was declared
+                // so immutable-assignment errors can point a `val` -> `mut`
+                // replacement at the declaration line.
+                self.symbol_decl_spans.insert(name.clone(), span.clone());
                 let init_type = self.check_expr(init, diag);
                 let final_ty = if let Some(tn) = type_node {
                     self.var_refinements.insert(name.clone(), tn.clone());
@@ -367,6 +371,7 @@ impl<'a> TypeChecker<'a> {
                 is_mut,
                 span,
             } => {
+                self.symbol_decl_spans.insert(name.clone(), span.clone());
                 let init_type = self.check_expr(init, diag);
                 let final_ty = if let Some(tn) = type_node {
                     self.var_refinements.insert(name.clone(), tn.clone());
@@ -506,14 +511,25 @@ impl<'a> TypeChecker<'a> {
                                 );
                             }
                             MutabilityKind::Dynamic { is_mut: false } => {
-                                diag.error_with_help(
+                                // Machine fix (M2 fix 2/5): rewrite the
+                                // DECLARATION keyword `val` -> `mut` at the
+                                // recorded declaration span. The assignment
+                                // site itself needs no edit.
+                                let decl_fix = self.symbol_decl_spans.get(name).map(|decl_span| {
+                                    crate::diagnostics::MachineFix {
+                                        span: decl_span.clone(),
+                                        replacement: "mut".to_string(),
+                                    }
+                                });
+                                diag.error_with_fix(
                                     ErrorCode::BorrowCannotMutateImmutable,
                                     format!(
                                         "Cannot assign to immutable val '{}'",
                                         name
                                     ),
                                     Some(span.clone()),
-                                    Some(format!("'val' constants cannot be reassigned; use 'mut val {}' or 'mut {}' if mutation is required", name, name)),
+                                    Some(format!("'val' constants cannot be reassigned; declare the binding with 'mut {} = ..' if mutation is required", name)),
+                                    decl_fix,
                                 );
                             }
                             MutabilityKind::MutableFixed => {

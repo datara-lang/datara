@@ -1612,6 +1612,7 @@ impl<'a> TypeChecker<'a> {
             resolver,
             symbol_types: HashMap::new(),
             symbol_mutability: HashMap::new(),
+            symbol_decl_spans: HashMap::new(),
             function_signatures,
             class_fields,
             class_methods,

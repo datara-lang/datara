@@ -98,6 +98,18 @@ pub struct Diagnostic {
     pub help: Option<String>,
     #[serde(default)]
     pub reason: Option<String>,
+    /// Machine-applicable fix (M2): a single-span text edit. The span may
+    /// differ from the diagnostic span (e.g. an immutable-assignment error
+    /// fixes the DECLARATION line). `None` when no mechanical edit exists.
+    #[serde(default)]
+    pub machine_fix: Option<MachineFix>,
+}
+
+/// A machine-applicable text edit: replace `span` with `replacement`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MachineFix {
+    pub span: SourceSpan,
+    pub replacement: String,
 }
 
 impl Diagnostic {
@@ -109,6 +121,7 @@ impl Diagnostic {
             span,
             help: None,
             reason: None,
+            machine_fix: None,
         }
     }
 
@@ -149,6 +162,29 @@ impl DiagnosticEngine {
         self.error_with_help(code, message, span, None);
     }
 
+    /// Push an ERROR carrying a machine-applicable fix (M2): a single-span
+    /// edit that may target a different location than the diagnostic (e.g.
+    /// `val` -> `mut` on the declaration line of an immutable assignment).
+    pub fn error_with_fix(
+        &mut self,
+        code: ErrorCode,
+        message: String,
+        span: Option<SourceSpan>,
+        help: Option<String>,
+        machine_fix: Option<MachineFix>,
+    ) {
+        self.error_count += 1;
+        self.diagnostics.push(Diagnostic {
+            code: code.as_str().to_string(),
+            severity: "ERROR".to_string(),
+            message,
+            span: span.clone(),
+            help,
+            reason: None,
+            machine_fix,
+        });
+    }
+
     pub fn error_with_help(
         &mut self,
         code: ErrorCode,
@@ -164,6 +200,7 @@ impl DiagnosticEngine {
             span,
             help,
             reason: None,
+            machine_fix: None,
         });
     }
 
@@ -186,6 +223,7 @@ impl DiagnosticEngine {
             span,
             help: None,
             reason: None,
+            machine_fix: None,
         });
     }
 

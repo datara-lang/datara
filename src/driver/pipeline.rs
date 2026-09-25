@@ -298,6 +298,19 @@ pub(super) fn parse_multi_sources(
 /// Deliberately different from [`run_analysis_and_lower`]: the check family
 /// does NOT early-return after the ownership or security phases — it runs the
 /// full pipeline and decides `success` from the final diagnostic state.
+fn check_failure(
+    d_str: String,
+    program: Program,
+    timings: CompilationTimings,
+    diag: &DiagnosticEngine,
+) -> CompilationResult {
+    let mut res = CompilationResult::failure(d_str.clone(), d_str, Some(program), timings);
+    // M2: machine-applicable fixes ride on the structured records, not on
+    // the formatted text, so every check failure must carry them.
+    res.diagnostic_records = diag.diagnostics.clone();
+    res
+}
+
 pub(super) fn run_check_pipeline(
     program: Program,
     diag: &mut DiagnosticEngine,
@@ -314,7 +327,7 @@ pub(super) fn run_check_pipeline(
     if diag.has_errors() {
         timings.total_ms = total_start.elapsed().as_millis();
         let d_str = diag.format_all();
-        return CompilationResult::failure(d_str.clone(), d_str, Some(program), timings);
+        return check_failure(d_str.clone(), program, timings, diag);
     }
     crate::derive::expand_derives_and_comptime(&mut program);
 
@@ -329,7 +342,7 @@ pub(super) fn run_check_pipeline(
     if diag.has_errors() {
         timings.total_ms = total_start.elapsed().as_millis();
         let d_str = diag.format_all();
-        return CompilationResult::failure(d_str.clone(), d_str, Some(program), timings);
+        return check_failure(d_str.clone(), program, timings, diag);
     }
 
     // 2. Resolver
@@ -341,7 +354,7 @@ pub(super) fn run_check_pipeline(
     if diag.has_errors() {
         timings.total_ms = total_start.elapsed().as_millis();
         let d_str = diag.format_all();
-        return CompilationResult::failure(d_str.clone(), d_str, Some(program), timings);
+        return check_failure(d_str.clone(), program, timings, diag);
     }
 
     // 3. Type Checker
@@ -358,7 +371,7 @@ pub(super) fn run_check_pipeline(
     if diag.has_errors() {
         timings.total_ms = total_start.elapsed().as_millis();
         let d_str = diag.format_all();
-        return CompilationResult::failure(d_str.clone(), d_str, Some(program), timings);
+        return check_failure(d_str.clone(), program, timings, diag);
     }
 
     // 4. Effects

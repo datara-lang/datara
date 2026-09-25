@@ -162,6 +162,7 @@ impl LayoutAdapter {
                 !all_fields_8byte || Self::class_is_extern_visible(&class_name, module);
             if layout_sensitive {
                 layout_warnings.push(crate::diagnostics::Diagnostic {
+                    machine_fix: None,
                     code: crate::diagnostics::ErrorCode::OptimizationUnproven
                         .as_str()
                         .to_string(),

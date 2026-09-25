@@ -619,6 +619,10 @@ pub struct TypeChecker<'a> {
     pub resolver: &'a Resolver,
     pub symbol_types: HashMap<String, DataraType>,
     pub symbol_mutability: HashMap<String, MutabilityKind>,
+    /// M2 machine fixes: declaration statement span per symbol, so a
+    /// "cannot assign to immutable val" diagnostic can point its
+    /// machine-applicable fix at the declaration that must become `mut`.
+    pub symbol_decl_spans: HashMap<String, crate::ast::SourceSpan>,
     pub function_signatures: HashMap<String, (Vec<DataraType>, DataraType, Vec<String>)>,
     pub class_fields: HashMap<String, HashMap<String, DataraType>>,
     pub class_methods: HashMap<String, HashMap<String, DataraType>>,
