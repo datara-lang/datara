@@ -143,7 +143,12 @@
 
 > Аудит 2026-09-25: stdlib = 707 строк тонких обёрток над C-рантаймом
 > (статик-методы, `StringUtils.contains(s, sub)`). Срез №1 сделан:
-> `stdlib/text/string.dtr` расширен каноническим API (find/slice/len,
+> Срез №2 сделан: `parse_int`/`parse_float` с checked-семантикой →
+> `Outcome<Int>`/`Outcome<Float>` (рантайм datara_rt_str_to_int/float_checked
+> поверх strtoll/strtod с ERANGE и trailing-garbage детектом, ABI
+> datara_rt_outcome_build_raw; регистрации Cranelift/JIT/LLVM/resolver/
+> prelude/lowering). `?`-пропагация и `or` работают.
+> Срез №1 сделан: `stdlib/text/string.dtr` расширен каноническим API (find/slice/len,
 > мигрирован на `val`), починена печать элементов `List<Str>`
 > (`parts.get(1)` печатал char* как число — elem_repr для get/at в
 > lowering + string-таг в inst_method_call). Дыра: тип метода stdlib-класса

@@ -35,6 +35,9 @@ void        datara_rt_print(const char* s);
 void        datara_rt_eprintln(const char* s);
 void        datara_rt_assert(int64_t cond, const char* msg);
 int64_t     datara_rt_len(const char* s);
+/* M1 checked parsing (Outcome-returning) */
+void*       datara_rt_str_to_int_checked(const char* s);
+void*       datara_rt_str_to_float_checked(const char* s);
 const char* datara_rt_input(const char* prompt);
 int64_t     datara_rt_input_int(const char* prompt);
 double      datara_rt_input_float(const char* prompt);

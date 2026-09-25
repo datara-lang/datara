@@ -761,6 +761,64 @@ double datara_rt_str_to_float(const char* s) {
     return atof(s);
 }
 
+// M1 checked parsing: parse_int/parse_float return an Outcome object
+// (is_success, raw payload, message) built with the bit-exact raw builder,
+// so an integer 0 or an all-zero float bit pattern survives verbatim.
+// Trailing garbage after the number is a parse error, not silent success.
+static int rt_is_ws(char c) {
+    return c == ' ' || (c >= 9 && c <= 13);
+}
+
+void* datara_rt_str_to_int_checked(const char* s) {
+    if (!s) {
+        return datara_rt_outcome_build_raw(0, 0, "parse_int: null string");
+    }
+    while (rt_is_ws(*s)) s++;
+    if (*s == 0) {
+        return datara_rt_outcome_build_raw(0, 0, "parse_int: empty string");
+    }
+    errno = 0;
+    char* end = NULL;
+    long long v = strtoll(s, &end, 10);
+    if (end == s) {
+        return datara_rt_outcome_build_raw(0, 0, "parse_int: not a number");
+    }
+    while (rt_is_ws(*end)) end++;
+    if (*end != 0) {
+        return datara_rt_outcome_build_raw(0, 0, "parse_int: trailing characters");
+    }
+    if (errno == ERANGE) {
+        return datara_rt_outcome_build_raw(0, 0, "parse_int: number out of range");
+    }
+    return datara_rt_outcome_build_raw(1, (int64_t)v, "");
+}
+
+void* datara_rt_str_to_float_checked(const char* s) {
+    if (!s) {
+        return datara_rt_outcome_build_raw(0, 0, "parse_float: null string");
+    }
+    while (rt_is_ws(*s)) s++;
+    if (*s == 0) {
+        return datara_rt_outcome_build_raw(0, 0, "parse_float: empty string");
+    }
+    errno = 0;
+    char* end = NULL;
+    double v = strtod(s, &end);
+    if (end == s) {
+        return datara_rt_outcome_build_raw(0, 0, "parse_float: not a number");
+    }
+    while (rt_is_ws(*end)) end++;
+    if (*end != 0) {
+        return datara_rt_outcome_build_raw(0, 0, "parse_float: trailing characters");
+    }
+    if (errno == ERANGE) {
+        return datara_rt_outcome_build_raw(0, 0, "parse_float: number out of range");
+    }
+    int64_t bits;
+    memcpy(&bits, &v, sizeof(bits));
+    return datara_rt_outcome_build_raw(1, bits, "");
+}
+
 const char* datara_rt_str_substring(const char* s, int64_t start, int64_t len) {
     if (!s || start < 0 || len <= 0) return "";
     int64_t total_len = (int64_t)strlen(s);

@@ -344,6 +344,22 @@ impl<'a> TypeChecker<'a> {
             ),
         );
         function_signatures.insert(
+            "parse_int".to_string(),
+            (
+                vec![DataraType::String],
+                DataraType::Result(Box::new(DataraType::Int), Box::new(DataraType::String)),
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "parse_float".to_string(),
+            (
+                vec![DataraType::String],
+                DataraType::Result(Box::new(DataraType::Float), Box::new(DataraType::String)),
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
             "env_get_checked".to_string(),
             (
                 vec![DataraType::String],

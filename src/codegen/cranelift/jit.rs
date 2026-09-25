@@ -236,6 +236,8 @@ unsafe extern "C" {
     pub fn datara_rt_file_append(path: *const c_char, content: *const c_char) -> i64;
     pub fn datara_rt_file_exists(path: *const c_char) -> i64;
     pub fn datara_rt_file_read_checked(path: *const c_char) -> *mut i64;
+    pub fn datara_rt_str_to_int_checked(s: *const c_char) -> *mut i64;
+    pub fn datara_rt_str_to_float_checked(s: *const c_char) -> *mut i64;
     pub fn datara_rt_env_get_checked(name: *const c_char) -> *mut i64;
     pub fn datara_rt_dir_list(path: *const c_char) -> *mut i64;
     pub fn datara_rt_path_exists(path: *const c_char) -> i64;
@@ -767,6 +769,13 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("exists", datara_rt_file_exists);
     reg!("datara_rt_file_read_checked", datara_rt_file_read_checked);
     reg!("file_read_checked", datara_rt_file_read_checked);
+    reg!("datara_rt_str_to_int_checked", datara_rt_str_to_int_checked);
+    reg!("parse_int", datara_rt_str_to_int_checked);
+    reg!(
+        "datara_rt_str_to_float_checked",
+        datara_rt_str_to_float_checked
+    );
+    reg!("parse_float", datara_rt_str_to_float_checked);
     reg!("datara_rt_env_get_checked", datara_rt_env_get_checked);
     reg!("env_get_checked", datara_rt_env_get_checked);
     reg!("datara_rt_dir_list", datara_rt_dir_list);

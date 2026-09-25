@@ -1279,6 +1279,50 @@ pub fn declare_runtime_core<M: ClifModule>(
     // Checked I/O + directory listing. The checked reads return an
     // Outcome<Str> object pointer (stdlib Outcome<T> layout: is_success,
     // value, error_msg); dir_list returns a List of NUL-terminated names.
+    // M1 checked parsing: (ptr) -> ptr Outcome object.
+    let mut rt_parse_int_checked_sig = Signature::new(call_conv);
+    rt_parse_int_checked_sig
+        .params
+        .push(AbiParam::new(clif_types::I64));
+    rt_parse_int_checked_sig
+        .returns
+        .push(AbiParam::new(clif_types::I64));
+    let rt_parse_int_checked_id = module
+        .declare_function(
+            "datara_rt_str_to_int_checked",
+            Linkage::Import,
+            &rt_parse_int_checked_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_str_to_int_checked".into(),
+        (rt_parse_int_checked_id, rt_parse_int_checked_sig.clone()),
+    );
+    func_ids.insert(
+        "parse_int".into(),
+        (rt_parse_int_checked_id, rt_parse_int_checked_sig.clone()),
+    );
+
+    let rt_parse_float_checked_sig = rt_parse_int_checked_sig.clone();
+    let rt_parse_float_checked_id = module
+        .declare_function(
+            "datara_rt_str_to_float_checked",
+            Linkage::Import,
+            &rt_parse_float_checked_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_str_to_float_checked".into(),
+        (
+            rt_parse_float_checked_id,
+            rt_parse_float_checked_sig.clone(),
+        ),
+    );
+    func_ids.insert(
+        "parse_float".into(),
+        (rt_parse_float_checked_id, rt_parse_float_checked_sig),
+    );
+
     let mut rt_file_read_checked_sig = Signature::new(call_conv);
     rt_file_read_checked_sig
         .params
