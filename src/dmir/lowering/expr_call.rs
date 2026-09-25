@@ -1354,6 +1354,14 @@ impl<'a> Lowering<'a> {
                     "remove_at" | "remove_value" | "index_of" => {
                         method_ty = "Int".into();
                     }
+                    // Element reads must carry the ELEMENT repr: without
+                    // this, `parts.get(1)` on a List<Str> fell back to the
+                    // name-heuristic "Int" and the string handle printed as
+                    // a pointer instead of the string (M1 text API relies
+                    // on split -> List<Str> element access).
+                    "get" | "at" => {
+                        method_ty = elem_repr;
+                    }
                     _ => {}
                 }
             }

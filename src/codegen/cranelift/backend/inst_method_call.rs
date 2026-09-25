@@ -366,6 +366,12 @@ pub fn compile_method_call<M: ClifModule>(
             if ty.contains("Map") {
                 ctx.map_vids.insert(*dest);
             }
+            // String elements (e.g. `parts.get(1)` on a List<Str>) must be
+            // tagged as strings, otherwise Out prints the raw char* as an
+            // integer (M1 text API: split -> List<Str> element access).
+            if ty == "String" || ty == "Str" {
+                ctx.string_vids.insert(*dest);
+            }
         }
     } else {
         let (callee_id, callee_name) = {

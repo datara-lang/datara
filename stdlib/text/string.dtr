@@ -1,4 +1,4 @@
-﻿struct StringUtils {
+struct StringUtils {
     prefix: Str
 }
 
@@ -12,17 +12,17 @@ behavior StringUtils {
     }
 
     contains(s: Str, sub: Str) -> Bool {
-        let res = str_contains(s, sub)
+        val res = str_contains(s, sub)
         return res == 1
     }
 
     starts_with(s: Str, prefix: Str) -> Bool {
-        let res = str_starts_with(s, prefix)
+        val res = str_starts_with(s, prefix)
         return res == 1
     }
 
     ends_with(s: Str, suffix: Str) -> Bool {
-        let res = str_ends_with(s, suffix)
+        val res = str_ends_with(s, suffix)
         return res == 1
     }
 
@@ -68,5 +68,27 @@ behavior StringUtils {
 
     join(items: List<Str>, delim: Str) -> Str {
         return str_join(items, delim)
+    }
+
+    // --- M1 canonical text API (PLAN_V150) -------------------------------
+    // NOTE: the runtime primitives are currently BYTE-based. For ASCII
+    // payloads the semantics equal codepoint semantics; multi-byte UTF-8
+    // correctness (per-codepoint split/slice/index) is a dedicated runtime
+    // task tracked in PLAN_V150 M1 and must not be claimed done until the
+    // runtime pass lands.
+
+    /// First index of `sub` in `s`, or -1 when absent (the "find" verb).
+    find(s: Str, sub: Str) -> Int {
+        return str_index_of(s, sub)
+    }
+
+    /// Byte slice `[start, start+len)` clamped to the string bounds.
+    slice(s: Str, start: Int, len: Int) -> Str {
+        return str_substring(s, start, len)
+    }
+
+    /// Byte length of the string (char_len counts decoded codepoints).
+    len(s: Str) -> Int {
+        return str_len(s)
     }
 }

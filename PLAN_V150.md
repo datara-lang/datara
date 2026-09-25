@@ -139,7 +139,16 @@
 
 Приёмка: DCE-тест runtime, as?/as! матрица (ok/err/or/?/strict/strict-ok/default-без изменений), предупреждение let.
 
-## M1. Stdlib-фундамент `[ ]`
+## M1. Stdlib-фундамент `[~]`
+
+> Аудит 2026-09-25: stdlib = 707 строк тонких обёрток над C-рантаймом
+> (статик-методы, `StringUtils.contains(s, sub)`). Срез №1 сделан:
+> `stdlib/text/string.dtr` расширен каноническим API (find/slice/len,
+> мигрирован на `val`), починена печать элементов `List<Str>`
+> (`parts.get(1)` печатал char* как число — elem_repr для get/at в
+> lowering + string-таг в inst_method_call). Дыра: тип метода stdlib-класса
+> не выводится без аннотации (`val parts = split(...)` vs `val parts:
+> List<Str> = ...`) — реестр §5, фикс в M4/M7.
 
 Цель: на Datara можно писать реальные программы (и тесты TMM/NatVar, и будущий самохостинг) без хождения в C.
 
@@ -328,6 +337,7 @@
 
 - [x] `--tiny` бит-в-бит с default (починено 2026-09-21)
 - [x] dead-code молчал в check (починено 2026-09-21)
+- [ ] Вывод типа результата метода stdlib-класса без аннотации: `val parts = StringUtils.split(...)` не даёт `parts` тип List<Str> в lowering (lookup_var_type пуст), элемент печатается как число. С аннотацией работает. Найдено 2026-09-25 (M1 text-срез); фикс в M4/M7 (infer для class-receiver method calls).
 - [ ] `map.get(k) or X` / `?` на map.get — E0944 при codegen: чекер типизирует map.get как Outcome<T>, но рантайм datara_rt_map_get возвращает сырое значение (ABI-разнобой). Фикс по образцу list pop v1.4.1: datara_rt_map_get_outcome, возвращающий Outcome-объект. Найдено 2026-09-25 (M0/T1-матрица); чинить в M1 (stdlib.collections) или M4.
 - [ ] `?`-распаковка Outcome<List<T>>: payload_repr='List' теряет тип элемента → `l[0]?` на List<Outcome<Int>> даёт E0944 (индексный элемент не получает класс в val_to_class). Найдено 2026-09-25; фикс — протаскивать полный GenericInstance в PropagationSite.payload_repr и var_to_class; фаза M4/M7 (infer).
 - [ ] match по enum-параметру с `fmt"..."` в армах → E0944 `__tag` (класс enum теряется в val_to_class, когда тело армы содержит FormatStr; с константными Str-армами тот же match работает, без main — падает даже с Int-армами). Найдено 2026-09-25 при написании TUTORIAL Step 6b; фикс в M4/M7.
