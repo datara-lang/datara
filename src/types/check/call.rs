@@ -734,6 +734,7 @@ impl<'a> TypeChecker<'a> {
                         return DataraType::Map(key.clone(), val.clone());
                     }
                     "length" | "count" | "len" => return DataraType::Int,
+                    "contains" | "has_key" => return DataraType::Bool,
                     _ => {}
                 },
                 DataraType::Result(ok, err) => match member.as_str() {
@@ -891,6 +892,7 @@ impl<'a> TypeChecker<'a> {
                             return DataraType::Class("Map".into());
                         }
                         "length" | "count" | "len" => return DataraType::Int,
+                        "contains" | "has_key" => return DataraType::Bool,
                         _ => {}
                     }
                 }

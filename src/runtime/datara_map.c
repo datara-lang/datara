@@ -65,10 +65,96 @@
 #define INADDR_NONE ((unsigned long)0xffffffff)
 #endif
 
+// M1 HashMap: the entry array stays insertion-ordered (an IndexMap
+// contract), while get/contains go through a lazily built robin-hood
+// open-addressing index for O(1) lookup. The index stores entry_index+1
+// per slot (0 = empty), lives in its own malloc block referenced from the
+// header, and is dropped/rebuilt whenever the entry array grows or the
+// load factor exceeds 3/4 — below DATARA_MAP_INDEX_MIN entries a linear
+// scan is faster than any hashing, so none is built.
 typedef struct {
     int64_t capacity;
     int64_t magic;
+    int64_t* index;
+    int64_t index_slots;
 } DataraMapHeader;
+
+#define DATARA_MAP_INDEX_MIN 16
+
+static uint64_t rt_map_hash(const char* key) {
+    uint64_t h = 1469598103934665603ULL; // FNV-1a 64
+    for (const unsigned char* p = (const unsigned char*)key; *p; p++) {
+        h ^= (uint64_t)*p;
+        h *= 1099511628211ULL;
+    }
+    return h;
+}
+
+static void rt_map_index_free(DataraMapHeader* hdr) {
+    if (hdr->index) {
+        free(hdr->index);
+        hdr->index = NULL;
+    }
+    hdr->index_slots = 0;
+}
+
+static void rt_map_index_put(int64_t* map, DataraMapHeader* hdr, int64_t entry_idx) {
+    int64_t mask = hdr->index_slots - 1;
+    int64_t* idx = hdr->index;
+    const char* k = (const char*)map[1 + entry_idx * 2];
+    int64_t home = (int64_t)(rt_map_hash(k) & (uint64_t)mask);
+    int64_t slot = home;
+    int64_t pend_e = entry_idx;
+    int64_t pend_dist = 0;
+    for (;;) {
+        int64_t cur = idx[slot];
+        if (cur == 0) {
+            idx[slot] = pend_e + 1;
+            return;
+        }
+        int64_t cur_e = cur - 1;
+        const char* ck = (const char*)map[1 + cur_e * 2];
+        int64_t cur_home = (int64_t)(rt_map_hash(ck) & (uint64_t)mask);
+        int64_t cur_dist = slot - cur_home;
+        if (cur_dist < 0) cur_dist += hdr->index_slots;
+        // Robin hood: a richer element (larger probe distance) takes the
+        // slot; the poorer one keeps probing from here.
+        if (pend_dist > cur_dist) {
+            idx[slot] = pend_e + 1;
+            pend_e = cur_e;
+            pend_dist = cur_dist;
+        }
+        slot = (slot + 1) & mask;
+        pend_dist++;
+    }
+}
+
+static void rt_map_index_build(int64_t* map, DataraMapHeader* hdr) {
+    int64_t count = map[0];
+    int64_t slots = DATARA_MAP_INDEX_MIN;
+    while (slots < count * 2) slots <<= 1;
+    rt_map_index_free(hdr);
+    int64_t* idx = (int64_t*)calloc((size_t)slots, sizeof(int64_t));
+    if (!idx) return; // stay on linear scan when out of memory
+    hdr->index = idx;
+    hdr->index_slots = slots;
+    for (int64_t e = 0; e < count; e++) {
+        rt_map_index_put(map, hdr, e);
+    }
+}
+
+static int64_t rt_map_index_find(int64_t* map, DataraMapHeader* hdr, const char* key) {
+    int64_t mask = hdr->index_slots - 1;
+    int64_t slot = (int64_t)(rt_map_hash(key) & (uint64_t)mask);
+    for (;;) {
+        int64_t cur = hdr->index[slot];
+        if (cur == 0) return -1;
+        int64_t e = cur - 1;
+        const char* ck = (const char*)map[1 + e * 2];
+        if (ck && strcmp(ck, key) == 0) return e;
+        slot = (slot + 1) & mask;
+    }
+}
 
 #define DATARA_MAP_MAGIC      0x4441544D41503130ULL
 #define DATARA_MAP_MAGIC_MASK 0xFFFFFFFFFFFFFFF0ULL
@@ -90,6 +176,8 @@ void* datara_rt_map_create(void) {
     if (!hdr) return NULL;
     hdr->capacity = (int64_t)init_cap;
     hdr->magic = DATARA_MAP_MAGIC | flag;
+    hdr->index = NULL;
+    hdr->index_slots = 0;
     int64_t* map = (int64_t*)(hdr + 1);
     map[0] = 0;
     return map;
@@ -102,6 +190,8 @@ int64_t* datara_rt_map_create_2(const char* k0, int64_t v0, const char* k1, int6
     if (!hdr) return NULL;
     hdr->capacity = init_cap;
     hdr->magic = DATARA_MAP_MAGIC;
+    hdr->index = NULL;
+    hdr->index_slots = 0;
     int64_t* map = (int64_t*)(hdr + 1);
     map[0] = 2;
     map[1] = (int64_t)k0;
@@ -119,6 +209,8 @@ static int64_t* datara_rt_map_create_from(const char** keys, const int64_t* vals
     if (!hdr) return NULL;
     hdr->capacity = init_cap;
     hdr->magic = DATARA_MAP_MAGIC;
+    hdr->index = NULL;
+    hdr->index_slots = 0;
     int64_t* map = (int64_t*)(hdr + 1);
     map[0] = n;
     for (int64_t i = 0; i < n; i++) {
@@ -156,9 +248,16 @@ int64_t* datara_rt_map_create_5(const char* k0, int64_t v0, const char* k1, int6
     return datara_rt_map_create_from(keys, vals, 5);
 }
 
+static DataraMapHeader* datara_rt_map_get_header_fwd(int64_t* map);
+
 int64_t datara_rt_map_get(int64_t* map, const char* key) {
     if (!map || !key) return 0;
     int64_t count = map[0];
+    DataraMapHeader* hdr = datara_rt_map_get_header_fwd(map);
+    if (hdr && hdr->index && hdr->index_slots && count >= DATARA_MAP_INDEX_MIN) {
+        int64_t e = rt_map_index_find(map, hdr, key);
+        return e >= 0 ? map[2 + e * 2] : 0;
+    }
     for (int64_t i = 0; i < count; i++) {
         const char* k = (const char*)map[1 + i * 2];
         if (k && strcmp(k, key) == 0) {
@@ -175,6 +274,10 @@ static inline DataraMapHeader* datara_rt_map_get_header(int64_t* map) {
     return NULL;
 }
 
+static DataraMapHeader* datara_rt_map_get_header_fwd(int64_t* map) {
+    return datara_rt_map_get_header(map);
+}
+
 int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
     if (!map) {
         size_t init_cap = 8;
@@ -183,6 +286,8 @@ int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
         if (!hdr) return NULL;
         hdr->capacity = init_cap;
         hdr->magic = DATARA_MAP_MAGIC;
+        hdr->index = NULL;
+        hdr->index_slots = 0;
         int64_t* m = (int64_t*)(hdr + 1);
         m[0] = 1;
         m[1] = (int64_t)key;
@@ -203,8 +308,23 @@ int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
             map[1 + count * 2] = (int64_t)key;
             map[2 + count * 2] = val;
             map[0] = count + 1;
+            // Keep the index in sync; drop it when the load factor would
+            // exceed 3/4 — the next lookup rebuilds it at the new size.
+            if (hdr->index && hdr->index_slots) {
+                if ((count + 1) * 4 < hdr->index_slots * 3) {
+                    rt_map_index_put(map, hdr, count);
+                } else {
+                    rt_map_index_free(hdr);
+                }
+            } else if (count + 1 >= DATARA_MAP_INDEX_MIN) {
+                rt_map_index_build(map, hdr);
+            }
             return map;
         }
+        // Growth invalidates nothing structurally (slot values are entry
+        // indices), but the index block is released so the next lookup
+        // rebuilds against the new capacity.
+        rt_map_index_free(hdr);
         int64_t new_cap = hdr->capacity * 2;
         size_t total_bytes = sizeof(DataraMapHeader) + (1 + new_cap * 2) * sizeof(int64_t);
         DataraMapHeader* new_hdr = NULL;
@@ -240,6 +360,8 @@ int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
         if (!new_hdr) return map;
         new_hdr->capacity = init_cap;
         new_hdr->magic = DATARA_MAP_MAGIC;
+        new_hdr->index = NULL;
+        new_hdr->index_slots = 0;
         int64_t* new_map = (int64_t*)(new_hdr + 1);
         new_map[0] = count + 1;
         for (int64_t i = 0; i < count; i++) {
@@ -257,6 +379,7 @@ void datara_rt_map_free(void* map) {
     if (!map) return;
     DataraMapHeader* hdr = datara_rt_map_get_header((int64_t*)map);
     if (hdr) {
+        rt_map_index_free(hdr);
         if ((hdr->magic & 0xFULL) == DATARA_MAP_FLAG_POOL) {
             size_t total_bytes = sizeof(DataraMapHeader) + (1 + (size_t)hdr->capacity * 2) * sizeof(int64_t);
             datara_rt_pool_free(hdr, total_bytes);
@@ -271,6 +394,10 @@ void datara_rt_map_free(void* map) {
 int64_t datara_rt_map_contains(int64_t* map, const char* key) {
     if (!map || !key) return 0;
     int64_t count = map[0];
+    DataraMapHeader* hdr = datara_rt_map_get_header_fwd(map);
+    if (hdr && hdr->index && hdr->index_slots && count >= DATARA_MAP_INDEX_MIN) {
+        return rt_map_index_find(map, hdr, key) >= 0 ? 1 : 0;
+    }
     for (int64_t i = 0; i < count; i++) {
         const char* k = (const char*)map[1 + i * 2];
         if (k && strcmp(k, key) == 0) {

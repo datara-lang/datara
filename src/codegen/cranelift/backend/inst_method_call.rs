@@ -220,6 +220,7 @@ pub fn compile_method_call<M: ClifModule>(
             // fallback used to match the LIST length symbol instead, reading
             // the map handle as a list and returning garbage (M0/T1).
             "len" | "length" | "count" => Some(ctx.runtime.rt_map_len_id),
+            "contains" | "has_key" => Some(ctx.runtime.rt_map_contains_id),
             _ => None,
         }
     } else if ctx.list_vids.contains(object)

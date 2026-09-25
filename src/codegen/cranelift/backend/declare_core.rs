@@ -1708,6 +1708,7 @@ pub fn declare_runtime_core<M: ClifModule>(
         rt_map_get_id,
         rt_map_insert_id,
         rt_map_len_id,
+        rt_map_contains_id,
         rt_list_pop_outcome_id,
         rt_list_sort_id,
         rt_list_remove_at_id,
