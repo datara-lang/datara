@@ -553,16 +553,6 @@ fn join_state(count: &mut u32, old: RState, s: RState) -> Option<RState> {
     }
 }
 
-/// Merges `s` into an abstract state slot currently holding `old`.
-///
-/// Returns `None` when the slot is already up to date (Bot identity, Top
-/// absorption, or a range that already covers the new one), otherwise the
-/// new slot state. Widening is bounded per slot: after 3 real range
-/// changes the state degrades to sticky `Top`. That guarantees fixpoint
-/// termination (a genuinely accumulating loop-carried value diverges and
-/// goes Top; a value fed by two finite edges converges in 2-3 joins) and
-/// stays sound — `Top` never marks, only the strict-fit check does.
-
 /// A loop induction variable whose trip range was proven: on every body
 /// iteration, `lo <= v <= hi`.
 struct ProvenInduction {
@@ -570,7 +560,6 @@ struct ProvenInduction {
     vid: ValueId,
     /// Inclusive body-entry range of the induction variable.
     lo: i64,
-    hi: i64,
     /// Largest value the header parameter can hold on ANY entry edge,
     /// including the final failing iteration: `hi + accumulated chain
     /// steps`. The latch can hand the bound itself back to the header, so
@@ -586,10 +575,7 @@ struct ProvenInduction {
 /// `i < B` / `i <= B` against a constant bound with a positive constant
 /// step and a single latch, all entry edges passing the same constant
 /// start. Returns the body-entry range `lo..=hi` of `i`.
-fn induction_range(
-    f: &Function,
-    lp: &crate::dmir::cfg::NaturalLoop,
-) -> Option<ProvenInduction> {
+fn induction_range(f: &Function, lp: &crate::dmir::cfg::NaturalLoop) -> Option<ProvenInduction> {
     let header = f.get_block(lp.header)?;
     let cond_vid = match &header.terminator {
         Terminator::CondBranch { cond, .. } => *cond,
@@ -613,12 +599,16 @@ fn induction_range(
             let (i_vid, bound_vid, normalized) = if param_vids.contains(left) {
                 (*left, *right, op.as_str())
             } else if param_vids.contains(right) {
-                (*right, *left, match op.as_str() {
-                    "<" => ">",
-                    "<=" => ">=",
-                    ">" => "<",
-                    _ => "<=",
-                })
+                (
+                    *right,
+                    *left,
+                    match op.as_str() {
+                        "<" => ">",
+                        "<=" => ">=",
+                        ">" => "<",
+                        _ => "<=",
+                    },
+                )
             } else {
                 continue;
             };
@@ -673,28 +663,20 @@ fn induction_range(
                 break;
             }
         }
-        let Some((iop, left, right)) = def else {
-            return None;
-        };
+        let (iop, left, right) = def?;
         let (prev, delta) = match iop {
             "+" | "wrapping_+" => {
                 if let Some(s) = LoopOptimizer::const_expr_int_value(f, right) {
                     (left, s)
-                } else if let Some(s) = LoopOptimizer::const_expr_int_value(f, left) {
-                    (right, s)
                 } else {
-                    return None;
+                    let s = LoopOptimizer::const_expr_int_value(f, left)?;
+                    (right, s)
                 }
             }
             _ => {
-                let step = match LoopOptimizer::const_expr_int_value(f, right) {
-                    Some(s) => s,
-                    None => return None,
-                };
-                match step.checked_neg() {
-                    Some(d) => (left, d),
-                    None => return None,
-                }
+                let step = LoopOptimizer::const_expr_int_value(f, right)?;
+                let d = step.checked_neg()?;
+                (left, d)
             }
         };
         chain.push((cursor, delta));
@@ -736,12 +718,8 @@ fn induction_range(
             _ => None,
         };
         let Some(args) = edge_args else { continue };
-        let Some(&arg) = args.get(param_index) else {
-            return None;
-        };
-        let Some(s) = LoopOptimizer::const_expr_int_value(f, arg) else {
-            return None;
-        };
+        let &arg = args.get(param_index)?;
+        let s = LoopOptimizer::const_expr_int_value(f, arg)?;
         start = match start {
             None => Some(s),
             Some(prev) if prev == s => Some(prev),
@@ -766,7 +744,6 @@ fn induction_range(
     Some(ProvenInduction {
         vid: i_vid,
         lo: start,
-        hi,
         hi_edge: running,
         blocks: lp.blocks.iter().copied().collect(),
         header_id: lp.header,
@@ -821,10 +798,7 @@ fn prove_body_arithmetic(f: &mut Function, cfg: &ControlFlowGraph) -> (usize, Ve
             match inst {
                 Inst::BinOp { dest, op, ty, .. }
                     if ty == "Int"
-                        && matches!(
-                            op.as_str(),
-                            "+" | "-" | "*" | "wrapping_+" | "wrapping_-"
-                        ) =>
+                        && matches!(op.as_str(), "+" | "-" | "*" | "wrapping_+" | "wrapping_-") =>
                 {
                     analyzable.insert(*dest);
                 }
@@ -861,8 +835,10 @@ fn prove_body_arithmetic(f: &mut Function, cfg: &ControlFlowGraph) -> (usize, Ve
     }
 
     // Incoming edges of every block that has params.
-    let mut incoming: HashMap<crate::dmir::BasicBlockId, Vec<(crate::dmir::BasicBlockId, Vec<ValueId>)>> =
-        HashMap::new();
+    let mut incoming: HashMap<
+        crate::dmir::BasicBlockId,
+        Vec<(crate::dmir::BasicBlockId, Vec<ValueId>)>,
+    > = HashMap::new();
     for b in &f.blocks {
         let mut collect = |target: crate::dmir::BasicBlockId, args: &[ValueId]| {
             if let Some(tb) = f.get_block(target)
@@ -890,28 +866,29 @@ fn prove_body_arithmetic(f: &mut Function, cfg: &ControlFlowGraph) -> (usize, Ve
         }
     }
 
-    let range_of = |v: ValueId,
-                    inst_states: &HashMap<ValueId, RState>,
-                    param_states: &HashMap<(crate::dmir::BasicBlockId, ValueId), RState>| {
-        if let Some(&r) = const_ranges.get(&v) {
-            return RState::Known(r);
-        }
-        if let Some(&owner) = param_owner.get(&v) {
-            if let Some(&r) = proven_params.get(&(owner, v)) {
+    let range_of =
+        |v: ValueId,
+         inst_states: &HashMap<ValueId, RState>,
+         param_states: &HashMap<(crate::dmir::BasicBlockId, ValueId), RState>| {
+            if let Some(&r) = const_ranges.get(&v) {
                 return RState::Known(r);
             }
-            return param_states
-                .get(&(owner, v))
-                .copied()
-                .unwrap_or(RState::Bot);
-        }
-        if analyzable.contains(&v) {
-            return inst_states.get(&v).copied().unwrap_or(RState::Bot);
-        }
-        // A def this analysis cannot model: sticky unknown. It can never
-        // mark, and every consumer of it becomes sticky unknown too.
-        RState::Top
-    };
+            if let Some(&owner) = param_owner.get(&v) {
+                if let Some(&r) = proven_params.get(&(owner, v)) {
+                    return RState::Known(r);
+                }
+                return param_states
+                    .get(&(owner, v))
+                    .copied()
+                    .unwrap_or(RState::Bot);
+            }
+            if analyzable.contains(&v) {
+                return inst_states.get(&v).copied().unwrap_or(RState::Bot);
+            }
+            // A def this analysis cannot model: sticky unknown. It can never
+            // mark, and every consumer of it becomes sticky unknown too.
+            RState::Top
+        };
 
     // Fixpoint over RState: Bot → (Known | Top) monotonically. Because
     // Bot means "not yet derived" (not "unbounded"), a param whose edge
@@ -949,8 +926,9 @@ fn prove_body_arithmetic(f: &mut Function, cfg: &ControlFlowGraph) -> (usize, Ve
                     let key = (target, p);
                     let merged = match param_states.get(&key) {
                         None => Some(s),
-                        Some(&old) =>
-                            join_state(param_change_count.entry(key).or_insert(0), old, s),
+                        Some(&old) => {
+                            join_state(param_change_count.entry(key).or_insert(0), old, s)
+                        }
                     };
                     match merged {
                         None => {}
@@ -974,21 +952,18 @@ fn prove_body_arithmetic(f: &mut Function, cfg: &ControlFlowGraph) -> (usize, Ve
                         right,
                         ty,
                     } if ty == "Int"
-                        && matches!(
-                            op.as_str(),
-                            "+" | "-" | "*" | "wrapping_+" | "wrapping_-"
-                        ) =>
+                        && matches!(op.as_str(), "+" | "-" | "*" | "wrapping_+" | "wrapping_-") =>
                     {
                         let sl = range_of(*left, &inst_states, &param_states);
                         let sr = range_of(*right, &inst_states, &param_states);
                         let s = match (sl, sr) {
-                            (RState::Known(rl), RState::Known(rr)) => RState::Known(match op
-                                .as_str()
-                            {
-                                "+" | "wrapping_+" => rl.add(rr),
-                                "-" | "wrapping_-" => rl.sub(rr),
-                                _ => rl.mul(rr),
-                            }),
+                            (RState::Known(rl), RState::Known(rr)) => {
+                                RState::Known(match op.as_str() {
+                                    "+" | "wrapping_+" => rl.add(rr),
+                                    "-" | "wrapping_-" => rl.sub(rr),
+                                    _ => rl.mul(rr),
+                                })
+                            }
                             (RState::Top, _) | (_, RState::Top) => RState::Top,
                             _ => RState::Bot,
                         };
@@ -1006,7 +981,9 @@ fn prove_body_arithmetic(f: &mut Function, cfg: &ControlFlowGraph) -> (usize, Ve
                 };
                 let merged = match inst_states.get(&dest) {
                     None => Some(new_state),
-                    Some(&old) => join_state(inst_change_count.entry(dest).or_insert(0), old, new_state),
+                    Some(&old) => {
+                        join_state(inst_change_count.entry(dest).or_insert(0), old, new_state)
+                    }
                 };
                 match merged {
                     None => {}
@@ -1047,18 +1024,9 @@ fn prove_body_arithmetic(f: &mut Function, cfg: &ControlFlowGraph) -> (usize, Ve
             continue;
         }
         for inst in &blk.instructions {
-            if let Inst::BinOp {
-                dest,
-                op,
-                ty,
-                ..
-            } = inst
-            {
+            if let Inst::BinOp { dest, op, ty, .. } = inst {
                 if ty != "Int"
-                    || !matches!(
-                        op.as_str(),
-                        "+" | "-" | "*" | "wrapping_+" | "wrapping_-"
-                    )
+                    || !matches!(op.as_str(), "+" | "-" | "*" | "wrapping_+" | "wrapping_-")
                 {
                     continue;
                 }

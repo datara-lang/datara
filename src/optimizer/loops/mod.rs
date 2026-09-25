@@ -3,10 +3,10 @@ pub(crate) mod bce_affine2d;
 pub(crate) mod bce_helpers;
 pub(crate) mod engine_v2;
 pub(crate) mod fold;
-pub(crate) mod string_fold;
 pub mod ovf_elide;
 pub mod polyhedral;
 pub(crate) mod reduce_lanes;
+pub(crate) mod string_fold;
 pub(crate) mod unswitch;
 
 use crate::dmir::cfg::ControlFlowGraph;

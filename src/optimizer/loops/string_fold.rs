@@ -57,7 +57,10 @@ impl LoopOptimizer {
     ) -> Option<StringFoldPlan> {
         let dbg = std::env::var("DATARA_DEBUG_STRFOLD").is_ok();
         if dbg {
-            eprintln!("STRFOLD: matcher entered, header={:?} body={:?}", lp.header, lp.back_edges);
+            eprintln!(
+                "STRFOLD: matcher entered, header={:?} body={:?}",
+                lp.header, lp.back_edges
+            );
         }
         macro_rules! bail {
             ($why:expr) => {{
@@ -118,15 +121,16 @@ impl LoopOptimizer {
         }
         // Locate the accumulator: a String param (named-variable form,
         // params.len() == 1) or the String slot of the 2-param form.
-        let p_s: ValueId;
         let var_form = header_blk.params.len() == 1;
-        if var_form {
+        let p_s: ValueId = if var_form {
             if !header_blk.params[0].ty.contains("Int") {
                 bail!("reason#7-var-slot-not-int");
             }
-            // Find the variable name the body reloads: any LoadVar in the
-            // body feeding a concat call. Resolved below against body insts.
-            p_s = p_i; // placeholder, real detection happens in the body scan
+            // The var form carries the accumulator in a named variable, not
+            // in a header parameter; the body scan below locates it. p_s
+            // aliases the induction parameter so the concat-detection
+            // guards against param slots simply never fire for it.
+            p_i
         } else {
             let (p_a, p_b) = (header_blk.params[0].val, header_blk.params[1].val);
             let ty_a = header_blk.params[0].ty.as_str();
@@ -142,9 +146,8 @@ impl LoopOptimizer {
             if !(s_ty == "String" || s_ty.contains("Str")) {
                 bail!("reason#8");
             }
-            p_s = p_s_slot;
-        }
-        let _ = p_s; // may be reassigned by the var-form body scan below
+            p_s_slot
+        };
         let exit = match &header_blk.terminator {
             Terminator::CondBranch {
                 cond,
@@ -184,7 +187,11 @@ impl LoopOptimizer {
         // Var-form: accumulator is whichever LoadVar'd variable the body's
         // concat feeds and AssignVar writes back. Param-form: expected_s is
         // the back-edge arg in the accumulator's slot.
-        let mut expected_s = if var_form { ValueId(usize::MAX) } else { args[1 - idx_i] };
+        let expected_s = if var_form {
+            ValueId(usize::MAX)
+        } else {
+            args[1 - idx_i]
+        };
 
         // Body: s_next = concat(p_s, piece) | concat(piece, p_s), plus i+1.
         // Var-form additionally matches `s_next = concat(LoadVar "s", piece)`
@@ -199,7 +206,6 @@ impl LoopOptimizer {
         // piece `appends_per_iter * trips` times. All appends must share
         // one piece value for the fold to be a pure count.
         let mut concat_count = 0usize;
-        let mut appends_per_iter = 0usize;
         for inst in &body_blk.instructions {
             match inst {
                 Inst::LoadVar { dest, name, .. } if var_form => {
@@ -214,8 +220,7 @@ impl LoopOptimizer {
                     args: cargs,
                     ty,
                     ..
-                } if (func == "datara_rt_str_concat"
-                    || func == "datara_rt_str_concat_mut")
+                } if (func == "datara_rt_str_concat" || func == "datara_rt_str_concat_mut")
                     && cargs.len() == 2
                     && (ty == "String" || ty.contains("Str")) =>
                 {
@@ -258,9 +263,7 @@ impl LoopOptimizer {
                                 _ => {
                                     piece = Some(cargs[1]);
                                     concat_count += 1;
-                                    if acc_operand == Some(cargs[0])
-                                        || cargs[0] == p_s
-                                        || var_form
+                                    if acc_operand == Some(cargs[0]) || cargs[0] == p_s || var_form
                                     {
                                         s_next = Some(*dest);
                                     }
@@ -272,9 +275,7 @@ impl LoopOptimizer {
                                 _ => {
                                     piece = Some(cargs[0]);
                                     concat_count += 1;
-                                    if acc_operand == Some(cargs[1])
-                                        || cargs[1] == p_s
-                                        || var_form
+                                    if acc_operand == Some(cargs[1]) || cargs[1] == p_s || var_form
                                     {
                                         s_next = Some(*dest);
                                     }
@@ -291,9 +292,9 @@ impl LoopOptimizer {
                     ty,
                 } if (op == "+" || op == "wrapping_+") => {
                     if *dest == expected_i {
-                        if *left == p_i && Self::const_int_value(f, *right) == Some(1) {
-                            i_next = Some(*dest);
-                        } else if *right == p_i && Self::const_int_value(f, *left) == Some(1) {
+                        if (*left == p_i && Self::const_int_value(f, *right) == Some(1))
+                            || (*right == p_i && Self::const_int_value(f, *left) == Some(1))
+                        {
                             i_next = Some(*dest);
                         } else {
                             // Unrolled latch: follow the chain of +1 links
@@ -352,7 +353,7 @@ impl LoopOptimizer {
                 _ => {}
             }
         }
-        appends_per_iter = concat_count;
+        let appends_per_iter = concat_count;
         let (s_next, piece, i_next) = match (s_next, piece, i_next) {
             (Some(a), Some(b), Some(c)) => (a, b, c),
             _ => bail!("reason#11b: no concat/increment chain matched in body"),
@@ -364,14 +365,14 @@ impl LoopOptimizer {
             // The var form requires the write-back: AssignVar(acc_var, s_next)
             // in the body, and i_next must be the back-edge arg.
             let written_back = body_blk.instructions.iter().any(|i| match i {
-                Inst::AssignVar { name, value } => acc_var.as_deref() == Some(name.as_str()) && *value == s_next,
+                Inst::AssignVar { name, value } => {
+                    acc_var.as_deref() == Some(name.as_str()) && *value == s_next
+                }
                 _ => false,
             });
             if !written_back || i_next != expected_i {
                 bail!("reason#11-var");
             }
-            // The rewrite target for the var form: the write-back assign.
-            expected_s = s_next;
         }
 
         // Everything defined inside the loop.
@@ -449,9 +450,7 @@ impl LoopOptimizer {
             (s_arg, i_arg)
         } else {
             match &f.get_block(preheader)?.terminator {
-                Terminator::Branch { target, args }
-                    if *target == header && args.len() == 2 =>
-                {
+                Terminator::Branch { target, args } if *target == header && args.len() == 2 => {
                     let s_arg = args[1 - idx_i];
                     let i_arg = args[idx_i];
                     (s_arg, i_arg)
@@ -542,7 +541,10 @@ impl LoopOptimizer {
             let start_v = {
                 let z = ValueId(next);
                 next += 1;
-                insts.push(Inst::ConstInt { dest: z, value: plan.start });
+                insts.push(Inst::ConstInt {
+                    dest: z,
+                    value: plan.start,
+                });
                 z
             };
             let d = ValueId(next);
@@ -658,7 +660,6 @@ impl LoopOptimizer {
         // s_final = concat(s0, repeated) — byte order identical to the loop.
         let s_final = {
             let d = ValueId(next);
-            next += 1;
             insts.push(Inst::Call {
                 dest: d,
                 func: "datara_rt_str_concat".to_string(),
@@ -716,5 +717,4 @@ impl LoopOptimizer {
              (n - start) times in exact source order; zero trips guarded by select",
         );
     }
-
 }

@@ -59,18 +59,10 @@ pub(super) fn eliminate_affine_2d(
                     if dest == cond && op == "<" {
                         let left_res = resolve_vid(*left);
                         let right_res = resolve_vid(*right);
-                        let left_name = resolve_name_deep(*left)
-                            .or_else(|| resolve_name(*left));
-                        let right_name = resolve_name_deep(*right)
-                            .or_else(|| resolve_name(*right));
+                        let left_name = resolve_name_deep(*left).or_else(|| resolve_name(*left));
+                        let right_name = resolve_name_deep(*right).or_else(|| resolve_name(*right));
                         let loop_blocks: HashSet<_> = lp.blocks.iter().copied().collect();
-                        loop_bounds.push((
-                            left_res,
-                            left_name,
-                            right_res,
-                            right_name,
-                            loop_blocks,
-                        ));
+                        loop_bounds.push((left_res, left_name, right_res, right_name, loop_blocks));
                     }
                 }
             }
@@ -83,8 +75,7 @@ pub(super) fn eliminate_affine_2d(
         let blk_id = blk.id;
         for inst in &mut blk.instructions {
             if let Inst::Call { func, args, .. } = inst {
-                if (func == "datara_rt_list_get" || func == "datara_rt_list_set")
-                    && args.len() >= 2
+                if (func == "datara_rt_list_get" || func == "datara_rt_list_set") && args.len() >= 2
                 {
                     let arr_vid = resolve_vid(args[0]);
                     let arr_name = resolve_name_deep(args[0]);
@@ -98,105 +89,79 @@ pub(super) fn eliminate_affine_2d(
                                     let factor_choices = [(m1, m2), (m2, m1)];
                                     for (i_val, n_val) in factor_choices {
                                         let j_val = off_cand;
-                                        let is_bounded =
-                                            |val: ValueId, bound: ValueId| -> bool {
-                                                let v_name = resolve_name_deep(val);
-                                                let b_name = resolve_name_deep(bound);
-                                                let v_res = resolve_vid(val);
-                                                let b_res = resolve_vid(bound);
-                                                loop_bounds.iter().any(
-                                                    |(lv, ln, rv, rn, blocks)| {
-                                                        if !blocks.contains(&blk_id) {
-                                                            return false;
-                                                        }
-                                                        let var_matches = *lv == val
-                                                            || *lv == v_res
-                                                            || (ln.is_some()
-                                                                && ln == &v_name);
-                                                        let bound_matches = *rv == bound
-                                                            || *rv == b_res
-                                                            || (rn.is_some()
-                                                                && rn == &b_name);
-                                                        var_matches && bound_matches
-                                                    },
-                                                )
-                                            };
+                                        let is_bounded = |val: ValueId, bound: ValueId| -> bool {
+                                            let v_name = resolve_name_deep(val);
+                                            let b_name = resolve_name_deep(bound);
+                                            let v_res = resolve_vid(val);
+                                            let b_res = resolve_vid(bound);
+                                            loop_bounds.iter().any(|(lv, ln, rv, rn, blocks)| {
+                                                if !blocks.contains(&blk_id) {
+                                                    return false;
+                                                }
+                                                let var_matches = *lv == val
+                                                    || *lv == v_res
+                                                    || (ln.is_some() && ln == &v_name);
+                                                let bound_matches = *rv == bound
+                                                    || *rv == b_res
+                                                    || (rn.is_some() && rn == &b_name);
+                                                var_matches && bound_matches
+                                            })
+                                        };
 
-                                        if is_bounded(i_val, n_val)
-                                            && is_bounded(j_val, n_val)
-                                        {
+                                        if is_bounded(i_val, n_val) && is_bounded(j_val, n_val) {
                                             let arr_len_match = {
                                                 let mut ok = false;
-                                                let check_len_vid =
-                                                    |len_v: ValueId| -> bool {
-                                                        if let Some(resolved_len) =
-                                                            find_mul(len_v)
+                                                let check_len_vid = |len_v: ValueId| -> bool {
+                                                    if let Some(resolved_len) = find_mul(len_v) {
+                                                        if let Some(&(ml, mr)) =
+                                                            ctx.mul_map.get(&resolved_len)
                                                         {
-                                                            if let Some(&(ml, mr)) = ctx
-                                                                .mul_map
-                                                                .get(&resolved_len)
+                                                            let ml_res = resolve_vid(ml);
+                                                            let mr_res = resolve_vid(mr);
+                                                            let n_res = resolve_vid(n_val);
+                                                            let ml_name = resolve_name_deep(ml);
+                                                            let mr_name = resolve_name_deep(mr);
+                                                            let n_name = resolve_name_deep(n_val);
+                                                            let m_ok = |r, n: &Option<String>| {
+                                                                r == n_res
+                                                                    || (n.is_some() && n == &n_name)
+                                                            };
+                                                            if m_ok(ml_res, &ml_name)
+                                                                && m_ok(mr_res, &mr_name)
                                                             {
-                                                                let ml_res =
-                                                                    resolve_vid(ml);
-                                                                let mr_res =
-                                                                    resolve_vid(mr);
-                                                                let n_res =
-                                                                    resolve_vid(n_val);
-                                                                let ml_name =
-                                                                    resolve_name_deep(ml);
-                                                                let mr_name =
-                                                                    resolve_name_deep(mr);
-                                                                let n_name =
-                                                                    resolve_name_deep(n_val);
-                                                                let m_ok = |r,
-                                                                            n: &Option<
-                                                                    String,
-                                                                >| {
-                                                                    r == n_res
-                                                                        || (n.is_some()
-                                                                            && n == &n_name)
-                                                                };
-                                                                if m_ok(ml_res, &ml_name)
-                                                                    && m_ok(
-                                                                        mr_res, &mr_name,
-                                                                    )
-                                                                {
-                                                                    return true;
-                                                                }
-                                                            }
-                                                        }
-                                                        if let (Some(nc), Some(lc)) =
-                                                            (const_val(n_val), const_val(len_v))
-                                                        {
-                                                            if nc * nc <= lc {
                                                                 return true;
                                                             }
                                                         }
-                                                        false
-                                                    };
-                                                let len_cand = ctx
-                                                    .list_len
-                                                    .get(&arr_vid)
-                                                    .or_else(|| {
+                                                    }
+                                                    if let (Some(nc), Some(lc)) =
+                                                        (const_val(n_val), const_val(len_v))
+                                                    {
+                                                        if nc * nc <= lc {
+                                                            return true;
+                                                        }
+                                                    }
+                                                    false
+                                                };
+                                                let len_cand =
+                                                    ctx.list_len.get(&arr_vid).or_else(|| {
                                                         arr_name
                                                             .as_ref()
-                                                            .and_then(|an| {
-                                                                ctx.var_len.get(an)
-                                                            })
+                                                            .and_then(|an| ctx.var_len.get(an))
                                                     });
                                                 match len_cand {
                                                     Some(&super::bce::LenVal::Vid(v)) => {
                                                         ok = check_len_vid(v);
                                                     }
                                                     Some(&super::bce::LenVal::Const(lc)) => {
-                                                        let n_const = const_val(n_val)
-                                                            .or_else(|| {
-                                                                resolve_name_deep(n_val)
-                                                                    .and_then(|name| {
+                                                        let n_const =
+                                                            const_val(n_val).or_else(|| {
+                                                                resolve_name_deep(n_val).and_then(
+                                                                    |name| {
                                                                         ctx.var_const
                                                                             .get(&name)
                                                                             .copied()
-                                                                    })
+                                                                    },
+                                                                )
                                                             });
                                                         if let Some(nc) = n_const {
                                                             if nc * nc <= lc {

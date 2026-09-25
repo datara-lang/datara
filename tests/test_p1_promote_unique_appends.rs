@@ -120,10 +120,13 @@ fn promotes_unique_append_to_concat_mut() {
     assert_eq!(string_binop_count(&f), 0, "string BinOp replaced");
     // The final observer load (Out) is untouched.
     assert!(
-        f.blocks[0]
-            .instructions
-            .iter()
-            .any(|i| matches!(i, Inst::LoadVar { dest: ValueId(5), .. })),
+        f.blocks[0].instructions.iter().any(|i| matches!(
+            i,
+            Inst::LoadVar {
+                dest: ValueId(5),
+                ..
+            }
+        )),
         "final read of `s` is preserved"
     );
 }

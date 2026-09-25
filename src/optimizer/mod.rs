@@ -176,7 +176,12 @@ impl Optimizer {
             if std::env::var("DATARA_DEBUG_VERIF").is_ok() {
                 if let Some(mf) = module.functions.get("main") {
                     for b in &mf.blocks {
-                        eprintln!("DBG BLOCK {} params {:?} label={}", b.id.0, b.params.iter().map(|p| p.val.0).collect::<Vec<_>>(), b.label);
+                        eprintln!(
+                            "DBG BLOCK {} params {:?} label={}",
+                            b.id.0,
+                            b.params.iter().map(|p| p.val.0).collect::<Vec<_>>(),
+                            b.label
+                        );
                     }
                 }
                 eprintln!("DBG error: {}", error);
@@ -377,7 +382,12 @@ impl Optimizer {
             if std::env::var("DATARA_DEBUG_VERIF").is_ok() {
                 if let Some(mf) = module.functions.get("main") {
                     for b in &mf.blocks {
-                        eprintln!("DBG BLOCK {} params {:?} label={}", b.id.0, b.params.iter().map(|p| p.val.0).collect::<Vec<_>>(), b.label);
+                        eprintln!(
+                            "DBG BLOCK {} params {:?} label={}",
+                            b.id.0,
+                            b.params.iter().map(|p| p.val.0).collect::<Vec<_>>(),
+                            b.label
+                        );
                     }
                 }
                 eprintln!("DBG error: {}", error);
@@ -444,7 +454,12 @@ impl Optimizer {
             if std::env::var("DATARA_DEBUG_VERIF").is_ok() {
                 if let Some(mf) = module.functions.get("main") {
                     for b in &mf.blocks {
-                        eprintln!("DBG BLOCK {} params {:?} label={}", b.id.0, b.params.iter().map(|p| p.val.0).collect::<Vec<_>>(), b.label);
+                        eprintln!(
+                            "DBG BLOCK {} params {:?} label={}",
+                            b.id.0,
+                            b.params.iter().map(|p| p.val.0).collect::<Vec<_>>(),
+                            b.label
+                        );
                     }
                 }
                 eprintln!("DBG error: {}", error);

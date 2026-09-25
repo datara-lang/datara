@@ -48,8 +48,7 @@ impl PipelineFusionOptimizer {
         // value of `s` is provably dead. Runs before N-ary fusion so the
         // binary append pattern survives.
         let uses = Self::count_uses(f);
-        total_fused +=
-            Self::promote_unique_appends(f, &uses, trace, module_mutable_globals);
+        total_fused += Self::promote_unique_appends(f, &uses, trace, module_mutable_globals);
 
         // 1. String Concatenation Fusion
         total_fused += Self::fuse_string_concatenations(f, &uses, trace);
@@ -548,31 +547,18 @@ impl PipelineFusionOptimizer {
                 let (vid0, slot) = match (&b.instructions[i], &b.instructions[i + 1]) {
                     (
                         Inst::Call {
-                            dest,
-                            func,
-                            args,
-                            ..
+                            dest, func, args, ..
                         },
                         Inst::AssignVar { name, value },
-                    ) if Self::is_consumed_concat(func)
-                        && args.len() == 2
-                        && value == dest =>
-                    {
+                    ) if Self::is_consumed_concat(func) && args.len() == 2 && value == dest => {
                         (args[0], name)
                     }
                     (
                         Inst::BinOp {
-                            dest,
-                            op,
-                            left,
-                            ty,
-                            ..
+                            dest, op, left, ty, ..
                         },
                         Inst::AssignVar { name, value },
-                    ) if op == "+"
-                        && (ty == "String" || ty.contains("Str"))
-                        && value == dest =>
-                    {
+                    ) if op == "+" && (ty == "String" || ty.contains("Str")) && value == dest => {
                         (*left, name)
                     }
                     _ => continue,
@@ -622,7 +608,12 @@ impl PipelineFusionOptimizer {
                             escaping.insert(*a);
                         }
                     }
-                    Inst::MethodCall { object, method, args, .. } => {
+                    Inst::MethodCall {
+                        object,
+                        method,
+                        args,
+                        ..
+                    } => {
                         if !Self::is_string_observer_method(method) {
                             escaping.insert(*object);
                         }
@@ -689,8 +680,7 @@ impl PipelineFusionOptimizer {
         let mut count = 0;
         for c in &candidates {
             // (1) Local mut only: no params, no block params, no mut globals.
-            if nonlocal_names.contains(c.slot.as_str())
-                || module_mutable_globals.contains(&c.slot)
+            if nonlocal_names.contains(c.slot.as_str()) || module_mutable_globals.contains(&c.slot)
             {
                 continue;
             }
@@ -720,10 +710,7 @@ impl PipelineFusionOptimizer {
                 Inst::BinOp { .. } => {
                     let new_inst = match &b.instructions[c.at] {
                         Inst::BinOp {
-                            dest,
-                            left,
-                            right,
-                            ..
+                            dest, left, right, ..
                         } => Inst::Call {
                             dest: *dest,
                             func: "datara_rt_str_concat_mut".to_string(),

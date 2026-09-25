@@ -16,7 +16,7 @@
 #![allow(clippy::all)]
 
 use crate::dmir::cfg::ControlFlowGraph;
-use crate::dmir::{BasicBlock, BasicBlockId, BlockParam, Function, Inst, Terminator, ValueId};
+use crate::dmir::{BasicBlock, BasicBlockId, Function, Inst, Terminator, ValueId};
 use crate::optimizer::cost_model::{CostModel, OptimizationDecisionTrace};
 use std::collections::{HashMap, HashSet};
 
@@ -795,12 +795,7 @@ impl LoopEngineV2 {
                 // accumulator lanes (what a 2-lane vectorizer does); the loop
                 // exit combines them. Fully guarded — no-op when unproven.
                 crate::optimizer::loops::reduce_lanes::split_float_reduction_lanes(
-                    f,
-                    &lp.blocks,
-                    header_id,
-                    body_id,
-                    &mut fresh,
-                    trace,
+                    f, &lp.blocks, header_id, body_id, &mut fresh, trace,
                 );
                 unrolled += 1;
                 break;
@@ -975,14 +970,6 @@ impl LoopEngineV2 {
             };
         }
         trips > 0 && trips % 2 == 0
-    }
-
-    /// Remaps all destination and source ValueIds in an instruction.
-    fn visit_dest_of(inst: &Inst) -> Option<ValueId> {
-        match inst {
-            Inst::ConstInt { dest, .. } | Inst::ConstFloat { dest, .. } => Some(*dest),
-            _ => None,
-        }
     }
 
     fn remap_inst_vids(inst: &mut Inst, fresh: &mut usize, v_map: &mut HashMap<ValueId, ValueId>) {

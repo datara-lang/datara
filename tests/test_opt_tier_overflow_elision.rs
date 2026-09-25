@@ -270,7 +270,14 @@ fn runtime_bound_loop_is_never_marked_even_at_speed() {
     assert!(f.proven_no_overflow.contains(&ValueId(9)));
     // The runtime-bound variant above proved nothing, so its body sum must
     // also stay unmarked — double-check the exact ValueId set here.
-    assert!(!constant.functions.get("loop_fn").unwrap().proven_no_overflow.contains(&ValueId(8)));
+    assert!(
+        !constant
+            .functions
+            .get("loop_fn")
+            .unwrap()
+            .proven_no_overflow
+            .contains(&ValueId(8))
+    );
 }
 
 #[test]

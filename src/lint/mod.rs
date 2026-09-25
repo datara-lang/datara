@@ -7,7 +7,6 @@ use crate::lexer::Lexer;
 use crate::parser::Parser;
 pub use diagnostics::{LintDiagnostic, LintFix, LintSeverity};
 pub use profile::LintProfile;
-use std::fs;
 use std::path::Path;
 
 pub fn lint_source(source: &str, file_name: &str) -> Result<Vec<LintDiagnostic>, String> {

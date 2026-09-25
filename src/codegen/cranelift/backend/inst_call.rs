@@ -91,7 +91,9 @@ pub fn compile_call<M: ClifModule>(
         // Fallback keeps mul+add for FMA-less hosts (two roundings, same
         // shape as before — bit-identical to the historical lowering).
         let res = if std::is_x86_feature_detected!("fma") {
-            ctx.builder.ins().fma(f_operands[0], f_operands[1], f_operands[2])
+            ctx.builder
+                .ins()
+                .fma(f_operands[0], f_operands[1], f_operands[2])
         } else {
             let prod = ctx.builder.ins().fmul(f_operands[0], f_operands[1]);
             ctx.builder.ins().fadd(prod, f_operands[2])
@@ -615,20 +617,30 @@ pub fn compile_call<M: ClifModule>(
         && let Some(&av) = ctx.val_map.get(&first_arg_id)
     {
         let v_ty = ctx.builder.func.dfg.value_type(av);
-        let (want_id, want_name): (Option<cranelift_module::FuncId>, &str) = if v_ty == clif_types::F64 {
-            (ctx.func_ids.get("datara_rt_print_float").map(|t| t.0), "datara_rt_print_float")
-        } else if ctx.string_vids.contains(&first_arg_id) {
-            (ctx.func_ids.get("datara_rt_print_str").map(|t| t.0), "datara_rt_print_str")
-        } else if ctx.bool_vids.contains(&first_arg_id) {
-            (ctx.func_ids.get("datara_rt_print_bool").map(|t| t.0), "datara_rt_print_bool")
-        } else if ctx.list_vids.contains(&first_arg_id) {
-            (
-                ctx.func_ids.get("datara_rt_print_list").map(|t| t.0),
-                "datara_rt_print_list",
-            )
-        } else {
-            (None, "")
-        };
+        let (want_id, want_name): (Option<cranelift_module::FuncId>, &str) =
+            if v_ty == clif_types::F64 {
+                (
+                    ctx.func_ids.get("datara_rt_print_float").map(|t| t.0),
+                    "datara_rt_print_float",
+                )
+            } else if ctx.string_vids.contains(&first_arg_id) {
+                (
+                    ctx.func_ids.get("datara_rt_print_str").map(|t| t.0),
+                    "datara_rt_print_str",
+                )
+            } else if ctx.bool_vids.contains(&first_arg_id) {
+                (
+                    ctx.func_ids.get("datara_rt_print_bool").map(|t| t.0),
+                    "datara_rt_print_bool",
+                )
+            } else if ctx.list_vids.contains(&first_arg_id) {
+                (
+                    ctx.func_ids.get("datara_rt_print_list").map(|t| t.0),
+                    "datara_rt_print_list",
+                )
+            } else {
+                (None, "")
+            };
         if let Some(id) = want_id {
             resolved_callee_id = id;
             resolved_callee_name = want_name.to_string();

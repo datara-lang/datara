@@ -31,9 +31,7 @@ pub(super) struct BceCtxt<'a> {
 }
 
 impl<'a> BceCtxt<'a> {
-    pub(super) fn resolve_vid_fn(
-        &self,
-    ) -> impl Fn(ValueId) -> ValueId + '_ {
+    pub(super) fn resolve_vid_fn(&self) -> impl Fn(ValueId) -> ValueId + '_ {
         let copy_of = self.copy_of;
         move |mut v: ValueId| {
             for _ in 0..32 {
@@ -46,9 +44,7 @@ impl<'a> BceCtxt<'a> {
         }
     }
 
-    pub(super) fn resolve_name_fn(
-        &self,
-    ) -> impl Fn(ValueId) -> Option<String> + '_ {
+    pub(super) fn resolve_name_fn(&self) -> impl Fn(ValueId) -> Option<String> + '_ {
         let copy_of = self.copy_of;
         let val_to_name = self.val_to_name;
         move |mut v: ValueId| {
@@ -65,9 +61,7 @@ impl<'a> BceCtxt<'a> {
         }
     }
 
-    pub(super) fn resolve_name_deep_fn(
-        &self,
-    ) -> impl Fn(ValueId) -> Option<String> + '_ {
+    pub(super) fn resolve_name_deep_fn(&self) -> impl Fn(ValueId) -> Option<String> + '_ {
         let val_to_name = self.val_to_name;
         let var_of_val = self.var_of_val;
         let copy_of = self.copy_of;
@@ -116,7 +110,10 @@ impl<'a> BceCtxt<'a> {
                     _ => break,
                 }
             }
-            consts.get(&r).copied().or_else(|| consts.get(&vid).copied())
+            consts
+                .get(&r)
+                .copied()
+                .or_else(|| consts.get(&vid).copied())
         }
     }
 
@@ -432,7 +429,10 @@ impl LoopOptimizer {
 
         let const_val = |vid: ValueId| -> Option<i64> {
             let r = resolve_vid(vid, &copy_of);
-            consts.get(&r).copied().or_else(|| consts.get(&vid).copied())
+            consts
+                .get(&r)
+                .copied()
+                .or_else(|| consts.get(&vid).copied())
         };
 
         let mut block_param_incoming: HashMap<ValueId, Vec<ValueId>> = HashMap::new();

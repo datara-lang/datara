@@ -65,11 +65,7 @@ pub(crate) fn split_float_reduction_lanes(
     for inst in &body_snap.instructions {
         match inst {
             Inst::BinOp {
-                dest,
-                op,
-                left,
-                ty,
-                ..
+                dest, op, left, ty, ..
             } => {
                 if (op == "+" || op == "wrapping_+")
                     && (ty == "Float" || ty == "f64")
@@ -105,11 +101,7 @@ pub(crate) fn split_float_reduction_lanes(
     for inst in &body_snap.instructions {
         match inst {
             Inst::BinOp {
-                dest,
-                op,
-                left,
-                ty,
-                ..
+                dest, op, left, ty, ..
             } => {
                 if !is_fma
                     && *dest == prev_acc
@@ -139,7 +131,9 @@ pub(crate) fn split_float_reduction_lanes(
             _ => {}
         }
     }
-    if std::env::var("DATARA_NO_LANE_SPLIT").is_ok() { return; }
+    if std::env::var("DATARA_NO_LANE_SPLIT").is_ok() {
+        return;
+    }
     let Some((s1_vid, acc_vid)) = first_link else {
         // Not a 2-link chain: either an un-unrolled single add (its acc
         // operand is the param itself, no defining inst) or an
@@ -212,8 +206,15 @@ pub(crate) fn split_float_reduction_lanes(
                 continue;
             };
             if std::env::var("DATARA_DEBUG_VERIF").is_ok() {
-                eprintln!("DBG preheader {} existing defs of acc2={}: {:?}", pid.0, acc2.0,
-                    pb.instructions.iter().filter_map(|i| visit_dest_of(i)).collect::<Vec<_>>());
+                eprintln!(
+                    "DBG preheader {} existing defs of acc2={}: {:?}",
+                    pid.0,
+                    acc2.0,
+                    pb.instructions
+                        .iter()
+                        .filter_map(|i| visit_dest_of(i))
+                        .collect::<Vec<_>>()
+                );
             }
             pb.instructions.push(zero.clone());
             match &mut pb.terminator {
@@ -404,45 +405,80 @@ pub(crate) fn split_float_reduction_lanes(
             // params/branch args, and renaming would orphan those uses.
             match &mut inst {
                 Inst::BinOp { left, right, .. } => {
-                    if *left == acc_vid { *left = sum_final; }
-                    if *right == acc_vid { *right = sum_final; }
+                    if *left == acc_vid {
+                        *left = sum_final;
+                    }
+                    if *right == acc_vid {
+                        *right = sum_final;
+                    }
                 }
                 Inst::Out { value, .. } | Inst::Err { value } => {
-                    if *value == acc_vid { *value = sum_final; }
+                    if *value == acc_vid {
+                        *value = sum_final;
+                    }
                 }
                 Inst::AssignVar { value, .. } => {
-                    if *value == acc_vid { *value = sum_final; }
+                    if *value == acc_vid {
+                        *value = sum_final;
+                    }
                 }
                 Inst::Call { args, .. } => {
                     for a in args.iter_mut() {
-                        if *a == acc_vid { *a = sum_final; }
+                        if *a == acc_vid {
+                            *a = sum_final;
+                        }
                     }
                 }
                 Inst::MethodCall { object, args, .. } => {
-                    if *object == acc_vid { *object = sum_final; }
+                    if *object == acc_vid {
+                        *object = sum_final;
+                    }
                     for a in args.iter_mut() {
-                        if *a == acc_vid { *a = sum_final; }
+                        if *a == acc_vid {
+                            *a = sum_final;
+                        }
                     }
                 }
                 Inst::UnOp { operand, .. } => {
-                    if *operand == acc_vid { *operand = sum_final; }
+                    if *operand == acc_vid {
+                        *operand = sum_final;
+                    }
                 }
                 Inst::Cast { value, .. } => {
-                    if *value == acc_vid { *value = sum_final; }
+                    if *value == acc_vid {
+                        *value = sum_final;
+                    }
                 }
-                Inst::Select { cond, then_val, else_val, .. } => {
-                    if *cond == acc_vid { *cond = sum_final; }
-                    if *then_val == acc_vid { *then_val = sum_final; }
-                    if *else_val == acc_vid { *else_val = sum_final; }
+                Inst::Select {
+                    cond,
+                    then_val,
+                    else_val,
+                    ..
+                } => {
+                    if *cond == acc_vid {
+                        *cond = sum_final;
+                    }
+                    if *then_val == acc_vid {
+                        *then_val = sum_final;
+                    }
+                    if *else_val == acc_vid {
+                        *else_val = sum_final;
+                    }
                 }
                 Inst::SetField { value, .. } => {
-                    if *value == acc_vid { *value = sum_final; }
+                    if *value == acc_vid {
+                        *value = sum_final;
+                    }
                 }
                 Inst::GetField { object, .. } => {
-                    if *object == acc_vid { *object = sum_final; }
+                    if *object == acc_vid {
+                        *object = sum_final;
+                    }
                 }
                 Inst::Return { value: Some(v) } => {
-                    if *v == acc_vid { *v = sum_final; }
+                    if *v == acc_vid {
+                        *v = sum_final;
+                    }
                 }
                 _ => {}
             }
