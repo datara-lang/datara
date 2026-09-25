@@ -9,6 +9,16 @@ pub use diagnostics::{LintDiagnostic, LintFix, LintSeverity};
 pub use profile::LintProfile;
 use std::path::Path;
 
+/// A source file whose first line is a `//!` module doc is a library
+/// module: its top-level API is consumed by other programs, so unused-here
+/// items are not dead code.
+fn has_library_doc_header(source: &str) -> bool {
+    source
+        .trim_start_matches('\u{feff}')
+        .trim_start()
+        .starts_with("//!")
+}
+
 pub fn lint_source(source: &str, file_name: &str) -> Result<Vec<LintDiagnostic>, String> {
     lint_source_with_profile(source, file_name, LintProfile::Standard)
 }
@@ -33,6 +43,7 @@ pub fn lint_source_with_profile(
         return Err(diag_engine.format_all());
     }
 
+    rules::set_library_doc(has_library_doc_header(source));
     let mut diags = rules::run_all_rules(&program);
 
     // Apply profile rules: filter suppressed and escalate errors
@@ -74,8 +85,10 @@ pub fn lint_files_with_profile(
     profile: LintProfile,
 ) -> Result<Vec<LintDiagnostic>, String> {
     let mut merged: Option<crate::ast::Program> = None;
+    let mut any_library_doc = false;
     for path in paths {
         let source = crate::fmt::read_source_utf8(path)?;
+        any_library_doc |= has_library_doc_header(&source);
         let file_str = path.to_string_lossy().to_string();
         let mut diag_engine = DiagnosticEngine::new("en");
         diag_engine.set_source(&file_str, &source);
@@ -99,7 +112,10 @@ pub fn lint_files_with_profile(
     }
 
     let mut diags = match &merged {
-        Some(program) => rules::run_all_rules(program),
+        Some(program) => {
+            rules::set_library_doc(any_library_doc);
+            rules::run_all_rules(program)
+        }
         None => Vec::new(),
     };
 

@@ -61,6 +61,32 @@ pub fn to_pascal_case(s: &str) -> String {
     out
 }
 
+thread_local! {
+    /// Set by the lint entry points when the linted source is a library
+    /// module (top-of-file `//!` module doc). Library files expose public
+    /// API by design, so free functions and behavior methods that are
+    /// unused *in this file* are not dead code.
+    static LIBRARY_DOC: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+
+    /// Class names actually constructed with `ObjectInit` during the scan of
+    /// the current program. Distinct from `referenced`: a bare mention of a
+    /// type name (e.g. `Deque.new()` in a doc example) must not make the
+    /// type's behavior methods dead-code candidates — library modules would
+    /// flood with false positives. Per-thread because lint invocations are
+    /// independent per file/thread and scan+report run on one thread.
+    static OBJECT_INITS: std::cell::RefCell<std::collections::HashSet<String>> =
+        std::cell::RefCell::new(std::collections::HashSet::new());
+}
+
+/// Marks the currently linted source as a library module (see LIBRARY_DOC).
+pub fn set_library_doc(is_library: bool) {
+    LIBRARY_DOC.with(|c| c.set(is_library));
+}
+
+fn is_library_doc() -> bool {
+    LIBRARY_DOC.with(|c| c.get())
+}
+
 pub fn run_all_rules(program: &Program) -> Vec<LintDiagnostic> {
     let mut diags = Vec::new();
     check_declarations(program, &mut diags);
@@ -87,6 +113,7 @@ pub fn run_all_rules(program: &Program) -> Vec<LintDiagnostic> {
 /// `lint::lint_files_with_profile`), not once per file - per-file calls
 /// cannot see cross-module references and produce false positives.
 fn check_dead_code(program: &Program, diags: &mut Vec<LintDiagnostic>) {
+    OBJECT_INITS.with(|o| o.borrow_mut().clear());
     // 1. Collect candidate definitions.
     let mut defined: HashMap<String, SourceSpan> = HashMap::new();
     for decl in &program.declarations {
@@ -103,9 +130,6 @@ fn check_dead_code(program: &Program, diags: &mut Vec<LintDiagnostic>) {
             _ => {}
         }
     }
-    if defined.is_empty() {
-        return;
-    }
 
     // 2. Collect every referenced name across the whole program.
     let mut referenced: HashSet<String> = HashSet::new();
@@ -113,11 +137,18 @@ fn check_dead_code(program: &Program, diags: &mut Vec<LintDiagnostic>) {
         scan_decl_for_references(decl, &mut referenced);
     }
 
-    // 3. Report defined-but-never-referenced functions.
-    let mut dead: Vec<(String, SourceSpan)> = defined
-        .into_iter()
-        .filter(|(name, _)| !referenced.contains(name))
-        .collect();
+    // 3. Report defined-but-never-referenced functions. The behavior-method
+    // and const checks below do not depend on the free-function set, so an
+    // empty `defined` must not short-circuit them (it used to early-return).
+    // Library modules are exempt: their free functions are public API.
+    let mut dead: Vec<(String, SourceSpan)> = if is_library_doc() {
+        Vec::new()
+    } else {
+        defined
+            .into_iter()
+            .filter(|(name, _)| !referenced.contains(name))
+            .collect()
+    };
     dead.sort_by_key(|a| a.1.start_line);
     for (name, span) in dead {
         diags.push(
@@ -132,6 +163,127 @@ fn check_dead_code(program: &Program, diags: &mut Vec<LintDiagnostic>) {
             ))
             .with_note("this function is never called and its name is never referenced".into()),
         );
+    }
+
+    // 4. Top-level `const` bindings that are never referenced. Only plain
+    // immutable consts are candidates (exported/mutable/underscore-prefixed
+    // names are roots), and the value must contain no call expressions to
+    // avoid side-effect-initialization false positives.
+    for decl in &program.declarations {
+        if let Decl::Global(g) = decl {
+            let is_root = g.is_export || g.is_mut || !g.is_const || g.name.starts_with('_');
+            if is_root || referenced.contains(&g.name) {
+                continue;
+            }
+            if expr_contains_call(&g.init) {
+                continue;
+            }
+            diags.push(
+                LintDiagnostic::new(
+                    "dead_code::unused_const",
+                    format!("const `{}` is never used", g.name),
+                    g.span.clone(),
+                )
+                .with_help(format!(
+                    "remove it, rename to `_{}` if intentionally unused, or mark #[export]",
+                    g.name
+                ))
+                .with_note("this const binding is never referenced".into()),
+            );
+        }
+    }
+
+    // 5. Behavior methods that are never referenced anywhere. Deliberately
+    // narrow to keep the 0-false-positives contract: skipped entirely when
+    // any class carries attributes (a `@derive` can dispatch protocol
+    // methods invisibly to the AST), when the method itself has attributes,
+    // or when the name is a well-known protocol hook.
+    let any_class_has_attributes = program
+        .declarations
+        .iter()
+        .any(|d| matches!(d, Decl::Class(c) if !c.attributes.is_empty()));
+    if !any_class_has_attributes {
+        for decl in &program.declarations {
+            let Decl::Behavior(b) = decl else { continue };
+            // Library modules (e.g. stdlib collections) declare canonical
+            // public APIs that are consumed by OTHER programs. Only a type
+            // actually INSTANTIATED in this program makes its behavior
+            // methods dead-code candidates; a bare name mention is not
+            // enough.
+            if is_library_doc() {
+                continue;
+            }
+            let instantiated = OBJECT_INITS.with(|o| o.borrow().contains(&b.target_type));
+            if !instantiated {
+                continue;
+            }
+            for item in &b.body_items {
+                let ClassItem::Method(m) = item else { continue };
+                let is_root = !m.attributes.is_empty()
+                    || m.name.starts_with('_')
+                    || PROTOCOL_HOOK_NAMES.contains(&m.name.as_str());
+                if is_root || referenced.contains(&m.name) {
+                    continue;
+                }
+                let span = if let Some(body) = m.body.as_ref() {
+                    body.span().clone()
+                } else {
+                    b.span.clone()
+                };
+                diags.push(
+                    LintDiagnostic::new(
+                        "dead_code::unused_behavior_method",
+                        format!(
+                            "behavior method `{}.{}` is never used",
+                            b.target_type, m.name
+                        ),
+                        span,
+                    )
+                    .with_help(format!(
+                        "remove it, rename to `_{} ` if intentionally unused, or call it somewhere",
+                        m.name
+                    ))
+                    .with_note(
+                        "this behavior method is never called and its name is never referenced"
+                            .into(),
+                    ),
+                );
+            }
+        }
+    }
+}
+
+/// Method names that protocol machinery (Display/Json/Hash derives, runtime
+/// dispatch) may call without any visible AST reference.
+const PROTOCOL_HOOK_NAMES: &[&str] = &[
+    "get_display",
+    "to_string",
+    "display",
+    "to_json",
+    "from_json",
+    "hash",
+    "clone",
+    "eq",
+    "compare",
+    "to_bytes",
+    "from_bytes",
+    "free",
+    "drop",
+];
+
+/// True if the expression tree contains any call — a conservative marker for
+/// potential side effects in const initializers.
+fn expr_contains_call(e: &Expr) -> bool {
+    match e {
+        Expr::Call { .. } => true,
+        Expr::Binary { left, right, .. } => expr_contains_call(left) || expr_contains_call(right),
+        Expr::Unary { expr, .. } | Expr::Cast { expr, .. } => expr_contains_call(expr),
+        Expr::MemberAccess { object, .. } => expr_contains_call(object),
+        Expr::IndexAccess { object, index, .. } => {
+            expr_contains_call(object) || expr_contains_call(index)
+        }
+        Expr::InterpolatedString { expressions, .. } => expressions.iter().any(expr_contains_call),
+        _ => false,
     }
 }
 
@@ -326,7 +478,17 @@ fn scan_expr(expr: &Expr, referenced: &mut HashSet<String>) {
             }
         }
         Expr::ArrayRepeatLiteral { elem, .. } => scan_expr(elem, referenced),
-        Expr::ObjectInit { fields, .. } => {
+        Expr::ObjectInit {
+            class_name, fields, ..
+        } => {
+            // Constructing a struct/class marks the type itself referenced:
+            // behavior methods of an instantiated type are dead-code
+            // candidates, while those of an unreferenced type are library
+            // API surface.
+            referenced.insert(class_name.clone());
+            OBJECT_INITS.with(|o| {
+                o.borrow_mut().insert(class_name.clone());
+            });
             for (_, e) in fields {
                 scan_expr(e, referenced);
             }
