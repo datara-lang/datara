@@ -81,6 +81,19 @@ typedef struct {
 
 #define DATARA_MAP_INDEX_MIN 16
 
+// M1 growth-soundness: map keys are OWNED COPIES. Callers routinely pass
+// strings living in the recycled scratch ring (e.g. fmt"key_{i}" in a
+// loop); storing those pointers verbatim dangles every key once the ring
+// wraps (~1MB of allocations), which silently froze map growth.
+static const char* rt_map_own_key(const char* key) {
+    if (!key) return NULL;
+    size_t n = strlen(key) + 1;
+    char* copy = (char*)malloc(n);
+    if (!copy) return key; // OOM fallback keeps the old (unsafe) behavior
+    memcpy(copy, key, n);
+    return copy;
+}
+
 static uint64_t rt_map_hash(const char* key) {
     uint64_t h = 1469598103934665603ULL; // FNV-1a 64
     for (const unsigned char* p = (const unsigned char*)key; *p; p++) {
@@ -290,7 +303,7 @@ int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
         hdr->index_slots = 0;
         int64_t* m = (int64_t*)(hdr + 1);
         m[0] = 1;
-        m[1] = (int64_t)key;
+        m[1] = (int64_t)rt_map_own_key(key);
         m[2] = val;
         return m;
     }
@@ -305,7 +318,7 @@ int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
     DataraMapHeader* hdr = datara_rt_map_get_header(map);
     if (hdr) {
         if (count < hdr->capacity) {
-            map[1 + count * 2] = (int64_t)key;
+            map[1 + count * 2] = (int64_t)rt_map_own_key(key);
             map[2 + count * 2] = val;
             map[0] = count + 1;
             // Keep the index in sync; drop it when the load factor would
@@ -355,7 +368,7 @@ int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
             new_hdr->capacity = new_cap;
         }
         int64_t* new_map = (int64_t*)(new_hdr + 1);
-        new_map[1 + count * 2] = (int64_t)key;
+        new_map[1 + count * 2] = (int64_t)rt_map_own_key(key);
         new_map[2 + count * 2] = val;
         new_map[0] = count + 1;
         return new_map;
@@ -374,7 +387,7 @@ int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
             new_map[1 + i * 2] = map[1 + i * 2];
             new_map[2 + i * 2] = map[2 + i * 2];
         }
-        new_map[1 + count * 2] = (int64_t)key;
+        new_map[1 + count * 2] = (int64_t)rt_map_own_key(key);
         new_map[2 + count * 2] = val;
         free(map);
         return new_map;
