@@ -664,6 +664,13 @@ fn explain_code(code: &str) {
             );
         }
         _ => {
+            // M2: the data-driven table covers every ErrorCode with a
+            // category example; the hand-written arms above stay for the
+            // most common codes with bespoke prose.
+            if let Some(text) = crate::diagnostics::explain_data::explain_for_code(code) {
+                print!("{}", text);
+                return;
+            }
             println!("Code `{}`: No extended documentation entry found.", code);
             println!(
                 "Try: `forgen explain E-OUT-001`, `forgen explain W0102`, or `forgen explain E-TYPE-001`."

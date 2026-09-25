@@ -33,6 +33,27 @@ fn every_code_has_nonempty_description() {
 }
 
 #[test]
+fn every_code_has_extended_explanation_with_example() {
+    // M2 gate 2: 100% of the ErrorCode set resolves to an extended
+    // explanation containing an [INVALID]/[VALID] example pair.
+    for code in all_codes() {
+        let text = forgen::diagnostics::explain_data::explain_for_code(code.as_str())
+            .unwrap_or_else(|| panic!("code {} has no extended explanation", code.as_str()));
+        assert!(
+            text.contains("[VALID] Good Code:"),
+            "explanation for {} must contain a good-code example",
+            code.as_str()
+        );
+        assert!(
+            text.contains("[INVALID] Bad Code:"),
+            "explanation for {} must contain a bad-code example",
+            code.as_str()
+        );
+        assert!(text.contains(code.as_str()));
+    }
+}
+
+#[test]
 fn code_strings_are_unique_and_prefixed() {
     let codes = all_codes();
     let mut seen = std::collections::HashSet::new();
