@@ -201,7 +201,7 @@
 - [ ] Аудит всех ErrorCode: каждому — код, сообщение (en/ru), span с подсветкой, до 2 подсказок
 - [ ] `forgen explain <code>`: расширенное объяснение + ПРИМЕР ПРАВИЛЬНОГО КОДА
 - [ ] Автотест: для каждого кода объяснение непусто и содержит пример
-- [ ] Machine-applicable fixes для 5 частых случаев: unused variable (префикс `_`), missing `mut`, type mismatch с to_int/to_float-подсказкой, semicolon missing, `Outcome` unwrap без is_ok (подсказка `?`); формат suggestion { span, replacement } + `forgen fix --suggestions`
+- [~] Machine-applicable fixes — частично 2026-09-25: инфраструктура готова — `forgen fix` (+ `--suggestions`, формат {file, line, col, message, code, replacement}); fix 1/5 unused variable (префикс `_`, безопасно по построению — переменная нигде не читается), также применим исторический perf::unnecessary_mut. Регресс-тест test_lint_machine_fixes. ОСТАЛОСЬ 4/5: missing `mut`, to_int/to_float-подсказка, semicolon (спорно — синтаксис newline-based), `?`-подсказка.
 - [ ] Тесты: фиксы применяются и результат компилируется
 - [ ] `forgen doc` без ошибок на полном прелюде + stdlib; докстринги у всех встроенных функций (аудит prelude)
 
