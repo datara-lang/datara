@@ -24,7 +24,7 @@ fn main() {
     mut val dynamic_box = 100
     out fmt"mut val (as Int): {dynamic_box}"
 
-    // Dynamic transition to String
+    // Dynamic transition to a string value
     dynamic_box = "now a dynamic string payload"
     out fmt"mut val (as Str): {dynamic_box}"
 

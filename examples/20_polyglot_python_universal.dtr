@@ -28,7 +28,7 @@ fn main() {
     let fact_val = py.eval_int("fact_10")
     out fmt"Python math.factorial(10): {fact_val.value}"
 
-    // 4. In-Memory String Processing / Transformation
+    // 4. In-Memory Text (string) Processing / Transformation
     py.exec("text = 'datara meets python with zero latency'\nuppercase = text.upper()")
     let upper_res = py.eval("uppercase")
     out fmt"Transformed Str:    {upper_res.value}"
