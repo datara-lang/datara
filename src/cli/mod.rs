@@ -237,6 +237,7 @@ fn run_cli_inner(args: &[String]) {
         "clean" => project::cmd_clean(&args),
 
         "lint" | "audit" | "clippy" => tools::cmd_lint(command, &args),
+        "fix" => tools::cmd_fix(&args),
 
         "doctor" => doctor::cmd_doctor(&args),
 

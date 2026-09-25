@@ -570,3 +570,115 @@ pub(crate) fn cmd_export(args: &[String]) -> bool {
     }
     true
 }
+
+/// M2 Diagnostics Gold: `forgen fix` - apply machine-applicable fixes
+/// (suggestion { span, replacement }) or list them with --suggestions.
+pub(crate) fn cmd_fix(args: &[String]) -> bool {
+    let list_only = args.iter().any(|a| a == "--suggestions");
+    let target_opt = args
+        .iter()
+        .skip(2)
+        .find(|a| !a.starts_with('-'))
+        .map(std::path::Path::new);
+
+    let (paths, file_args): (Vec<std::path::PathBuf>, Vec<String>) = match target_opt {
+        Some(t) => {
+            if t.is_file() {
+                (vec![t.to_path_buf()], vec![t.to_string_lossy().to_string()])
+            } else if let Ok(layout) = ProjectDiscovery::discover(Some(t)) {
+                (
+                    layout.source_files.clone(),
+                    layout
+                        .source_files
+                        .iter()
+                        .map(|p| p.to_string_lossy().to_string())
+                        .collect(),
+                )
+            } else {
+                eprintln!("fix error: path '{}' does not exist", t.display());
+                std::process::exit(1);
+            }
+        }
+        None => {
+            if let Ok(layout) = ProjectDiscovery::discover(None) {
+                (
+                    layout.source_files.clone(),
+                    layout
+                        .source_files
+                        .iter()
+                        .map(|p| p.to_string_lossy().to_string())
+                        .collect(),
+                )
+            } else {
+                (Vec::new(), Vec::new())
+            }
+        }
+    };
+
+    let _ = file_args;
+    let path_refs: Vec<std::path::PathBuf> = if paths.is_empty() {
+        crate::fmt::collect_datara_files(Path::new("."))
+    } else {
+        paths
+    };
+    if path_refs.is_empty() {
+        println!("[Forgen fix] No Datara source files found.");
+        return false;
+    }
+
+    let mut total = 0usize;
+    let mut applied = 0usize;
+    for file in &path_refs {
+        let Ok(diags) = crate::lint::lint_file(file) else {
+            continue;
+        };
+        let fixable: Vec<&crate::lint::LintDiagnostic> =
+            diags.iter().filter(|d| d.fix.is_some()).collect();
+        if fixable.is_empty() {
+            continue;
+        }
+        total += fixable.len();
+        if list_only {
+            for d in &fixable {
+                let fix = d.fix.as_ref().unwrap();
+                println!(
+                    "{}:{}:{}: {} [{}] -> replacement: \"{}\"",
+                    file.display(),
+                    fix.span.start_line,
+                    fix.span.start_col,
+                    d.message,
+                    d.code,
+                    fix.replacement
+                );
+            }
+            continue;
+        }
+        let Ok(source) = crate::fmt::read_source_utf8(file) else {
+            continue;
+        };
+        let fixed = crate::lint::apply_fixes(&source, &diags);
+        if fixed != source {
+            if std::fs::write(file, fixed).is_ok() {
+                applied += fixable.len();
+                println!(
+                    "[Forgen fix] fixed {} ({} change(s))",
+                    file.display(),
+                    fixable.len()
+                );
+            }
+        }
+    }
+
+    if list_only {
+        println!(
+            "[Forgen fix] {total} machine-applicable suggestion(s) across {} file(s).",
+            path_refs.len()
+        );
+    } else {
+        println!(
+            "[Forgen fix] {applied} fix(es) applied across {} file(s) ({total} available).",
+            path_refs.len()
+        );
+    }
+    true
+}
