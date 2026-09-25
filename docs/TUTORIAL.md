@@ -149,6 +149,56 @@ fn main() {
 
 ---
 
+## Step 6b: Pattern Dispatch — `match` and `decide`
+
+Datara has two canonical ways to branch on values. `match` destructures
+enums and structs with optional `if`-guards; `decide` is the exhaustive
+value-dispatch form.
+
+```datara
+// match: patterns + guards; the compiler checks exhaustiveness (E0310)
+enum Shape {
+    Circle(Int),
+    Rect(Int, Int)
+}
+
+fn describe(s: Shape) -> Str {
+    return match s {
+        Shape.Circle(r) if r < 10 => "small",
+        Shape.Circle(_) => "big",
+        Shape.Rect(_, _) => "rect"
+    }
+}
+
+fn main() {
+    out describe(Shape.Circle(2))    // small
+    out describe(Shape.Circle(50))   // big
+    out describe(Shape.Rect(3, 4))   // rect
+}
+```
+
+```datara
+// decide: exhaustive condition dispatch (like Rust's match on guards,
+// or C's switch — but typed and exhaustive)
+fn grade(score: Int) -> Str {
+    decide {
+        score >= 90 => "A"
+        score >= 75 => "B"
+        score >= 60 => "C"
+        else => "F"
+    }
+}
+
+fn main() {
+    out fmt"Score 85 Grade: {grade(85)}"
+    out fmt"Score 50 Grade: {grade(50)}"
+}
+```
+
+A `match` that misses a variant is a compile-time error, not a runtime
+surprise: `Non-exhaustive patterns in match for enum: missing Blue` with a
+span and a "Add missing arm(s)" help (`forgen explain E0310`).
+
 ## Step 7: Error Handling & Outcome Pattern
 Source: `examples/tutorial/step07_outcomes/main.dtr`
 

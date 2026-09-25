@@ -774,6 +774,16 @@ impl Stmt {
     }
 }
 
+/// Cast suffix kind: `expr as T` (Plain), `expr as? T` (Checked, yields
+/// `Outcome<T>`), `expr as! T` (Strict, panics on overflow).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum CastKind {
+    #[default]
+    Plain,
+    Checked,
+    Strict,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Expr {
     Literal(LiteralValue, SourceSpan),
@@ -871,10 +881,14 @@ pub enum Expr {
     Wrapping(Box<Expr>, SourceSpan),
     Saturating(Box<Expr>, SourceSpan),
     /// Explicit type cast: `expr as Type` (Gate 7 numeric conversions plus
-    /// narrowing reinterpretation for the small integer families).
+    /// narrowing reinterpretation for the small integer families). `as?`
+    /// (Checked) yields `Outcome<T>` instead of truncating; `as!` (Strict)
+    /// panics with a cast-overflow diagnostic instead of truncating.
     Cast {
         expr: Box<Expr>,
         target_ty: String,
+        #[serde(default)]
+        kind: CastKind,
         span: SourceSpan,
     },
     /// A braced block used in expression position, e.g. a match/decide/select

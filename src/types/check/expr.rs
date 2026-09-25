@@ -152,6 +152,40 @@ impl<'a> TypeChecker<'a> {
             } => self.check_binary(op, left, right, span, diag),
             Expr::Unary { op, expr, .. } => {
                 let inner = self.check_expr(expr, diag);
+                // Arithmetic negation is defined for numeric types only
+                // (Gate 7). Without this guard `-obj` on a generic Outcome
+                // struct compiled to a pointer negation and segfaulted at
+                // runtime instead of failing at compile time — reachable
+                // through `-5 as? Int8`, which parses as `-(5 as? Int8)`
+                // because `as` binds tighter than unary minus.
+                if op == "-" {
+                    let numeric = matches!(
+                        inner,
+                        DataraType::Int
+                            | DataraType::Int8
+                            | DataraType::Int16
+                            | DataraType::Int32
+                            | DataraType::UInt
+                            | DataraType::UInt8
+                            | DataraType::UInt16
+                            | DataraType::UInt32
+                            | DataraType::UInt64
+                            | DataraType::Float
+                            | DataraType::Float32
+                            | DataraType::Dec64
+                    );
+                    if !numeric {
+                        diag.error(
+                            ErrorCode::TypeMismatch,
+                            format!(
+                                "arithmetic negation requires a numeric operand, got '{}'; parenthesize the negative literal before the cast: '(-5) as? Int8'",
+                                inner
+                            ),
+                            None,
+                        );
+                        return DataraType::Unit;
+                    }
+                }
                 if op == "!" {
                     DataraType::Bool
                 } else if op == "await" {
@@ -1064,6 +1098,7 @@ impl<'a> TypeChecker<'a> {
             Expr::Cast {
                 expr: inner,
                 target_ty,
+                kind,
                 span,
             } => {
                 let src_ty = self.check_expr(inner, diag);
@@ -1119,6 +1154,47 @@ impl<'a> TypeChecker<'a> {
                         Some(span.clone()),
                     );
                     return DataraType::Unit;
+                }
+                // as?/as! are the checked and strict cast variants. v1.5.0
+                // scopes them to integer targets with integer sources — the
+                // fit check is a closed integer range; Str and floating
+                // sources keep their own parse/conversion paths.
+                if *kind != crate::ast::CastKind::Plain {
+                    let int_family = |t: &DataraType| {
+                        matches!(
+                            t,
+                            DataraType::Int
+                                | DataraType::UInt
+                                | DataraType::Int8
+                                | DataraType::Int16
+                                | DataraType::Int32
+                                | DataraType::UInt8
+                                | DataraType::UInt16
+                                | DataraType::UInt32
+                                | DataraType::UInt64
+                        )
+                    };
+                    if !int_family(&src_ty) || !int_family(&dst_ty) {
+                        diag.error(
+                            ErrorCode::TypeMismatch,
+                            format!(
+                                "checked/strict casts (as?/as!) currently require integer source and target types, got {} as {}; use `as` plus checked parse methods for Str and floating types",
+                                src_ty, target_ty
+                            ),
+                            Some(span.clone()),
+                        );
+                        return DataraType::Unit;
+                    }
+                }
+                // `as?` is a checked cast: instead of silently truncating it
+                // yields Outcome<T> so the caller must unpack with `?`/`or`.
+                // The lowering emits the same Outcome struct layout as
+                // Outcome.ok/err, so ?/or compose unchanged.
+                if *kind == crate::ast::CastKind::Checked {
+                    return DataraType::GenericInstance {
+                        name: "Outcome".to_string(),
+                        args: vec![dst_ty],
+                    };
                 }
                 dst_ty
             }

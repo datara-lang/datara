@@ -16,6 +16,12 @@ fn index_elem_ret_ty(ty: &DataraType) -> String {
         DataraType::String => "String".into(),
         DataraType::Bool => "Bool".into(),
         DataraType::Class(c) => c.clone(),
+        // Generic class elements (e.g. a List<Outcome<Int>> holding
+        // Outcome objects) must keep their class name in the call's `ty`:
+        // the backend records it in val_to_class so field access on the
+        // element (`?` unwrapping, `.field`) resolves the layout instead
+        // of failing with E0944. Two-level generics (M0/T1) rely on this.
+        DataraType::GenericInstance { name, .. } => name.clone(),
         _ => "Int".into(),
     }
 }
@@ -970,6 +976,7 @@ impl<'a> Lowering<'a> {
             Expr::Cast {
                 expr: inner,
                 target_ty,
+                kind,
                 ..
             } => {
                 let src = self.lower_expr(inner, cur_block)?;
@@ -986,6 +993,81 @@ impl<'a> Lowering<'a> {
                         from_ty,
                         to_ty: target_ty.clone(),
                     });
+                if *kind == crate::ast::CastKind::Plain {
+                    return Some(dest);
+                }
+                // as?/as!: the truncated cast value is computed above, then
+                // the ORIGINAL (untruncated) operand is checked against the
+                // target range by datara_rt_int_fits. Checked builds the
+                // same Outcome struct layout as Outcome.ok/err; Strict
+                // branches to a fail-loud panic call on overflow.
+                let ty_str = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::ConstStr {
+                        dest: ty_str,
+                        value: target_ty.clone(),
+                    });
+                let flag = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::Call {
+                        dest: flag,
+                        func: "datara_rt_int_fits".into(),
+                        args: vec![src, ty_str],
+                        ty: "Bool".into(),
+                    });
+                if *kind == crate::ast::CastKind::Checked {
+                    let empty = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::ConstStr {
+                            dest: empty,
+                            value: String::new(),
+                        });
+                    let out_dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::StructInit {
+                            dest: out_dest,
+                            class_name: "Outcome".into(),
+                            fields: vec![
+                                ("is_success".into(), flag),
+                                ("value".into(), dest),
+                                ("error_msg".into(), empty),
+                            ],
+                        });
+                    return Some(out_dest);
+                }
+                // Strict: overflow panics with the offending value; the merge
+                // block is only reachable when the value fits (or never, if
+                // the panic exits — the branch back keeps the CFG valid).
+                let ok_id = self.create_block("cast_ok");
+                let ovf_id = self.create_block("cast_ovf");
+                let merge_id = self.create_block("cast_merge");
+                self.get_block_mut(*cur_block).terminator = Terminator::CondBranch {
+                    cond: flag,
+                    then_block: ok_id,
+                    then_args: Vec::new(),
+                    else_block: ovf_id,
+                    else_args: Vec::new(),
+                };
+                let ovf_dummy = self.next_val();
+                self.get_block_mut(ovf_id).instructions.push(Inst::Call {
+                    dest: ovf_dummy,
+                    func: "datara_rt_cast_overflow".into(),
+                    args: vec![src, ty_str],
+                    ty: "Void".into(),
+                });
+                self.get_block_mut(ovf_id).terminator = Terminator::Branch {
+                    target: merge_id,
+                    args: Vec::new(),
+                };
+                self.get_block_mut(ok_id).terminator = Terminator::Branch {
+                    target: merge_id,
+                    args: Vec::new(),
+                };
+                *cur_block = merge_id;
                 Some(dest)
             }
             _ => None,

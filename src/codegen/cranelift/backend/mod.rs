@@ -220,6 +220,7 @@ impl RealCraneliftBackend {
             rt_list_append_id: core_ids.rt_list_append_id,
             rt_map_get_id: core_ids.rt_map_get_id,
             rt_map_insert_id: core_ids.rt_map_insert_id,
+            rt_map_len_id: core_ids.rt_map_len_id,
             rt_list_pop_outcome_id: core_ids.rt_list_pop_outcome_id,
             rt_list_sort_id: core_ids.rt_list_sort_id,
             rt_list_remove_at_id: core_ids.rt_list_remove_at_id,

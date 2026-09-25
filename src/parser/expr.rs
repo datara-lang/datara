@@ -407,6 +407,16 @@ impl<'a> Parser<'a> {
                 expr = Expr::ErrorPropagate(Box::new(expr), span);
             } else if self.match_token(&TokenType::As) {
                 // Explicit cast: `expr as Type` (Gate 7 numeric conversions).
+                // `as?` and `as!` select the checked (Outcome) and strict
+                // (panic-on-overflow) variants; the plain cast keeps the
+                // historical truncating semantics.
+                let kind = if self.match_token(&TokenType::Question) {
+                    crate::ast::CastKind::Checked
+                } else if self.match_token(&TokenType::Bang) {
+                    crate::ast::CastKind::Strict
+                } else {
+                    crate::ast::CastKind::Plain
+                };
                 let type_node = self.parse_type()?;
                 let span = SourceSpan::new(
                     expr.span().start_line,
@@ -418,6 +428,7 @@ impl<'a> Parser<'a> {
                 expr = Expr::Cast {
                     expr: Box::new(expr),
                     target_ty: type_node.name,
+                    kind,
                     span,
                 };
             } else {

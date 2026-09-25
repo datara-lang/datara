@@ -636,6 +636,40 @@ pub fn declare_runtime_core<M: ClifModule>(
     );
     func_ids.insert("assert".into(), (rt_assert_id, rt_assert_sig));
 
+    // as?/as! checked & strict casts: int_fits reports fit as 0/1 (Bool is
+    // I64 0/1 like the other predicate imports), cast_overflow panics and
+    // never returns.
+    let mut rt_int_fits_sig = Signature::new(call_conv);
+    rt_int_fits_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_int_fits_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_int_fits_sig.returns.push(AbiParam::new(clif_types::I64));
+    let rt_int_fits_id = module
+        .declare_function("datara_rt_int_fits", Linkage::Import, &rt_int_fits_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_int_fits".into(),
+        (rt_int_fits_id, rt_int_fits_sig.clone()),
+    );
+
+    let mut rt_cast_overflow_sig = Signature::new(call_conv);
+    rt_cast_overflow_sig
+        .params
+        .push(AbiParam::new(clif_types::I64));
+    rt_cast_overflow_sig
+        .params
+        .push(AbiParam::new(clif_types::I64));
+    let rt_cast_overflow_id = module
+        .declare_function(
+            "datara_rt_cast_overflow",
+            Linkage::Import,
+            &rt_cast_overflow_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_cast_overflow".into(),
+        (rt_cast_overflow_id, rt_cast_overflow_sig),
+    );
+
     let mut rt_input_sig = Signature::new(call_conv);
     rt_input_sig.params.push(AbiParam::new(clif_types::I64));
     rt_input_sig.returns.push(AbiParam::new(clif_types::I64));
@@ -1629,6 +1663,7 @@ pub fn declare_runtime_core<M: ClifModule>(
         rt_list_append_id,
         rt_map_get_id,
         rt_map_insert_id,
+        rt_map_len_id,
         rt_list_pop_outcome_id,
         rt_list_sort_id,
         rt_list_remove_at_id,

@@ -104,6 +104,7 @@ pub struct RuntimeIds {
     pub rt_list_append_id: FuncId,
     pub rt_map_get_id: FuncId,
     pub rt_map_insert_id: FuncId,
+    pub rt_map_len_id: FuncId,
     pub rt_list_pop_outcome_id: FuncId,
     // v1.4.1: full List<T> protocol.
     pub rt_list_sort_id: FuncId,
@@ -165,6 +166,7 @@ pub struct CoreRuntimeIds {
     pub rt_list_append_id: FuncId,
     pub rt_map_get_id: FuncId,
     pub rt_map_insert_id: FuncId,
+    pub rt_map_len_id: FuncId,
     pub rt_list_pop_outcome_id: FuncId,
     // v1.4.1: full List<T> protocol + UTF-8 exec.
     pub rt_list_sort_id: FuncId,

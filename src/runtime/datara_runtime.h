@@ -27,6 +27,9 @@ const char* datara_rt_dec64_to_str_prec(int64_t val, int64_t prec);
 void        datara_rt_err(const char* s);
 void        datara_rt_exit(int32_t code);
 void        datara_rt_panic(const char* s);
+/* as?/as! checked & strict casts (v1.5.0 M0/W5) */
+int64_t     datara_rt_int_fits(int64_t v, const char* to_ty);
+void        datara_rt_cast_overflow(int64_t v, const char* to_ty);
 void        datara_rt_print_backtrace(void);
 void        datara_rt_print(const char* s);
 void        datara_rt_eprintln(const char* s);

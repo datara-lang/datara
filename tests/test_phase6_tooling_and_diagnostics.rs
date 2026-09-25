@@ -203,15 +203,22 @@ fn test_lsp_diagnostics_structured_e_codes() {
         "At least one diagnostic must be reported for syntax error"
     );
 
+    // W-SYN-001 (let -> val/mut migration, M0/W5) made structured WARNINGS
+    // part of every publish. Error-severity diagnostics must still carry an
+    // E-code; warnings carry W-codes. At least one true error must remain.
+    let mut e_code_count = 0;
     for d in diags {
         let code = d
             .get("code")
             .and_then(|c| c.as_str())
             .expect("Code must be a string");
         assert!(
-            code.starts_with('E'),
-            "Diagnostic error code must be formatted as an E-code (e.g. E0001), got: {code}"
+            code.starts_with('E') || code.starts_with('W'),
+            "Diagnostic code must be structured (E-code for errors, W-code for warnings), got: {code}"
         );
+        if code.starts_with('E') {
+            e_code_count += 1;
+        }
         let source = d.get("source").and_then(|s| s.as_str()).unwrap_or("");
         assert_eq!(source, "forgen", "Diagnostic source must be 'forgen'");
 
@@ -219,4 +226,9 @@ fn test_lsp_diagnostics_structured_e_codes() {
         assert!(range.get("start").is_some());
         assert!(range.get("end").is_some());
     }
+
+    assert!(
+        e_code_count > 0,
+        "the syntax-error fixture must still produce at least one E-code diagnostic"
+    );
 }

@@ -165,6 +165,17 @@ impl<'a> Parser<'a> {
         let start_span = self.peek().span.clone();
 
         if self.match_token(&TokenType::Let) {
+            // W-SYN-001 migration warning (PLAN_V150 M0/W5): `let` is the
+            // legacy binding form. The canonical spellings are `val` (an
+            // immutable binding) and `mut` (a mutable one). The warning is
+            // non-fatal — the legacy form keeps working through the v1.5.x
+            // grace period — but every site it appears at is pointed out so
+            // `forgen migrate` and editors can rewrite mechanically.
+            self.diag.warning(
+                crate::diagnostics::ErrorCode::CanonicalKeyword,
+                "'let' bindings are the legacy spelling; the canonical forms are 'val' (immutable) and 'mut' (mutable): write 'val x = ..' / 'mut x = ..' instead of 'let x = ..' / 'let mut x = ..'".to_string(),
+                Some(start_span.clone()),
+            );
             let is_mut = self.match_token(&TokenType::Mut);
             let is_val = if is_mut {
                 self.match_token(&TokenType::Val)

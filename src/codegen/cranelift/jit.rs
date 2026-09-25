@@ -47,6 +47,8 @@ unsafe extern "C" {
     pub fn datara_rt_panic(s: *const c_char);
     pub fn datara_rt_print_backtrace();
     pub fn datara_rt_assert(cond: i64, msg: *const c_char);
+    pub fn datara_rt_int_fits(v: i64, to_ty: *const c_char) -> i64;
+    pub fn datara_rt_cast_overflow(v: i64, to_ty: *const c_char);
     pub fn datara_rt_len(s: *const c_char) -> i64;
     pub fn datara_rt_pgo_hit_func(name: *const c_char);
     pub fn datara_rt_pgo_hit_branch(branch_id: *const c_char, taken: i64);
@@ -523,6 +525,8 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("print_backtrace", datara_rt_print_backtrace);
     reg!("datara_rt_assert", datara_rt_assert);
     reg!("assert", datara_rt_assert);
+    reg!("datara_rt_int_fits", datara_rt_int_fits);
+    reg!("datara_rt_cast_overflow", datara_rt_cast_overflow);
     reg!("datara_rt_len", datara_rt_len);
 
     reg!("datara_rt_set_capture", datara_rt_set_capture);

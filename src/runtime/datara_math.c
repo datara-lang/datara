@@ -72,3 +72,19 @@ int64_t datara_rt_math_shl(int64_t v, int64_t s) { return (int64_t)((uint64_t)v 
 int64_t datara_rt_math_xor(int64_t a, int64_t b) { return a ^ b; }
 int64_t datara_rt_math_and(int64_t a, int64_t b) { return a & b; }
 int64_t datara_rt_math_or(int64_t a, int64_t b) { return a | b; }
+
+// as?/as!: reports whether the integer value `v` fits the integer target
+// type named by `to_ty` without truncation. Unknown target names report
+// "does not fit" — the caller must not silently widen the check.
+int64_t datara_rt_int_fits(int64_t v, const char* to_ty) {
+    if (!to_ty) return 0;
+    if (strcmp(to_ty, "Int8") == 0) return v >= INT8_MIN && v <= INT8_MAX;
+    if (strcmp(to_ty, "Int16") == 0) return v >= INT16_MIN && v <= INT16_MAX;
+    if (strcmp(to_ty, "Int32") == 0) return v >= INT32_MIN && v <= INT32_MAX;
+    if (strcmp(to_ty, "Int64") == 0 || strcmp(to_ty, "Int") == 0) return 1;
+    if (strcmp(to_ty, "UInt8") == 0) return v >= 0 && v <= UINT8_MAX;
+    if (strcmp(to_ty, "UInt16") == 0) return v >= 0 && v <= UINT16_MAX;
+    if (strcmp(to_ty, "UInt32") == 0) return v >= 0 && v <= 4294967295LL;
+    if (strcmp(to_ty, "UInt64") == 0 || strcmp(to_ty, "UInt") == 0) return v >= 0;
+    return 0;
+}

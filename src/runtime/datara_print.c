@@ -637,6 +637,15 @@ void datara_rt_print_backtrace(void) {
     fflush(stderr);
 }
 
+// as! strict cast failure: fail-loud panic naming the value and the target
+// type, routed through the standard panic path (flush + backtrace + exit 1).
+void datara_rt_cast_overflow(int64_t v, const char* to_ty) {
+    char buf[160];
+    snprintf(buf, sizeof(buf), "cast overflow: %lld does not fit %s",
+             (long long)v, to_ty ? to_ty : "?");
+    datara_rt_panic(buf);
+}
+
 void datara_rt_panic(const char* s) {
     datara_rt_flush();
     fprintf(stderr, "panic: %s\n", s ? s : "explicit panic");

@@ -455,10 +455,33 @@ pub fn compile_all_functions<M: ClifModule>(
                             builder.ins().fvdemote(src)
                         } else if is_f32(from_ty) && is_f64(to_ty) {
                             builder.ins().fpromote(clif_types::F64, src)
+                        } else if is_i(from_ty) && is_i(to_ty) {
+                            // Integer<->integer narrowing: the DMIR value must
+                            // carry the TRUNCATED bit pattern, not the original
+                            // one — `300 as Int8` is 44 by the documented cast
+                            // semantics, and downstream uses (Outcome payload
+                            // slots, comparisons, prints) must see 44. Narrow
+                            // to the target width, then re-extend to the i64
+                            // carrier: sign-extension for signed targets,
+                            // zero-extension for unsigned ones.
+                            let narrow_ty = match to_ty.as_str() {
+                                "Int8" | "UInt8" => clif_types::I8,
+                                "Int16" | "UInt16" => clif_types::I16,
+                                "Int32" | "UInt32" => clif_types::I32,
+                                _ => clif_types::I64,
+                            };
+                            if narrow_ty == clif_types::I64 {
+                                let zero = builder.ins().iconst(clif_types::I64, 0);
+                                builder.ins().iadd(src, zero)
+                            } else {
+                                let reduced = builder.ins().ireduce(narrow_ty, src);
+                                if to_ty.starts_with('U') {
+                                    builder.ins().uextend(clif_types::I64, reduced)
+                                } else {
+                                    builder.ins().sextend(clif_types::I64, reduced)
+                                }
+                            }
                         } else {
-                            // Integer<->integer (incl. narrowing) and identity:
-                            // everything is carried as i64 bit patterns; a copy
-                            // preserves the value and `Out`/BinOp narrow on use.
                             let zero = builder.ins().iconst(clif_types::I64, 0);
                             builder.ins().iadd(src, zero)
                         };

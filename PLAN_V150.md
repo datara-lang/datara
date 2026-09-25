@@ -113,11 +113,11 @@
 
 Цель: сделать 1.4.5 «идеально чистой» до старта 1.5.0 — закрыть дыры, которые позорят релиз, БЕЗ новых фич.
 
-- [ ] Строковый легаси в .dtr: ~90 `String` в ~20 файлах (examples/04,09,12,20, showcase/*, tutorial/*, bridges/*.dtr, tests/fixtures/sparks/*) → заменить на `Str` (канон). Верификация: grep `\bString\b` по *.dtr = 0 (кроме комментариев-историй миграции); все smoke-тесты примеров зелёные.
-- [ ] Outcome-литералы в примерах (`Outcome<Int> { is_success: true, ... }` в 09_error_propagation_question.dtr) → заменить на `Outcome.ok()/err()` (API есть с v1.4.0). Проверить аналогично Maybe (stdlib/result/option.dtr — есть behavior; использовать конструкторы, если есть, иначе аккуратный литерал + задача на конструкторы).
-- [ ] Конструкторы Maybe.ok/none (small): если в prelude нет — добавить в stdlib/result/option.dtr behavior-методы (окid-путь lowering уже умеет Outcome; для Maybe проверить и добавить по образцу). Тест: round-trip в примере 09.
-- [ ] README.md: русский NOTE-блок битый (символы `???` вместо кириллицы — файл валидный UTF-8, но блок записан в порче) → переписать блок корректной кириллицей. README_RU.md — проверить первые 30 строк на порчу, починить.
-- [ ] Консоль-детект: PowerShell 5.1 читает UTF-8 .dtr как OEM → это артефакт консоли, не файлов; но добавить BOM-less UTF-8 гварd в `forgen fmt` (или lint: предупреждение на не-UTF-8 исходник).
+- [x] Строковый легаси в .dtr → закрыт 2026-09-25: 15 вхождений в 7 файлах (bridges/*, tests/fixtures/sparks/*) заменены на `Str` (остальное вычищено ранними сессиями); grep `String` по *.dtr = 0; `forgen check` всех 7 файлов OK.
+- [x] Outcome-литералы в примерах → закрыты 2026-09-25: пример 09 переписан на `Outcome.ok()/err()` и `Maybe.some()/none()`; `forgen run examples/09` зелёный (ok/err/?/or пути).
+- [x] Конструкторы Maybe.some/none → добавлены 2026-09-25 на уровне компилятора (checker: src/types/check/call.rs, lowering: src/dmir/lowering/expr_call.rs) по образцу Outcome.ok/err; `none()` выводит T из возвращаемого типа функции. Заодно: `Outcome.err(msg)` в return-позиции принимает payload типа функции (раньше был Outcome<Str> — конфликт с `-> Outcome<Int>`).
+- [x] README.md NOTE-блок → уже починен ранее (коммит 55556f6); проверено 2026-09-25: `???` = 0 в README.md и README_RU.md, первые 30 строк README_RU корректны.
+- [x] UTF-8 guard → добавлен 2026-09-25: `crate::fmt::read_source_utf8` в fmt+lint; не-UTF-8 файл даёт внятное «re-save as UTF-8» сообщение вместо «stream did not contain valid UTF-8». Проверено на OEM-файле.
 - [ ] Clippy-чистка 91 warning: вручную по lint-кодам (io_other_error, useless_conversion, unnecessary_map_or, doc_overindented_list_items, borrowed_box, map_entry...). ЗАПРЕЩЕНО `clippy --fix` вслепую (ломает E0382: rust_bridge/mod.rs:128, cli.rs:113). Каждый файл — сборка+тест.
 - [ ] Устаревший VERSION-механизм: уже 1.4.5 (сделано 2026-09-21); добавить тест-гард `version_sync`: VERSION == Cargo.toml version.
 - [ ] `decide`/`match` документация: examples уже показывают decide; добавить 2 примера в docs/TUTORIAL.md (не блокер, но 15 минут).
@@ -129,10 +129,10 @@
 - [x] S1: `--tiny` реально уменьшает бинарник (2026-09-21: FORGEN_TINY-проброс в cli/build.rs; 271 872 B vs 414 208 B)
 - [ ] S1: dead-code lint также для неиспользуемых behavior-методов и const верхнего уровня (расширение check_dead_code; консервативно, 0 ложных)
 - [x] S1: модульный runtime — разбит 2026-09-23/25 (скрипт scripts/split_runtime.py): `datara_runtime.c` 7.7k строк/250 КБ → 19 модулей (alloc/core/string/list/map/math/net/print/simd/guard/pgo/fs/crypto/parallel/ui/mem/value/js-*), `datara_rt_internal.h`, build.rs ведёт список модулей; все `src/runtime/*.c` < 60 КБ, umbrella `datara_runtime.c` = 1.6 КБ. Верификация 2026-09-25: полный `cargo test --release` exit 0 (40 сьютов, 0 failed); `ls src/runtime/*.c | awk '$5>61440'` пусто.
-- [ ] W5: `as?` — checked cast → `Outcome<T>`; `as!` — strict cast → паника «cast overflow: <v> does not fit <T>» (подробный план уже составлен 2026-09-21: CastKind в AST, парсер после `as`, рантайм datara_rt_str_to_int_checked/datara_rt_int_fits/datara_rt_cast_overflow, Cranelift первым, LLVM/WASM — внятная ошибка компиляции)
-- [ ] W5: миграционное предупреждение `let` → `val`/`mut` (canonical-keyword warning, PLAN_V145 §1.3: 1–2 версии grace-периода)
-- [ ] T1: аудит exhaustiveness — диагностика нематчевых вариантов с span и подсказкой; match guards `if`-условия в армах
-- [ ] T1: generics 2 уровня вложенности — тест-матрица `Map<K, List<T>>`, `Outcome<List<Outcome<T>>>`; фикс resolver/infer по результатам
+- [x] W5: `as?`/`as!` → сделаны 2026-09-25: CastKind в AST, парсер `as`+`?`/`!`, чекер (Outcome<T> для as?; as?/as! только integer→integer, иначе E-TYPE-001), lowering (Outcome-StructInit для as?; CondBranch+panic для as!), рантайм `datara_rt_int_fits`/`datara_rt_cast_overflow` (datara_math.c/datara_print.c), импорты в Cranelift declare_core+jit+LLVM runtime_decls. Тест-сьют tests/test_as_checked_strict.rs 6/6. Заодно починен регресс: const-fold сворачивал `300 as Int8` в 300 без усечения — теперь 44 (const_fold.rs + явный ireduce/sextend в compile_func.rs). Гард: `-obj` на нечисловом (достижимо через `-5 as? Int8`) теперь E-TYPE-001, а не сегфолт.
+- [x] W5: миграционное предупреждение `let` → добавлено 2026-09-25: W-SYN-001 на каждый `let`/`let mut` биндинг в src/parser/stmt.rs; `forgen check` exit 0, подсказка `forgen explain W-SYN-001`. Grace-период: warning, не error.
+- [x] T1: exhaustiveness + guards → уже реализовано, верифицировано пробами 2026-09-25: нематчевый `Color.Blue` даёт E0310 с span и help «Add missing arm(s): Blue» (check exit 1); match guards `Shape.Circle(r) if r < 10` диспетчеризуются корректно (1/2/12 на трёх армах).
+- [~] T1: generics 2 уровня — частично 2026-09-25. РАБОТАЕТ: аннотации `Map<Str, List<Int>>`/`List<List<Int>>`/`Outcome<List<Int>>`, литералы, `?` через Outcome<List<Int>>, `Pair<K,V>` swap, `Outcome.ok([9,8]) or -2`. ПОЧИНЕНО: `m.len()` на Map<Str, List<Int>> возвращал мусор (диспетч падал в list-len fallback; добавлен rt_map_len_id в inst_method_call.rs). НЕ РАБОТАЕТ (см. §5): `map.get(k) or X` — E0944; `?`-распаковка List-payload теряет тип элемента (payload_repr='List').
 - [ ] T1: документация `for..in` (дока + примеры; `for` слабо задокументирован — подтверждено)
 - [ ] Clippy --release --lib → 0 warnings (2026-09-22: 91 warnings, из них ~46 machine-applicable; НЕ применять `clippy --fix` вслепую — он ломает владение E0382 в rust_bridge/mod.rs:128 и cli.rs:113; чинить вручную по одному lint-коду: io_other_error, useless_conversion, map_or, doc_overindented и т.д.)
 - [ ] Верификация M0: полный гейт + `forgen run` всех examples/ без регрессий
@@ -328,6 +328,10 @@
 
 - [x] `--tiny` бит-в-бит с default (починено 2026-09-21)
 - [x] dead-code молчал в check (починено 2026-09-21)
+- [ ] `map.get(k) or X` / `?` на map.get — E0944 при codegen: чекер типизирует map.get как Outcome<T>, но рантайм datara_rt_map_get возвращает сырое значение (ABI-разнобой). Фикс по образцу list pop v1.4.1: datara_rt_map_get_outcome, возвращающий Outcome-объект. Найдено 2026-09-25 (M0/T1-матрица); чинить в M1 (stdlib.collections) или M4.
+- [ ] `?`-распаковка Outcome<List<T>>: payload_repr='List' теряет тип элемента → `l[0]?` на List<Outcome<Int>> даёт E0944 (индексный элемент не получает класс в val_to_class). Найдено 2026-09-25; фикс — протаскивать полный GenericInstance в PropagationSite.payload_repr и var_to_class; фаза M4/M7 (infer).
+- [ ] match по enum-параметру с `fmt"..."` в армах → E0944 `__tag` (класс enum теряется в val_to_class, когда тело армы содержит FormatStr; с константными Str-армами тот же match работает, без main — падает даже с Int-армами). Найдено 2026-09-25 при написании TUTORIAL Step 6b; фикс в M4/M7.
+- [ ] `Map.new()` — статический конструктор дженерик-класса из stdlib-модуля резолвится в Unit/undefined; канон сейчас — литерал `{ }`. Найдено 2026-09-25; фикс в M1 (конструкторы коллекций).
 - [ ] Русские комментарии в .dtr-файлах читаются кракозябрами при некоторых путях чтения (кодировка; низкий приоритет, фикс в M14 при ревизии examples)
 - [ ] tmp_*-файлы в корне — чистить перед релизом (M14 чеклист)
 

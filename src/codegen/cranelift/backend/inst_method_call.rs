@@ -205,7 +205,8 @@ pub fn compile_method_call<M: ClifModule>(
     }
     // List and String protocol methods: dispatch on the object's
     // runtime shape, not the class method table.
-    let list_special = if ctx.map_vids.contains(object) {
+    let is_map_receiver = ctx.map_vids.contains(object);
+    let list_special = if is_map_receiver {
         // Map protocol: without this branch a `map.get(k)`
         // falls into the name-suffix fallback, which can
         // dispatch to an unrelated runtime function whose
@@ -214,6 +215,11 @@ pub fn compile_method_call<M: ClifModule>(
         match method {
             "get" | "at" => Some(ctx.runtime.rt_map_get_id),
             "insert" | "set" | "add" | "put" => Some(ctx.runtime.rt_map_insert_id),
+            // len/length/count must dispatch to the map length here: with a
+            // generic value type (e.g. Map<Str, List<Int>>) the name-suffix
+            // fallback used to match the LIST length symbol instead, reading
+            // the map handle as a list and returning garbage (M0/T1).
+            "len" | "length" | "count" => Some(ctx.runtime.rt_map_len_id),
             _ => None,
         }
     } else if ctx.list_vids.contains(object)

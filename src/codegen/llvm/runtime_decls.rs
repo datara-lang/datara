@@ -317,6 +317,8 @@ declare ptr @datara_rt_range_str(i64, i64)
 declare ptr @datara_rt_str_split(ptr, ptr)
 declare ptr @datara_rt_str_join(ptr, ptr)
 declare void @datara_rt_assert(i64, ptr)
+declare i64 @datara_rt_int_fits(i64, ptr)
+declare void @datara_rt_cast_overflow(i64, ptr) cold noreturn nounwind
 declare i64 @destroy(i64)
 declare i64 @datara_rt_file_write(ptr, ptr)
 declare ptr @datara_rt_file_read(ptr)

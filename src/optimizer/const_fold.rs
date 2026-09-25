@@ -213,10 +213,24 @@ impl Optimizer {
                             }
                         } else if is_i(from_ty) && is_i(to_ty) {
                             if let Some(i) = int_constants.get(value).copied() {
-                                int_constants.insert(*dest, i);
+                                // Narrowing casts must fold to the TRUNCATED
+                                // value — `300 as Int8` is 44, matching the
+                                // runtime ireduce+extend lowering; folding to
+                                // the original 300 silently changed `as`
+                                // semantics on the optimized path.
+                                let res = match to_ty.as_str() {
+                                    "Int8" => i as i8 as i64,
+                                    "Int16" => i as i16 as i64,
+                                    "Int32" => i as i32 as i64,
+                                    "UInt8" => i as u8 as i64,
+                                    "UInt16" => i as u16 as i64,
+                                    "UInt32" => i as u32 as i64,
+                                    _ => i,
+                                };
+                                int_constants.insert(*dest, res);
                                 new_instructions.push(Inst::ConstInt {
                                     dest: *dest,
-                                    value: i,
+                                    value: res,
                                 });
                                 self.report.constants_folded += 1;
                                 changed = true;
