@@ -4,7 +4,7 @@
 //! code snippets. Summaries come from ErrorCode::description("en") so
 //! wording cannot drift between diagnostics and explanations.
 
-use crate::diagnostics::codes::{ErrorCode, all_codes};
+use crate::diagnostics::codes::all_codes;
 
 pub struct CategoryExample {
     pub explanation: &'static str,
