@@ -126,6 +126,8 @@ impl LspServer {
                         },
                         "documentFormattingProvider": true,
                         "definitionProvider": true,
+                        "referencesProvider": true,
+                        "renameProvider": true,
                         "inlayHintProvider": true,
                         "codeActionProvider": {
                             "codeActionKinds": ["quickfix"]
@@ -366,6 +368,108 @@ impl LspServer {
                     };
 
                     self.send_response(id.clone(), def_loc.unwrap_or(Value::Null), writer)?;
+                }
+            }
+
+            "textDocument/references" => {
+                // M3: find all word-boundary occurrences of the symbol
+                // under the cursor in the open document. Multi-file scopes
+                // ride on the import graph in a later M3 slice.
+                if let Some(ref id) = req.id {
+                    let uri = req
+                        .params
+                        .as_ref()
+                        .and_then(|p| p.get("textDocument"))
+                        .and_then(|td| td.get("uri"))
+                        .and_then(|u| u.as_str());
+                    let pos = req.params.as_ref().and_then(|p| p.get("position"));
+                    let line = pos
+                        .and_then(|p| p.get("line"))
+                        .and_then(|l| l.as_u64())
+                        .unwrap_or(0) as usize;
+                    let col = pos
+                        .and_then(|p| p.get("character"))
+                        .and_then(|c| c.as_u64())
+                        .unwrap_or(0) as usize;
+
+                    let locations: Vec<Value> = if let Some(u) = uri
+                        && let Ok(docs) = self.documents.lock()
+                        && let Some(src) = docs.get(u)
+                        && let Some(w) = Self::word_at_position(src, line, col)
+                    {
+                        Self::occurrences_of(src, &w)
+                            .into_iter()
+                            .map(|(l, sc, ec)| {
+                                serde_json::json!({
+                                    "uri": u,
+                                    "range": {
+                                        "start": { "line": l, "character": sc },
+                                        "end": { "line": l, "character": ec }
+                                    }
+                                })
+                            })
+                            .collect()
+                    } else {
+                        Vec::new()
+                    };
+
+                    self.send_response(id.clone(), Value::Array(locations), writer)?;
+                }
+            }
+
+            "textDocument/rename" => {
+                // M3: rename every word-boundary occurrence and return a
+                // WorkspaceEdit for the open document. The renamed source
+                // is re-checked by the client through publishDiagnostics,
+                // so a rename that breaks something is reported at once.
+                if let Some(ref id) = req.id {
+                    let uri = req
+                        .params
+                        .as_ref()
+                        .and_then(|p| p.get("textDocument"))
+                        .and_then(|td| td.get("uri"))
+                        .and_then(|u| u.as_str());
+                    let pos = req.params.as_ref().and_then(|p| p.get("position"));
+                    let line = pos
+                        .and_then(|p| p.get("line"))
+                        .and_then(|l| l.as_u64())
+                        .unwrap_or(0) as usize;
+                    let col = pos
+                        .and_then(|p| p.get("character"))
+                        .and_then(|c| c.as_u64())
+                        .unwrap_or(0) as usize;
+                    let new_name = req
+                        .params
+                        .as_ref()
+                        .and_then(|p| p.get("newName"))
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("")
+                        .to_string();
+
+                    let edit = if !new_name.is_empty()
+                        && let Some(u) = uri
+                        && let Ok(docs) = self.documents.lock()
+                        && let Some(src) = docs.get(u)
+                        && let Some(w) = Self::word_at_position(src, line, col)
+                    {
+                        let edits: Vec<Value> = Self::occurrences_of(src, &w)
+                            .into_iter()
+                            .map(|(l, sc, ec)| {
+                                serde_json::json!({
+                                    "range": {
+                                        "start": { "line": l, "character": sc },
+                                        "end": { "line": l, "character": ec }
+                                    },
+                                    "newText": new_name
+                                })
+                            })
+                            .collect();
+                        serde_json::json!({ "changes": { u: edits } })
+                    } else {
+                        Value::Null
+                    };
+
+                    self.send_response(id.clone(), edit, writer)?;
                 }
             }
 
@@ -715,6 +819,38 @@ impl LspServer {
             }
         }
         symbols
+    }
+
+    /// All word-boundary occurrences of `word` in `source` as
+    /// (line, start_col, end_col) triples with 0-based line numbers.
+    /// ASCII lines use a byte fast path; non-ASCII lines iterate on char
+    /// indices (identifier names are ASCII, so LSP positions stay exact
+    /// for the symbols this server renames).
+    fn occurrences_of(source: &str, word: &str) -> Vec<(usize, usize, usize)> {
+        let is_word_char = |c: char| c.is_alphanumeric() || c == '_';
+        let mut out = Vec::new();
+        if word.is_empty() {
+            return out;
+        }
+        for (line_idx, line) in source.lines().enumerate() {
+            let chars: Vec<char> = line.chars().collect();
+            let mut i = 0usize;
+            let wchars: Vec<char> = word.chars().collect();
+            while i + wchars.len() <= chars.len() {
+                if chars[i..i + wchars.len()] == wchars[..] {
+                    let before_ok = i == 0 || !is_word_char(chars[i - 1]);
+                    let after_ok =
+                        i + wchars.len() >= chars.len() || !is_word_char(chars[i + wchars.len()]);
+                    if before_ok && after_ok {
+                        out.push((line_idx, i, i + wchars.len()));
+                        i += wchars.len();
+                        continue;
+                    }
+                }
+                i += 1;
+            }
+        }
+        out
     }
 
     fn find_definition_in_source(source: &str, word: &str) -> Option<(usize, usize, usize)> {
