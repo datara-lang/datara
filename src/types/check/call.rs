@@ -466,12 +466,69 @@ impl<'a> TypeChecker<'a> {
                     }
                     return DataraType::GenericInstance {
                         name: "Outcome".to_string(),
-                        args: vec![DataraType::String],
+                        args: vec![if let Some((ok, _err)) = self
+                            .current_return_type
+                            .as_ref()
+                            .and_then(|r| r.result_like())
+                        {
+                            // In return position inside `-> Outcome<T>` the
+                            // err object adopts T, so `return Outcome.err(..)`
+                            // matches the signature instead of clashing with
+                            // an Outcome<Str>. Standalone err() (no Result
+                            // context) keeps the Str payload it always had.
+                            ok
+                        } else {
+                            DataraType::String
+                        }],
                     };
                 }
                 let payload_ty = arg_types.first().cloned().unwrap_or(DataraType::Int);
                 return DataraType::GenericInstance {
                     name: "Outcome".to_string(),
+                    args: vec![payload_ty],
+                };
+            }
+            // Maybe.some(v) / Maybe.none() static constructors: same shape as
+            // Outcome.ok/err above — the receiver is the generic class name,
+            // never a value. some(v) returns Maybe<T> with T bound to the
+            // argument type; none() binds T from the enclosing return type
+            // when that is itself a Maybe, so `return Maybe.none()` inside a
+            // `-> Maybe<Int>` function stays a Maybe<Int> rather than an
+            // unbound type parameter.
+            if let Expr::Identifier(cls_name, _) = &**object
+                && cls_name == "Maybe"
+                && (member == "some" || member == "none")
+            {
+                if member == "none" {
+                    if !args.is_empty() {
+                        diag.error(
+                            ErrorCode::TypeMismatch,
+                            format!("Maybe.none() takes no arguments, got {}", args.len()),
+                            Some(span.clone()),
+                        );
+                        return DataraType::Unit;
+                    }
+                    let payload = self
+                        .current_return_type
+                        .as_ref()
+                        .and_then(|r| r.option_like())
+                        .unwrap_or(DataraType::TypeParam("T".to_string()));
+                    return DataraType::GenericInstance {
+                        name: "Maybe".to_string(),
+                        args: vec![payload],
+                    };
+                }
+                if args.len() != 1 {
+                    diag.error(
+                        ErrorCode::TypeMismatch,
+                        format!("Maybe.some() takes exactly 1 argument, got {}", args.len()),
+                        Some(span.clone()),
+                    );
+                    return DataraType::Unit;
+                }
+                let payload_ty = arg_types.first().cloned().unwrap_or(DataraType::Int);
+                return DataraType::GenericInstance {
+                    name: "Maybe".to_string(),
                     args: vec![payload_ty],
                 };
             }

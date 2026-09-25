@@ -76,8 +76,7 @@ pub fn lint_files_with_profile(
 ) -> Result<Vec<LintDiagnostic>, String> {
     let mut merged: Option<crate::ast::Program> = None;
     for path in paths {
-        let source = fs::read_to_string(path)
-            .map_err(|e| format!("Cannot read file {}: {}", path.display(), e))?;
+        let source = crate::fmt::read_source_utf8(path)?;
         let file_str = path.to_string_lossy().to_string();
         let mut diag_engine = DiagnosticEngine::new("en");
         diag_engine.set_source(&file_str, &source);
@@ -128,8 +127,7 @@ pub fn lint_file_with_profile(
     path: &Path,
     profile: LintProfile,
 ) -> Result<Vec<LintDiagnostic>, String> {
-    let source = fs::read_to_string(path)
-        .map_err(|e| format!("Cannot read file {}: {}", path.display(), e))?;
+    let source = crate::fmt::read_source_utf8(path)?;
     let file_str = path.to_string_lossy().to_string();
     lint_source_with_profile(&source, &file_str, profile)
 }

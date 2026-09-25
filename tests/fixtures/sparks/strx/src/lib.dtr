@@ -1,11 +1,11 @@
 // Sparks Seed Package: strx
 // Extended string routines for Datara.
 
-fn is_empty(s: String) -> Bool {
+fn is_empty(s: Str) -> Bool {
     return str_len(s) == 0
 }
 
-fn repeat(s: String, count: Int) -> String {
+fn repeat(s: Str, count: Int) -> Str {
     if count <= 0 {
         return ""
     }
@@ -18,7 +18,7 @@ fn repeat(s: String, count: Int) -> String {
     return out_str
 }
 
-fn pad_left(s: String, total_len: Int, pad_ch: String) -> String {
+fn pad_left(s: Str, total_len: Int, pad_ch: Str) -> Str {
     let slen = str_len(s)
     if slen >= total_len {
         return s
@@ -27,7 +27,7 @@ fn pad_left(s: String, total_len: Int, pad_ch: String) -> String {
     return repeat(pad_ch, needed) + s
 }
 
-fn pad_right(s: String, total_len: Int, pad_ch: String) -> String {
+fn pad_right(s: Str, total_len: Int, pad_ch: Str) -> Str {
     let slen = str_len(s)
     if slen >= total_len {
         return s
@@ -36,7 +36,7 @@ fn pad_right(s: String, total_len: Int, pad_ch: String) -> String {
     return s + repeat(pad_ch, needed)
 }
 
-fn starts_with(s: String, prefix: String) -> Bool {
+fn starts_with(s: Str, prefix: Str) -> Bool {
     let slen = str_len(s)
     let plen = str_len(prefix)
     if plen > slen {
@@ -52,7 +52,7 @@ fn starts_with(s: String, prefix: String) -> Bool {
     return true
 }
 
-fn ends_with(s: String, suffix: String) -> Bool {
+fn ends_with(s: Str, suffix: Str) -> Bool {
     let slen = str_len(s)
     let suflen = str_len(suffix)
     if suflen > slen {

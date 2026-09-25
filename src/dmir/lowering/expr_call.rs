@@ -900,6 +900,55 @@ impl<'a> Lowering<'a> {
                     });
                 return Some(dest);
             }
+            // Maybe.some(v) / Maybe.none() constructors: the exact same
+            // pattern as the Outcome.ok/err block above. Representation is
+            // the stdlib `Maybe<T>` struct (fields is_some: Bool, value: T);
+            // none() zeroes the payload slot with a constant 0 — the same
+            // two-state convention the struct-literal path uses for a none
+            // Maybe<Int>, so no new ABI shape and no uninit slot.
+            if let Expr::Identifier(cls_name, _) = &**object
+                && cls_name == "Maybe"
+                && (member == "some" || member == "none")
+            {
+                if member == "none" && !args.is_empty() {
+                    return None;
+                }
+                let dest = self.next_val();
+                let flag_val = self.next_val();
+                let fields = if member == "none" {
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::ConstBool {
+                            dest: flag_val,
+                            value: false,
+                        });
+                    let zero = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::ConstInt {
+                            dest: zero,
+                            value: 0,
+                        });
+                    ("value".into(), zero)
+                } else {
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::ConstBool {
+                            dest: flag_val,
+                            value: true,
+                        });
+                    let arg_val = self.lower_expr(&args[0], cur_block)?;
+                    ("value".into(), arg_val)
+                };
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::StructInit {
+                        dest,
+                        class_name: "Maybe".into(),
+                        fields: vec![("is_some".into(), flag_val), fields],
+                    });
+                return Some(dest);
+            }
             let is_receiver_var = if let Expr::Identifier(id_name, _) = &**object {
                 self.symbol_values.contains_key(id_name) || self.lookup_var_type(id_name).is_some()
             } else {

@@ -19,10 +19,30 @@ pub struct FormatSummary {
     pub has_unformatted: bool,
 }
 
+/// Reads a Datara source file as UTF-8, mapping the "not valid UTF-8" IO
+/// error to an actionable message. PowerShell 5.1 still defaults to OEM
+/// codepages, so a `.dtr` saved from it (or from any non-UTF-8 editor) would
+/// otherwise surface as an opaque `stream did not contain valid UTF-8` and
+/// the tooling would silently skip the file.
+pub fn read_source_utf8(path: &Path) -> Result<String, String> {
+    fs::read_to_string(path).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::InvalidData {
+            format!(
+                "File '{}' is not valid UTF-8. Datara sources must be UTF-8 \
+                 (BOM optional). Re-save the file with UTF-8 encoding in your \
+                 editor; when redirecting from PowerShell 5.1 use \
+                 '[IO.File]::WriteAllText(...)' or 'Out-File -Encoding utf8'.",
+                path.display()
+            )
+        } else {
+            format!("Failed to read file '{}': {}", path.display(), e)
+        }
+    })
+}
+
 /// Formats a single file in-place or checks it
 pub fn format_file(path: &Path, opts: &FormatOptions) -> Result<Vec<FormatDiff>, String> {
-    let content = fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read file '{}': {}", path.display(), e))?;
+    let content = read_source_utf8(path)?;
 
     let (formatted, diffs) = format_source(&content, opts);
 

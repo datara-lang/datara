@@ -1,7 +1,7 @@
 // Sparks Seed Package: jsonx
 // Lightweight JSON validation and inspection.
 
-fn count_tokens(json_src: String) -> Int {
+fn count_tokens(json_src: Str) -> Int {
     let len = str_len(json_src)
     mut idx = 0
     mut count = 0
@@ -15,7 +15,7 @@ fn count_tokens(json_src: String) -> Int {
     return count
 }
 
-fn validate_brackets(json_src: String) -> Bool {
+fn validate_brackets(json_src: Str) -> Bool {
     let len = str_len(json_src)
     mut idx = 0
     mut curly_depth = 0
