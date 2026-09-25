@@ -121,7 +121,7 @@
 - [ ] Clippy-чистка 91 warning: вручную по lint-кодам (io_other_error, useless_conversion, unnecessary_map_or, doc_overindented_list_items, borrowed_box, map_entry...). ЗАПРЕЩЕНО `clippy --fix` вслепую (ломает E0382: rust_bridge/mod.rs:128, cli.rs:113). Каждый файл — сборка+тест.
 - [ ] Устаревший VERSION-механизм: уже 1.4.5 (сделано 2026-09-21); добавить тест-гард `version_sync`: VERSION == Cargo.toml version.
 - [ ] `decide`/`match` документация: examples уже показывают decide; добавить 2 примера в docs/TUTORIAL.md (не блокер, но 15 минут).
-- [ ] Верификация M0.5: полный гейт (build 0 warnings, lib 49/49, conformance 86/86) + smoke 10 examples + grep-аудит легаси = чисто.
+- [x] Верификация M0.5 → пройдена 2026-09-25: `cargo build --release` 0 warnings; `cargo test --release --lib` 49/49 и полный сьют 288 наборов / 0 failed; conformance 86/86 (`cargo test --release --test test_conformance_suite`); smoke: `forgen run` всех 29 examples + 7 showcases = 36/36; grep-аудит `String` по *.dtr = 0.
 
 Цель: закрыть хвосты v1.4.5, чтобы дальше строить на чистом основании.
 
@@ -135,7 +135,7 @@
 - [~] T1: generics 2 уровня — частично 2026-09-25. РАБОТАЕТ: аннотации `Map<Str, List<Int>>`/`List<List<Int>>`/`Outcome<List<Int>>`, литералы, `?` через Outcome<List<Int>>, `Pair<K,V>` swap, `Outcome.ok([9,8]) or -2`. ПОЧИНЕНО: `m.len()` на Map<Str, List<Int>> возвращал мусор (диспетч падал в list-len fallback; добавлен rt_map_len_id в inst_method_call.rs). НЕ РАБОТАЕТ (см. §5): `map.get(k) or X` — E0944; `?`-распаковка List-payload теряет тип элемента (payload_repr='List').
 - [ ] T1: документация `for..in` (дока + примеры; `for` слабо задокументирован — подтверждено)
 - [ ] Clippy --release --lib → 0 warnings (2026-09-22: 91 warnings, из них ~46 machine-applicable; НЕ применять `clippy --fix` вслепую — он ломает владение E0382 в rust_bridge/mod.rs:128 и cli.rs:113; чинить вручную по одному lint-коду: io_other_error, useless_conversion, map_or, doc_overindented и т.д.)
-- [ ] Верификация M0: полный гейт + `forgen run` всех examples/ без регрессий
+- [x] Верификация M0 → пройдена 2026-09-25: полный гейт (build 0 warnings, lib 49/49, conformance 86/86) + `forgen run` всех examples/showcases без регрессий (36/36) + tests/test_as_checked_strict.rs 6/6 (as?/as! матрица) + W-SYN-001 предупреждение проверено на tmp-файле (exit 0, 2 warnings, explain работает).
 
 Приёмка: DCE-тест runtime, as?/as! матрица (ok/err/or/?/strict/strict-ok/default-без изменений), предупреждение let.
 
