@@ -1,0 +1,23 @@
+use stdlib.diagnostics.diagnostic.Diagnostic
+
+@test
+fn diagnostic_warning_shape() {
+    val d = Diagnostic.warning("W-TEST-001", "something smells")
+    assert(!d.is_error(), "warning severity")
+    assert(d.code == "W-TEST-001", "code carried")
+    assert(d.line == 0, "no location by default")
+}
+
+@test
+fn diagnostic_error_render() {
+    val d = Diagnostic.error_at("E-TEST-001", "bad thing", 7, 3, "do it right")
+    assert(d.is_error(), "error severity")
+    val text = d.render()
+    assert(StringUtils_helper_contains(text, "7:3"), "render includes position")
+    assert(StringUtils_helper_contains(text, "E-TEST-001"), "render includes code")
+    assert(StringUtils_helper_contains(text, "help: do it right"), "render includes help")
+}
+
+fn StringUtils_helper_contains(haystack: Str, needle: Str) -> Bool {
+    return str_contains(haystack, needle) == 1
+}

@@ -294,6 +294,25 @@ impl ForgenCompiler {
         self.compile_ast_internal(program, file, output_path, diag, total_start, timings)
     }
 
+    /// Compile a pre-parsed program with module resolution applied first.
+    /// The test harness builds synthetic programs (one main per @test fn)
+    /// from parsed test sources; without this step their `use stdlib.*`
+    /// imports never resolve and every stdlib-backed test fails with
+    /// E-RESOLVE-001 (M1: self-hosted stdlib test suite).
+    pub fn compile_program_with_modules(
+        &self,
+        mut program: Program,
+        file: &str,
+        output_path: Option<&Path>,
+        diag: &mut DiagnosticEngine,
+    ) -> CompilationResult {
+        let total_start = Instant::now();
+        let timings = CompilationTimings::default();
+        let base_dirs = self.module_base_dirs(Path::new(file));
+        self.resolve_modules(&mut program, diag, &[], base_dirs);
+        self.compile_ast_internal(program, file, output_path, diag, total_start, timings)
+    }
+
     pub fn lower_ast_to_dmir(
         &self,
         program: Program,

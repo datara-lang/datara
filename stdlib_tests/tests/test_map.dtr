@@ -1,0 +1,29 @@
+@test
+fn map_insert_get_overwrite() {
+    val m: Map<Str, Int> = {}
+    mut i = 0
+    while i < 100 {
+        m.insert(fmt"key_{i}", i * 3)
+        i = i + 1
+    }
+    assert(m.len() == 100, "all inserts visible in len")
+    assert(m.get("key_99") == 297, "last entry readable")
+    assert(m.get("key_0") == 0, "zero value survives raw slot")
+    m.insert("key_50", 777)
+    assert(m.get("key_50") == 777, "overwrite wins")
+    assert(m.len() == 100, "overwrite does not grow the map")
+}
+
+@test
+fn map_contains() {
+    val m: Map<Str, Int> = { "a": 1, "b": 2 }
+    assert(m.contains("a"), "contains hit")
+    assert(!m.contains("zzz"), "contains miss")
+}
+
+@test
+fn map_string_values() {
+    val m: Map<Str, Str> = { "host": "localhost", "port": "8080" }
+    assert(m.get("host") == "localhost", "string value readback")
+    assert(m.len() == 2, "two entries")
+}

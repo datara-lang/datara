@@ -180,8 +180,8 @@
 - [ ] `stdlib.text`: UTF-8-корректные split/trim/find/replace/slice (по кодпоинтам, не байтам), parse_int/parse_float с checked-семантикой (-> Outcome), format-библиотека на базе fmt-спецификаторов v1.4.5
 - [ ] `stdlib.io`: File read/write/append (capability [FS]-guarded, через существующие file_read_checked-примитивы), Path-утилиты (join/parent/extension, кроссплатформенные разделители)
 - [ ] `stdlib.sys`: Process::spawn + pipes (обёртка над sys::exec_utf8 v1.4.1 + stdin/stdout стримы), env, аргументы
-- [ ] `stdlib.diagnostics`-тип: rich diagnostic { code, message, span, help, notes } — структура данных для сообщений уровня компилятора (нужна M2 и самохостингу)
-- [ ] Каждая структура — property/edge тесты на Datara (сами себя тестируем нашим `forgen test`)
+- [x] stdlib.diagnostics → сделано 2026-09-25: Diagnostic {code,message,line,col,help,severity} + behavior (warning/error_at/is_error/render в формате компилятора); приёмочное демо M1 — ini-парсер целиком на stdlib (examples/showcase/ini_parser) с Map-записями и 3 видами диагностированных ошибок.
+- [x] Тесты на Datara → сделано 2026-09-25: self-hosted сьют stdlib_tests/ (21 @test через `forgen test`): text (split/trim/case/find/replace/UTF-8-срезы), checked parse (ok/err/overflow/?), Map (вставка/чтение/overwrite/contains), as?/as!/as, Outcome/Maybe конструкторы + or, Diagnostic shape/render. Заодно починен харнесс: `forgen test` не прогонял resolve_modules для синтетических программ → любые `use stdlib.*` в тестах падали с E-RESOLVE-001 (добавлен ForgenCompiler::compile_program_with_modules).
 - [ ] Часть модулей пишется НА ДАТАРЕ (файл-доказательство, что язык тянет реальный код; начать с text-утилит и collections-обёрток поверх C-рантайма)
 - [ ] Верификация: benchmark-смоук (collections на 1M операций — таблица vs naive), полный гейт
 

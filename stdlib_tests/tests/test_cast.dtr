@@ -1,0 +1,26 @@
+@test
+fn checked_cast_fit_and_overflow() {
+    assert((100 as? Int8) or -1 == 100, "fit passes through")
+    assert((300 as? Int8) or -1 == -1, "overflow yields err")
+    assert((255 as? UInt8) or -2 == 255, "unsigned fit")
+    assert((256 as? UInt8) or -2 == -2, "unsigned overflow")
+}
+
+@test
+fn strict_cast_values() {
+    assert((127 as! Int8) == 127, "strict fit Int8")
+    assert((255 as! UInt8) == 255, "strict fit UInt8")
+}
+
+@test
+fn plain_cast_truncates() {
+    assert((300 as Int8) == 44, "documented truncation semantics")
+}
+
+@test
+fn checked_cast_outcome_helpers() {
+    val ok = 100 as? Int8
+    assert(ok.is_success, "fit is_success")
+    val bad = 300 as? Int8
+    assert(!bad.is_success, "overflow not success")
+}

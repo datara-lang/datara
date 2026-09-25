@@ -1,0 +1,42 @@
+use stdlib.text.string.StringUtils
+
+@test
+fn text_split_basic() {
+    val parts = StringUtils.split("a,b,c", ",")
+    assert(parts.len() == 3, "split must produce 3 parts")
+    assert(parts.get(0) == "a", "part 0 must be 'a'")
+    assert(parts.get(2) == "c", "part 2 must be 'c'")
+}
+
+@test
+fn text_trim_and_case() {
+    assert(StringUtils.trim("  hi  ") == "hi", "trim must strip spaces")
+    assert(StringUtils.to_upper("datara") == "DATARA", "to_upper")
+    assert(StringUtils.to_lower("DATARA") == "datara", "to_lower")
+}
+
+@test
+fn text_find_and_replace() {
+    assert(StringUtils.find("hello world", "world") == 6, "find hit")
+    assert(StringUtils.find("hello", "xyz") == -1, "find miss")
+    assert(StringUtils.replace("a-b-c", "-", "+") == "a+b+c", "replace all")
+}
+
+@test
+fn text_slice_utf8_codepoints() {
+    // find/slice/len are codepoint-based: Cyrillic and CJK must slice on
+    // codepoint boundaries, never inside a multi-byte sequence.
+    val ru = "привет мир"
+    assert(StringUtils.len(ru) == 10, "codepoint length of Cyrillic string")
+    assert(StringUtils.slice(ru, 0, 6) == "привет", "Cyrillic slice")
+    assert(StringUtils.find(ru, "мир") == 7, "codepoint find index")
+    assert(StringUtils.slice("日本語abc", 1, 2) == "本語", "CJK slice")
+    assert(StringUtils.slice("abc", 0, 100) == "abc", "slice clamps to length")
+}
+
+@test
+fn text_join_and_contains() {
+    assert(StringUtils.join(["x", "y", "z"], "-") == "x-y-z", "join")
+    assert(StringUtils.contains("hello", "ell"), "contains hit")
+    assert(!StringUtils.contains("hello", "xyz"), "contains miss")
+}

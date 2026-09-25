@@ -206,7 +206,7 @@ impl ProjectRunner {
                     test_program.declarations.push(Decl::Function(main_fn));
 
                     let mut test_diag = DiagnosticEngine::new(&compiler.locale);
-                    let comp_res = compiler.compile_ast(
+                    let comp_res = compiler.compile_program_with_modules(
                         test_program,
                         test_file.to_str().unwrap_or("test.dtr"),
                         None,

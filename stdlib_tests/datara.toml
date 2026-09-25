@@ -1,0 +1,12 @@
+manifest_schema = 1
+
+[package]
+name = "stdlib-tests"
+version = "1.4.5"
+description = "Self-hosted Datara test suite for the standard library (PLAN_V150 M1)"
+authors = ["Datara Core Team"]
+license = "MIT OR Apache-2.0"
+entry = "src/main.dtr"
+
+[capabilities]
+fs = ["read"]

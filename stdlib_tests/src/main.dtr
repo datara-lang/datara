@@ -1,0 +1,5 @@
+// Entry point for the stdlib self-hosted test suite; the real tests live
+// in tests/ and are discovered by `forgen test` via @test functions.
+fn main() {
+    out "stdlib test suite (run via: forgen test)"
+}

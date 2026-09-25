@@ -1,0 +1,35 @@
+use stdlib.result.result.Outcome
+
+@test
+fn parse_int_ok_paths() {
+    assert(((parse_int("42")) or -1) == 42, "plain int")
+    assert(((parse_int("  7 ")) or -1) == 7, "whitespace trimmed")
+    assert(((parse_int("-15")) or -1) == -15, "negative int")
+    assert(((parse_int("0")) or -1) == 0, "zero survives the raw payload")
+}
+
+@test
+fn parse_int_err_paths() {
+    assert(((parse_int("abc")) or -1) == -1, "not a number")
+    assert(((parse_int("12x")) or -1) == -1, "trailing garbage rejected")
+    assert(((parse_int("")) or -1) == -1, "empty string rejected")
+    assert(((parse_int("99999999999999999999")) or -1) == -1, "overflow rejected")
+}
+
+@test
+fn parse_float_paths() {
+    assert(((parse_float("3.14")) or 0.0) == 3.14, "float parse")
+    assert(((parse_float("-2.5e2")) or 0.0) == -250.0, "exponent parse")
+    assert(((parse_float("nope")) or 1.5) == 1.5, "float fallback")
+}
+
+@test
+fn parse_int_question_propagation() {
+    assert(((read_port("3000")) or -1) == 6000, "? propagation ok path")
+    assert(((read_port("oops")) or -1) == -1, "? propagation err path")
+}
+
+fn read_port(s: Str) -> Outcome<Int> {
+    val port = parse_int(s)?
+    return Outcome.ok(port * 2)
+}

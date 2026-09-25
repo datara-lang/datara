@@ -1,0 +1,35 @@
+use stdlib.result.result.Outcome
+use stdlib.result.option.Maybe
+
+@test
+fn outcome_constructors() {
+    val ok = Outcome.ok(8080)
+    assert(ok.is_success, "ok constructor")
+    assert(ok.value == 8080, "ok payload")
+    val err = mk_err()
+    assert(!err.is_success, "err constructor")
+    assert(err.error_msg == "boom", "err message")
+}
+
+fn mk_err() -> Outcome<Int> {
+    return Outcome.err("boom")
+}
+
+@test
+fn maybe_constructors() {
+    val some = Maybe.some(1001)
+    assert(some.is_some, "some constructor")
+    assert(some.value == 1001, "some payload")
+    val none = mk_none()
+    assert(!none.is_some, "none constructor")
+}
+
+fn mk_none() -> Maybe<Int> {
+    return Maybe.none()
+}
+
+@test
+fn or_recovery_composes() {
+    assert((Outcome.err("x")) or 5 == 5, "or fallback")
+    assert((Outcome.ok(7)) or 5 == 7, "or passthrough")
+}
