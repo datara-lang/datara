@@ -344,8 +344,14 @@ int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
             new_hdr->magic = DATARA_MAP_MAGIC | flag;
             new_hdr->capacity = new_cap;
         } else {
-            new_hdr = (DataraMapHeader*)realloc(hdr, total_bytes);
+            // M4 growth-soundness: realloc may extend IN PLACE and hand
+            // back the SAME pointer. The compiler's rebinding of the map
+            // variable is then a no-op store, and the observed freeze was
+            // 'len' stuck at the old count. Always move to a fresh block.
+            new_hdr = (DataraMapHeader*)malloc(total_bytes);
             if (!new_hdr) return map;
+            memcpy(new_hdr, hdr, sizeof(DataraMapHeader) + (1 + (size_t)count * 2) * sizeof(int64_t));
+            free(hdr);
             new_hdr->capacity = new_cap;
         }
         int64_t* new_map = (int64_t*)(new_hdr + 1);
