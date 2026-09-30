@@ -814,6 +814,10 @@ impl ForgenCompiler {
                                     | "checked_mul"
                                     | "parse_int"
                                     | "parse_float"
+                                    // v1.5.0 (M1): stdlib.text wrappers that
+                                    // forward to the parse_* checked builtins.
+                                    | "text_parse_int"
+                                    | "text_parse_float"
                                     | "file_read_checked"
                                     | "env_get_checked"
                                     // v1.5.0 (M1): stdlib.sys wrappers that

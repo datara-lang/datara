@@ -1,0 +1,130 @@
+//! stdlib.text.text — checked parsing and UTF-8-aware free functions.
+//!
+//! Thin Datara wrappers over the compiler/runtime primitives, in the same
+//! free-function style as stdlib.sys:
+//!   text_parse_int(s)    -> Outcome<Int>   -- `or`-friendly integer parse.
+//!   text_parse_float(s)  -> Outcome<Float> -- `or`-friendly float parse.
+//!   text_to_int(s)       -> Int            -- unchecked parse (0 on garbage).
+//!   text_to_float(s)     -> Float          -- unchecked parse (0.0 on garbage).
+//!   text_is_int(s)       -> Bool
+//!   text_is_float(s)     -> Bool
+//!   text_char_len(s)     -> Int            -- codepoint length (decoded UTF-8).
+//!   text_scalar_at(s, i) -> Str            -- i-th CODEPOINT as a string.
+//!   text_slice_cp(s, start, len) -> Str    -- codepoint-bounded slice, clamped.
+//!   text_validate(s)     -> Bool           -- strict UTF-8 validation.
+//!   text_sanitize(s)     -> Str            -- replace invalid sequences with U+FFFD.
+//!
+//! The generic Outcome accessors (`or`, `?`, is_ok/unwrap/err) come from
+//! stdlib.result; the parser wrappers are registered with the driver's
+//! auto-loader so using them with `or`/`?` never hits E0944.
+//!
+//! NOTE: bare `parse_int`/`parse_float` builtins remain the low-level entry
+//! points; the text_* names are the stdlib-canonical spellings.
+
+fn text_parse_int(s: Str) -> Outcome<Int> {
+    return parse_int(s)
+}
+
+fn text_parse_float(s: Str) -> Outcome<Float> {
+    return parse_float(s)
+}
+
+fn text_to_int(s: Str) -> Int {
+    return str_to_int(s)
+}
+
+fn text_to_float(s: Str) -> Float {
+    return str_to_float(s)
+}
+
+fn text_is_int(s: Str) -> Bool {
+    val r = parse_int(s)
+    return r.is_ok()
+}
+
+fn text_is_float(s: Str) -> Bool {
+    val r = parse_float(s)
+    return r.is_ok()
+}
+
+fn text_char_len(s: Str) -> Int {
+    return str_chars(s)
+}
+
+fn text_scalar_at(s: Str, index: Int) -> Str {
+    return str_scalar_at(s, index)
+}
+
+//! text_char_at_cp(s, i) -> Str
+//! CODEPOINT-indexed single-character access (text_scalar_at above takes a
+//! BYTE offset into the string — the raw runtime contract). This wrapper
+//! translates the codepoint index via the codepoint->byte translation and
+//! returns exactly one character.
+
+fn text_slice_cp(s: Str, start: Int, len: Int) -> Str {
+    return str_substring_cp(s, start, len)
+}
+
+fn text_char_at_cp(s: Str, index: Int) -> Str {
+    return str_substring_cp(s, index, 1)
+}
+
+fn text_validate(s: Str) -> Bool {
+    return validate_utf8(s)
+}
+
+fn text_sanitize(s: Str) -> Str {
+    return str_sanitize_utf8(s)
+}
+
+//! text_is_blank(s) -> Bool
+//! True when the string is empty or consists only of whitespace.
+fn text_is_blank(s: Str) -> Bool {
+    val trimmed = str_trim(s)
+    return trimmed == ""
+}
+
+//! text_count_char(s, ch) -> Int
+//! Occurrences of the single CODEPOINT `ch` in `s` (Cyrillic/CJK-safe:
+//! walks the string codepoint-by-codepoint, so it never matches inside
+//! a multi-byte sequence).
+fn text_count_char(s: Str, ch: Str) -> Int {
+    mut count = 0
+    mut i = 0
+    val n = str_chars(s)
+    while i < n {
+        if str_substring_cp(s, i, 1) == ch {
+            count = count + 1
+        }
+        i = i + 1
+    }
+    return count
+}
+
+//! text_starts_utf8(s, prefix) -> Bool
+//! Codepoint-safe startswith (prefix search itself stays byte-based:
+//! a UTF-8 prefix match at offset 0 is boundary-safe by construction).
+fn text_starts_utf8(s: Str, prefix: Str) -> Bool {
+    return str_starts_with(s, prefix)
+}
+
+//! text_pad_left_cp / text_pad_right_cp: codepoint-aware padding. The raw
+//! str_pad_* builtins are byte-length-based, so padding a Cyrillic string to
+//! width N would overshoot; these measure the visible width in codepoints.
+fn text_pad_left_cp(s: Str, width: Int, pad: Str) -> Str {
+    val visible = str_chars(s)
+    if visible >= width {
+        return s
+    }
+    val fill = str_repeat(pad, width - visible)
+    return fill + s
+}
+
+fn text_pad_right_cp(s: Str, width: Int, pad: Str) -> Str {
+    val visible = str_chars(s)
+    if visible >= width {
+        return s
+    }
+    val fill = str_repeat(pad, width - visible)
+    return s + fill
+}

@@ -1,0 +1,66 @@
+//! stdlib.text tests: checked parsing (Outcome + or-fallback), UTF-8
+//! codepoint utilities, and codepoint-aware padding. Each @test runs in a
+//! fresh process.
+
+use stdlib.text.text
+
+@test
+fn text_parse_int_ok_paths() {
+    assert(((text_parse_int("42")) or -1) == 42, "plain int")
+    assert(((text_parse_int("  7 ")) or -1) == 7, "whitespace trimmed")
+    assert(((text_parse_int("-15")) or -1) == -15, "negative int")
+    assert(((text_parse_int("0")) or -1) == 0, "zero survives fallback")
+}
+
+@test
+fn text_parse_int_err_paths() {
+    assert(((text_parse_int("abc")) or -1) == -1, "not a number")
+    assert(((text_parse_int("12x")) or -1) == -1, "trailing garbage rejected")
+    assert(((text_parse_int("")) or -1) == -1, "empty string rejected")
+    assert(((text_parse_int("99999999999999999999")) or -1) == -1, "overflow rejected")
+}
+
+@test
+fn text_parse_float_paths() {
+    assert(((text_parse_float("3.14")) or 0.0) == 3.14, "float parse")
+    assert(((text_parse_float("-2.5e2")) or 0.0) == -250.0, "exponent parse")
+    assert(((text_parse_float("nope")) or 1.5) == 1.5, "float fallback")
+}
+
+@test
+fn text_is_int_is_float() {
+    assert(text_is_int("-9"), "is_int accepts negative int")
+    assert(!text_is_int("1.5"), "is_int rejects float literal")
+    assert(!text_is_int("abc"), "is_int rejects garbage")
+    assert(text_is_float("1e3"), "is_float accepts exponent")
+    assert(!text_is_float("xyz"), "is_float rejects garbage")
+}
+
+@test
+fn text_utf8_codepoints() {
+    val greek = "χαίρετε"
+    assert(text_char_len(greek) == 7, "codepoint length of Greek string")
+    assert(text_scalar_at(greek, 0) == "χ", "scalar_at codepoint 0")
+    assert(text_slice_cp(greek, 0, 4) == "χαίρ", "slice on codepoint bounds")
+    assert(text_slice_cp("日本語abc", 1, 2) == "本語", "CJK slice")
+    assert(text_slice_cp("abc", 0, 100) == "abc", "slice clamps to length")
+    assert(text_validate("hello"), "ASCII validates as UTF-8")
+}
+
+@test
+fn text_count_and_blank() {
+    assert(text_count_char("привет, мир", "и") == 2, "Cyrillic count")
+    assert(text_count_char("日本語日", "日") == 2, "CJK count never splits codepoints")
+    assert(text_count_char("aaa", "b") == 0, "count miss")
+    assert(text_is_blank("   "), "whitespace-only is blank")
+    assert(text_is_blank(""), "empty string is blank")
+    assert(!text_is_blank("x"), "non-blank")
+}
+
+@test
+fn text_pad_codepoint_width() {
+    assert(text_pad_left_cp("ab", 5, "*") == "***ab", "pad left")
+    assert(text_pad_right_cp("мир", 6, ".") == "мир...", "pad right on Cyrillic width 3")
+    assert(text_pad_left_cp("longer", 3, "*") == "longer", "no pad when already wide")
+    assert(text_pad_right_cp("", 2, "0") == "00", "pad empty string")
+}
