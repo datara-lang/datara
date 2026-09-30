@@ -350,6 +350,7 @@ int64_t*    datara_rt_list_create_repeat(int64_t elem, int64_t count);
 void*       datara_rt_map_create(void);
 int64_t*    datara_rt_map_insert(int64_t* map, const char* key, int64_t val);
 int64_t     datara_rt_map_get(int64_t* map, const char* key);
+void*       datara_rt_map_get_outcome(int64_t* map, const char* key);
 void*       datara_rt_map_create_1(const char* k0, int64_t v0);
 int64_t*    datara_rt_map_create_2(const char* k0, int64_t v0, const char* k1, int64_t v1);
 int64_t*    datara_rt_map_create_3(const char* k0, int64_t v0, const char* k1, int64_t v1,

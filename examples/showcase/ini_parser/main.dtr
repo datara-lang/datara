@@ -11,8 +11,9 @@ struct IniFile {
 }
 
 behavior IniFile {
+    // v1.5.0: map lookup is checked (Outcome<Str>), the default is "".
     get(section: Str, key: Str) -> Str {
-        return this.entries.get(fmt"{section}.{key}")
+        return this.entries.get(fmt"{section}.{key}") or ""
     }
 
     error_count() -> Int {

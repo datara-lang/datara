@@ -241,6 +241,19 @@ impl<'a> Lowering<'a> {
                     }
                 }
                 Expr::MemberAccess { object, member, .. } => {
+                    // Map.new() static constructor: the result is a builtin
+                    // Map with the historical Str/Int pairing (the checker
+                    // refines K/V from an annotation; the lowering only
+                    // needs the container class for receiver dispatch).
+                    if let Expr::Identifier(n, _) = &**object
+                        && n == "Map"
+                        && member == "new"
+                    {
+                        return Some(DataraType::Map(
+                            Box::new(DataraType::String),
+                            Box::new(DataraType::Int),
+                        ));
+                    }
                     // List protocol calls return the list itself (the
                     // in-place mutators return the receiver handle) or a
                     // fresh list (slice/collect/map/filter), so the result

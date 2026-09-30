@@ -456,6 +456,7 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_map_create_5", datara_rt_map_create_5);
     reg!("datara_rt_map_insert", datara_rt_map_insert);
     reg!("datara_rt_map_get", datara_rt_map_get);
+    reg!("datara_rt_map_get_outcome", datara_rt_map_get_outcome);
     reg!("datara_rt_map_contains", datara_rt_map_contains);
     reg!("datara_rt_map_len", datara_rt_map_len);
     reg!("datara_rt_map_free", datara_rt_map_free);

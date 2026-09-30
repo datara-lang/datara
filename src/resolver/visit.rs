@@ -310,7 +310,24 @@ impl Resolver {
                 // v1.4.5 W1: `size_of(T)` takes a type name, not a value —
                 // the bare identifier must not be resolved as a variable.
                 let is_size_of = matches!(&**callee, Expr::Identifier(n, _) if n == "size_of");
-                self.resolve_expr(callee, diag);
+                // Map.new() / Outcome.ok() / Maybe.some() are STATIC
+                // constructor calls on prelude generic class names: the
+                // receiver identifier is a class name, not a variable, and
+                // must not be resolved as one (E-RESOLVE-001 «Undefined
+                // symbol 'Map'» masked Map.new entirely).
+                let is_static_ctor = matches!(
+                    &**callee,
+                    Expr::MemberAccess { object, member, .. }
+                        if matches!(&**object, Expr::Identifier(n, _)
+                            if (n == "Outcome"
+                                && (member == "ok" || member == "err"))
+                            || (n == "Maybe"
+                                && (member == "some" || member == "none"))
+                            || (n == "Map" && member == "new"))
+                );
+                if !is_static_ctor {
+                    self.resolve_expr(callee, diag);
+                }
                 for a in args {
                     if is_size_of {
                         continue;

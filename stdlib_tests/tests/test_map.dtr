@@ -1,3 +1,10 @@
+// v1.5.0: checked map lookup -- get(k) yields Outcome<T>, unpacked with
+// `or`, `?`, is_ok/unwrap/err exactly like the checked list accessors.
+fn lookup(m: Map<Str, Int>, k: Str) -> Outcome<Int> {
+    val v = m.get(k)?
+    return Outcome.ok(v)
+}
+
 @test
 fn map_insert_get_overwrite() {
     val m: Map<Str, Int> = {}
@@ -7,11 +14,15 @@ fn map_insert_get_overwrite() {
         i = i + 1
     }
     assert(m.len() == 100, "all inserts visible in len")
-    assert(m.get("key_99") == 297, "last entry readable")
-    assert(m.get("key_0") == 0, "zero value survives raw slot")
+    // get(k) is checked -- unpack with `or`. Parens are load-bearing:
+    // `or` binds looser than `==`, so the fallback must be bracketed.
+    assert((m.get("key_99") or -1) == 297, "last entry readable")
+    assert((m.get("key_0") or -1) == 0, "zero value survives raw slot")
     m.insert("key_50", 777)
-    assert(m.get("key_50") == 777, "overwrite wins")
+    assert((m.get("key_50") or -1) == 777, "overwrite wins")
     assert(m.len() == 100, "overwrite does not grow the map")
+    // miss falls to the or-branch
+    assert((m.get("absent") or -1) == -1, "miss falls back to or-value")
 }
 
 @test
@@ -24,6 +35,33 @@ fn map_contains() {
 @test
 fn map_string_values() {
     val m: Map<Str, Str> = { "host": "localhost", "port": "8080" }
-    assert(m.get("host") == "localhost", "string value readback")
+    // Str payload: the or-fallback and the hit share the Str channel.
+    assert((m.get("host") or "") == "localhost", "string value readback")
+    assert((m.get("nope") or "fallback") == "fallback", "string miss fallback")
     assert(m.len() == 2, "two entries")
+}
+
+@test
+fn map_get_outcome_methods() {
+    // The Outcome object composes with is_ok/unwrap/err like the checked
+    // list accessors (pop/first/last) and checked I/O builtins.
+    val m: Map<Str, Int> = { "port": 8080 }
+    val hit = m.get("port")
+    assert(hit.is_ok(), "hit is ok")
+    assert(hit.unwrap() == 8080, "hit unwrap yields the value")  
+    val miss = m.get("absent")
+    assert(!miss.is_ok(), "miss is not ok")
+    assert(miss.err() != "", "miss carries an error message")
+}
+
+@test
+fn map_get_question_propagation() {
+    // `?` propagates a missing key out of an Outcome-returning function.
+    val m: Map<Str, Int> = { "a": 1 }
+    val ok = lookup(m, "a")
+    assert(ok.is_success, "propagation succeeds on a hit")
+    assert(ok.value == 1, "propagated payload is the value")
+    val bad = lookup(m, "zz")
+    assert(!bad.is_success, "propagation fails on a miss")
+    assert(bad.error_msg != "", "propagated error carries a message")
 }

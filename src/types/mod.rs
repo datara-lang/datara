@@ -508,6 +508,16 @@ impl DataraType {
             _ => None,
         }
     }
+
+    /// If this type is a Map-like value, return its (key, value) pairing.
+    /// Covers the builtin `Map(k, v)` and its erased `Class("Map")` form
+    /// (which falls back to the historical Str/Int default).
+    pub fn map_like(&self) -> Option<(DataraType, DataraType)> {
+        match self {
+            DataraType::Map(k, v) => Some(((**k).clone(), (**v).clone())),
+            _ => None,
+        }
+    }
 }
 
 impl std::fmt::Display for DataraType {

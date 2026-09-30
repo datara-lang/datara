@@ -871,7 +871,11 @@ impl ForgenCompiler {
                     Expr::Call { callee, args, .. } => {
                         let callee_hits = match &**callee {
                             Expr::MemberAccess { member, .. } => {
-                                matches!(member.as_str(), "pop" | "first" | "last")
+                                // pop/first/last: v1.4.1 checked list
+                                // accessors. get: v1.5.0 checked map lookup
+                                // (datara_rt_map_get_outcome) — same Outcome
+                                // object ABI, same auto-load requirement.
+                                matches!(member.as_str(), "pop" | "first" | "last" | "get")
                             }
                             _ => false,
                         };
@@ -905,6 +909,35 @@ impl ForgenCompiler {
                     | Stmt::Err(init, _)
                     | Stmt::Return(Some(init), _) => expr_uses_checked_accessor(init),
                     Stmt::Block(stmts, _) => stmts.iter().any(stmt_uses_checked_accessor),
+                    // Bodies of control flow: a checked accessor may only
+                    // appear inside an if/loop arm (e.g. a behavior method
+                    // that returns `map.get(k) or default`).
+                    Stmt::If {
+                        condition,
+                        then_branch,
+                        else_branch,
+                        ..
+                    } => {
+                        expr_uses_checked_accessor(condition)
+                            || stmt_uses_checked_accessor(then_branch)
+                            || else_branch
+                                .as_deref()
+                                .map(stmt_uses_checked_accessor)
+                                .unwrap_or(false)
+                    }
+                    Stmt::For { iterable, body, .. }
+                    | Stmt::While {
+                        condition: iterable,
+                        body,
+                        ..
+                    }
+                    | Stmt::ParallelFor { iterable, body, .. } => {
+                        expr_uses_checked_accessor(iterable)
+                            || stmt_uses_checked_accessor(body)
+                    }
+                    Stmt::Loop { body, .. } | Stmt::Unsafe { body, .. } => {
+                        stmt_uses_checked_accessor(body)
+                    }
                     _ => false,
                 }
             }

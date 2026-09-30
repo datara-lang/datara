@@ -307,6 +307,7 @@ unsafe extern "C" {
     ) -> *mut ();
     pub fn datara_rt_map_insert(map: *mut i64, key: *const c_char, val: i64) -> *mut i64;
     pub fn datara_rt_map_get(map: *mut i64, key: *const c_char) -> i64;
+    pub fn datara_rt_map_get_outcome(map: *mut i64, key: *const c_char) -> *mut ();
     pub fn datara_rt_map_contains(map: *mut i64, key: *const c_char) -> i64;
     pub fn datara_rt_map_len(map: *mut i64) -> i64;
     pub fn datara_rt_map_free(map: *mut ());

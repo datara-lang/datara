@@ -900,6 +900,27 @@ impl<'a> Lowering<'a> {
                     });
                 return Some(dest);
             }
+            // Map.new() static constructor: lowers to the same 0-arg
+            // datara_rt_map_create call the empty Map literal `{}` uses, so
+            // the runtime ABI is identical (an empty robin-hood map). Type
+            // binding (K/V) is a checker-level concern; the value slot is a
+            // pointer either way.
+            if let Expr::Identifier(cls_name, _) = &**object
+                && cls_name == "Map"
+                && member == "new"
+                && args.is_empty()
+            {
+                let dest = self.next_val();
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::Call {
+                        dest,
+                        func: "datara_rt_map_create".into(),
+                        args: vec![],
+                        ty: "Map".into(),
+                    });
+                return Some(dest);
+            }
             // Maybe.some(v) / Maybe.none() constructors: the exact same
             // pattern as the Outcome.ok/err block above. Representation is
             // the stdlib `Maybe<T>` struct (fields is_some: Bool, value: T);
@@ -1179,6 +1200,39 @@ impl<'a> Lowering<'a> {
                         func: "datara_rt_map_insert".into(),
                         args: vec![obj_val, k, v],
                         ty: "Map".into(),
+                    });
+                return Some(dest);
+            }
+            // Checked map lookup: get(k) returns an Outcome<T> object (the
+            // stdlib Outcome<T> layout), so `m.get(k) or X`, `?`,
+            // is_ok/is_err/unwrap/err all compose exactly like the checked
+            // list accessors (pop/first/last) and file_read_checked. The
+            // payload repr keys the downstream Outcome payload tagging
+            // (Int values, Float bit patterns, Str pointers).
+            if member == "get" && args.len() == 1 && self.is_expr_map(object) {
+                let k = self.lower_expr(&args[0], cur_block)?;
+                let dest = self.next_val();
+                let val_repr = self
+                    .infer_expr_datara_type(object)
+                    .map(|obj_ty| match obj_ty {
+                        DataraType::Map(_, val) => {
+                            super::expr_composite::index_elem_ret_ty(&val)
+                        }
+                        DataraType::GenericInstance { name, args }
+                            if name == "Map" && args.len() >= 2 =>
+                        {
+                            super::expr_composite::index_elem_ret_ty(&args[1])
+                        }
+                        _ => "Int".to_string(),
+                    })
+                    .unwrap_or_else(|| "Int".to_string());
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::Call {
+                        dest,
+                        func: "datara_rt_map_get_outcome".into(),
+                        args: vec![obj_val, k],
+                        ty: format!("Outcome<{}>", val_repr),
                     });
                 return Some(dest);
             }

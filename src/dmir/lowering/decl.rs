@@ -85,6 +85,37 @@ impl<'a> Lowering<'a> {
             } else if ty_str == "UInt" || ty_str == "UInt64" {
                 self.local_var_types
                     .insert(p.name.clone(), crate::types::DataraType::UInt64);
+            } else if let Some(rest) = ty_str.strip_prefix("Map<")
+                && let Some(inner) = rest.strip_suffix('>')
+            {
+                // v1.5.0: Map<Str, Str> parameters must keep their value
+                // type in local_var_types — `m.get(k)` keys the Outcome
+                // payload tagging (Int vs bitcast-Float vs Str pointer)
+                // off the receiver's value type, and without this entry
+                // the repr fell back to Int (raw pointer printed as a
+                // number, E0944-class silent wrong data).
+                let val_repr = inner
+                    .rsplit(',')
+                    .next()
+                    .unwrap_or("Int")
+                    .trim()
+                    .to_string();
+                let val_ty = match val_repr.as_str() {
+                    "Float" | "Float64" | "f64" => crate::types::DataraType::Float,
+                    "Float32" | "f32" => crate::types::DataraType::Float32,
+                    "Bool" => crate::types::DataraType::Bool,
+                    "Int" | "Int64" | "Int32" | "Int16" | "Int8" => {
+                        crate::types::DataraType::Int
+                    }
+                    _ => crate::types::DataraType::String,
+                };
+                self.local_var_types.insert(
+                    p.name.clone(),
+                    crate::types::DataraType::Map(
+                        Box::new(crate::types::DataraType::String),
+                        Box::new(val_ty),
+                    ),
+                );
             }
             params.push((p.name.clone(), ty_str, p_val));
             let refn = p.type_node.as_ref().and_then(|t| {

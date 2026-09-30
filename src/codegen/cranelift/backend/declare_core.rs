@@ -258,6 +258,27 @@ pub fn declare_runtime_core<M: ClifModule>(
         .declare_function("datara_rt_map_get", Linkage::Import, &rt_map_get_sig)
         .map_err(|e| e.to_string())?;
 
+    // Checked map lookup: same (map, key) -> i64 ABI, but the return value
+    // is an Outcome object pointer (stdlib Outcome<T> layout) instead of a
+    // raw value slot.
+    let mut rt_map_get_outcome_sig = Signature::new(call_conv);
+    rt_map_get_outcome_sig
+        .params
+        .push(AbiParam::new(clif_types::I64));
+    rt_map_get_outcome_sig
+        .params
+        .push(AbiParam::new(clif_types::I64));
+    rt_map_get_outcome_sig
+        .returns
+        .push(AbiParam::new(clif_types::I64));
+    let rt_map_get_outcome_id = module
+        .declare_function(
+            "datara_rt_map_get_outcome",
+            Linkage::Import,
+            &rt_map_get_outcome_sig,
+        )
+        .map_err(|e| e.to_string())?;
+
     let mut rt_map_contains_sig = Signature::new(call_conv);
     rt_map_contains_sig
         .params
@@ -410,6 +431,10 @@ pub fn declare_runtime_core<M: ClifModule>(
         func_ids.insert(name, (id, sig));
     }
     func_ids.insert("datara_rt_map_get".into(), (rt_map_get_id, rt_map_get_sig));
+    func_ids.insert(
+        "datara_rt_map_get_outcome".into(),
+        (rt_map_get_outcome_id, rt_map_get_outcome_sig),
+    );
     func_ids.insert(
         "datara_rt_map_contains".into(),
         (rt_map_contains_id, rt_map_contains_sig),

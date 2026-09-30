@@ -291,6 +291,35 @@ static DataraMapHeader* datara_rt_map_get_header_fwd(int64_t* map) {
     return datara_rt_map_get_header(map);
 }
 
+// Checked map lookup: returns an Outcome object in the stdlib Outcome<T>
+// layout (is_success: Bool, value: T, error_msg: Str) instead of the raw
+// value slot. A missing key yields is_success = 0 with a diagnostic
+// message; a hit carries the value bit-exactly (Int values, Float bit
+// patterns, Str/class pointers ride in the i64 slot verbatim). The legacy
+// raw datara_rt_map_get stays for the unchecked indexing path.
+void* datara_rt_map_get_outcome(int64_t* map, const char* key) {
+    extern void* datara_rt_outcome_build_raw(int64_t, int64_t, const char*);
+    if (!map || !key) {
+        return datara_rt_outcome_build_raw(0, 0, "map lookup: null map or key");
+    }
+    int64_t count = map[0];
+    DataraMapHeader* hdr = datara_rt_map_get_header_fwd(map);
+    if (hdr && hdr->index && hdr->index_slots && count >= DATARA_MAP_INDEX_MIN) {
+        int64_t e = rt_map_index_find(map, hdr, key);
+        if (e >= 0) {
+            return datara_rt_outcome_build_raw(1, map[2 + e * 2], "");
+        }
+        return datara_rt_outcome_build_raw(0, 0, "map lookup: key not found");
+    }
+    for (int64_t i = 0; i < count; i++) {
+        const char* k = (const char*)map[1 + i * 2];
+        if (k && strcmp(k, key) == 0) {
+            return datara_rt_outcome_build_raw(1, map[2 + i * 2], "");
+        }
+    }
+    return datara_rt_outcome_build_raw(0, 0, "map lookup: key not found");
+}
+
 int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
     if (!map) {
         size_t init_cap = 8;

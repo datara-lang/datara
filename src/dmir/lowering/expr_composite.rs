@@ -10,7 +10,7 @@ use super::Lowering;
 /// keep their class name so GetField on `bodies[k].x` resolves against
 /// the element's own layout instead of a guessed cross-class offset
 /// (E0944); primitives map as before.
-fn index_elem_ret_ty(ty: &DataraType) -> String {
+pub(crate) fn index_elem_ret_ty(ty: &DataraType) -> String {
     match ty {
         DataraType::Float => "Float".into(),
         DataraType::String => "String".into(),

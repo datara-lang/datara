@@ -3,6 +3,10 @@ use crate::diagnostics::{DiagnosticEngine, ErrorCode, SourceSpan};
 use crate::types::{DataraType, TypeChecker};
 use std::collections::{HashMap, HashSet};
 
+use super::call_helpers::{
+    bind_type_params, check_list_combinator_args, is_comptime_constant, subst_type_params,
+};
+
 impl<'a> TypeChecker<'a> {
     pub(crate) fn check_call(
         &mut self,
@@ -488,6 +492,33 @@ impl<'a> TypeChecker<'a> {
                     args: vec![payload_ty],
                 };
             }
+            // Map.new() static constructor on the prelude generic class: the
+            // receiver is the class name itself, never a value. Binds K/V from
+            // the enclosing expected type (annotation/return type) when that
+            // is a Map, otherwise falls back to Str/Int (the historical
+            // default key/value pairing of the builtin map).
+            if let Expr::Identifier(cls_name, _) = &**object
+                && cls_name == "Map"
+                && member == "new"
+            {
+                if !args.is_empty() {
+                    diag.error(
+                        ErrorCode::TypeMismatch,
+                        format!("Map.new() takes no arguments, got {}", args.len()),
+                        Some(span.clone()),
+                    );
+                    return DataraType::Unit;
+                }
+                let (k_ty, v_ty) = match self
+                    .current_return_type
+                    .as_ref()
+                    .and_then(|r| r.map_like())
+                {
+                    Some((k, v)) => (k, v),
+                    None => (DataraType::String, DataraType::Int),
+                };
+                return DataraType::Map(Box::new(k_ty), Box::new(v_ty));
+            }
             // Maybe.some(v) / Maybe.none() static constructors: same shape as
             // Outcome.ok/err above — the receiver is the generic class name,
             // never a value. some(v) returns Maybe<T> with T bound to the
@@ -729,7 +760,19 @@ impl<'a> TypeChecker<'a> {
                     _ => {}
                 },
                 DataraType::Map(key, val) => match member.as_str() {
-                    "get" => return (**val).clone(),
+                    // v1.5.0: checked map lookup. The lowering emits the
+                    // Outcome<T> object (datara_rt_map_get_outcome) for every
+                    // one-argument `map.get(k)` call, so the checker must
+                    // return the same Result(T, Str) shape — a raw value here
+                    // desynced the two stages and broke `?`/`or` composition
+                    // (E-TYPE-001 on a lowered-Outcome operand).
+                    "get" => {
+                        let _ = &key;
+                        return DataraType::Result(
+                            Box::new((**val).clone()),
+                            Box::new(DataraType::String),
+                        );
+                    }
                     "insert" => {
                         return DataraType::Map(key.clone(), val.clone());
                     }
@@ -930,13 +973,22 @@ impl<'a> TypeChecker<'a> {
                 }
                 if cls == "Map" {
                     match member.as_str() {
+                        // v1.5.0: same checked-lookup alignment as the
+                        // parametric Map branch above — the lowering emits
+                        // the Outcome object, so the erased-class form must
+                        // typecheck as Result(payload, Str) too.
                         "get" => {
-                            if let Expr::Identifier(name, _) = &**object
+                            let payload = if let Expr::Identifier(name, _) = &**object
                                 && let Some(elem) = self.var_element_types.get(name)
                             {
-                                return elem.clone();
-                            }
-                            return DataraType::Val;
+                                elem.clone()
+                            } else {
+                                DataraType::Val
+                            };
+                            return DataraType::Result(
+                                Box::new(payload),
+                                Box::new(DataraType::String),
+                            );
                         }
                         "insert" => {
                             return DataraType::Class("Map".into());
@@ -1153,139 +1205,5 @@ impl<'a> TypeChecker<'a> {
         };
         let updated = if grow { len + 1 } else { len.saturating_sub(1) };
         self.var_array_lengths.insert(name.clone(), updated);
-    }
-}
-
-/// v1.4.1 E-TYPE-008 gate for the List combinators: a wrong arity or a
-/// definitively non-callable argument is a hard type error instead of the
-/// old silent "returns the receiver list" fallback. Named functions surface
-/// as RawPtr and lambdas as Function, so only concrete primitives are
-/// rejected as non-callable here.
-fn check_list_combinator_args(
-    diag: &mut DiagnosticEngine,
-    member: &str,
-    arg_types: &[DataraType],
-    expected_arity: usize,
-    span: &SourceSpan,
-) {
-    let hint = match member {
-        "collect" => "collect() takes no arguments",
-        "reduce" | "fold" => {
-            "reduce/fold expect (initial_value, accumulator_fn) where the accumulator is a lambda or named function of arity 2"
-        }
-        _ => "map/filter expect a lambda or named function of arity 1",
-    };
-    if arg_types.len() != expected_arity {
-        diag.error(
-            ErrorCode::TypeIncomparableOperands,
-            format!(
-                "'{}' on a List expects {} argument(s): {}",
-                member, expected_arity, hint
-            ),
-            Some(span.clone()),
-        );
-        return;
-    }
-    if expected_arity > 0 {
-        let callable_idx = expected_arity - 1;
-        let definitely_not_callable = matches!(
-            arg_types.get(callable_idx),
-            Some(DataraType::Int)
-                | Some(DataraType::Float)
-                | Some(DataraType::Bool)
-                | Some(DataraType::String)
-                | Some(DataraType::Char)
-        );
-        if definitely_not_callable {
-            diag.error(
-                ErrorCode::TypeIncomparableOperands,
-                format!(
-                    "'{}' expects a lambda or named function as its last argument, got '{}': {}",
-                    member, arg_types[callable_idx], hint
-                ),
-                Some(span.clone()),
-            );
-        }
-    }
-}
-
-fn bind_type_params(
-    p_ty: &DataraType,
-    a_ty: &DataraType,
-    bindings: &mut HashMap<String, DataraType>,
-) {
-    match (p_ty, a_ty) {
-        (DataraType::TypeParam(param_name), _) => {
-            bindings
-                .entry(param_name.clone())
-                .or_insert_with(|| a_ty.clone());
-        }
-        (DataraType::List(p_in), DataraType::List(a_in)) => {
-            bind_type_params(p_in, a_in, bindings);
-        }
-        (DataraType::Map(pk, pv), DataraType::Map(ak, av)) => {
-            bind_type_params(pk, ak, bindings);
-            bind_type_params(pv, av, bindings);
-        }
-        (
-            DataraType::GenericInstance {
-                name: pn,
-                args: pargs,
-            },
-            DataraType::GenericInstance {
-                name: an,
-                args: aargs,
-            },
-        ) if pn == an && pargs.len() == aargs.len() => {
-            for (p, a) in pargs.iter().zip(aargs.iter()) {
-                bind_type_params(p, a, bindings);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn subst_type_params(ty: &DataraType, bindings: &HashMap<String, DataraType>) -> DataraType {
-    match ty {
-        DataraType::TypeParam(p) => bindings.get(p).cloned().unwrap_or_else(|| ty.clone()),
-        DataraType::List(inner) => DataraType::List(Box::new(subst_type_params(inner, bindings))),
-        DataraType::Map(k, v) => DataraType::Map(
-            Box::new(subst_type_params(k, bindings)),
-            Box::new(subst_type_params(v, bindings)),
-        ),
-        DataraType::GenericInstance { name, args } => DataraType::GenericInstance {
-            name: name.clone(),
-            args: args
-                .iter()
-                .map(|a| subst_type_params(a, bindings))
-                .collect(),
-        },
-        _ => ty.clone(),
-    }
-}
-
-fn is_comptime_constant(expr: &Expr, resolver: &crate::resolver::Resolver) -> bool {
-    match expr {
-        Expr::Literal(..) => true,
-        Expr::ListLiteral(items, _) => items.iter().all(|it| is_comptime_constant(it, resolver)),
-        Expr::MapLiteral(entries, _) => entries
-            .iter()
-            .all(|(k, v)| is_comptime_constant(k, resolver) && is_comptime_constant(v, resolver)),
-        Expr::Binary { left, right, .. } => {
-            is_comptime_constant(left, resolver) && is_comptime_constant(right, resolver)
-        }
-        Expr::Unary { expr, .. } => is_comptime_constant(expr, resolver),
-        Expr::Wrapping(inner, _)
-        | Expr::Saturating(inner, _)
-        | Expr::Comptime { expr: inner, .. } => is_comptime_constant(inner, resolver),
-        Expr::Call { callee, args, .. } => {
-            if let Expr::Identifier(name, _) = &**callee {
-                resolver.comptime_functions.contains(name)
-                    && args.iter().all(|a| is_comptime_constant(a, resolver))
-            } else {
-                false
-            }
-        }
-        _ => false,
     }
 }
