@@ -26,6 +26,21 @@ pub fn declare_runtime_systems<M: ClifModule>(
     call_conv: CallConv,
     func_ids: &mut HashMap<String, (FuncId, Signature)>,
 ) -> Result<(), String> {
+    // 0. Capability token factory: () -> i64. `SystemCapabilities {}`
+    // lowers to this call; the token is opaque and only checked by the
+    // capability lattice (E0940), never dereferenced.
+    {
+        let mut sig = Signature::new(call_conv);
+        sig.returns.push(AbiParam::new(clif_types::I64));
+        reg_fn(
+            module,
+            func_ids,
+            "datara_rt_sys_caps_create",
+            &[],
+            sig,
+        )?;
+    }
+
     // 1. Endianness & byte swap intrinsics: (i64) -> i64
     let unary_i64_ops = [
         ("hton16", "datara_sys_hton16"),

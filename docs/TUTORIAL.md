@@ -199,6 +199,46 @@ A `match` that misses a variant is a compile-time error, not a runtime
 surprise: `Non-exhaustive patterns in match for enum: missing Blue` with a
 span and a "Add missing arm(s)" help (`forgen explain E0310`).
 
+## Step 6c: Iteration — `for..in`
+
+The `for..in` loop iterates over anything iterable: integer ranges
+(`a..b`, exclusive upper bound) and `List` values. The loop variable is
+scoped to the body and its type is inferred from the iterable.
+
+```datara
+fn main() {
+    // Iterate a range: 1, 2, ..., 9 (upper bound is exclusive)
+    mut sum = 0
+    for i in 1..10 {
+        sum = sum + i
+    }
+    out fmt"range sum: {sum}"          // 45
+
+    // Iterate a List — the element type is inferred
+    val items: List<Str> = ["alpha", "beta", "gamma"]
+    mut joined = ""
+    for item in items {
+        joined = joined + item + " "
+    }
+    out fmt"list items: {joined}"      // alpha beta gamma
+}
+```
+
+Notes:
+
+- Ranges are exclusive on the upper bound: `for i in 0..n` runs exactly
+  `n` iterations (`0, 1, ..., n-1`), which matches zero-based indexing.
+- Iterating a `List<T>` binds `item: T` — no casts, no `any`, and bounds
+  are checked by the compiler/runtime like any other list access.
+- `for` composes with the SIMD loop-bound proof system: inside a
+  `requires len % 4 == 0` function, `for i in 0..len` is proven instead
+  of falling back to runtime guards.
+- `break`/`continue` work inside `for` bodies exactly as in `while` and
+  `loop` (v1.3.2 semantics; the loop context is enforced statically).
+
+A runnable example lives at `examples/tutorial/step03_control_flow` and
+`examples/02_math_and_loops.dtr` (a 1M-iteration range loop).
+
 ## Step 7: Error Handling & Outcome Pattern
 Source: `examples/tutorial/step07_outcomes/main.dtr`
 

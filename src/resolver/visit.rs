@@ -332,6 +332,15 @@ impl Resolver {
                 } else {
                     class_name.as_str()
                 };
+                // Prelude capability classes are provided by the compiler
+                // itself (types/prelude.rs) and have no user-visible source
+                // declaration, so their ObjectInit literals are always valid.
+                const PRELUDE_CAP_CLASSES: [&str; 4] = [
+                    "SystemCapabilities",
+                    "FileCapabilityProvider",
+                    "NetCapabilityProvider",
+                    "ProcessCapabilityProvider",
+                ];
                 if let Some(cls) = self.classes.get(resolved_name) {
                     if !cls.is_export
                         && !cls.span.file.is_empty()
@@ -348,7 +357,7 @@ impl Resolver {
                             Some(span.clone()),
                         );
                     }
-                } else {
+                } else if !PRELUDE_CAP_CLASSES.contains(&resolved_name) {
                     let mut candidates: Vec<&str> =
                         self.classes.keys().map(|s| s.as_str()).collect();
                     candidates.sort_unstable();

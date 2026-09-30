@@ -112,7 +112,7 @@ fn lsp_rename_returns_workspace_edit() {
     let compiler = forgen::driver::ForgenCompiler::new("release");
     let res = compiler.compile_source_native(&renamed, "lsp_rename_check.dtr", None);
     assert!(res.success, "renamed source must compile: {:?}", res.error);
-    let _ = res.exe_path.map(|p| std::fs::remove_file(p));
+    let _ = res.exe_path.map(std::fs::remove_file);
 }
 
 #[test]

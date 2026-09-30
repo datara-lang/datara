@@ -277,6 +277,11 @@ impl DiagnosticEngine {
         };
 
         let mut out = String::new();
+        // M4: cache per-file line vectors once — collecting src.lines()
+        // inside the loop was O(diagnostics x source_lines) and dominated
+        // large-project checks (50k lines: ~54s of a 58s check).
+        let mut lines_cache: std::collections::HashMap<&String, Vec<&str>> =
+            std::collections::HashMap::new();
         for diag in &self.diagnostics {
             let (sev_color, sev_text) = if diag.severity == "ERROR" {
                 (red_bold, "error")
@@ -301,7 +306,9 @@ impl DiagnosticEngine {
                 ));
 
                 if let Some(src) = self.source_map.get(&span.file) {
-                    let lines: Vec<&str> = src.lines().collect();
+                    let lines = lines_cache
+                        .entry(&span.file)
+                        .or_insert_with(|| src.lines().collect());
                     if span.start_line > 0 && span.start_line <= lines.len() {
                         let line_str = lines[span.start_line - 1];
                         let gutter = format!("{:>4} {}|{reset} ", span.start_line, blue_bold);

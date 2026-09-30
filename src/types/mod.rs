@@ -193,6 +193,14 @@ impl DataraType {
         {
             return true;
         }
+        // M5 TMM Layer 2: any class object coerces to RawPtr for the ARC
+        // primitives (arc_init/acquire/release/count, weak_create/upgrade).
+        // Class handles ARE pointer-sized; the coercion is the documented
+        // FFI-shaped boundary of the TMM layer, not a general escape hatch:
+        // no other RawPtr target gains class compatibility from this arm.
+        if *other == DataraType::RawPtr && matches!(self, DataraType::Class(_)) {
+            return true;
+        }
         if *self == DataraType::RawPtr
             && (*other == DataraType::Int || matches!(other, DataraType::Function { .. }))
         {

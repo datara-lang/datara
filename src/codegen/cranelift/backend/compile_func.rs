@@ -586,6 +586,14 @@ pub fn compile_all_functions<M: ClifModule>(
                                     })
                             });
                         let is_packed = dmir_module.packed_classes.contains(class_name);
+                        // M5 TMM Layer 2: @arc classes carry a 16-byte
+                        // refcount header (strong, weak) BEFORE the object
+                        // payload; the runtime helpers address it through
+                        // datara_arc_header_of (obj[-16] / obj[-8]). The
+                        // allocation is sized +16 and the returned user
+                        // pointer is base+16, so field offsets are unchanged.
+                        let is_arc = dmir_module.arc_classes.contains(class_name);
+                        let header_bytes: u32 = if is_arc { 16 } else { 0 };
                         let byte_size = if is_packed {
                             let mut total = 0u32;
                             for (fname, _) in fields {
@@ -597,9 +605,9 @@ pub fn compile_all_functions<M: ClifModule>(
                                     .unwrap_or("Int");
                                 total += get_field_type_size(fty);
                             }
-                            total.max(8)
+                            (total + header_bytes).max(8)
                         } else {
-                            fields.len().saturating_mul(8).max(16) as u32
+                            (fields.len().saturating_mul(8).max(16) as u32) + header_bytes
                         };
                         // v1.4.0 allocation decision tree (see alloc_tier):
                         // StrBuf -> runtime builder; @pool -> slab slot with
@@ -610,7 +618,7 @@ pub fn compile_all_functions<M: ClifModule>(
                         let strbuf = class_name == "StrBuf";
                         let pooled = tier_frame.pool_state.is_some()
                             && (byte_size as i64) <= alloc_tier::POOL_SLOT_SIZE;
-                        let slot_addr = if strbuf || pooled || !escapes {
+                        let raw_addr = if strbuf || pooled || !escapes {
                             if strbuf || pooled {
                                 alloc_tier::emit_escaping_alloc(
                                     &mut builder,
@@ -638,6 +646,15 @@ pub fn compile_all_functions<M: ClifModule>(
                                 class_name,
                                 byte_size,
                             )
+                        };
+                        // @arc: the user pointer starts after the refcount
+                        // header. Stack slots, pool slabs and malloc blocks
+                        // all get the +16 bytes above, so the shift is
+                        // uniform and field offsets are unchanged.
+                        let slot_addr = if is_arc {
+                            builder.ins().iadd_imm_s(raw_addr, 16)
+                        } else {
+                            raw_addr
                         };
                         let flags = cranelift_codegen::ir::MachMemFlags::new();
                         for (idx, (fname, fval)) in fields.iter().enumerate() {

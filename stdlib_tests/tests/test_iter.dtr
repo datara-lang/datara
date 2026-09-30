@@ -1,0 +1,49 @@
+use stdlib.collections.iter
+
+@test
+fn iter_zip_pairs_by_min_length() {
+    val zipped = iter_zip([1, 2, 3, 4], [10, 20])
+    assert(zipped.len() == 2, "zip stops at the shorter list")
+    assert(zipped.get(0).get(0) == 1 && zipped.get(0).get(1) == 10, "first pair")
+    assert(zipped.get(1).get(0) == 2 && zipped.get(1).get(1) == 20, "second pair")
+}
+
+@test
+fn iter_fold_sums_and_concats() {
+    val sum = iter_fold([1, 2, 3, 4, 5], 0, (acc, v) => acc + v)
+    assert(sum == 15, "left fold sums 1..5")
+    val maxv = iter_fold([3, 9, 4], 0, (acc, v) => acc + v)
+    assert(maxv == 16, "fold accumulates every element")
+}
+
+@test
+fn iter_take_skip_collect_pipeline() {
+    val it = iter_from([1, 2, 3, 4, 5, 6])
+    val head = it.take(2).collect()
+    assert(head.len() == 2, "take(2) yields two items")
+    assert(head.get(0) == 1 && head.get(1) == 2, "take preserves order")
+    val it2 = iter_from([1, 2, 3, 4, 5, 6])
+    val tail = it2.skip(4).collect()
+    assert(tail.len() == 2, "skip(4) leaves two items")
+    assert(tail.get(0) == 5, "skip moves the window forward")
+}
+
+@test
+fn iter_chunk_shapes_and_remainder() {
+    val it = iter_from([1, 2, 3, 4, 5])
+    val chunks = it.chunk(2)
+    assert(chunks.len() == 3, "5 items / chunk 2 -> 3 chunks")
+    assert(chunks.get(0).len() == 2, "full chunks are complete")
+    assert(chunks.get(2).len() == 1, "remainder chunk keeps the tail")
+    assert(chunks.get(2).get(0) == 5, "remainder holds the last element")
+}
+
+@test
+fn iter_count_and_lazy_bounds() {
+    val it = iter_from([1, 2, 3])
+    assert(it.count() == 3, "count of a fresh iterator")
+    val limited = it.take(99)
+    assert(limited.count() == 3, "take beyond the end clamps to len")
+    val skipped = it.skip(99)
+    assert(skipped.count() == 0, "skip beyond the end clamps to zero")
+}

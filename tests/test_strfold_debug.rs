@@ -166,7 +166,6 @@ fn build_string_loop_fn() -> Function {
 
     // block 3 (exit): out p_s.len() — the fold rewrites p_s to s_final
     let l = ValueId(next);
-    next += 1;
     f.get_block_mut(b3)
         .unwrap()
         .instructions

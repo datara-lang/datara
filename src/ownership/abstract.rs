@@ -60,10 +60,24 @@ impl<'a> DmirOwnershipAnalyzer<'a> {
         let mut func_names: Vec<String> = module.functions.keys().cloned().collect();
         func_names.sort();
 
+        let debug_slow = std::env::var("DATARA_PHASE_DEBUG").is_ok();
+        let mut timings: Vec<(String, u128)> = Vec::new();
         for name in func_names {
             if let Some(func) = module.functions.get_mut(&name) {
+                let t0 = std::time::Instant::now();
+                let blocks = func.blocks.len();
                 let rep = self.analyze_and_lower_function(func, diag);
+                if debug_slow {
+                    timings.push((format!("{name} (blocks={blocks})"), t0.elapsed().as_micros()));
+                }
                 reports.insert(name, rep);
+            }
+        }
+
+        if debug_slow {
+            timings.sort_by_key(|(_, t)| std::cmp::Reverse(*t));
+            for (name, t) in timings.iter().take(5) {
+                eprintln!("[ownership] slow fn: {} = {}us", name, t);
             }
         }
 

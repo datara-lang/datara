@@ -11,4 +11,24 @@ fn main() {
         i = i + 1
     }
     out "Sum of even numbers 1..10: " + int_to_str(sum)
+
+    // for..in over a range (upper bound exclusive): 1..5 -> 1, 2, 3, 4
+    mut sq = 0
+    for n in 1..5 {
+        sq = sq + n * n
+    }
+    out "Sum of squares 1..5: " + int_to_str(sq)
+
+    // decide: exhaustive value dispatch
+    out grade(93)
+    out grade(47)
+}
+
+fn grade(score: Int) -> Str {
+    decide {
+        score >= 90 => "Grade A"
+        score >= 75 => "Grade B"
+        score >= 60 => "Grade C"
+        else => "Grade F"
+    }
 }

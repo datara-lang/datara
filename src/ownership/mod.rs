@@ -1,16 +1,19 @@
 pub mod r#abstract;
 pub mod domain;
 pub(crate) mod transfer;
+pub mod tmm;
 
 pub use r#abstract::{
     AbstractVarState, DmirOwnershipAnalyzer, FunctionDataflowState, OwnershipFunctionReport,
     VarBaseState,
 };
+pub use tmm::{check_ffi_boundaries, detect_arc_cycles, memory_report, TmmLayer, TmmPlan};
 
 use crate::ast::*;
 use crate::diagnostics::{DiagnosticEngine, ErrorCode, SourceSpan};
 use crate::resolver::Resolver;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 /// Message prefix of the diagnostic emitted for a plain *read* of a moved
 /// value (`Expr::Identifier` path below). Only these second-pass reports are
@@ -55,12 +58,9 @@ pub struct OwnershipTracker<'a> {
     pub immutable_bindings: HashSet<String>,
     pub current_scope: usize,
     pub bindings_by_scope: HashMap<usize, Vec<String>>,
-    /// Names of classes declared in the program. Values of class type are
-    /// owned heap values: passing them by value into a function moves them.
-    class_names: HashSet<String>,
-    /// User-declared function signatures: name -> parameter list (with
-    /// ownership modes) so call sites can be checked interprocedurally.
-    fn_signatures: HashMap<String, Vec<crate::ast::Param>>,
+    /// Immutable indexes shared by loop-analysis snapshots.
+    class_names: Arc<HashSet<String>>,
+    fn_signatures: Arc<HashMap<String, Vec<crate::ast::Param>>>,
 }
 
 impl<'a> OwnershipTracker<'a> {
@@ -74,33 +74,38 @@ impl<'a> OwnershipTracker<'a> {
             immutable_bindings: HashSet::new(),
             current_scope: 0,
             bindings_by_scope: HashMap::new(),
-            class_names: HashSet::new(),
-            fn_signatures: HashMap::new(),
+            class_names: Arc::new(HashSet::new()),
+            fn_signatures: Arc::new(HashMap::new()),
         }
     }
 
     pub fn check_program(&mut self, program: &Program, diag: &mut DiagnosticEngine) {
-        // Collect declared class names and function signatures once, so call
-        // sites can be checked interprocedurally (pass-by-value of class-typed
-        // values moves them).
+        // Build immutable program-wide indexes once. Loop fixpoint snapshots
+        // clone this tracker frequently, so reference-count these read-only maps.
+        let mut class_names = HashSet::new();
+        let mut fn_signatures = HashMap::new();
         for decl in &program.declarations {
             match decl {
                 Decl::Class(c) => {
-                    self.class_names.insert(c.name.clone());
+                    class_names.insert(c.name.clone());
                 }
                 Decl::Function(f) | Decl::Flow(f) | Decl::Task(f) => {
-                    self.fn_signatures.insert(f.name.clone(), f.params.clone());
+                    fn_signatures.insert(f.name.clone(), f.params.clone());
                 }
                 Decl::Impl(i) => {
                     for m in &i.methods {
-                        self.fn_signatures
-                            .insert(format!("{}_{}", i.target_type, m.name), m.params.clone());
-                        self.fn_signatures.insert(m.name.clone(), m.params.clone());
+                        fn_signatures.insert(
+                            format!("{}_{}", i.target_type, m.name),
+                            m.params.clone(),
+                        );
+                        fn_signatures.insert(m.name.clone(), m.params.clone());
                     }
                 }
                 _ => {}
             }
         }
+        self.class_names = Arc::new(class_names);
+        self.fn_signatures = Arc::new(fn_signatures);
         for decl in &program.declarations {
             self.check_decl(decl, diag);
         }
@@ -952,5 +957,25 @@ impl<'a> OwnershipTracker<'a> {
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OwnershipTracker;
+    use crate::resolver::Resolver;
+    use std::sync::Arc;
+
+    #[test]
+    fn loop_analysis_clones_share_immutable_program_indexes() {
+        let resolver = Resolver::new();
+        let tracker = OwnershipTracker::new(&resolver);
+        let second_pass = tracker.clone();
+
+        assert!(Arc::ptr_eq(&tracker.class_names, &second_pass.class_names));
+        assert!(Arc::ptr_eq(
+            &tracker.fn_signatures,
+            &second_pass.fn_signatures
+        ));
     }
 }

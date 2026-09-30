@@ -1,6 +1,7 @@
 use crate::dmir::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::time::Instant;
 
 pub mod adaptive;
 pub mod alloc_attr;
@@ -444,6 +445,7 @@ impl Optimizer {
     where
         F: FnOnce(&mut Self, &mut Module),
     {
+        let pass_start = Instant::now();
         let before = evidence::ir_fingerprint(module);
         let records_start = self.trace.records.len();
         let counters = evidence::CountersSnapshot::capture(&self.report);
@@ -482,6 +484,13 @@ impl Optimizer {
                 evidence::downgrade_applied_without_delta(&mut self.trace.records, records_start);
             counters.restore(&mut self.report);
             self.report.evidence_downgrades += downgraded;
+        }
+        if std::env::var("DATARA_OPTIMIZER_TIMING").is_ok() {
+            eprintln!(
+                "[optimizer-timing] {} = {}ms",
+                label,
+                pass_start.elapsed().as_millis()
+            );
         }
         Ok(())
     }

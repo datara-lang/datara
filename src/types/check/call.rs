@@ -748,6 +748,19 @@ impl<'a> TypeChecker<'a> {
                     "unwrap" | "unwrap_or" => return (**val).clone(),
                     _ => {}
                 },
+                // M5 TMM: `Outcome<T>` values (e.g. Weak<T>.upgrade() results)
+                // expose the same member surface as Result — is_ok/is_err are
+                // Bool so `if up.is_ok() { }` liveness probes typecheck.
+                DataraType::GenericInstance { name, args }
+                    if name == "Outcome" && !args.is_empty() =>
+                {
+                    match member.as_str() {
+                        "is_ok" | "is_err" | "is_success" => return DataraType::Bool,
+                        "value" | "ok" | "unwrap" => return args[0].clone(),
+                        "error_msg" | "err" => return DataraType::String,
+                        _ => {}
+                    }
+                }
                 _ => {}
             }
             if member == "await" {
@@ -804,6 +817,43 @@ impl<'a> TypeChecker<'a> {
                 DataraType::GenericInstance { name, args } => (Some(name.as_str()), Some(args)),
                 _ => (None, None),
             };
+            // M5 TMM Layer 2: `Weak<T>` handle methods. `upgrade()` returns
+            // Outcome<T> (the target carries a REAL acquire), `is_alive()` is
+            // a refcount-neutral liveness probe. weak_create() types its
+            // result RawPtr (all-I64 ABI), so the handle surface is reachable
+            // on RawPtr receivers too — the static TMM checker guarantees the
+            // pointer is a real weak cell.
+            match &obj_type {
+                DataraType::GenericInstance { name, args } if name == "Weak" => {
+                    match member.as_str() {
+                        "upgrade" => {
+                            let payload = args.first().cloned().unwrap_or(DataraType::RawPtr);
+                            return DataraType::GenericInstance {
+                                name: "Outcome".into(),
+                                args: vec![payload],
+                            };
+                        }
+                        "is_alive" => return DataraType::Bool,
+                        _ => {}
+                    }
+                }
+                DataraType::RawPtr => {
+                    match member.as_str() {
+                        "upgrade" => {
+                            return DataraType::GenericInstance {
+                                name: "Outcome".into(),
+                                args: vec![DataraType::RawPtr],
+                            };
+                        }
+                        "is_alive" => return DataraType::Bool,
+                        "arc_count" => return DataraType::Int,
+                        "arc_acquire" => return DataraType::RawPtr,
+                        "arc_release" | "weak_drop" => return DataraType::Unit,
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
             if let Some(cls) = cls_opt {
                 let full_name = format!("{}.{}", cls, member);
                 if let Some(t) = self.symbol_types.get(&full_name) {

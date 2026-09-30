@@ -368,6 +368,15 @@ pub(super) fn run_check_pipeline(
     }
     type_checker.check_program(&program, diag);
     timings.typecheck_ms = tc_start.elapsed().as_millis();
+    if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
+        eprintln!(
+            "[phases] so-far total={}ms parse={}ms resolve={}ms typecheck={}ms",
+            total_start.elapsed().as_millis(),
+            timings.parse_ms,
+            timings.resolve_ms,
+            timings.typecheck_ms
+        );
+    }
     if diag.has_errors() {
         timings.total_ms = total_start.elapsed().as_millis();
         let d_str = diag.format_all();
@@ -381,22 +390,49 @@ pub(super) fn run_check_pipeline(
     effects.verify_behavior_purity(&program, diag);
     effects.verify_comptime_purity(&program, diag);
     timings.effects_ms = eff_start.elapsed().as_millis();
+    if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
+        eprintln!("[phases2] effects done at {}ms", total_start.elapsed().as_millis());
+    }
 
     // 5. Ownership
     let own_start = Instant::now();
     let mut ownership = OwnershipTracker::new(&resolver);
     ownership.check_program(&program, diag);
+    // M5 TMM Layer 2+3: @arc cycle detection + FFI owned/borrowed boundary
+    // checks run with ownership (same phase, same diagnostics stream).
+    let tmm_plan = crate::ownership::TmmPlan::build(&program);
+    crate::ownership::detect_arc_cycles(&tmm_plan, diag);
+    crate::ownership::check_ffi_boundaries(&program, diag);
     timings.ownership_ms = own_start.elapsed().as_millis();
+    if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
+        eprintln!("[phases2] ownership done at {}ms", total_start.elapsed().as_millis());
+    }
 
     // 6. Security & Zero-Trust Verifier (Proof-Carrying Code)
     let mut security = crate::security::SecurityVerifier::new(&resolver, &type_checker);
     security.capabilities_manifest = resolve_manifest_capabilities(base_dir.as_deref());
     security.verify_program(&program, diag);
+    if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
+        eprintln!("[phases2] security done at {}ms", total_start.elapsed().as_millis());
+    }
 
     // 7. DMIR Ownership Fixpoint Verification (if no prior errors)
     if !diag.has_errors() {
+        let lower_start = total_start.elapsed().as_millis();
         let mut lowering = Lowering::new(&resolver, &type_checker);
         let mut dmir_module = lowering.lower_program(&program, "main");
+        // M4 link-phase duplicate check (E-LINK-001): two declarations that
+        // mangle to the same symbol previously lost one body silently.
+        super::symbols::check_module_link(&dmir_module, &lowering.symbol_table, diag);
+        if diag.has_errors() {
+            timings.total_ms = total_start.elapsed().as_millis();
+            let d_str = diag.format_all();
+            return check_failure(d_str.clone(), program, timings, diag);
+        }
+        if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
+            eprintln!("[phases2] lowering done at {}ms", total_start.elapsed().as_millis());
+            let _ = lower_start;
+        }
         let mut dmir_analyzer = DmirOwnershipAnalyzer::new(&resolver);
         let mut signatures = HashMap::new();
         for decl in &program.declarations {
@@ -432,14 +468,21 @@ pub(super) fn run_check_pipeline(
         }
         dmir_analyzer.set_signatures(signatures);
         let _ = dmir_analyzer.analyze_and_lower_module(&mut dmir_module, diag);
+        if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
+            eprintln!("[phases2] dmir ownership analyze done at {}ms", total_start.elapsed().as_millis());
+        }
         if !diag.has_errors() {
             let mut optimizer = crate::optimizer::Optimizer::new("release");
             if let Err(err_diag) = optimizer.optimize_module(&mut dmir_module) {
                 diag.error_raw(*err_diag);
-            } else if std::env::var("FORGEN_CHECK_VERIFY_BACKEND")
-                .map(|v| v != "0")
-                .unwrap_or(true)
-            {
+            } else {
+                if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
+                    eprintln!("[phases2] optimizer done at {}ms", total_start.elapsed().as_millis());
+                }
+                if std::env::var("FORGEN_CHECK_VERIFY_BACKEND")
+                    .map(|v| v != "0")
+                    .unwrap_or(true)
+                {
                 let has_inline_asm = dmir_module.functions.values().any(|f| {
                     f.has_inline_asm
                         || f.blocks.iter().any(|b| {
@@ -450,6 +493,9 @@ pub(super) fn run_check_pipeline(
                 });
                 if !has_inline_asm {
                     let backend = crate::codegen::cranelift::CraneliftBackend::for_host();
+                    if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
+                        eprintln!("[phases2] pre-backend-verify at {}ms", total_start.elapsed().as_millis());
+                    }
                     if let Err(codegen_err) =
                         backend.real_backend.compile_to_object_bytes(&dmir_module)
                     {
@@ -462,13 +508,30 @@ pub(super) fn run_check_pipeline(
                             None,
                         );
                     }
+                    if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
+                        eprintln!("[phases2] backend-verify done at {}ms", total_start.elapsed().as_millis());
+                    }
                 }
+            }
             }
         }
     }
 
+    if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
+        eprintln!(
+            "[phases2] dmir ownership + optimize + backend verify done at {}ms",
+            total_start.elapsed().as_millis()
+        );
+    }
     timings.total_ms = total_start.elapsed().as_millis();
     let diag_str = diag.format_all();
+    if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
+        eprintln!(
+            "[phases2] format_all done at {}ms ({} diagnostics)",
+            total_start.elapsed().as_millis(),
+            diag.diagnostics.len()
+        );
+    }
     CompilationResult {
         success: !diag.has_errors(),
         exe_path: None,
@@ -624,6 +687,11 @@ pub(super) fn run_analysis_and_lower<R>(
     let own_start = Instant::now();
     let mut ownership = OwnershipTracker::new(&resolver);
     ownership.check_program(&program, diag);
+    // M5 TMM Layer 2+3: same checks as the check tail (cycle detector +
+    // FFI boundary), so `check` and `build` reject identical programs.
+    let tmm_plan = crate::ownership::TmmPlan::build(&program);
+    crate::ownership::detect_arc_cycles(&tmm_plan, diag);
+    crate::ownership::check_ffi_boundaries(&program, diag);
     timings.ownership_ms = own_start.elapsed().as_millis();
     if diag.has_errors() {
         timings.total_ms = total_start.elapsed().as_millis();
@@ -671,6 +739,21 @@ pub(super) fn run_analysis_and_lower<R>(
             .and_then(|s| s.to_str())
             .unwrap_or("main"),
     );
+
+    // 8a. M4 link-phase duplicate check (E-LINK-001): two declarations that
+    // mangle to the same symbol previously lost one body silently. Checked
+    // before ownership/codegen on the compile tail too.
+    super::symbols::check_module_link(&dmir_module, &lowering.symbol_table, diag);
+    if diag.has_errors() {
+        timings.total_ms = total_start.elapsed().as_millis();
+        let d_str = diag.format_all();
+        return Err(CompilationResult::failure(
+            d_str.clone(),
+            d_str,
+            Some(program),
+            timings,
+        ));
+    }
 
     // 8b. DMIR Abstract Interpretation Ownership Analyzer & Dual-Mode Lowering
     let own_abs_start = Instant::now();

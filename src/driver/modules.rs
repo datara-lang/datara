@@ -7,9 +7,79 @@ use crate::ast::{Decl, Program, UseDecl};
 use crate::diagnostics::{DiagnosticEngine, ErrorCode, SourceSpan};
 use crate::lexer::Lexer;
 use crate::parser::Parser;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// Extract the import paths of top-level `use` declarations from module
+/// source text, mirroring the line-oriented scan `CheckCache` uses to detect
+/// imports. Group imports (`use a.b.{c, d}`) expand into one path per
+/// symbol with the group prefix as the parent segments. Unterminated string
+/// literals or anything ambiguous yields what was parsed so far; a wrong
+/// fingerprint here can only cause a spurious cache invalidation (a full
+/// check then re-primes), never a stale hit.
+fn nested_use_paths(src: &str) -> Vec<Vec<String>> {
+    let mut out = Vec::new();
+    for line in src.lines() {
+        let trimmed = line.trim_start();
+        if !(trimmed.starts_with("use ") || trimmed.starts_with("use\t")) {
+            continue;
+        }
+        // Quote-aware scan: an import whose string literal never closes on
+        // this line would misparse, so bail out for that line.
+        let mut in_str = false;
+        let mut escaped = false;
+        for c in trimmed.chars() {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            match c {
+                '\\' if in_str => escaped = true,
+                '"' => in_str = !in_str,
+                _ => {}
+            }
+        }
+        if in_str {
+            continue;
+        }
+        let rest = trimmed[4..].trim_start();
+        let end = rest.find("//").unwrap_or(rest.len());
+        let head = rest[..end].trim().trim_end_matches(';');
+        if head.is_empty() {
+            continue;
+        }
+        for alt in head.split(',') {
+            let alt = alt.trim();
+            if alt.is_empty() {
+                continue;
+            }
+            if let Some(open) = alt.find('{') {
+                let Some(close) = alt.find('}') else {
+                    continue;
+                };
+                let base: Vec<String> = alt[..open]
+                    .trim()
+                    .trim_end_matches('.')
+                    .split('.')
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string)
+                    .collect();
+                for sym in alt[open + 1..close].split(',') {
+                    let sym = sym.trim();
+                    if !sym.is_empty() {
+                        let mut p = base.clone();
+                        p.push(sym.to_string());
+                        out.push(p);
+                    }
+                }
+            } else if !alt.contains(char::is_whitespace) {
+                out.push(alt.split('.').map(str::to_string).collect());
+            }
+        }
+    }
+    out
+}
 
 impl ForgenCompiler {
     /// Candidate base directories for resolving local module paths:
@@ -441,6 +511,184 @@ impl ForgenCompiler {
         None
     }
 
+    /// v1.5.0 (M4): dependency fingerprint for the incremental check cache.
+    ///
+    /// Walks the program's `use` imports exactly the way
+    /// [`Self::resolve_modules`] resolves them (same path functions, same
+    /// base dirs, transitively through the loaded modules' own imports) and
+    /// folds the bytes of every reached module file into a deterministic
+    /// FNV-1a hash over the (path, content) pairs sorted by canonical path.
+    /// Returns `None` when any import is unresolvable or a module source
+    /// cannot be read: the caller must then skip the dependency-aware cache
+    /// (a full check will report the resolution diagnostics, and those must
+    /// not be cached — filesystem state can change between runs).
+    pub fn module_dependency_fingerprint(&self, program: &Program) -> Option<u64> {
+        let base_dirs = self.module_base_dirs(Path::new(&program.file));
+        let stdlib_dir = self.find_stdlib_dir();
+
+        // Sorted map => deterministic fold order regardless of BFS order.
+        // The value is a placeholder until the file is actually read.
+        let mut files: BTreeMap<PathBuf, String> = BTreeMap::new();
+        let mut queue: Vec<PathBuf> = Vec::new();
+
+        let resolve = |compiler: &Self, u: &UseDecl| -> Option<PathBuf> {
+            let path = if u.path.first().map(|s| s.as_str()) == Some("stdlib") {
+                compiler.stdlib_module_path(u, stdlib_dir.as_deref())
+            } else {
+                compiler
+                    .local_module_path(u, &base_dirs)
+                    .or_else(|| compiler.stdlib_module_path(u, stdlib_dir.as_deref()))
+            }?;
+            Some(path.canonicalize().unwrap_or_else(|_| path.clone()))
+        };
+
+        for decl in &program.declarations {
+            if let Decl::Use(u) = decl {
+                let canon = resolve(self, u)?;
+                if files.insert(canon.clone(), String::new()).is_none() {
+                    queue.push(canon);
+                }
+            }
+        }
+
+        while let Some(current) = queue.pop() {
+            let src = fs::read_to_string(&current).ok()?;
+            for path in nested_use_paths(&src) {
+                let u = UseDecl {
+                    path,
+                    group: Vec::new(),
+                    alias: None,
+                    span: SourceSpan::default(),
+                };
+                let canon = resolve(self, &u)?;
+                if files.insert(canon.clone(), String::new()).is_none() {
+                    queue.push(canon);
+                }
+            }
+            files.insert(current, src);
+        }
+
+        let mut hash: u64 = 0xcbf29ce484222325;
+        for (path, content) in &files {
+            let path_bytes = path.to_string_lossy();
+            for byte in path_bytes
+                .as_bytes()
+                .iter()
+                .chain(std::iter::once(&0u8))
+                .chain(content.as_bytes().iter())
+                .chain(std::iter::once(&0u8))
+            {
+                hash ^= *byte as u64;
+                hash = hash.wrapping_mul(0x100000001b3);
+            }
+        }
+        Some(hash)
+    }
+
+    /// v1.5.0 (M4): cache-key fingerprint for a single root source, used by
+    /// the module-aware fast path in `check_source`. Returns `None` when the
+    /// source has no module imports (the legacy cache path owns it) or when
+    /// any import is unresolvable/unreadable (nothing may be cached — a full
+    /// check will surface the resolution diagnostics instead).
+    ///
+    /// The root import set is folded in from a line-oriented scan (see
+    /// [`nested_use_paths`]) so the common no-change hit costs one parse of
+    /// the root file and no filesystem resolution at all; the full
+    /// [`Self::module_dependency_fingerprint`] then re-derives the identical
+    /// value for the miss path, so key and entry always agree.
+    pub fn module_dependency_fingerprint_quick(
+        &self,
+        source: &str,
+        file: &str,
+    ) -> Option<u64> {
+        let root_paths = nested_use_paths(source);
+        if root_paths.is_empty() {
+            return None;
+        }
+        let base_dirs = self.module_base_dirs(Path::new(file));
+        let stdlib_dir = self.find_stdlib_dir();
+
+        let mut hash: u64 = 0xcbf29ce484222325;
+        let mut fold = |bytes: &[u8]| {
+            for &b in bytes {
+                hash ^= b as u64;
+                hash = hash.wrapping_mul(0x100000001b3);
+            }
+        };
+
+        // 1. The root import set itself (sorted for determinism).
+        let mut paths: Vec<Vec<String>> = root_paths;
+        paths.sort();
+        paths.dedup();
+        for p in &paths {
+            fold(format!("{:?}\0", p).as_bytes());
+        }
+
+        // 2. The transitive (path, content) pairs of every reached module.
+        // A resolvable-but-unreadable module folds a sentinel so a later
+        // fix (file appears) remaps the key; an unresolvable module bails
+        // with None (full check reports the diagnostics, nothing cached).
+        let resolve = |u: &UseDecl| -> Option<PathBuf> {
+            let path = if u.path.first().map(|s| s.as_str()) == Some("stdlib") {
+                self.stdlib_module_path(u, stdlib_dir.as_deref())
+            } else {
+                self.local_module_path(u, &base_dirs)
+                    .or_else(|| self.stdlib_module_path(u, stdlib_dir.as_deref()))
+            }?;
+            Some(path.canonicalize().unwrap_or_else(|_| path.clone()))
+        };
+
+        let mut files: BTreeMap<PathBuf, Option<String>> = BTreeMap::new();
+        let mut queue: Vec<PathBuf> = Vec::new();
+        for p in &paths {
+            let u = UseDecl {
+                path: p.clone(),
+                group: Vec::new(),
+                alias: None,
+                span: SourceSpan::default(),
+            };
+            let canon = resolve(&u)?;
+            if files.insert(canon.clone(), None).is_none() {
+                queue.push(canon);
+            }
+        }
+        while let Some(current) = queue.pop() {
+            let src = match fs::read_to_string(&current) {
+                Ok(s) => s,
+                // Unreadable: fold a placeholder distinct from any content
+                // so the key changes when the file becomes readable again.
+                Err(_) => {
+                    files.insert(current, None);
+                    continue;
+                }
+            };
+            for path in nested_use_paths(&src) {
+                let u = UseDecl {
+                    path,
+                    group: Vec::new(),
+                    alias: None,
+                    span: SourceSpan::default(),
+                };
+                let canon = resolve(&u)?;
+                if files.insert(canon.clone(), None).is_none() {
+                    queue.push(canon);
+                }
+            }
+            files.insert(current, Some(src));
+        }
+        for (path, content) in &files {
+            fold(path.to_string_lossy().as_bytes());
+            fold(b"\0");
+            match content {
+                Some(s) => fold(s.as_bytes()),
+                None => fold(b"<unreadable>"),
+            }
+            fold(b"\0");
+        }
+
+        Some(hash)
+    }
+
     /// Locate a JavaScript or TypeScript package across local node_modules,
     /// global npm roots, or via the node resolver.
     fn find_js_ts_package(&self, pkg_name: &str) -> Option<String> {
@@ -564,8 +812,15 @@ impl ForgenCompiler {
                                 "checked_add"
                                     | "checked_sub"
                                     | "checked_mul"
+                                    | "parse_int"
+                                    | "parse_float"
                                     | "file_read_checked"
                                     | "env_get_checked"
+                                    // v1.5.0 (M1): stdlib.sys wrappers that
+                                    // forward to env_get_checked/exec_utf8
+                                    // (both Outcome-returning).
+                                    | "sys_env"
+                                    | "sys_exec"
                             ),
                             Expr::MemberAccess { object, member, .. } => {
                                 matches!(member.as_str(), "ok" | "err")
@@ -585,6 +840,67 @@ impl ForgenCompiler {
                         expr_uses_outcome(left) || expr_uses_outcome(right)
                     }
                     Expr::Unary { expr, .. } => expr_uses_outcome(expr),
+                    // `checked_add(a,b) or 0` / `parse_int(s) or 0` / `?`:
+                    // the Outcome-producing call sits INSIDE the recovery
+                    // wrapper, so it must be scanned (v1.5.0 M1 — previously
+                    // a bare OrRecovery init fell through to `_ => false`
+                    // and the stdlib.result auto-load never fired, causing
+                    // E0944 on the is_success GetField).
+                    Expr::OrRecovery { expr, .. } | Expr::ErrorPropagate(expr, _) => {
+                        expr_uses_outcome(expr)
+                    }
+                    _ => false,
+                }
+            }
+            // v1.5.0 (M1): the checked list accessors pop/first/last lower to
+            // datara_rt_list_*_outcome, whose result is an Outcome<T> object.
+            // An `or` fallback / `?` on that object emits GetField on the
+            // Outcome class layout; without the stdlib `result` module loaded
+            // that class is undeclared and codegen failed with E0944. Detect
+            // any checked accessor call (e.g. `q.pop()`, with or without an
+            // `or`/`?` suffix — the result is always an Outcome, so its
+            // accessors may be used directly too) and auto-load the module
+            // exactly like the builtins above (idempotent via `visited`).
+            fn expr_uses_checked_accessor(e: &crate::ast::Expr) -> bool {
+                use crate::ast::Expr;
+                match e {
+                    Expr::Call { callee, args, .. } => {
+                        let callee_hits = match &**callee {
+                            Expr::MemberAccess { member, .. } => {
+                                matches!(member.as_str(), "pop" | "first" | "last")
+                            }
+                            _ => false,
+                        };
+                        callee_hits
+                            || expr_uses_checked_accessor(callee)
+                            || args.iter().any(expr_uses_checked_accessor)
+                    }
+                    Expr::OrRecovery { expr, .. } | Expr::ErrorPropagate(expr, _) => {
+                        expr_uses_checked_accessor(expr)
+                    }
+                    Expr::MemberAccess { object, .. } => expr_uses_checked_accessor(object),
+                    Expr::Binary { left, right, .. } => {
+                        expr_uses_checked_accessor(left) || expr_uses_checked_accessor(right)
+                    }
+                    Expr::Unary { expr, .. } => expr_uses_checked_accessor(expr),
+                    _ => false,
+                }
+            }
+            fn stmt_uses_checked_accessor(s: &crate::ast::Stmt) -> bool {
+                use crate::ast::Stmt;
+                match s {
+                    Stmt::Let { init, .. }
+                    | Stmt::Mut { init, .. }
+                    | Stmt::Const { init, .. }
+                    | Stmt::Val { init, .. }
+                    | Stmt::CompactBind { init, .. }
+                    | Stmt::With { init, .. }
+                    | Stmt::Assign { value: init, .. }
+                    | Stmt::Expr(init, _)
+                    | Stmt::Out(init, _)
+                    | Stmt::Err(init, _)
+                    | Stmt::Return(Some(init), _) => expr_uses_checked_accessor(init),
+                    Stmt::Block(stmts, _) => stmts.iter().any(stmt_uses_checked_accessor),
                     _ => false,
                 }
             }
@@ -629,7 +945,9 @@ impl ForgenCompiler {
                 }
             }
             let outcome_used = program.declarations.iter().any(|d| match d {
-                Decl::Function(f) => stmt_uses_outcome(&f.body),
+                Decl::Function(f) => {
+                    stmt_uses_outcome(&f.body) || stmt_uses_checked_accessor(&f.body)
+                }
                 _ => false,
             });
             let already_imported = program.declarations.iter().any(|d| {

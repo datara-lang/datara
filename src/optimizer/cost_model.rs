@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DecisionRecord {
@@ -13,12 +14,20 @@ pub struct DecisionRecord {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct OptimizationDecisionTrace {
     pub records: Vec<DecisionRecord>,
+    /// v1.5.0 perf: per-(pass, function) markers backing `fn_pass_marked`.
+    /// Guard scans over `records` (one per function per pass per iteration)
+    /// were quadratic on large modules because `records` grows linearly with
+    /// the number of functions. Not serialized: markers are only a
+    /// compilation-time memo of "this pass already handled that function".
+    #[serde(skip)]
+    seen_fn_passes: HashSet<(String, String)>,
 }
 
 impl OptimizationDecisionTrace {
     pub fn new() -> Self {
         Self {
             records: Vec::new(),
+            seen_fn_passes: HashSet::new(),
         }
     }
 
@@ -46,6 +55,21 @@ impl OptimizationDecisionTrace {
             .iter()
             .filter(|r| r.candidate.contains(symbol))
             .collect()
+    }
+
+    /// O(1) memo: marks that `pass` already emitted a decision record for
+    /// `fn_name` (any decision). Replacement for the former linear
+    /// `records.iter().any(|r| r.pass == X && r.candidate.starts_with(name))`
+    /// guard scans.
+    pub fn mark_fn_pass(&mut self, pass: &str, fn_name: &str) {
+        self.seen_fn_passes
+            .insert((pass.to_string(), fn_name.to_string()));
+    }
+
+    /// See `mark_fn_pass`.
+    pub fn fn_pass_marked(&self, pass: &str, fn_name: &str) -> bool {
+        self.seen_fn_passes
+            .contains(&(pass.to_string(), fn_name.to_string()))
     }
 }
 

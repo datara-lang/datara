@@ -1,0 +1,39 @@
+//! stdlib.sys tests: argv slicing, env get/set round-trip, checked env
+//! lookup with `or`, and capability-guarded exec. Each @test runs in a
+//! fresh process, so env mutations cannot leak between tests.
+
+use stdlib.sys.sys
+
+@test
+fn sys_args_skips_argv0() {
+    val a = sys_args()
+    // Host binary name ("forgen") must not appear in the program args.
+    assert(a.len() == 0, "args should be empty without user arguments")
+}
+
+@test
+fn sys_env_roundtrip() {
+    assert(sys_env_set("DATARA_TEST_RT", "hello42"), "env_set should succeed")
+    assert(sys_env_get("DATARA_TEST_RT") == "hello42", "env_get after set")
+    assert(sys_env_set("DATARA_TEST_RT", "v2"), "env_set overwrite")
+    assert(sys_env_get("DATARA_TEST_RT") == "v2", "env_get after overwrite")
+}
+
+@test
+fn sys_env_checked_fallback() {
+    val missing = sys_env("DATARA_NO_SUCH_VAR_ABCDEF") or "fallback"
+    assert(missing == "fallback", "missing var should trigger or-fallback")
+}
+
+@test
+fn sys_env_checked_value() {
+    sys_env_set("DATARA_TEST_CHK", "present")
+    val v = sys_env("DATARA_TEST_CHK") or "fallback"
+    assert(v == "present", "present var should unwrap via or")
+}
+
+@test
+fn sys_env_get_default_empty() {
+    val raw = sys_env_get("DATARA_NO_SUCH_VAR_ABCDEF")
+    assert(raw == "", "unchecked get of missing var should be empty string")
+}

@@ -1,0 +1,9 @@
+fn main() -> Int {
+    mut acc = 0
+    mut i = 0
+    while i < 100000000 {
+        acc = acc + (i & 255)
+        i = i + 1
+    }
+    return acc
+}

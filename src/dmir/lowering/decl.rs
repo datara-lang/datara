@@ -6,6 +6,7 @@ use super::Lowering;
 
 impl<'a> Lowering<'a> {
     pub(crate) fn lower_function(&mut self, f: &FunctionDecl) -> Function {
+        self.val_counter = 0;
         self.current_fn_name = f.name.clone();
         self.local_var_types.clear();
         self.current_blocks.clear();
@@ -226,6 +227,8 @@ impl<'a> Lowering<'a> {
             if let ClassItem::Method(m) = item {
                 let lowered = self.lower_method(m, &c.name);
                 let fn_name = format!("{}_{}", c.name, m.name);
+                self.symbol_table
+                    .define(&fn_name, "method", Some(m.span.clone()));
                 module.functions.insert(fn_name.clone(), lowered);
                 module
                     .function_spans
@@ -274,6 +277,8 @@ impl<'a> Lowering<'a> {
                         if !is_overridden {
                             let lowered = self.lower_method(m, &c.name);
                             let fn_name = format!("{}_{}", c.name, m.name);
+                            self.symbol_table
+                                .define(&fn_name, "method", Some(m.span.clone()));
                             module.functions.insert(fn_name.clone(), lowered);
                             module
                                 .function_spans
@@ -294,6 +299,10 @@ impl<'a> Lowering<'a> {
                 let lowered = self.lower_method(m, &b.target_type);
                 let fn_name = format!("{}_{}", b.target_type, m.name);
                 let b_name = format!("B_{}_{}", b.target_type, m.name);
+                self.symbol_table
+                    .define(&fn_name, "method", Some(m.span.clone()));
+                self.symbol_table
+                    .define(&b_name, "method", Some(m.span.clone()));
                 module.functions.insert(fn_name.clone(), lowered.clone());
                 module.functions.insert(b_name.clone(), lowered);
                 module
@@ -314,6 +323,8 @@ impl<'a> Lowering<'a> {
         for m in &i.methods {
             let lowered = self.lower_impl_function(m, &i.target_type);
             let fn_name = format!("{}_{}", i.target_type, m.name);
+            self.symbol_table
+                .define(&fn_name, "method", Some(m.span.clone()));
             module.functions.insert(fn_name.clone(), lowered.clone());
             module
                 .function_spans
@@ -324,6 +335,8 @@ impl<'a> Lowering<'a> {
 
             if let Some(ref tr) = i.trait_name {
                 let i_name = format!("I_{}_{}_{}", tr, i.target_type, m.name);
+                self.symbol_table
+                    .define(&i_name, "method", Some(m.span.clone()));
                 module.functions.insert(i_name.clone(), lowered.clone());
                 module.function_spans.insert(i_name.clone(), m.span.clone());
                 module
@@ -332,6 +345,8 @@ impl<'a> Lowering<'a> {
             }
 
             if !module.functions.contains_key(&m.name) {
+                self.symbol_table
+                    .define(&m.name, "method", Some(m.span.clone()));
                 module.functions.insert(m.name.clone(), lowered);
                 module.function_spans.insert(m.name.clone(), m.span.clone());
                 module
@@ -342,6 +357,7 @@ impl<'a> Lowering<'a> {
     }
 
     pub(crate) fn lower_impl_function(&mut self, f: &FunctionDecl, target_type: &str) -> Function {
+        self.val_counter = 0;
         self.current_fn_name = format!("{}_{}", target_type, f.name);
         self.local_var_types.clear();
         self.symbol_values.clear();
@@ -661,6 +677,7 @@ impl<'a> Lowering<'a> {
     }
 
     pub(crate) fn lower_method(&mut self, m: &MethodDecl, class_name: &str) -> Function {
+        self.val_counter = 0;
         self.current_fn_name = format!("{}_{}", class_name, m.name);
         self.local_var_types.clear();
         self.symbol_values.clear();

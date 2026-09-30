@@ -147,6 +147,13 @@ pub enum ErrorCode {
     // Bare-Metal & Target Errors (v1.4.5)
     MmioRequiresUnsafe,
     TargetRequiresLlvm,
+
+    // Link-Phase Errors (E-LINK-*, v1.5.0 M4)
+    LinkDuplicateSymbol,
+
+    // TMM Errors (E-TMM-*, v1.5.0 M5)
+    TmmArcCycle,
+    TmmBorrowEscapesCall,
 }
 
 impl ErrorCode {
@@ -254,6 +261,10 @@ impl ErrorCode {
             ErrorCode::ComptimeNonConstArg => "E-CT-003",
             ErrorCode::MmioRequiresUnsafe => "E-MMIO-001",
             ErrorCode::TargetRequiresLlvm => "E-TARGET-001",
+
+            ErrorCode::LinkDuplicateSymbol => "E-LINK-001",
+            ErrorCode::TmmArcCycle => "E-TMM-001",
+            ErrorCode::TmmBorrowEscapesCall => "E-TMM-002",
         }
     }
 
@@ -475,6 +486,15 @@ impl ErrorCode {
             ErrorCode::TargetRequiresLlvm => {
                 "Target is only supported via LLVM backend (E-TARGET-001)"
             }
+            ErrorCode::LinkDuplicateSymbol => {
+                "Duplicate symbol definition in link phase: two declarations mangle to the same link name (E-LINK-001)"
+            }
+            ErrorCode::TmmArcCycle => {
+                "Strong reference cycle in @arc ownership graph: the refcount can never reach zero (E-TMM-001)"
+            }
+            ErrorCode::TmmBorrowEscapesCall => {
+                "A borrowed value must not outlive the call that produced or accepted it (E-TMM-002)"
+            }
         }
     }
 }
@@ -579,5 +599,8 @@ pub fn all_codes() -> Vec<ErrorCode> {
         ComptimeNonConstArg,
         MmioRequiresUnsafe,
         TargetRequiresLlvm,
+        LinkDuplicateSymbol,
+        TmmArcCycle,
+        TmmBorrowEscapesCall,
     ]
 }

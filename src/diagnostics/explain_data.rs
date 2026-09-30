@@ -158,6 +158,24 @@ pub static CATEGORIES: &[(&str, CategoryExample)] = &[
             rationale: "One canonical spelling per construct keeps the language searchable.",
         },
     ),
+    (
+        "link",
+        CategoryExample {
+            explanation: "Link-phase failure: two declarations in the program mangle to the same link symbol, so the emitted module would contain two bodies under one name. The first definition is named in the message; rename one declaration or qualify the name so every symbol is unique.",
+            bad: "fn Foo_bar(x: Int) -> Int { return x }\nstruct Foo { }\nbehavior Foo {\n    fn bar(x: Int) -> Int { return x + 1 }   // mangles to Foo_bar too\n}",
+            good: "fn foo_bar_free(x: Int) -> Int { return x }\nstruct Foo { }\nbehavior Foo {\n    fn bar(x: Int) -> Int { return x + 1 }   // Foo_bar is now unique\n}",
+            rationale: "One definition per link symbol is a precondition for deterministic codegen and for backend verification.",
+        },
+    ),
+    (
+        "tmm",
+        CategoryExample {
+            explanation: "Temporal Memory Management violation. @arc objects are freed deterministically when the refcount reaches zero, so a strong-reference cycle leaks. Break cycles with @weak fields and upgrade() -> Outcome<T> before use. Borrowed FFI values must not outlive the call: do not store or return them.",
+            bad: "@arc\nstruct Node {\n    next: Node   // strong back-edge leaks\n}",
+            good: "@arc\nstruct Node {\n    next: Weak<Node>\n}\n\nfn walk(n: Weak<Node>) {\n    val strong = n.upgrade() or return\n    out strong.value\n}",
+            rationale: "Deterministic destruction without a GC requires the ownership graph to stay acyclic or explicitly weak on back-edges.",
+        },
+    ),
 ];
 
 pub static CODE_CATEGORY: &[(&str, &str)] = &[
@@ -256,6 +274,9 @@ pub static CODE_CATEGORY: &[(&str, &str)] = &[
     ("E1406", "arena"),
     ("W-SYN-001", "canonical"),
     ("W-SYN-002", "canonical"),
+    ("E-LINK-001", "link"),
+    ("E-TMM-001", "tmm"),
+    ("E-TMM-002", "tmm"),
 ];
 
 /// Full explanation text for an ErrorCode: summary from description("en")

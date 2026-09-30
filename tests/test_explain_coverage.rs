@@ -8,7 +8,7 @@
 //! tracked separately in PLAN_V150 M2; this test enforces the baseline the
 //! rest builds on.
 
-use forgen::diagnostics::codes::{ErrorCode, all_codes};
+use forgen::diagnostics::codes::all_codes;
 
 #[test]
 fn every_code_has_nonempty_description() {

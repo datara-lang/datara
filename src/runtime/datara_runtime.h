@@ -608,6 +608,18 @@ int64_t     datara_rt_list_is_small_vec(int64_t* list);
 int64_t     datara_rt_own_acquire(int64_t val);
 void        datara_rt_own_release(int64_t val);
 
+// M5 TMM Layer 2: true ARC primitives (@arc/@weak). Objects carry a 16-byte
+// header at ptr-16: [-16]=strong, [-8]=weak. Codegen adds the header slots
+// to the allocation size of @arc classes and calls arc_init on creation.
+int64_t     datara_rt_arc_init(void* obj);
+int64_t     datara_rt_arc_acquire(void* obj);
+void        datara_rt_arc_release(void* obj);
+int64_t     datara_rt_arc_count(void* obj);
+void*       datara_rt_weak_create(void* obj);
+void*       datara_rt_weak_upgrade(void* weak_cell); // -> Outcome<T> (raw build)
+void        datara_rt_weak_drop(void* weak_cell);
+void        datara_rt_arc_use_after_free(void* obj); // fatal, unreachable in verified programs
+
 // Integer Overflow Policy (checked traps, wrapping, saturating)
 void        datara_rt_overflow_panic(void);
 void        datara_rt_div_zero_panic(void);

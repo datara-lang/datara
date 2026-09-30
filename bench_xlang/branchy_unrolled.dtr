@@ -1,0 +1,35 @@
+fn heavy(acc: Int, i: Int) -> Int {
+    mut h = acc
+    h = h + ((i ^ 0) & 63)
+    h = h + ((i ^ 1) & 63)
+    h = h + ((i ^ 2) & 63)
+    h = h + ((i ^ 3) & 63)
+    h = h + ((i ^ 4) & 63)
+    h = h + ((i ^ 5) & 63)
+    h = h + ((i ^ 6) & 63)
+    h = h + ((i ^ 7) & 63)
+    h = h + ((i ^ 8) & 63)
+    h = h + ((i ^ 9) & 63)
+    h = h + ((i ^ 10) & 63)
+    h = h + ((i ^ 11) & 63)
+    h = h + ((i ^ 12) & 63)
+    h = h + ((i ^ 13) & 63)
+    h = h + ((i ^ 14) & 63)
+    h = h + ((i ^ 15) & 63)
+    return h
+}
+
+fn main() -> Int {
+    mut acc = 0
+    mut i = 0
+    while i < 50000000 {
+        if (i & 1023) == 0 {
+            acc = heavy(acc, i)
+        } else {
+            acc = acc + 1
+        }
+        i = i + 1
+    }
+    print(int_to_str(acc))
+    return 0
+}

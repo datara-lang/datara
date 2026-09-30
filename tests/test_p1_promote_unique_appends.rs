@@ -47,27 +47,8 @@ fn base_function() -> Function {
     }
 }
 
-/// %1 = LoadVar "s"; %2 = BinOp{+, String, %1, %3}; AssignVar{s, %2}
-/// with %3 = ConstStr "x" already emitted by the caller.
-fn append_insts(load_dest: ValueId, rhs: ValueId, result: ValueId) -> Vec<Inst> {
-    vec![
-        Inst::LoadVar {
-            dest: load_dest,
-            name: "s".into(),
-        },
-        Inst::BinOp {
-            dest: result,
-            op: "+".into(),
-            left: load_dest,
-            right: rhs,
-            ty: "String".into(),
-        },
-        Inst::AssignVar {
-            name: "s".into(),
-            value: result,
-        },
-    ]
-}
+/// Removed helper `append_insts` — dead code since promotion test rewrite.
+fn _append_insts_unused_placeholder() {}
 
 #[test]
 fn promotes_unique_append_to_concat_mut() {
@@ -113,7 +94,7 @@ fn promotes_unique_append_to_concat_mut() {
         terminator: Terminator::Return { value: None },
     });
 
-    let mut globals = HashSet::new();
+    let globals = HashSet::new();
     let n = run_promotion(&mut f, &globals);
     assert_eq!(n, 1, "the proven-unique append must be promoted");
     assert_eq!(concat_call_count(&f), 1, "exactly one concat_mut emitted");
@@ -268,9 +249,8 @@ fn promotion_is_idempotent() {
         "second pass on promoted IR is a no-op"
     );
     assert_eq!(concat_call_count(&f), 1, "no double rewrite");
-    assert_eq!(
+    assert!(
         concat_mut_args_stable(&f),
-        true,
         "promoted call arguments unchanged"
     );
 }

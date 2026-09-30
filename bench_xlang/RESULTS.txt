@@ -1,0 +1,17 @@
+=== Cross-language benchmark (Windows 11 x64, warm cache, n=15) ===
+Contract: program computes result and prints it; measured as process wall time.
+
+fib(30) x10 (=8320400)
+  Datara 1.4.5 Cranelift     median      2.87 ms   min      2.71   max      3.65   bin   175.0 KB   x 1.00
+  Rust 1.98 rustc -O         median      4.28 ms   min      4.10   max      4.61   bin   121.0 KB   x 1.49
+  C gcc 16.2 -O2             median     10.86 ms   min     10.47   max     11.64   bin    49.6 KB   x 3.78
+
+100M iterations (acc=12750000000)
+  Datara 1.4.5 Cranelift     median     33.28 ms   min     32.64   max     34.71   bin   174.5 KB   x13.90
+  Rust 1.98 rustc -O         median      2.74 ms   min      2.52   max      3.11   bin   121.0 KB   x 1.15
+  C gcc 16.2 -O2             median      2.39 ms   min      2.26   max      2.94   bin    48.5 KB   x 1.00
+
+fib(30) x10
+  Python 3.14                     median    850.52 ms   x   302.7
+100M iterations
+  Python 3.14                     median   8536.74 ms   x  3442.2

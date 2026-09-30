@@ -36,8 +36,44 @@ impl<'a> LlvmEmitter<'a> {
         {
             value_classes.insert(*dest, rc);
         }
+        // v1.5.0: free-function slice constructors call the real
+        // datara_sys_* symbols (the runtime archive has no short exports).
         if func == "slice_alloc" || func == "slice_from_ptr" || func == "slice_subslice" {
             value_classes.insert(*dest, "SliceView".to_string());
+        }
+        if func == "slice_alloc" && args.len() == 1 {
+            value_types.insert(*dest, "ptr");
+            out.push_str(&format!(
+                "  %v{} = call ptr @datara_sys_slice_alloc(i64 %v{})\n",
+                dest.0, args[0].0
+            ));
+            return Ok(());
+        }
+        if func == "slice_from_ptr" && args.len() == 2 {
+            value_types.insert(*dest, "ptr");
+            out.push_str(&format!(
+                "  %v{} = call ptr @datara_sys_slice_from_buffer(ptr %v{}, i64 %v{})\n",
+                dest.0, args[0].0, args[1].0
+            ));
+            return Ok(());
+        }
+        if func == "slice_subslice" && args.len() == 3 {
+            value_types.insert(*dest, "ptr");
+            out.push_str(&format!(
+                "  %v{} = call ptr @datara_sys_slice_subslice(ptr %v{}, i64 %v{}, i64 %v{})\n",
+                dest.0, args[0].0, args[1].0, args[2].0
+            ));
+            return Ok(());
+        }
+
+        // v1.5.0: destroy/drop are ownership markers, not runtime calls —
+        // the Cranelift backend treats them as no-ops producing an i64 0
+        // (inst_call.rs), and no runtime symbol `destroy` exists in any C
+        // source. Mirror that here instead of an unresolved `@destroy`.
+        if (func == "destroy" || func == "drop") && args.len() == 1 {
+            value_types.insert(*dest, "i64");
+            out.push_str(&format!("  %v{} = add i64 0, 0\n", dest.0));
+            return Ok(());
         }
 
         if (func == "math_ctz" || func == "ctz") && args.len() == 1 {
@@ -161,6 +197,13 @@ impl<'a> LlvmEmitter<'a> {
             "str_index_of" => "datara_rt_str_index_of",
             "own_acquire" => "datara_rt_own_acquire",
             "own_release" => "datara_rt_own_release",
+            "arc_init" => "datara_rt_arc_init",
+            "arc_acquire" => "datara_rt_arc_acquire",
+            "arc_release" => "datara_rt_arc_release",
+            "arc_count" => "datara_rt_arc_count",
+            "weak_create" => "datara_rt_weak_create",
+            "weak_upgrade" => "datara_rt_weak_upgrade",
+            "weak_drop" => "datara_rt_weak_drop",
             "cap_set_mask" => "datara_rt_cap_set_mask",
             "cap_get_mask" => "datara_rt_cap_get_mask",
             "cap_revoke" => "datara_rt_cap_revoke",
@@ -217,6 +260,34 @@ impl<'a> LlvmEmitter<'a> {
             "channel_try_recv" => "channel_try_recv",
             "channel_close" => "channel_close",
             "channel_len" => "channel_len",
+            // v1.5.0: systems/hardware primitives — the runtime archive only
+            // exports the datara_sys_* / datara_hw_* spellings, so the short
+            // language-level names map here (mirrors declare_systems.rs).
+            "hton16" => "datara_sys_hton16",
+            "ntoh16" => "datara_sys_ntoh16",
+            "hton32" => "datara_sys_hton32",
+            "ntoh32" => "datara_sys_ntoh32",
+            "hton64" => "datara_sys_hton64",
+            "ntoh64" => "datara_sys_ntoh64",
+            "bswap16" => "datara_sys_bswap16",
+            "bswap32" => "datara_sys_bswap32",
+            "bswap64" => "datara_sys_bswap64",
+            "volatile_ptr" => "datara_hw_volatile_ptr",
+            "volatile_read8" => "datara_hw_volatile_read8",
+            "volatile_read16" => "datara_hw_volatile_read16",
+            "volatile_read32" => "datara_hw_volatile_read32",
+            "volatile_read64" => "datara_hw_volatile_read64",
+            "volatile_write8" => "datara_hw_volatile_write8",
+            "volatile_write16" => "datara_hw_volatile_write16",
+            "volatile_write32" => "datara_hw_volatile_write32",
+            "volatile_write64" => "datara_hw_volatile_write64",
+            "atomic_fence_acquire" => "datara_hw_atomic_fence_acquire",
+            "atomic_fence_release" => "datara_hw_atomic_fence_release",
+            "atomic_fence_acq_rel" => "datara_hw_atomic_fence_acq_rel",
+            "atomic_fence_seq_cst" => "datara_hw_atomic_fence_seq_cst",
+            "atomic_fence" => "datara_hw_atomic_fence",
+            "typed_zero_init" => "datara_hw_typed_zero_init",
+            "slice_free" => "datara_sys_slice_free",
             "scratch_enter" => "scratch_enter",
             "scratch_alloc" => "scratch_alloc",
             "scratch_exit" => "scratch_exit",
@@ -405,7 +476,34 @@ impl<'a> LlvmEmitter<'a> {
             .map(|c| c == "SliceView")
             .unwrap_or(false)
         {
-            let fn_name = format!("SliceView_{}", method);
+            // v1.5.0: emit the real datara_sys_* symbol names — the C runtime
+            // archive only exports the datara_sys_* / datara_hw_* spellings,
+            // so short aliases like SliceView_set_byte link as LNK2019.
+            let fn_name = match method {
+                "len" => "datara_sys_slice_len",
+                "get_byte" => "datara_sys_slice_get_byte",
+                "set_byte" => "datara_sys_slice_set_byte",
+                "read_u16_be" => "datara_sys_slice_read_u16_be",
+                "read_u16_le" => "datara_sys_slice_read_u16_le",
+                "read_u32_be" => "datara_sys_slice_read_u32_be",
+                "read_u32_le" => "datara_sys_slice_read_u32_le",
+                "read_u64_be" => "datara_sys_slice_read_u64_be",
+                "read_u64_le" => "datara_sys_slice_read_u64_le",
+                "write_u16_be" => "datara_sys_slice_write_u16_be",
+                "write_u16_le" => "datara_sys_slice_write_u16_le",
+                "write_u32_be" => "datara_sys_slice_write_u32_be",
+                "write_u32_le" => "datara_sys_slice_write_u32_le",
+                "write_u64_be" => "datara_sys_slice_write_u64_be",
+                "write_u64_le" => "datara_sys_slice_write_u64_le",
+                "subslice" => "datara_sys_slice_subslice",
+                "free" => "datara_sys_slice_free",
+                other => {
+                    return Err(format!(
+                        "E-CODEGEN-001: unknown SliceView method '{}' on LLVM backend",
+                        other
+                    ));
+                }
+            };
             let mut args_val = vec![format!("ptr %v{}", object.0)];
             for a in args {
                 let aty = value_types.get(a).copied().unwrap_or("i64");
@@ -445,7 +543,31 @@ impl<'a> LlvmEmitter<'a> {
             .map(|c| c == "VolatilePtr")
             .unwrap_or(false)
         {
-            let fn_name = format!("VolatilePtr_{}", method);
+            // v1.5.0: datara_hw_* symbol names — the runtime archive has no
+            // short VolatilePtr_* exports.
+            let fn_name = match method {
+                "read8" => "datara_hw_volatile_read8",
+                "read16" => "datara_hw_volatile_read16",
+                "read32" => "datara_hw_volatile_read32",
+                "read64" => "datara_hw_volatile_read64",
+                "write8" => "datara_hw_volatile_write8",
+                "write16" => "datara_hw_volatile_write16",
+                "write32" => "datara_hw_volatile_write32",
+                "write64" => "datara_hw_volatile_write64",
+                // MMIO views never own their memory: freeing is a no-op,
+                // mirroring the Cranelift backend.
+                "free" => {
+                    value_types.insert(*dest, "void");
+                    out.push_str("  ; volatile view free: no-op (unowned MMIO memory)\n");
+                    return Ok(());
+                }
+                other => {
+                    return Err(format!(
+                        "E-CODEGEN-001: unknown VolatilePtr method '{}' on LLVM backend",
+                        other
+                    ));
+                }
+            };
             let mut args_val = vec![format!("ptr %v{}", object.0)];
             for a in args {
                 let aty = value_types.get(a).copied().unwrap_or("i64");

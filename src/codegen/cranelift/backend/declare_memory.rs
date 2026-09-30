@@ -223,3 +223,90 @@ pub fn declare_runtime_memory<M: ClifModule>(
 
     Ok(())
 }
+
+/// M5 TMM Layer 2: ARC (@arc/@weak) runtime primitives. Declared separately
+/// so the compiler-inserted retain/release path can pass the ids to the
+/// StructInit/Return emitters, and so `arc_count`/`weak_upgrade` are
+/// callable from Datara code as builtins.
+pub struct ArcRuntimeIds {
+    pub rt_arc_init_id: FuncId,
+    pub rt_arc_acquire_id: FuncId,
+    pub rt_arc_release_id: FuncId,
+    pub rt_arc_count_id: FuncId,
+    pub rt_weak_create_id: FuncId,
+    pub rt_weak_upgrade_id: FuncId,
+    pub rt_weak_drop_id: FuncId,
+}
+
+pub fn declare_runtime_arc<M: ClifModule>(
+    module: &mut M,
+    call_conv: CallConv,
+    func_ids: &mut HashMap<String, (FuncId, Signature)>,
+) -> Result<ArcRuntimeIds, String> {
+    let mut i64_to_i64 = Signature::new(call_conv);
+    i64_to_i64.params.push(AbiParam::new(clif_types::I64));
+    i64_to_i64.returns.push(AbiParam::new(clif_types::I64));
+
+    let mut i64_to_void = Signature::new(call_conv);
+    i64_to_void.params.push(AbiParam::new(clif_types::I64));
+
+    let rt_arc_init_id = reg_fn(
+        module,
+        func_ids,
+        "datara_rt_arc_init",
+        Some("arc_init"),
+        i64_to_i64.clone(),
+    )?;
+    let rt_arc_acquire_id = reg_fn(
+        module,
+        func_ids,
+        "datara_rt_arc_acquire",
+        Some("arc_acquire"),
+        i64_to_i64.clone(),
+    )?;
+    let rt_arc_release_id = reg_fn(
+        module,
+        func_ids,
+        "datara_rt_arc_release",
+        Some("arc_release"),
+        i64_to_void.clone(),
+    )?;
+    let rt_arc_count_id = reg_fn(
+        module,
+        func_ids,
+        "datara_rt_arc_count",
+        Some("arc_count"),
+        i64_to_i64.clone(),
+    )?;
+    let rt_weak_create_id = reg_fn(
+        module,
+        func_ids,
+        "datara_rt_weak_create",
+        Some("weak_create"),
+        i64_to_i64.clone(),
+    )?;
+    let rt_weak_upgrade_id = reg_fn(
+        module,
+        func_ids,
+        "datara_rt_weak_upgrade",
+        Some("weak_upgrade"),
+        i64_to_i64.clone(),
+    )?;
+    let rt_weak_drop_id = reg_fn(
+        module,
+        func_ids,
+        "datara_rt_weak_drop",
+        Some("weak_drop"),
+        i64_to_void,
+    )?;
+
+    Ok(ArcRuntimeIds {
+        rt_arc_init_id,
+        rt_arc_acquire_id,
+        rt_arc_release_id,
+        rt_arc_count_id,
+        rt_weak_create_id,
+        rt_weak_upgrade_id,
+        rt_weak_drop_id,
+    })
+}

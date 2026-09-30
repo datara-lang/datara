@@ -72,6 +72,9 @@ pub fn get_embedded_stdlib_source(module_path: &str) -> Option<&'static str> {
             Some(include_str!("../stdlib/collections/priority_queue.dtr"))
         }
         "collections.iter" => Some(include_str!("../stdlib/collections/iter.dtr")),
+        "collections.sort" => Some(include_str!("../stdlib/collections/sort.dtr")),
+        "io.path" => Some(include_str!("../stdlib/io/path.dtr")),
+        "sys.sys" => Some(include_str!("../stdlib/sys/sys.dtr")),
         "text.string_builder" => Some(include_str!("../stdlib/text/string_builder.dtr")),
         "simd" => Some(include_str!("../stdlib/simd/simd.dtr")),
         "simd.simd" => Some(include_str!("../stdlib/simd/simd.dtr")),
@@ -115,6 +118,7 @@ pub const ALL_EMBEDDED_MODULES: &[&str] = &[
     "io.args",
     "io.env",
     "io.fs",
+    "io.path",
     "json.parser",
     "json.serializer",
     "json.types",
@@ -123,6 +127,7 @@ pub const ALL_EMBEDDED_MODULES: &[&str] = &[
     "result.option",
     "result.result",
     "sys.process",
+    "sys.sys",
     "text.format",
     "text.string",
     "time.clock",
@@ -152,6 +157,7 @@ pub const ALL_EMBEDDED_MODULES: &[&str] = &[
     "collections.deque",
     "collections.priority_queue",
     "collections.iter",
+    "collections.sort",
     "text.string_builder",
     "simd",
     "simd.simd",

@@ -228,11 +228,33 @@ pub(crate) fn cmd_context(args: &[String]) -> bool {
 pub(crate) fn cmd_inspect(args: &[String]) -> bool {
     if args.len() < 4 {
         println!(
-            "Usage: forgen inspect <symbol|effects|optimize|dependencies|ast|dmir|codegen|asm|clif> <file.dtr> [symbolName]"
+            "Usage: forgen inspect <symbol|effects|optimize|dependencies|ast|dmir|codegen|asm|clif|memory> <file.dtr> [symbolName]"
         );
         return false;
     }
     let query = &args[2];
+
+    // M5: `forgen inspect --memory <file.dtr>` prints the TMM memory plan
+    // (per-class Layer 1/2/3 assignment, ownership edges, and the Layer 3
+    // scope-insertion schedule). Does not require a full compile.
+    if query == "--memory" || query == "memory" {
+        let file_arg = &args[3];
+        match crate::fmt::read_source_utf8(Path::new(file_arg)) {
+            Ok(src) => {
+                let mut lexer = crate::lexer::Lexer::new(&src, file_arg);
+                let mut diag = crate::diagnostics::DiagnosticEngine::new("en");
+                let tokens = lexer.tokenize(&mut diag);
+                let mut parser = crate::parser::Parser::new(tokens, &mut diag, file_arg);
+                let program = parser.parse_program();
+                print!("{}", crate::ownership::memory_report(&program));
+                return true;
+            }
+            Err(e) => {
+                eprintln!("Failed to read file '{}': {}", file_arg, e);
+                return false;
+            }
+        }
+    }
     let mut file_arg = args[3].as_str();
     let mut target_symbol = args.get(4).map(|s| s.as_str());
 

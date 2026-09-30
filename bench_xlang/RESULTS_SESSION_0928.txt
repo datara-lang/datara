@@ -1,0 +1,17 @@
+=== Cross-language benchmark, POST-ovf-fix (Windows 11 x64, warm cache, n=15, wall-time) ===
+Datara: forgen build --llvm --opt=speed (LLVM AOT backend). Contract: print result.
+
+100M iterations, acc += i & 255 (expect 12750000000)
+  Datara LLVM speed            median     5.59 ms  min    4.80  max    6.30  bin  212.0 KB  x 1.07  out=12750000000
+  Datara LLVM tiny             median     5.22 ms  min    5.08  max    6.30  bin  114.0 KB  x 1.00  out=12750000000
+  C gcc -O2                    median    23.97 ms  min   22.93  max   27.45  bin   85.3 KB  x 4.59  out=12750000000
+  C gcc -O3                    median    12.83 ms  min   12.54  max   13.41  bin   85.3 KB  x 2.46  out=12750000000
+  Rust rustc -O                median    12.42 ms  min   11.71  max   13.46  bin  128.0 KB  x 2.38  out=12750000000
+
+fib(30) x10 (expect 8320400)
+  Datara LLVM speed            median     3.13 ms  min    2.69  max    3.62  bin  152.5 KB  x 1.00  out=8320400
+  C gcc -O2                    median    11.36 ms  min   10.88  max   16.31  bin   86.4 KB  x 3.63  out=8320400
+  Rust rustc -O                median     4.91 ms  min    4.61  max    5.47  bin  128.0 KB  x 1.57  out=8320400
+
+  Python 3.14 100M loop: median     18.12 ms
+  Python 3.14 fib x10:   median    893.13 ms

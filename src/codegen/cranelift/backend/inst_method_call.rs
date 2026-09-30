@@ -161,6 +161,89 @@ pub fn compile_method_call<M: ClifModule>(
             return Ok(());
         }
     }
+    // M5 TMM Layer 2: Weak<T> handle methods. `upgrade()` returns an
+    // Outcome<T> object (runtime builds it raw: ok carries a REAL strong
+    // acquire, err("weak: dead") when the target was reclaimed). The
+    // payload var is tagged with the Outcome class so `?`/`or`/`is_error`
+    // and Out-printing stay on the standard Outcome path.
+    if ctx
+        .val_to_class
+        .get(object)
+        .map(|c| c == "Weak" || c.starts_with("Weak<"))
+        .unwrap_or(false)
+    {
+        let special_id = match method {
+            "upgrade" => Some(ctx.runtime.rt_weak_upgrade_id),
+            // is_alive upgrades and checks the tag without keeping the
+            // acquire: cheap liveness probe (the transient acquire is
+            // released immediately by the runtime helper contract).
+            "is_alive" => None,
+            _ => None,
+        };
+        if let Some(special_id) = special_id {
+            let mut call_args: Vec<ClifValue> = Vec::new();
+            if let Some(&obj_v) = ctx.val_map.get(object) {
+                call_args.push(obj_v);
+            }
+            let callee_ref = ctx
+                .module
+                .declare_func_in_func(special_id, ctx.builder.func);
+            let call_inst = ctx.builder.ins().call(callee_ref, &call_args);
+            let results = ctx.builder.inst_results(call_inst);
+            if let Some(&r) = results.first() {
+                ctx.val_map.insert(*dest, r);
+                let outcome_ty = if ty.starts_with("Outcome<") {
+                    ty.to_string()
+                } else {
+                    "Outcome<Val>".to_string()
+                };
+                ctx.val_to_class.insert(*dest, outcome_ty);
+            } else {
+                let zero = ctx.builder.ins().iconst(clif_types::I64, 0);
+                ctx.val_map.insert(*dest, zero);
+            }
+            return Ok(());
+        }
+        if method == "is_alive" {
+            // Inline: upgrade -> read tag -> (release if ok) -> bool.
+            // Uses the same runtime primitives; no extra runtime helper.
+            let up_id = ctx.runtime.rt_weak_upgrade_id;
+            let callee_ref = ctx
+                .module
+                .declare_func_in_func(up_id, ctx.builder.func);
+            let obj_arg = ctx
+                .val_map
+                .get(object)
+                .copied()
+                .unwrap_or_else(|| ctx.builder.ins().iconst(clif_types::I64, 0));
+            let call_inst = ctx.builder.ins().call(callee_ref, &[obj_arg]);
+            let outcome = ctx.builder.inst_results(call_inst)[0];
+            let flags = cranelift_codegen::ir::MachMemFlags::new();
+            let tag = ctx
+                .builder
+                .ins()
+                .load(clif_types::I64, flags, outcome, 0);
+            let alive = ctx
+                .builder
+                .ins()
+                .icmp_imm_s(
+                    cranelift_codegen::ir::condcodes::IntCC::NotEqual,
+                    tag,
+                    0,
+                );
+            // Release the transient acquire when alive so is_alive is
+            // refcount-neutral: load payload then release.
+            let zero_i = ctx.builder.ins().iconst(clif_types::I64, 0);
+            ctx.builder.ins().store(flags, zero_i, outcome, 0);
+            let rel_ref = ctx
+                .module
+                .declare_func_in_func(ctx.runtime.rt_arc_release_id, ctx.builder.func);
+            ctx.builder.ins().call(rel_ref, &[outcome]);
+            ctx.bool_vids.insert(*dest);
+            ctx.val_map.insert(*dest, ctx.builder.ins().uextend(clif_types::I64, alive));
+            return Ok(());
+        }
+    }
     // v1.4.4: VolatilePtr methods dispatched for Level 4 MMIO
     if ctx
         .val_to_class
@@ -585,9 +668,14 @@ pub fn compile_method_call<M: ClifModule>(
 
 /// Map a type name string to its runtime element kind integer.
 fn list_elem_kind_from_ty(ty: &str) -> i64 {
+    // Lowering emits both spellings for the string type: legacy `Str` and
+    // the prelude's `String` (e.g. `List<String>` on a sort/reverse of a
+    // string literal list). Treating only `Str` made a List<String> sort
+    // compare raw char* pointers instead of contents.
+    let is_str = ty.contains("Str") || ty.contains("String");
     if ty.contains("Float") {
         1
-    } else if ty.contains("Str") {
+    } else if is_str {
         2
     } else {
         0

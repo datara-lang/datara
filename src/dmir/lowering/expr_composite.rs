@@ -178,6 +178,24 @@ impl<'a> Lowering<'a> {
                 fields,
                 ..
             } => {
+                // Prelude capability token: `SystemCapabilities {}` lowers to
+                // the runtime factory datara_rt_sys_caps_create() (returns the
+                // opaque 0xCAFE token). The capability lattice verifier
+                // (E0940) accepts this token for FileRead/FileWrite/Net/Proc
+                // operations, so guarded stdlib.io wrappers can be called from
+                // plain `fn main()` without harness-injected parameters.
+                if class_name == "SystemCapabilities" {
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest,
+                            func: "datara_rt_sys_caps_create".into(),
+                            args: Vec::new(),
+                            ty: class_name.clone(),
+                        });
+                    return Some(dest);
+                }
                 if let Some(pkt) = self.resolver.packets.get(class_name) {
                     let mut bit_offsets = HashMap::new();
                     let mut current_offset = 0;
@@ -318,15 +336,37 @@ impl<'a> Lowering<'a> {
                 // init literal must be stored in that same order or GetField
                 // offsets and StructInit stores diverge for composed classes.
                 field_vals.sort_by(|a, b| a.0.cmp(&b.0));
-                let dest = self.next_val();
+                let raw_dest = self.next_val();
                 self.get_block_mut(*cur_block)
                     .instructions
                     .push(Inst::StructInit {
-                        dest,
-                        class_name: specialized_name,
+                        dest: raw_dest,
+                        class_name: specialized_name.clone(),
                         fields: field_vals,
                     });
-                Some(dest)
+                // M5 TMM Layer 2: @arc allocation initializes its 16-byte
+                // refcount header (strong=1, weak=0). The backend adds the
+                // header slots to the allocation size for @arc classes; the
+                // runtime arc_init sets strong=1 and returns the same user
+                // pointer, which becomes the value of the whole expression.
+                // The Call keeps the CLASS repr (not RawPtr) so GetField
+                // resolves offsets through the real class layout and method
+                // dispatch stays on the class — the value IS the object.
+                if self.arc_classes_lower.contains(&specialized_name)
+                    || self.arc_classes_lower.contains(class_name)
+                {
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest,
+                            func: "datara_rt_arc_init".into(),
+                            args: vec![raw_dest],
+                            ty: specialized_name.clone(),
+                        });
+                    return Some(dest);
+                }
+                Some(raw_dest)
             }
             Expr::Pipeline { stages, .. } => {
                 let mut current = self.lower_expr(&stages[0], cur_block)?;

@@ -362,6 +362,7 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_file_exists", datara_rt_file_exists);
     reg!("file_exists", datara_rt_file_exists);
     reg!("exists", datara_rt_file_exists);
+    reg!("datara_rt_sys_caps_create", datara_rt_sys_caps_create);
     reg!("datara_rt_file_read_checked", datara_rt_file_read_checked);
     reg!("file_read_checked", datara_rt_file_read_checked);
     reg!("datara_rt_str_to_int_checked", datara_rt_str_to_int_checked);
@@ -608,6 +609,20 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_list_free", datara_rt_list_free);
     reg!("datara_rt_own_acquire", datara_rt_own_acquire);
     reg!("datara_rt_own_release", datara_rt_own_release);
+    reg!("datara_rt_arc_init", datara_rt_arc_init);
+    reg!("arc_init", datara_rt_arc_init);
+    reg!("datara_rt_arc_acquire", datara_rt_arc_acquire);
+    reg!("arc_acquire", datara_rt_arc_acquire);
+    reg!("datara_rt_arc_release", datara_rt_arc_release);
+    reg!("arc_release", datara_rt_arc_release);
+    reg!("datara_rt_arc_count", datara_rt_arc_count);
+    reg!("arc_count", datara_rt_arc_count);
+    reg!("datara_rt_weak_create", datara_rt_weak_create);
+    reg!("weak_create", datara_rt_weak_create);
+    reg!("datara_rt_weak_upgrade", datara_rt_weak_upgrade);
+    reg!("weak_upgrade", datara_rt_weak_upgrade);
+    reg!("datara_rt_weak_drop", datara_rt_weak_drop);
+    reg!("weak_drop", datara_rt_weak_drop);
 
     reg!("datara_rt_pool_alloc", datara_rt_pool_alloc);
     reg!("datara_rt_pool_free", datara_rt_pool_free);

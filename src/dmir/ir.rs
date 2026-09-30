@@ -812,6 +812,12 @@ pub struct Module {
     pub endian_classes: HashMap<String, String>,
     #[serde(default)]
     pub component_classes: HashSet<String>,
+    /// M5 TMM Layer 2: classes annotated `@arc`. Allocation of these classes
+    /// emits a 16-byte refcount header (strong, weak) before the object and
+    /// an `arc_init` call; scope-exit releases are inserted by the backend.
+    /// llvm/mod.rs reads the same set for its allocation path.
+    #[serde(default)]
+    pub arc_classes: HashSet<String>,
 }
 
 /// v1.4.5 W1: maps a DMIR type-repr string to its byte size for packed
@@ -914,6 +920,7 @@ impl Module {
             packed_classes: HashSet::new(),
             endian_classes: HashMap::new(),
             component_classes: HashSet::new(),
+            arc_classes: HashSet::new(),
         }
     }
 }

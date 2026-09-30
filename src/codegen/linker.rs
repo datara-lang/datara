@@ -475,6 +475,16 @@ pub fn link_args(
             let is_tiny = extra_libs.iter().any(|l| l == "--tiny" || l == "tiny")
                 || std::env::var("FORGEN_TINY").is_ok()
                 || std::env::var("DATARA_TINY").is_ok();
+            // M8 size work 2026-09-27: with the static CRT (/LTCG + libcmt + libucrt)
+            // a minimal loop program links to ~212 KB because the UCRT printf engine
+            // (output.obj + float-formatting objs + EH machinery) contributes ~84 KB of
+            // .text that /OPT:REF cannot drop — datara_print.o references
+            // __stdio_common_vfprintf/vsprintf by design. Linking the dynamic CRT
+            // (msvcrt/ucrt/vcruntime import stubs) with identical runtime code and IR
+            // measured 114 KB with the same 5.2 ms runtime (n=15 median); the api-ms
+            // UCRT forwarder DLLs are present on every Windows 10+ installation.
+            // Opt-in via DATARA_DYNAMIC_CRT=1 so self-contained deployment stays the
+            // default; --tiny keeps its existing swap.
 
             args.push("/NOLOGO".into());
             args.push("/INCREMENTAL:NO".into());
@@ -491,7 +501,11 @@ pub fn link_args(
                 args.push("/LTCG".into());
                 args.push("/CGTHREADS:8".into());
             }
-            if is_tiny {
+            let is_dynamic_crt = is_tiny
+                || std::env::var("DATARA_DYNAMIC_CRT")
+                    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                    .unwrap_or(false);
+            if is_dynamic_crt {
                 args.push("/NODEFAULTLIB:libcmt.lib".into());
             }
             // v1.4.7: default 4 KB file alignment pads a small program to
@@ -521,7 +535,7 @@ pub fn link_args(
                 args.push(format!("/LIBPATH:{}", p.display()));
             }
             for lib in &spec.system_libs {
-                if is_tiny {
+                if is_dynamic_crt {
                     if lib == "libcmt.lib" {
                         args.push("msvcrt.lib".into());
                         continue;
@@ -890,8 +904,11 @@ pub fn compile_with_llc(
         .output()
         .map_err(|e| format!("Linker execution failed: {}", e))?;
     if !link_res.status.success() {
+        // MSVC link.exe reports LNK2019/LNK1120 on stdout, GNU ld on stderr;
+        // include both so unresolved-symbol diagnostics are never empty.
         return Err(format!(
-            "LLVM Link step failed:\n{}",
+            "LLVM Link step failed:\n{}{}",
+            String::from_utf8_lossy(&link_res.stdout),
             String::from_utf8_lossy(&link_res.stderr)
         ));
     }

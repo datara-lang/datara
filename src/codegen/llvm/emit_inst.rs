@@ -10,6 +10,7 @@ impl<'a> LlvmEmitter<'a> {
     pub(crate) fn emit_instruction(
         &self,
         inst: &Inst,
+        f_proven_no_overflow: &std::collections::BTreeSet<ValueId>,
         module: &Module,
         strings: &HashMap<String, usize>,
         value_types: &mut HashMap<ValueId, &'static str>,
@@ -313,27 +314,56 @@ impl<'a> LlvmEmitter<'a> {
                         }
                     }
                 } else {
+                    // v1.5.0 (M8): the optimizer's `ovf_elide` pass marks the
+                    // dest of an induction-variable increment whose trip range
+                    // is statically proven to stay inside i64 (see
+                    // optimizer/loops/ovf_elide.rs). For exactly those
+                    // instructions emit the raw `add`/`sub`/`mul`, matching
+                    // the Cranelift backend's proven-safe lowering; every
+                    // other integer op keeps the checked runtime call.
+                    let proven_safe = f_proven_no_overflow.contains(dest);
                     match op.as_str() {
                         "+" => {
                             value_types.insert(*dest, "i64");
-                            out.push_str(&format!(
-                                "  %v{} = call i64 @datara_rt_checked_add(i64 %v{}, i64 %v{})\n",
-                                dest.0, left.0, right.0
-                            ));
+                            if proven_safe {
+                                out.push_str(&format!(
+                                    "  %v{} = add i64 %v{}, %v{}\n",
+                                    dest.0, left.0, right.0
+                                ));
+                            } else {
+                                out.push_str(&format!(
+                                    "  %v{} = call i64 @datara_rt_checked_add(i64 %v{}, i64 %v{})\n",
+                                    dest.0, left.0, right.0
+                                ));
+                            }
                         }
                         "-" => {
                             value_types.insert(*dest, "i64");
-                            out.push_str(&format!(
-                                "  %v{} = call i64 @datara_rt_checked_sub(i64 %v{}, i64 %v{})\n",
-                                dest.0, left.0, right.0
-                            ));
+                            if proven_safe {
+                                out.push_str(&format!(
+                                    "  %v{} = sub i64 %v{}, %v{}\n",
+                                    dest.0, left.0, right.0
+                                ));
+                            } else {
+                                out.push_str(&format!(
+                                    "  %v{} = call i64 @datara_rt_checked_sub(i64 %v{}, i64 %v{})\n",
+                                    dest.0, left.0, right.0
+                                ));
+                            }
                         }
                         "*" => {
                             value_types.insert(*dest, "i64");
-                            out.push_str(&format!(
-                                "  %v{} = call i64 @datara_rt_checked_mul(i64 %v{}, i64 %v{})\n",
-                                dest.0, left.0, right.0
-                            ));
+                            if proven_safe {
+                                out.push_str(&format!(
+                                    "  %v{} = mul i64 %v{}, %v{}\n",
+                                    dest.0, left.0, right.0
+                                ));
+                            } else {
+                                out.push_str(&format!(
+                                    "  %v{} = call i64 @datara_rt_checked_mul(i64 %v{}, i64 %v{})\n",
+                                    dest.0, left.0, right.0
+                                ));
+                            }
                         }
                         "/" => {
                             value_types.insert(*dest, "i64");

@@ -530,7 +530,13 @@ int64_t datara_rt_env_set(const char* key, const char* value) {
     datara_rt_cap_require(DATARA_CAP_SYS_ENV, "sys::env_set");
     if (!key) return 0;
 #ifdef _WIN32
-    return SetEnvironmentVariableA(key, value) ? 1 : 0;
+    // Both layers must be updated: SetEnvironmentVariableA writes the
+    // process environment block, but the CRT keeps its own cache that
+    // getenv() reads — without _putenv a subsequent datara_rt_env_get
+    // (plain getenv) silently returns the stale/missing value.
+    int crt_ok = _putenv_s(key, value ? value : "");
+    int proc_ok = SetEnvironmentVariableA(key, value) ? 1 : 0;
+    return (crt_ok == 0 && proc_ok) ? 1 : 0;
 #else
     if (!value) {
         return unsetenv(key) == 0 ? 1 : 0;

@@ -240,6 +240,35 @@ impl<'a> Lowering<'a> {
                         _ => None,
                     }
                 }
+                Expr::MemberAccess { object, member, .. } => {
+                    // List protocol calls return the list itself (the
+                    // in-place mutators return the receiver handle) or a
+                    // fresh list (slice/collect/map/filter), so the result
+                    // keeps the source element type. Without this, `val s =
+                    // l.sort()` left `s` untyped in local_var_types: the
+                    // ERASED `Class("List")` from fn_symbol_types won the
+                    // lookup, list_elem_repr fell back to "Int", and
+                    // `s.get(0)` returned the raw char* pointer instead of
+                    // the string (silent wrong data, E0944-class).
+                    if self.is_expr_list(object)
+                        && matches!(
+                            member.as_str(),
+                            "map"
+                                | "filter"
+                                | "sort"
+                                | "reverse"
+                                | "clear"
+                                | "insert_at"
+                                | "slice"
+                                | "collect"
+                        )
+                    {
+                        return Some(DataraType::List(Box::new(
+                            self.infer_list_elem_type(object),
+                        )));
+                    }
+                    None
+                }
                 _ => None,
             },
             Expr::ListLiteral(elements, _) => {
@@ -261,6 +290,43 @@ impl<'a> Lowering<'a> {
             }
             _ => None,
         }
+    }
+
+    /// Element DataraType of a list-valued expression: the checked
+    /// List<T> of an identifier wins, a list literal infers from its
+    /// first element, map/filter chains inherit their source list's
+    /// element. Mirrors list_elem_repr (expr_call.rs) but keeps the
+    /// DataraType form for local_var_types recording.
+    fn infer_list_elem_type(&self, expr: &Expr) -> DataraType {
+        match expr {
+            Expr::Identifier(name, _) => {
+                if let Some(DataraType::List(inner)) = self.lookup_var_type(name) {
+                    return *inner;
+                }
+            }
+            Expr::ListLiteral(elements, _) => {
+                if let Some(e) = elements.first() {
+                    return self.infer_expr_datara_type(e).unwrap_or(DataraType::Int);
+                }
+            }
+            Expr::Call { callee, args, .. } => {
+                if let Expr::MemberAccess { object, member, .. } = &**callee
+                    && (member == "map" || member == "filter")
+                    && self.is_expr_list(object)
+                {
+                    return self.infer_list_elem_type(object);
+                }
+                if let Expr::Identifier(fn_name, _) = &**callee
+                    && (fn_name == "map" || fn_name == "filter")
+                    && !args.is_empty()
+                    && self.is_expr_list(&args[0])
+                {
+                    return self.infer_list_elem_type(&args[0]);
+                }
+            }
+            _ => {}
+        }
+        DataraType::Int
     }
 
     pub(crate) fn member_field_repr(&self, object: &Expr, member: &str) -> Option<String> {

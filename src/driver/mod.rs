@@ -14,8 +14,10 @@ mod modules;
 mod namespace;
 mod pipeline;
 pub mod polyglot;
+pub mod symbols;
 
 pub use check_cache::CheckCache;
+pub use symbols::{Interner, SymbolId, SymbolTable};
 
 use self::pipeline::{
     AnalysisOutput, parse_multi_sources, parse_single_source, run_analysis_and_lower,
@@ -182,7 +184,53 @@ impl ForgenCompiler {
     }
 
     pub fn check_source(&self, source: &str, file: &str) -> CompilationResult {
-        if let Some(cached) = CheckCache::get(source, file, self.struct_return_abi()) {
+        let abi = self.struct_return_abi();
+
+        // v1.5.0 (M4) fast path: module-importing sources are cached under a
+        // dependency fingerprint. It is computed by a parse of the root
+        // source plus read-only resolution of the `use` imports — far
+        // cheaper than resolve+typecheck+lower+backend-verify, and it makes
+        // any dependency edit remap the cache key, so stale diagnostics
+        // cannot be served.
+        if let Some(fingerprint) = self.module_dependency_fingerprint_quick(source, file) {
+            let tier = format!("{:?}", self.opt_tier);
+            if let Some(cached) =
+                CheckCache::get_with_deps(source, file, abi, &tier, fingerprint)
+            {
+                return cached;
+            }
+            let total_start = Instant::now();
+            let mut diag = DiagnosticEngine::new(&self.locale);
+            diag.set_source(file, source);
+
+            let (mut program, timings) = match parse_single_source(
+                source,
+                file,
+                &mut diag,
+                CompilationTimings::default(),
+                total_start,
+            ) {
+                Ok(ok) => ok,
+                Err(res) => return res,
+            };
+
+            // `check` must see the same program as a real compile, otherwise
+            // it rejects valid stdlib imports with "Unknown class".
+            let base_dirs = self.module_base_dirs(Path::new(file));
+            self.resolve_modules(&mut program, &mut diag, &[], base_dirs);
+
+            let res = run_check_pipeline(
+                program,
+                &mut diag,
+                timings,
+                total_start,
+                abi,
+            );
+            CheckCache::put_with_deps(source, file, abi, &res, &tier, fingerprint);
+            return res;
+        }
+
+        if let Some(cached) = CheckCache::get(source, file, abi) {
             return cached;
         }
 

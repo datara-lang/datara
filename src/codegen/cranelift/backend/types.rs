@@ -138,6 +138,14 @@ pub struct RuntimeIds {
     pub rt_strbuf_push_int_id: FuncId,
     pub rt_strbuf_join_id: FuncId,
     pub rt_strbuf_len_id: FuncId,
+    // M5 TMM Layer 2: ARC (@arc/@weak) primitives.
+    pub rt_arc_init_id: FuncId,
+    pub rt_arc_acquire_id: FuncId,
+    pub rt_arc_release_id: FuncId,
+    pub rt_arc_count_id: FuncId,
+    pub rt_weak_create_id: FuncId,
+    pub rt_weak_upgrade_id: FuncId,
+    pub rt_weak_drop_id: FuncId,
 }
 
 #[derive(Clone, Copy)]
@@ -195,6 +203,9 @@ pub struct CoreRuntimeIds {
     pub rt_arena_checkpoint_id: FuncId,
     pub rt_arena_reset_id: FuncId,
     pub rt_panic_id: FuncId,
+    // M5 TMM Layer 2: ARC ids live in ArcRuntimeIds (declare_memory), NOT
+    // here: declare_runtime_core runs BEFORE declare_runtime_arc, so core
+    // must not require them. RuntimeIds gets them from arc_ids in mod.rs.
 }
 
 pub struct ModuleDecls {

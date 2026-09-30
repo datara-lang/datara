@@ -52,8 +52,6 @@ impl ScalarOptimizer {
         cost_model: &CostModel,
         trace: &mut OptimizationDecisionTrace,
     ) -> usize {
-        let cfg = ControlFlowGraph::build_dominance_only(f);
-
         // ---- Phase 1: global occurrence counting --------------------------
         let mut counts: HashMap<ExprKey, usize> = HashMap::new();
         for block in &f.blocks {
@@ -72,6 +70,7 @@ impl ScalarOptimizer {
                 }
             }
         }
+        let cfg = ControlFlowGraph::build_dominance_only(f);
 
         // ---- Phase 2: dominator-ordered rewrite ---------------------------
         let mut order: Vec<BasicBlockId> = Vec::with_capacity(f.blocks.len());
@@ -222,8 +221,6 @@ impl ScalarOptimizer {
         pure_funcs: &HashSet<String>,
         trace: &mut OptimizationDecisionTrace,
     ) -> usize {
-        let cfg = ControlFlowGraph::build_dominance_only(f);
-
         // ---- Phase 1: global occurrence counting --------------------------
         let mut counts: HashMap<(String, Vec<ValueId>), usize> = HashMap::new();
         for block in &f.blocks {
@@ -237,6 +234,7 @@ impl ScalarOptimizer {
                 }
             }
         }
+        let cfg = ControlFlowGraph::build_dominance_only(f);
 
         // ---- Phase 2: dominator-ordered rewrite ---------------------------
         let mut order: Vec<BasicBlockId> = Vec::with_capacity(f.blocks.len());

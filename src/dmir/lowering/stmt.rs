@@ -103,6 +103,22 @@ impl<'a> Lowering<'a> {
                 {
                     self.local_var_types.insert(name.clone(), ty.clone());
                 }
+                // List-protocol call inits (`val s = l.sort()`) keep the
+                // element type: record_var_type erases the checked type to
+                // Class("List"), and element reads `s.get(0)` then fell
+                // back to Int — a raw char* pointer printed instead of the
+                // string. Refine ONLY that erased form; an explicit
+                // annotation or a richer symbol_types entry wins.
+                if let Some(DataraType::List(elem)) = self.infer_expr_datara_type(init)
+                    && matches!(
+                        self.local_var_types.get(name),
+                        Some(DataraType::Class(c))
+                            if c == "List"
+                    )
+                {
+                    self.local_var_types
+                        .insert(name.clone(), DataraType::List(elem));
+                }
                 if let Expr::ObjectInit { class_name, .. } = init {
                     self.local_var_types
                         .insert(name.clone(), DataraType::Class(class_name.clone()));
@@ -213,13 +229,64 @@ impl<'a> Lowering<'a> {
                 if let Some(v) = val {
                     match target {
                         Expr::Identifier(name, _) => {
-                            self.symbol_values.insert(name.clone(), v);
-                            self.get_block_mut(cur_block)
-                                .instructions
-                                .push(Inst::AssignVar {
-                                    name: name.clone(),
-                                    value: v,
+                            // M5 TMM Layer 2: assigning an @arc object into an
+                            // existing `mut` slot is a strong acquire — the
+                            // slot now shares ownership. The lowering does not
+                            // know the previous slot contents, so the release
+                            // of the replaced object belongs to the dataflow
+                            // layer (M6); the acquire is correct regardless.
+                            let src_class = self
+                                .infer_expr_datara_type(value)
+                                .map(|t| match t {
+                                    DataraType::Class(c) => c,
+                                    other => other.to_string(),
+                                })
+                                .or_else(|| {
+                                    match value {
+                                        Expr::Identifier(src, _) => self
+                                            .local_var_types
+                                            .get(src)
+                                            .map(|t| match t {
+                                                DataraType::Class(c) => c.clone(),
+                                                other => other.to_string(),
+                                            }),
+                                        _ => None,
+                                    }
                                 });
+                            if let Some(c) = src_class
+                                && (self.arc_classes_lower.contains(&c)
+                                    || c.starts_with("RawPtr"))
+                            {
+                                // Class check only: RawPtr values coming from
+                                // arc_init/acquire are also refcounted. The
+                                // acquire is idempotent for non-ARC pointers
+                                // guarded by the static TMM check (only @arc
+                                // types reach this path).
+                                let acq = self.next_val();
+                                self.get_block_mut(cur_block)
+                                    .instructions
+                                    .push(Inst::Call {
+                                        dest: acq,
+                                        func: "datara_rt_arc_acquire".into(),
+                                        args: vec![v],
+                                        ty: "RawPtr".into(),
+                                    });
+                                self.symbol_values.insert(name.clone(), acq);
+                                self.get_block_mut(cur_block)
+                                    .instructions
+                                    .push(Inst::AssignVar {
+                                        name: name.clone(),
+                                        value: acq,
+                                    });
+                            } else {
+                                self.symbol_values.insert(name.clone(), v);
+                                self.get_block_mut(cur_block)
+                                    .instructions
+                                    .push(Inst::AssignVar {
+                                        name: name.clone(),
+                                        value: v,
+                                    });
+                            }
                         }
                         // `this.field = v` / `obj.field = v`.
                         //

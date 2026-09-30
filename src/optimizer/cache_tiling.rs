@@ -52,11 +52,7 @@ impl CacheTilingOptimizer {
         _cost_model: &CostModel,
         trace: &mut OptimizationDecisionTrace,
     ) -> usize {
-        let already_tiled = trace
-            .records
-            .iter()
-            .any(|r| r.pass == "CacheTiling" && r.candidate.starts_with(&f.name));
-        if already_tiled {
+        if trace.fn_pass_marked("CacheTiling", &f.name) {
             return 0;
         }
 
@@ -79,6 +75,7 @@ impl CacheTilingOptimizer {
                     if let Some(idx) = inner_loop_idx {
                         // Physically annotate inner loop and record tiling transformation
                         tiled_loops += 1;
+                        trace.mark_fn_pass("CacheTiling", &f.name);
                         trace.record(
                             "CacheTiling",
                             &format!("{}:bb{}_loop{}", f.name, block.id.0, idx),

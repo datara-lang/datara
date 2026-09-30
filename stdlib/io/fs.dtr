@@ -8,18 +8,17 @@ behavior File {
     }
 
     write(content: Str) -> Bool {
-        let res = file_write(this.path, content)
+        val res = file_write(this.path, content)
         return res == 1
     }
 
     append(content: Str) -> Bool {
-        let res = file_append(this.path, content)
+        val res = file_append(this.path, content)
         return res == 1
     }
 
     exists() -> Bool {
-        let res = file_exists(this.path)
-        return res == 1
+        return file_exists(this.path)
     }
 }
 
@@ -33,21 +32,50 @@ behavior FileSystem {
     }
 
     write_text(path: Str, content: Str) -> Bool {
-        let res = file_write(path, content)
+        val res = file_write(path, content)
         return res == 1
     }
 
     append_text(path: Str, content: Str) -> Bool {
-        let res = file_append(path, content)
+        val res = file_append(path, content)
         return res == 1
     }
 
     file_exists(path: Str) -> Bool {
-        let res = file_exists(path)
-        return res == 1
+        return file_exists(path)
     }
 
     join(a: Str, b: Str) -> Str {
         return path_join(a, b)
     }
+}
+
+//! ---- Capability-guarded wrappers ----------------------------------------
+//!
+//! `file_read`/`file_write`/`file_append` are capability-guarded builtins:
+//! the security verifier (E0940) accepts either a `Capability<FileRead>` /
+//! `Capability<FileWrite>` token or the ambient `SystemCapabilities` token.
+//! These free functions make the grant explicit in the call signature so a
+//! caller cannot obtain FS access without naming a capability.
+//!
+//! Obtaining the token (either):
+//!   1. `fn main(caps: SystemCapabilities)` — injected by the harness, or
+//!   2. `caps.files.grant_readonly()` / `grant_readwrite()` — currently a
+//!      prelude typing-only surface (codegen for the provider method is not
+//!      wired yet, see PLAN_V150 §5).
+
+fn read_file_secured(path: Str, cap: SystemCapabilities) -> Str {
+    return file_read(path)
+}
+
+fn write_file_secured(path: Str, data: Str, cap: SystemCapabilities) -> Int {
+    return file_write(path, data)
+}
+
+fn append_file_secured(path: Str, data: Str, cap: SystemCapabilities) -> Int {
+    return file_append(path, data)
+}
+
+fn exists_file_secured(path: Str, cap: SystemCapabilities) -> Bool {
+    return file_exists(path)
 }

@@ -1,0 +1,13 @@
+=== PGO A/B (Windows 11 x64, warm cache, n=15, wall-time, LLVM --opt=speed) ===
+
+fib(30) x10 (expect 8320400)
+  Datara LLVM no-PGO           median     2.87 ms  min    2.74  max    3.06  bin  103.0 KB  x 1.00  out=
+  Datara LLVM PGO              median     2.86 ms  min    2.76  max    3.27  bin  103.0 KB  x 1.00  out=
+  C gcc -O2                    median    11.33 ms  min   11.10  max   13.21  bin   86.4 KB  x 3.96  out=8320400
+  Rust rustc -O                median     5.19 ms  min    4.69  max    6.03  bin  128.0 KB  x 1.82  out=8320400
+
+100M iterations, acc += i & 255 (expect 12750000000)
+  Datara LLVM no-PGO           median     4.70 ms  min    4.41  max    5.08  bin  162.0 KB  x 1.00  out=
+  Datara LLVM PGO              median     4.84 ms  min    4.57  max    5.16  bin  162.0 KB  x 1.03  out=
+  C gcc -O3                    median     8.52 ms  min    8.05  max   10.17  bin   85.3 KB  x 1.81  out=12750000000
+  Rust rustc -O                median    12.60 ms  min   11.96  max   16.14  bin  128.0 KB  x 2.68  out=12750000000

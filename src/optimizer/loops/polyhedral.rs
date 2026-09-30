@@ -46,11 +46,7 @@ impl PolyhedralEngine {
         _cost_model: &CostModel,
         trace: &mut OptimizationDecisionTrace,
     ) -> usize {
-        let already_recorded = trace
-            .records
-            .iter()
-            .any(|r| r.pass == "PolyhedralFMA" && r.candidate.starts_with(&f.name));
-        if already_recorded {
+        if trace.fn_pass_marked("PolyhedralFMA", &f.name) {
             return 0;
         }
 
@@ -110,6 +106,7 @@ impl PolyhedralEngine {
                                 args: vec![a, b, *right],
                                 ty: ty.clone(),
                             });
+                            trace.mark_fn_pass("PolyhedralFMA", &f.name);
                             trace.record(
                                 "PolyhedralFMA",
                                 &format!("{}:fma_v{}", f.name, dest.0),
@@ -131,6 +128,7 @@ impl PolyhedralEngine {
                                 args: vec![a, b, *left],
                                 ty: ty.clone(),
                             });
+                            trace.mark_fn_pass("PolyhedralFMA", &f.name);
                             trace.record(
                                 "PolyhedralFMA",
                                 &format!("{}:fma_v{}", f.name, dest.0),
@@ -166,11 +164,7 @@ impl PolyhedralEngine {
         _cost_model: &CostModel,
         trace: &mut OptimizationDecisionTrace,
     ) -> usize {
-        let already_recorded = trace
-            .records
-            .iter()
-            .any(|r| r.pass == "PolyhedralLoopFusion" && r.candidate.starts_with(&f.name));
-        if already_recorded {
+        if trace.fn_pass_marked("PolyhedralLoopFusion", &f.name) {
             return 0;
         }
 
@@ -188,6 +182,7 @@ impl PolyhedralEngine {
             // Verify both loops have comparable loop structures
             if let (Some(b1), Some(b2)) = (f.get_block(lp1.header), f.get_block(lp2.header)) {
                 if b1.instructions.len() >= 1 && b2.instructions.len() >= 1 {
+                    trace.mark_fn_pass("PolyhedralLoopFusion", &f.name);
                     trace.record(
                         "PolyhedralLoopFusion",
                         &format!("{}:bb{}_bb{}_fusion", f.name, lp1.header.0, lp2.header.0),
@@ -217,11 +212,7 @@ impl PolyhedralEngine {
         _cost_model: &CostModel,
         trace: &mut OptimizationDecisionTrace,
     ) -> usize {
-        let already_recorded = trace
-            .records
-            .iter()
-            .any(|r| r.pass == "PolyhedralWavefrontSkewing" && r.candidate.starts_with(&f.name));
-        if already_recorded {
+        if trace.fn_pass_marked("PolyhedralWavefrontSkewing", &f.name) {
             return 0;
         }
 
@@ -239,6 +230,7 @@ impl PolyhedralEngine {
 
         if is_stencil_fn {
             let header = cfg.loops[0].header;
+            trace.mark_fn_pass("PolyhedralWavefrontSkewing", &f.name);
             trace.record(
                 "PolyhedralWavefrontSkewing",
                 &format!("{}:bb{}_stencil_skew", f.name, header.0),
@@ -264,11 +256,7 @@ impl PolyhedralEngine {
         _cost_model: &CostModel,
         trace: &mut OptimizationDecisionTrace,
     ) -> usize {
-        let already_recorded = trace
-            .records
-            .iter()
-            .any(|r| r.pass == "PolyhedralVectorize" && r.candidate.starts_with(&f.name));
-        if already_recorded {
+        if trace.fn_pass_marked("PolyhedralVectorize", &f.name) {
             return 0;
         }
 
@@ -279,6 +267,7 @@ impl PolyhedralEngine {
 
         let mut count = 0;
         for lp in &cfg.loops {
+            trace.mark_fn_pass("PolyhedralVectorize", &f.name);
             trace.record(
                 "PolyhedralVectorize",
                 &format!("{}:bb{}_affine_vec", f.name, lp.header.0),

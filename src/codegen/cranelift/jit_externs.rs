@@ -229,6 +229,7 @@ unsafe extern "C" {
     pub fn datara_rt_file_write(path: *const c_char, content: *const c_char) -> i64;
     pub fn datara_rt_file_append(path: *const c_char, content: *const c_char) -> i64;
     pub fn datara_rt_file_exists(path: *const c_char) -> i64;
+    pub fn datara_rt_sys_caps_create() -> *mut i64;
     pub fn datara_rt_file_read_checked(path: *const c_char) -> *mut i64;
     pub fn datara_rt_str_to_int_checked(s: *const c_char) -> *mut i64;
     pub fn datara_rt_str_cp_to_byte(s: *const c_char, cp: i64) -> i64;
@@ -386,6 +387,13 @@ unsafe extern "C" {
     pub fn datara_rt_list_free(list: *mut ());
     pub fn datara_rt_own_acquire(val: i64) -> i64;
     pub fn datara_rt_own_release(val: i64);
+    pub fn datara_rt_arc_init(obj: *mut ()) -> i64;
+    pub fn datara_rt_arc_acquire(obj: *mut ()) -> i64;
+    pub fn datara_rt_arc_release(obj: *mut ());
+    pub fn datara_rt_arc_count(obj: *mut ()) -> i64;
+    pub fn datara_rt_weak_create(obj: *mut ()) -> *mut ();
+    pub fn datara_rt_weak_upgrade(cell: *mut ()) -> *mut ();
+    pub fn datara_rt_weak_drop(cell: *mut ());
 
     pub fn datara_rt_pool_alloc(sz: usize) -> *mut ();
     pub fn datara_rt_pool_free(ptr: *mut (), sz: usize);

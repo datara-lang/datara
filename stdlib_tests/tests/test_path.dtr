@@ -1,0 +1,36 @@
+use stdlib.io.path
+
+@test
+fn path_basename_components() {
+    assert(path_basename("/usr/local/bin/gcc") == "gcc", "unix basename")
+    assert(path_basename("readme.md") == "readme.md", "bare name is its own basename")
+    assert(path_basename("dir/sub/") == "sub", "trailing separator ignored")
+    assert(path_basename("dir\\win\\file.txt") == "file.txt", "windows separator accepted")
+}
+
+@test
+fn path_parent_components() {
+    assert(path_parent("/usr/local/bin/gcc") == "/usr/local/bin", "unix parent")
+    assert(path_parent("file.txt") == ".", "bare name parent is dot")
+    assert(path_parent("/root") == "/", "root parent is the root")
+}
+
+@test
+fn path_extension_and_stem() {
+    assert(path_extension("archive.tar.gz") == "gz", "last extension wins")
+    assert(path_extension("Makefile") == "", "no extension -> empty")
+    assert(path_extension(".gitignore") == "", "dotfile has no extension")
+    assert(path_stem("archive.tar.gz") == "archive.tar", "stem keeps inner dots")
+    assert(path_stem("main.dtr") == "main", "plain stem")
+}
+
+@test
+fn path_is_absolute_and_join() {
+    assert(path_is_absolute("/tmp/x"), "leading slash is absolute")
+    assert(path_is_absolute("C:/Temp"), "windows drive is absolute")
+    assert(!path_is_absolute("rel/path"), "relative path stays relative")
+    assert(path_join("a", "b") == "a/b", "join inserts separator")
+    assert(path_join("a/", "b") == "a/b", "join avoids double separator")
+    assert(path_join("", "b") == "b", "join with empty left")
+    assert(path_join("a", "/abs") == "/abs", "absolute right wins")
+}

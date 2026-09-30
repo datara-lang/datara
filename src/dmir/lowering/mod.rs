@@ -3,6 +3,8 @@ use crate::resolver::Resolver;
 use crate::types::{DataraType, TypeChecker};
 use std::collections::{HashMap, HashSet};
 
+use crate::driver::symbols::SymbolTable;
+
 use crate::dmir::ir::*;
 
 pub mod asm;
@@ -57,6 +59,10 @@ pub struct Lowering<'a> {
     /// v1.4.5 W1: classes annotated `@packed` (lowering-side mirror of
     /// `Module.packed_classes`, populated before function bodies are lowered).
     pub packed_classes_lower: HashSet<String>,
+    /// M5 TMM: classes annotated `@arc`, collected in the same pre-pass as
+    /// packed classes so `StructInit` lowering and the codegen allocation
+    /// path can attach the 16-byte refcount header.
+    pub arc_classes_lower: HashSet<String>,
     /// By-value capture snapshots for named lambdas: at `let f = <lambda>`
     /// the current SSA value of every free variable is recorded, and at each
     /// inline call the body sees (and mutates) that snapshot, never the
@@ -72,6 +78,11 @@ pub struct Lowering<'a> {
     pub program_globals: Vec<GlobalDecl>,
     pub comptime_functions: HashMap<String, FunctionDecl>,
     pub comptime_evaluator: crate::comptime::ComptimeEvaluator,
+    /// M4 link-phase symbol table: every function/method/specialization/
+    /// extern/global definition site recorded with its source span, for the
+    /// E-LINK-001 duplicate check (`check_module_link`). Mirrors the
+    /// `module.functions`/`extern_functions`/`globals` inserts.
+    pub symbol_table: SymbolTable,
 }
 
 impl<'a> Lowering<'a> {
@@ -110,6 +121,9 @@ impl<'a> Lowering<'a> {
         function_return_types.insert("datara_rt_file_append".into(), "Int".into());
         function_return_types.insert("file_exists".into(), "Bool".into());
         function_return_types.insert("datara_rt_file_exists".into(), "Bool".into());
+        // Capability token factory: `SystemCapabilities {}` lowers to this
+        // zero-arg runtime call; the result is the opaque token pointer.
+        function_return_types.insert("datara_rt_sys_caps_create".into(), "SystemCapabilities".into());
         // Checked I/O builtins return Outcome<Str> objects (stdlib Outcome<T>
         // layout). The codegen call classifier special-cases the
         // "Outcome<...>" prefix so the object pointer is tagged as a class
@@ -478,8 +492,28 @@ impl<'a> Lowering<'a> {
             "ptr_read_u8",
             "datara_rt_ptr_read_u8",
             "datara_rt_global_get",
+            "arc_count",
+            "datara_rt_arc_count",
         ] {
             function_return_types.insert((*f).into(), "Int".into());
+        }
+        for f in &[
+            "arc_init",
+            "datara_rt_arc_init",
+            "arc_acquire",
+            "datara_rt_arc_acquire",
+            "weak_create",
+            "datara_rt_weak_create",
+        ] {
+            function_return_types.insert((*f).into(), "RawPtr".into());
+        }
+        for f in &[
+            "arc_release",
+            "datara_rt_arc_release",
+            "weak_drop",
+            "datara_rt_weak_drop",
+        ] {
+            function_return_types.insert((*f).into(), "Unit".into());
         }
         for f in &["ptr_read_f64", "datara_rt_ptr_read_f64"] {
             function_return_types.insert((*f).into(), "Float".into());
@@ -531,12 +565,14 @@ impl<'a> Lowering<'a> {
             inlineable_fns: HashMap::with_capacity(16),
             class_decl_fields: HashMap::with_capacity(16),
             packed_classes_lower: HashSet::with_capacity(8),
+            arc_classes_lower: HashSet::with_capacity(8),
             lambda_captures: HashMap::with_capacity(16),
             loop_stack: Vec::new(),
             global_vars: HashMap::with_capacity(32),
             program_globals: Vec::new(),
             comptime_functions: HashMap::with_capacity(16),
             comptime_evaluator: crate::comptime::ComptimeEvaluator::new(),
+            symbol_table: SymbolTable::new(),
         }
     }
 
@@ -695,6 +731,11 @@ impl<'a> Lowering<'a> {
                 if c.attributes.iter().any(|a| a.name == "packed") {
                     self.packed_classes_lower.insert(c.name.clone());
                 }
+                // M5 TMM Layer 2: `@arc` marks shared ownership; the header
+                // and init live in the allocation path (compile_func.rs).
+                if c.attributes.iter().any(|a| a.name == "arc") {
+                    self.arc_classes_lower.insert(c.name.clone());
+                }
                 let fields = c
                     .body_items
                     .iter()
@@ -726,6 +767,8 @@ impl<'a> Lowering<'a> {
                 self.global_vars
                     .insert(g.name.clone(), (ty_str.clone(), g.is_mut));
                 self.program_globals.push(g.clone());
+                self.symbol_table
+                    .define(&g.name, "global", Some(g.span.clone()));
                 module.globals.insert(g.name.clone(), (ty_str, g.is_mut));
             }
         }
@@ -876,6 +919,8 @@ impl<'a> Lowering<'a> {
                             .unwrap_or_else(|| "Int".into())
                     })
                     .collect();
+                self.symbol_table
+                    .define(&ef.name, "extern", Some(ef.span.clone()));
                 module
                     .extern_functions
                     .insert(ef.name.clone(), (params, ret.clone()));
@@ -1083,6 +1128,8 @@ impl<'a> Lowering<'a> {
                             })
                         });
                     if !is_lambda_dispatch_only {
+                        self.symbol_table
+                            .define(&f.name, "function", Some(f.span.clone()));
                         module.functions.insert(f.name.clone(), lowered_fn);
                         module.function_spans.insert(f.name.clone(), f.span.clone());
                         module
@@ -1093,6 +1140,11 @@ impl<'a> Lowering<'a> {
                 Decl::Class(c) => {
                     if c.attributes.iter().any(|a| a.name == "packed") {
                         module.packed_classes.insert(c.name.clone());
+                    }
+                    // M5 TMM Layer 2: carry the @arc set into the module so
+                    // both Cranelift and LLVM backends see it.
+                    if c.attributes.iter().any(|a| a.name == "arc") {
+                        module.arc_classes.insert(c.name.clone());
                     }
                     if let Some(a) = c.attributes.iter().find(|a| a.name == "endian") {
                         let order = a.args.first().map(|(arg, _)| arg.as_str()).unwrap_or("big");
@@ -1153,6 +1205,8 @@ impl<'a> Lowering<'a> {
                             .map(Self::repr_type_string)
                             .unwrap_or_else(|| "Unit".into());
                         self.function_return_types.insert(mangled_name.clone(), ret);
+                        self.symbol_table
+                            .define(&mangled_name, "specialization", Some(f.span.clone()));
                         let lowered_spec = self.lower_function(&specialized_f);
                         module.functions.insert(mangled_name.clone(), lowered_spec);
                         module

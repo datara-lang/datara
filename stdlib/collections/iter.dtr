@@ -81,17 +81,40 @@ fn iter_from<T>(list: List<T>) -> Iterator<T> {
 
 fn iter_zip<T>(a: List<T>, b: List<T>) -> List<List<T>> {
     mut result = []
-    let len_a = a.len()
-    let len_b = b.len()
+    val len_a = a.len()
+    val len_b = b.len()
     mut n = len_a
     if len_b < n {
         n = len_b
     }
     mut i = 0
     while i < n {
-        let pair = [a.get(i), b.get(i)]
+        val pair = [a.get(i), b.get(i)]
         result = result.push(pair)
         i = i + 1
     }
     return result
+}
+
+//! iter_fold<T, A, F>(items, init, f) -> A
+//! Left fold: `f(acc, elem)` is applied in order, starting from `init`.
+//! The accumulator type A is inferred from `init`; F is the callback type
+//! and is only used for static dispatch (the result type of `f(acc, elem)`
+//! must match A).
+//!
+//! NOTE: cross-type `iter_map`/`iter_filter` free functions are NOT provided:
+//! a bare generic callback parameter `f: U` with `-> List<U>` makes the
+//! checker unify U with the lambda's own function type, so every call site
+//! fails with "expected List, got List". Use the builtin List.map/filter
+//! methods (same-type transforms) or an explicit loop until generic callback
+//! return-type inference lands (see PLAN_V150 §5).
+fn iter_fold<T, A, F>(items: List<T>, init: A, f: F) -> A {
+    mut acc = init
+    mut i = 0
+    val n = items.len()
+    while i < n {
+        acc = f(acc, items.get(i))
+        i = i + 1
+    }
+    return acc
 }

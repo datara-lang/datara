@@ -1,0 +1,85 @@
+//! stdlib.collections.sort — sorting and searching over List<T>.
+//!
+//! The builtin List.sort() is an in-place mutator (returns the receiver).
+//! This module layers non-destructive and searching operations on top:
+//!
+//!   sort_stable<T>(items) -> List<T>      -- top-down merge sort; returns a
+//!                                            NEW list, the input is untouched;
+//!                                            equal elements keep their order.
+//!   sort_unstable<T>(items) -> List<T>    -- fresh copy sorted by the builtin
+//!                                            in-place quicksort (faster, but
+//!                                            not order-stable).
+//!   is_sorted<T>(items) -> Bool           -- ascending check (a[i] <= a[i+1]).
+//!   binary_search<T>(items, t) -> Int     -- index of `t` in an ASCENDING
+//!                                            list, or -1 when absent. Half-
+//!                                            open [lo, hi) scan, O(log n).
+
+fn merge_sorted<T>(left: List<T>, right: List<T>) -> List<T> {
+    val merged = []
+    mut i = 0
+    mut j = 0
+    while i < left.len() && j < right.len() {
+        if left.get(i) <= right.get(j) {
+            merged.push(left.get(i))
+            i = i + 1
+        } else {
+            merged.push(right.get(j))
+            j = j + 1
+        }
+    }
+    while i < left.len() {
+        merged.push(left.get(i))
+        i = i + 1
+    }
+    while j < right.len() {
+        merged.push(right.get(j))
+        j = j + 1
+    }
+    return merged
+}
+
+fn sort_stable<T>(items: List<T>) -> List<T> {
+    val n = items.len()
+    if n <= 1 {
+        return items
+    }
+    val mid = n / 2
+    val left_half = sort_stable(items.slice(0, mid))
+    val right_half = sort_stable(items.slice(mid, n))
+    return merge_sorted(left_half, right_half)
+}
+
+fn sort_unstable<T>(items: List<T>) -> List<T> {
+    val copy = items.slice(0, items.len())
+    return copy.sort()
+}
+
+fn is_sorted<T>(items: List<T>) -> Bool {
+    val n = items.len()
+    mut i = 0
+    while i + 1 < n {
+        if items.get(i + 1) < items.get(i) {
+            return false
+        }
+        i = i + 1
+    }
+    return true
+}
+
+fn binary_search<T>(items: List<T>, target: T) -> Int {
+    mut lo = 0
+    mut hi = items.len()
+    while lo < hi {
+        val mid = lo + (hi - lo) / 2
+        val probe = items.get(mid)
+        if probe == target {
+            return mid
+        }
+        if probe < target {
+            lo = mid + 1
+        } else {
+            hi = mid
+        }
+    }
+    return -1
+}

@@ -1028,6 +1028,7 @@ impl<'a> LlvmEmitter<'a> {
             for inst in &block.instructions {
                 self.emit_instruction(
                     inst,
+                    &f.proven_no_overflow,
                     module,
                     strings,
                     &mut value_types,

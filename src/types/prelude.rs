@@ -985,6 +985,47 @@ impl<'a> TypeChecker<'a> {
                 ),
             );
         }
+        // M5 TMM Layer 2: ARC primitives. Pointers flow as RawPtr; the
+        // @arc-annotated class objects are pointer-sized handles.
+        for f in &["arc_init", "datara_rt_arc_init", "arc_acquire", "datara_rt_arc_acquire"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr], DataraType::RawPtr, Vec::new()),
+            );
+        }
+        for f in &["arc_release", "datara_rt_arc_release", "weak_drop", "datara_rt_weak_drop"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr], DataraType::Unit, Vec::new()),
+            );
+        }
+        for f in &["arc_count", "datara_rt_arc_count"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr], DataraType::Int, Vec::new()),
+            );
+        }
+        for f in &["weak_create", "datara_rt_weak_create"] {
+            function_signatures.insert(
+                f.to_string(),
+                (vec![DataraType::RawPtr], DataraType::RawPtr, Vec::new()),
+            );
+        }
+        // weak_upgrade returns Outcome<T>: the checker models it as a
+        // generic Outcome payload; callers use `?`/`or` as with map.pop().
+        for f in &["weak_upgrade", "datara_rt_weak_upgrade"] {
+            function_signatures.insert(
+                f.to_string(),
+                (
+                    vec![DataraType::RawPtr],
+                    DataraType::GenericInstance {
+                        name: "Outcome".into(),
+                        args: vec![DataraType::RawPtr],
+                    },
+                    Vec::new(),
+                ),
+            );
+        }
         for f in &[
             "ptr_read_i64",
             "datara_rt_ptr_read_i64",

@@ -51,6 +51,7 @@ pub(crate) fn cmd_check(args: &[String]) -> bool {
 
     let compiler = ForgenCompiler::new("check");
     let start = Instant::now();
+    let check_start = start;
 
     let res = if layout.source_files.len() == 1 {
         compiler.check_file(&layout.source_files[0])
@@ -58,6 +59,9 @@ pub(crate) fn cmd_check(args: &[String]) -> bool {
         compiler.check_files(&layout.source_files)
     };
 
+    if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
+        eprintln!("[phases2] check_files returned at {}ms", check_start.elapsed().as_millis());
+    }
     let elapsed = start.elapsed().as_millis();
 
     if res.success {
@@ -82,10 +86,15 @@ pub(crate) fn cmd_check(args: &[String]) -> bool {
             // reported as unused. Per-file linting cannot see cross-module
             // references. On parse failure the compiler check above has
             // already reported it, so the lint is silently skipped.
-            if let Ok(diags) = crate::lint::lint_files_with_profile(
+            let lint_start = std::time::Instant::now();
+            let lint_res = crate::lint::lint_files_with_profile(
                 &layout.source_files,
                 crate::lint::LintProfile::Standard,
-            ) {
+            );
+            if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
+                eprintln!("[phases2] merged lint done at {}ms", lint_start.elapsed().as_millis());
+            }
+            if let Ok(diags) = lint_res {
                 for d in &diags {
                     if d.code.starts_with("dead_code::") {
                         eprintln!(
@@ -658,11 +667,19 @@ pub(crate) fn cmd_build(command: &str, args: &[String]) -> bool {
             .iter()
             .any(|a| a == "--profile-generate" || a.starts_with("--profile-generate="));
     let profile_generate = if is_profile_generate {
+        // A trailing path is only consumed when it looks like a profile file
+        // (.profdata / .json). Bare `--pgo-train file.dtr` must NOT swallow the
+        // source argument — it used to, overwriting the source with profile
+        // data (found 2026-09-28: `--pgo-train branchy.dtr` clobbered the
+        // benchmark source with JSON).
+        let looks_like_profile = |p: &str| {
+            p.ends_with(".profdata") || p.ends_with(".json")
+        };
         let prof_gen_path = args
             .iter()
             .position(|a| a == "--profile-generate" || a == "--pgo-train")
             .and_then(|i| args.get(i + 1))
-            .filter(|a| !a.starts_with("-"))
+            .filter(|a| !a.starts_with("-") && looks_like_profile(a))
             .map(PathBuf::from)
             .or_else(|| {
                 args.iter()
@@ -674,9 +691,11 @@ pub(crate) fn cmd_build(command: &str, args: &[String]) -> bool {
                     .find(|a| a.starts_with("--pgo-train="))
                     .map(|a| PathBuf::from(a.strip_prefix("--pgo-train=").unwrap()))
             });
+        // Defense in depth: never let the runtime flush profile data onto a
+        // Datara source file, even when the user names one explicitly.
         let prof_dir = layout.root.join(".forgen_profile");
         let _ = fs::create_dir_all(&prof_dir);
-        Some(prof_gen_path.unwrap_or_else(|| {
+        Some(prof_gen_path.filter(|p| !p.to_string_lossy().ends_with(".dtr")).unwrap_or_else(|| {
             if is_pgo_train {
                 layout.root.join("app.profdata")
             } else {

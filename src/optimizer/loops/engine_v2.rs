@@ -73,11 +73,7 @@ impl LoopEngineV2 {
         _cost_model: &CostModel,
         trace: &mut OptimizationDecisionTrace,
     ) -> usize {
-        let already_interchanged = trace
-            .records
-            .iter()
-            .any(|r| r.pass == "LoopInterchange" && r.candidate.starts_with(&f.name));
-        if already_interchanged {
+        if trace.fn_pass_marked("LoopInterchange", &f.name) {
             return 0;
         }
 
@@ -166,6 +162,7 @@ impl LoopEngineV2 {
             if Self::apply_loop_interchange(
                 f, pre_j, head_j, pre_k, head_k, body_k, exit_k, &var_j, &var_k,
             ) {
+                trace.mark_fn_pass("LoopInterchange", &f.name);
                 trace.record(
                     "LoopInterchange",
                     &format!("{}:loops_{}_and_{}", f.name, var_j, var_k),
@@ -428,11 +425,7 @@ impl LoopEngineV2 {
         _cost_model: &CostModel,
         trace: &mut OptimizationDecisionTrace,
     ) -> usize {
-        let already_tiled = trace
-            .records
-            .iter()
-            .any(|r| r.pass == "LoopTiling" && r.candidate.starts_with(&f.name));
-        if already_tiled {
+        if trace.fn_pass_marked("LoopTiling", &f.name) {
             return 0;
         }
 
@@ -446,6 +439,7 @@ impl LoopEngineV2 {
             if let Some(blk) = f.get_block(lp.header) {
                 if let Terminator::CondBranch { cond: _, .. } = &blk.terminator {
                     if blk.instructions.len() >= 1 && lp.blocks.len() >= 2 {
+                        trace.mark_fn_pass("LoopTiling", &f.name);
                         trace.record(
                             "LoopTiling",
                             &format!("{}:bb{}_tile_b32", f.name, lp.header.0),
@@ -534,11 +528,7 @@ impl LoopEngineV2 {
         _cost_model: &CostModel,
         trace: &mut OptimizationDecisionTrace,
     ) -> usize {
-        let already_unrolled = trace
-            .records
-            .iter()
-            .any(|r| r.pass == "LoopUnroll" && r.candidate.starts_with(&f.name));
-        if already_unrolled {
+        if trace.fn_pass_marked("LoopUnroll", &f.name) {
             return 0;
         }
 
@@ -777,6 +767,7 @@ impl LoopEngineV2 {
                     }
                 }
 
+                trace.mark_fn_pass("LoopUnroll", &f.name);
                 trace.record(
                     "LoopUnroll",
                     &format!("{}:bb{}_unroll_x{}", f.name, header_id.0, unroll_factor),
@@ -1072,11 +1063,7 @@ impl LoopEngineV2 {
         _cost_model: &CostModel,
         trace: &mut OptimizationDecisionTrace,
     ) -> usize {
-        let already_recorded = trace
-            .records
-            .iter()
-            .any(|r| r.pass == "SoftwarePipelining" && r.candidate.starts_with(&f.name));
-        if already_recorded {
+        if trace.fn_pass_marked("SoftwarePipelining", &f.name) {
             return 0;
         }
 
@@ -1103,6 +1090,7 @@ impl LoopEngineV2 {
             }
 
             if has_list_access {
+                trace.mark_fn_pass("SoftwarePipelining", &f.name);
                 trace.record(
                     "SoftwarePipelining",
                     &format!("{}:bb{}", f.name, lp.header.0),
@@ -1126,11 +1114,7 @@ impl LoopEngineV2 {
         cost_model: &CostModel,
         trace: &mut OptimizationDecisionTrace,
     ) -> usize {
-        let already_recorded = trace
-            .records
-            .iter()
-            .any(|r| r.pass == "SIMDVectorize" && r.candidate.starts_with(&f.name));
-        if already_recorded {
+        if trace.fn_pass_marked("SIMDVectorize", &f.name) {
             return 0;
         }
 
@@ -1171,6 +1155,7 @@ impl LoopEngineV2 {
             }
 
             if arith_ops >= 4 && is_pure {
+                trace.mark_fn_pass("SIMDVectorize", &f.name);
                 trace.record(
                     "SIMDVectorize",
                     &format!("{}:bb{}", f.name, lp.header.0),

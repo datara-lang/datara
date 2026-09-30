@@ -192,13 +192,16 @@ fn test_bce_array_sum_microbenchmark_safe_datara_vs_unsafe_c() {
         std::hint::black_box(sum);
     }
 
-    // 15 timed runs of unsafe C-style raw pointer loop (no bounds checks).
-    // NB: min (not median) is the statistically stable estimator for
-    // microbenchmarks on Windows - timer resolution and CPU frequency
-    // scaling only ever add noise, so the minimum is the closest to the
-    // true cost and keeps the 1.05x parity gate deterministic.
-    let mut c_times = Vec::new();
+    // 15 timed runs per side, INTERLEAVED round-robin. NB: min (not median)
+    // is the statistically stable estimator for microbenchmarks on Windows.
+    // Interleaving is required: sequential measurement blocks are order-biased
+    // under cold start (CPU frequency ramp / branch-predictor state), which
+    // made the later block (Datara) systematically slower and the 1.05x gate
+    // flaky. Round-robin gives both sides the same thermal/frequency slots.
+    let mut c_times: Vec<u128> = Vec::new();
+    let mut datara_times: Vec<u128> = Vec::new();
     for _ in 0..15 {
+        // Unsafe C-style raw pointer loop (no bounds checks).
         let start = Instant::now();
         let ptr = data.as_ptr();
         let mut sum: i64 = 0;
@@ -210,13 +213,9 @@ fn test_bce_array_sum_microbenchmark_safe_datara_vs_unsafe_c() {
         let elapsed = start.elapsed().as_nanos();
         std::hint::black_box(sum);
         c_times.push(elapsed);
-    }
-    let min_c = *c_times.iter().min().unwrap();
 
-    // 7 timed runs of safe Datara-style loop where BCE proved 0 <= i < len
-    // (exact same unchecked memory access pattern as compiled by Datara BCE)
-    let mut datara_times = Vec::new();
-    for _ in 0..15 {
+        // Safe Datara-style loop where BCE proved 0 <= i < len
+        // (exact same unchecked memory access pattern as compiled by Datara BCE)
         let start = Instant::now();
         let ptr = data.as_ptr();
         let len = data.len();
@@ -233,7 +232,7 @@ fn test_bce_array_sum_microbenchmark_safe_datara_vs_unsafe_c() {
         std::hint::black_box(sum);
         datara_times.push(elapsed);
     }
-    datara_times.sort();
+    let min_c = *c_times.iter().min().unwrap();
     let min_datara = *datara_times.iter().min().unwrap();
 
     let ratio = min_datara as f64 / min_c.max(1) as f64;

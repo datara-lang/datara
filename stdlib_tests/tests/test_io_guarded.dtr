@@ -1,0 +1,27 @@
+use stdlib.io.fs
+
+@test
+fn guarded_write_read_roundtrip() {
+    val path = "/tmp/datara_stdlib_test_guarded.txt"
+    val w = write_file_secured(path, "round trip payload", SystemCapabilities {})
+    assert(w == 1, "write reports success")
+    val r = read_file_secured(path, SystemCapabilities {})
+    assert(r == "round trip payload", "read returns exactly what was written")
+}
+
+@test
+fn guarded_append_extends_content() {
+    val path = "/tmp/datara_stdlib_test_append.txt"
+    assert(write_file_secured(path, "head", SystemCapabilities {}) == 1, "seed write")
+    assert(append_file_secured(path, "-tail", SystemCapabilities {}) == 1, "append")
+    val r = read_file_secured(path, SystemCapabilities {})
+    assert(r == "head-tail", "append extends without truncation")
+}
+
+@test
+fn guarded_exists_distinguishes_presence() {
+    val path = "/tmp/datara_stdlib_test_exists.txt"
+    assert(write_file_secured(path, "x", SystemCapabilities {}) == 1, "create file")
+    assert(exists_file_secured(path, SystemCapabilities {}), "existing file detected")
+    assert(!exists_file_secured("/tmp/datara_no_such_zz.file", SystemCapabilities {}), "missing file rejected")
+}

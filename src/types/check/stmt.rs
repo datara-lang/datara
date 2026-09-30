@@ -68,6 +68,11 @@ impl<'a> TypeChecker<'a> {
                 }
                 false
             }
+            // Result-like payloads print through their two-state convention
+            // (ok -> value, err -> message); `out map.get(..).is_ok()` and
+            // `out Weak<T>.upgrade().is_ok()` are the common liveness probes.
+            DataraType::Result(ok, _) => self.is_printable_type(ok),
+            DataraType::Option(val) => self.is_printable_type(val),
             _ => false,
         }
     }

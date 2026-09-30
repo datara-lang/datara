@@ -194,6 +194,8 @@ impl RealCraneliftBackend {
             rt_strbuf_join_id,
             rt_strbuf_len_id,
         } = strbuf_ids;
+        let arc_ids =
+            declare_memory::declare_runtime_arc(module, call_conv, &mut func_ids)?;
 
         let runtime = RuntimeIds {
             rt_out_int_id: core_ids.rt_out_int_id,
@@ -252,6 +254,13 @@ impl RealCraneliftBackend {
             rt_strbuf_push_int_id,
             rt_strbuf_join_id,
             rt_strbuf_len_id,
+            rt_arc_init_id: arc_ids.rt_arc_init_id,
+            rt_arc_acquire_id: arc_ids.rt_arc_acquire_id,
+            rt_arc_release_id: arc_ids.rt_arc_release_id,
+            rt_arc_count_id: arc_ids.rt_arc_count_id,
+            rt_weak_create_id: arc_ids.rt_weak_create_id,
+            rt_weak_upgrade_id: arc_ids.rt_weak_upgrade_id,
+            rt_weak_drop_id: arc_ids.rt_weak_drop_id,
         };
 
         let decls = declare_module::declare_module_symbols(

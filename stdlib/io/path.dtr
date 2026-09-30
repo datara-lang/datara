@@ -1,0 +1,139 @@
+//! stdlib.io.path — pure-Datara path utilities.
+//!
+//! Cross-platform helpers over the string primitives in stdlib.text.
+//! Both '/' and '\\' are accepted as separators on input; `path_join`
+//! always separates components with '/'.
+//!
+//!   path_basename(p) -> Str   -- component after the last separator
+//!                                (trailing separators are ignored).
+//!   path_parent(p) -> Str     -- everything before the last separator
+//!                                ("." when there is none, "/" for "/root").
+//!   path_extension(p) -> Str  -- extension of the final component, without
+//!                                the dot ("" when absent; dotfiles like
+//!                                ".gitignore" have no extension).
+//!   path_stem(p) -> Str       -- final component without its extension.
+//!   path_is_absolute(p) -> Bool -- leading '/', '\\', or drive "X:".
+//!   path_join(a, b) -> Str    -- concatenated path (b wins when absolute).
+
+use stdlib.text.string
+
+//! Last index of `sub` inside `s`, or -1. StringUtils.index_of returns the
+//! FIRST match only, so paths need a manual right-to-left scan.
+fn str_last_index_of(s: Str, sub: Str) -> Int {
+    val n = StringUtils.len(s)
+    val m = StringUtils.len(sub)
+    mut last = -1
+    mut i = 0
+    while i + m <= n {
+        if StringUtils.slice(s, i, m) == sub {
+            last = i
+        }
+        i = i + 1
+    }
+    return last
+}
+
+fn path_is_sep(ch: Str) -> Bool {
+    if ch == "/" {
+        return true
+    }
+    return ch == "\\"
+}
+
+fn path_trim_trailing_seps(p: Str) -> Str {
+    val n = StringUtils.len(p)
+    mut end = n
+    mut trimming = true
+    while trimming && end > 1 {
+        if path_is_sep(StringUtils.slice(p, end - 1, 1)) {
+            end = end - 1
+        } else {
+            trimming = false
+        }
+    }
+    return StringUtils.slice(p, 0, end)
+}
+
+fn path_last_sep_index(p: Str) -> Int {
+    val slash = str_last_index_of(p, "/")
+    val backslash = str_last_index_of(p, "\\")
+    mut best = slash
+    if backslash > best {
+        best = backslash
+    }
+    return best
+}
+
+fn path_basename(p: Str) -> Str {
+    val trimmed = path_trim_trailing_seps(p)
+    val sep = path_last_sep_index(trimmed)
+    if sep < 0 {
+        return trimmed
+    }
+    return StringUtils.slice(trimmed, sep + 1, StringUtils.len(trimmed) - sep - 1)
+}
+
+fn path_parent(p: Str) -> Str {
+    val trimmed = path_trim_trailing_seps(p)
+    val sep = path_last_sep_index(trimmed)
+    if sep < 0 {
+        return "."
+    }
+    if sep == 0 {
+        return StringUtils.slice(trimmed, 0, 1)
+    }
+    return StringUtils.slice(trimmed, 0, sep)
+}
+
+fn path_extension(p: Str) -> Str {
+    val name = path_basename(p)
+    val dot = str_last_index_of(name, ".")
+    if dot <= 0 {
+        return ""
+    }
+    return StringUtils.slice(name, dot + 1, StringUtils.len(name) - dot - 1)
+}
+
+fn path_stem(p: Str) -> Str {
+    val name = path_basename(p)
+    val dot = str_last_index_of(name, ".")
+    if dot <= 0 {
+        return name
+    }
+    return StringUtils.slice(name, 0, dot)
+}
+
+fn path_is_absolute(p: Str) -> Bool {
+    if StringUtils.len(p) == 0 {
+        return false
+    }
+    if path_is_sep(StringUtils.slice(p, 0, 1)) {
+        return true
+    }
+    // Windows drive letter: "C:" or "C:\..."
+    if StringUtils.len(p) >= 2 {
+        val second = StringUtils.slice(p, 1, 1)
+        if second == ":" {
+            return true
+        }
+    }
+    return false
+}
+
+fn path_join(a: Str, b: Str) -> Str {
+    if StringUtils.len(a) == 0 {
+        return b
+    }
+    if StringUtils.len(b) == 0 {
+        return a
+    }
+    if path_is_absolute(b) {
+        return b
+    }
+    // Avoid double separators when `a` already ends with one.
+    val last = StringUtils.slice(a, StringUtils.len(a) - 1, 1)
+    if path_is_sep(last) {
+        return a + b
+    }
+    return a + "/" + b
+}
