@@ -112,9 +112,48 @@ pub struct CapabilitiesConfig {
     pub env: Vec<String>,
     #[serde(default)]
     pub exec: Vec<String>,
+    /// Legacy shorthand `fs = [...]` (pre-1.5.0 manifests). Populated by
+    /// the parse-time table scan in `DataraManifest::parse` (serde drops
+    /// unknown fields), consumed and cleared by `normalize_legacy_keys`.
+    #[serde(default, skip_serializing)]
+    pub legacy_fs: Vec<String>,
 }
 
 impl CapabilitiesConfig {
+    /// Normalize the legacy shorthand `fs = ["read"|"write"|"*"]` into the
+    /// canonical fs-read/fs-write categories. The old key was silently
+    /// dropped by serde (unknown field), so a manifest that declared
+    /// `fs = ["read"]` failed every file_* capability check with E-CAP-001
+    /// while the author believed they had granted access. Patterns apply to
+    /// BOTH categories when written under `fs`; use the explicit keys to
+    /// grant read-only access.
+    pub fn normalize_legacy_keys(&mut self) {
+        let fs_patterns = self.legacy_fs.clone();
+        for pat in fs_patterns {
+            let read_only = matches!(pat.as_str(), "read" | "r");
+            let write_only = matches!(pat.as_str(), "write" | "w");
+            if read_only {
+                if !self.fs_read.contains(&pat) {
+                    self.fs_read.push(pat.clone());
+                }
+            } else if write_only {
+                if !self.fs_write.contains(&pat) {
+                    self.fs_write.push(pat.clone());
+                }
+            } else {
+                // "*", glob patterns and unknown tokens grant both
+                // categories (read+write), matching the historical intent.
+                if !self.fs_read.contains(&pat) {
+                    self.fs_read.push(pat.clone());
+                }
+                if !self.fs_write.contains(&pat) {
+                    self.fs_write.push(pat.clone());
+                }
+            }
+        }
+        self.legacy_fs.clear();
+    }
+
     pub fn has_category(&self, kind: CapabilityKind) -> bool {
         !self.patterns(kind).is_empty()
     }
@@ -357,6 +396,28 @@ impl DataraManifest {
         }
 
         if let Ok(value) = toml::from_str::<toml::Value>(content) {
+            // Legacy capabilities shorthand: `fs = ["read"]` (or a bare
+            // string). serde silently drops it as an unknown field, so it is
+            // recovered here and folded into fs-read/fs-write below.
+            if let Some(caps) = value.get("capabilities").and_then(|c| c.as_table()) {
+                if let Some(fs_val) = caps.get("fs") {
+                    if let Some(caps_cfg) = manifest.capabilities.as_mut() {
+                        match fs_val {
+                            toml::Value::Array(items) => {
+                                for item in items {
+                                    if let Some(s) = item.as_str() {
+                                        caps_cfg.legacy_fs.push(s.to_string());
+                                    }
+                                }
+                            }
+                            toml::Value::String(s) => {
+                                caps_cfg.legacy_fs.push(s.clone());
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
             if let Some(deps) = value.get("dependencies").and_then(|d| d.as_table()) {
                 if let Some(rust_val) = deps.get("rust") {
                     if let Ok(rust_group) = rust_val
@@ -375,6 +436,13 @@ impl DataraManifest {
                     manifest.explicit_rust_deps.extend(rust_group);
                 }
             }
+        }
+
+        // Fold the legacy `fs = [...]` shorthand (recovered above) into the
+        // canonical fs-read/fs-write categories before any consumer looks at
+        // the capability table.
+        if let Some(caps_cfg) = manifest.capabilities.as_mut() {
+            caps_cfg.normalize_legacy_keys();
         }
 
         Ok(manifest)
