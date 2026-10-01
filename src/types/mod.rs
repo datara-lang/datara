@@ -272,6 +272,27 @@ impl DataraType {
             return ok1.is_compatible_impl(ok2, resolver)
                 && err1.is_compatible_impl(err2, resolver);
         }
+        // The stdlib Outcome<T> class IS the runtime representation of the
+        // language Result(T, Str): `Outcome.err("init")` produces a
+        // GenericInstance while checked builtins (proc_run_input, parse_int,
+        // map.get) produce checker Results — assignment/annotation sites must
+        // unify the two spellings or every checked-API init pattern breaks.
+        if let (DataraType::Result(ok1, err1), DataraType::GenericInstance { name, args }) =
+            (self, other)
+            && name == "Outcome"
+            && !args.is_empty()
+        {
+            return ok1.is_compatible_impl(&args[0], resolver)
+                && err1.is_compatible_impl(&DataraType::String, resolver);
+        }
+        if let (DataraType::GenericInstance { name, args }, DataraType::Result(ok2, err2)) =
+            (self, other)
+            && name == "Outcome"
+            && !args.is_empty()
+        {
+            return args[0].is_compatible_impl(ok2, resolver)
+                && DataraType::String.is_compatible_impl(err2, resolver);
+        }
         if let (
             DataraType::GenericInstance { name: n1, args: a1 },
             DataraType::GenericInstance { name: n2, args: a2 },
@@ -691,6 +712,11 @@ pub struct TypeChecker<'a> {
     pub active_requires: Vec<Expr>,
     pub in_unsafe: bool,
     pub allowed_devices: HashSet<String>,
+    /// v1.5.0: type of the LHS while checking an assignment's RHS. Lets
+    /// `Outcome.err(..)` (and the Maybe analogue) adopt the payload of the
+    /// variable being assigned, so the checked-API init pattern
+    /// `mut r = Outcome.err("init"); ... r = proc_spawn(..)` typechecks.
+    pub current_assign_target: Option<DataraType>,
 }
 
 /// Maximum nesting depth for expression type-checking. Expressions nested

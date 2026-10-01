@@ -150,6 +150,15 @@ impl<'a> Lowering<'a> {
         );
         function_return_types.insert("env_get_checked".into(), "Outcome<Str>".into());
         function_return_types.insert("datara_rt_env_get_checked".into(), "Outcome<Str>".into());
+        // v1.5.0 (M1): process spawn / pipes / wait return Outcome objects.
+        // Without these entries the call classifier tags the object pointer
+        // as a raw Int and every `or`/is_ok site fails with E0944.
+        function_return_types.insert("proc_spawn".into(), "Outcome<Int>".into());
+        function_return_types.insert("datara_rt_proc_spawn".into(), "Outcome<Int>".into());
+        function_return_types.insert("proc_run_input".into(), "Outcome<Str>".into());
+        function_return_types.insert("datara_rt_proc_run_input".into(), "Outcome<Str>".into());
+        function_return_types.insert("proc_wait".into(), "Outcome<Int>".into());
+        function_return_types.insert("datara_rt_proc_wait".into(), "Outcome<Int>".into());
         function_return_types.insert("dir_list".into(), "List<Str>".into());
         function_return_types.insert("datara_rt_dir_list".into(), "List<Str>".into());
         function_return_types.insert("path_exists".into(), "Bool".into());

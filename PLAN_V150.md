@@ -87,7 +87,7 @@
 | Фаза | Тема | Источник | Статус |
 |---|---|---|---|
 | M0 | Гигиена: доделка S1/W5/T1 + монолит runtime → модули | FIXPLAN/PLAN_V145 | `[~]` частично |
-| M1 | Stdlib-фундамент (collections/strings/fs/process/diagnostics) | «Stdlib для данных», самохостинг | `[~]` (2026-09-30: collections sort/search/fold, io path+guard, sys env/args/exec, benchmark-смоук; остаток: Map/HashMap-каркас M4/M7, Process::spawn+pipes) |
+| M1 | Stdlib-фундамент (collections/strings/fs/process/diagnostics) | «Stdlib для данных», самохостинг | `[~]` (2026-10-01: collections sort/search/fold, io path+guard, sys env/args/exec, proc spawn/pipes/wait, benchmark-смоук; остаток: Map/HashMap-каркас M4/M7 (перенесено), for..in-дока, модули-на-Датарe-доказательство) |
 | M2 | Diagnostics Gold (explain+примеры+фиксы) | «DIAGNOSTICS GOLD» 1a–1e | `[ ]` |
 | M3 | LSP production + VS Code | «LSP PRODUCTION» 2a–2d | `[ ]` |
 | M4 | Large-Program Stability (стресс, инкрементальность, память) | «LARGE-PROGRAM STABILITY» | `[ ]` |
@@ -139,7 +139,7 @@
 
 Приёмка: DCE-тест runtime, as?/as! матрица (ok/err/or/?/strict/strict-ok/default-без изменений), предупреждение let.
 
-## M1. Stdlib-фундамент `[~]` (срезы sort/search/path/guarded-io добавлены 2026-09-30, см. чеклист ниже)
+## M1. Stdlib-фундамент `[~]` (срезы sort/search/path/guarded-io/sys добавлены 2026-09-30; proc spawn/pipes/wait добавлены 2026-10-01, см. чеклист ниже)
 
 > Аудит 2026-09-25: stdlib = 707 строк тонких обёрток над C-рантаймом
 > (статик-методы, `StringUtils.contains(s, sub)`). Срез №1 сделан:
@@ -192,7 +192,8 @@
 - [x] `stdlib.sys`: sys_args/sys_env/sys_env_get/sys_env_set/sys_exec сделаны 2026-09-30: stdlib/sys/sys.dtr (sys_args — argv[1..], без имени хоста; sys_env — env_get_checked → Outcome<Str>, or-дружелюбно; sys_env_get — unchecked, "" при отсутствии; sys_env_set — Bool; sys_exec — exec_utf8 + unsafe-justification, exec = escalated op требует манифест + justification). Зарегистрирован в ALL_EMBEDDED_MODULES (src/stdlib.rs). Инфраструктурные фиксы: (1) expr_uses_outcome в modules.rs дополнен sys_env/sys_exec → авто-загрузка stdlib.result для `sys_env(...) or X`; (2) datara_rt_env_set (datara_fs.c) теперь пишет И в CRT (_putenv_s), И в процесс-блок (SetEnvironmentVariableA) — иначе getenv не видит запись; (3) `use` внутри fn не резолвится харнессом тестов — импорт наверх файла.
   Команда-доказательство: `forgen test stdlib_tests` → 44/44 ok (5 новых @test в tests/test_sys.dtr); пробы /tmp/probe_sys.dtr (6/6), /tmp/probe_exec.dtr, /tmp/probe_args.dtr — exit 0 на обоих тирах (run + run --jit).
   Манифест: stdlib_tests/datara.toml [capabilities] дополнен env = ["*"] и exec = ["*"] (категории из CapabilityKind::name, см. manifest.rs).
-- [ ] `stdlib.sys` (остаток): Process::spawn + pipes (stdin/stdout стримы поверх exec_utf8 v1.4.1)
+- [x] `stdlib.sys` (остаток): Process::spawn + pipes → ЗАКРЫТО 2026-10-01: `proc_spawn(cmd) -> Outcome<Int>` (pid), `proc_run_input(cmd, input) -> Outcome<Str>` (stdin-канал + merged stdout/stderr), `proc_wait(pid) -> Outcome<Int>` (exit code). C-рантайм в src/runtime/datara_ui.c: Windows CreateProcessW (deadlock-safe: stdin пишется и закрывается ДО wait; stdout+stderr в один pipe) и POSIX fork/exec/waitpid + pipe; все три возвращают Outcome через datara_rt_outcome_build_raw (spawn-fail/unknown-pid → err). Кодоген-обвязка: Cranelift declare_core/jit/jit_externs, LLVM runtime_decls/emit_call, resolver-whitelist, prelude-сигнатуры, lowering function_return_types (Outcome<Int>/Outcome<Str>), modules.rs expr_uses_outcome (авто-загрузка stdlib.result для or/?), capabilities: все три — escalated-операции (нужны exec = ["*"] в манифесте И unsafe(justification:...) на месте вызова, иначе E0940 fail-closed). Обёртки в stdlib/sys/sys.dtr с unsafe-justification.
+  Команда-доказательство: `forgen test stdlib_tests` → 60/60 ok (6 новых @test в tests/test_proc.dtr: echo через stdin, merged streams, nonzero exit → err, spawn+wait code=7, wait(0) → err; портативно cmd /c vs sh -c через sys_env_get("OS")); `cargo test --release --test test_proc_spawn` → 9/9 (5 JIT, 1 AOT non-Windows, 3 гейта E0940); полный гейт 2026-10-01: cargo build --release 0 warnings; cargo test --release 1401/0 (301 сьют); clippy --release --all-targets 0 warnings; examples 29/29, showcase 13/13, смоук 09_error_propagation exit 0. Попутные инфраструктурные фиксы: Outcome.err adopt-payload в assign-позиции (current_assign_target в checker stmt.rs), унификация Result(T,Str) ↔ GenericInstance Outcome<T> в is_compatible_impl, lowering-фикс `x.unwrap() or Y` (or-site на самом Outcome-объекте, expr_composite.rs).
 - [x] stdlib.diagnostics → сделано 2026-09-25: Diagnostic {code,message,line,col,help,severity} + behavior (warning/error_at/is_error/render в формате компилятора); приёмочное демо M1 — ini-парсер целиком на stdlib (examples/showcase/ini_parser) с Map-записями и 3 видами диагностированных ошибок.
 - [x] Тесты на Datara → сделано 2026-09-25: self-hosted сьют stdlib_tests/ (21 @test через `forgen test`): text (split/trim/case/find/replace/UTF-8-срезы), checked parse (ok/err/overflow/?), Map (вставка/чтение/overwrite/contains), as?/as!/as, Outcome/Maybe конструкторы + or, Diagnostic shape/render. Заодно починен харнесс: `forgen test` не прогонял resolve_modules для синтетических программ → любые `use stdlib.*` в тестах падали с E-RESOLVE-001 (добавлен ForgenCompiler::compile_program_with_modules).
 - [ ] Часть модулей пишется НА ДАТАРЕ (файл-доказательство, что язык тянет реальный код; начать с text-утилит и collections-обёрток поверх C-рантайма)
@@ -248,6 +249,10 @@
 - [ ] Symbol namespace + interning: строковые имена → interned ID; mangling сгенерированных символов (специализации/мономорфизация); проверка дублей в link-фазе с E-LINK-диагностикой.
 - [x] Peak RSS стресс-200k: 1,042.9 MiB в Windows 11 x64 release-прогоне с backend verification; цель ≤2 GiB достигнута на измеренной машине, но другой платформой пока не подтверждена.
 - [~] Стресс-матрица с backend verification (Windows 11 x64, Ryzen 5 7600, seed 42, 20 функций/модуль, единый прогон 2026-09-26, harness tools/bench_stress.py с проверкой точного числа строк + backend verification): 10k — 0.737 с / 66.4 MB · 50k — 7.630 с / 276.4 MB · 100k — 25.325 с / 543.6 MB · 200k — 115.263 с / 1,062.8 MB (m4_stress_final_10k_50k/100k/200k.json). 200k цель ≤2 GiB достигнута. Это compile/check latency, НЕ runtime и НЕ межъязыковое сравнение; 50k/200k нелинейность (квадратичная компонента в resolve/typecheck) — следующий таргет M8 вместе с сопоставимой генерацией для rustc.
+
+### Handoff для следующей сессии — точка продолжения 2026-10-01
+
+**M1 почти закрыт (см. чекбокс proc выше):** proc_spawn/proc_run_input/proc_wait готовы и закоммичены. Остатки M1: (1) T1-дока `for..in` (дока + примеры); (2) файл-доказательство «часть модулей пишется на Datara» (text-утилиты/collections-обёртки уже на Datara — оформить как явное доказательство с гейтом). Далее по порядку: M2 остатки (аудит ErrorCode: каждому до 2 подсказок, автотест примеров, machine-applicable fixes 4/5), M3 остатки (grammar/сниппеты, LSP unit-тесты, демо-логи), M4/M5 остатки (замыкания→@arc, TMM-тесты: цикл A→B→A @weak, FFI owned/borrowed, AutoFree-порядок, @arc многопоточный), затем M6+. Гейт-паттерн: fmt новых файлов, clippy --release --all-targets 0 warnings, cargo test --release, forgen run examples/showcases, forgen test stdlib_tests; НЕ создавать datara.toml в /tmp и родителях temp-каталогов (find_manifest идёт вверх по дереву и отключает гейты capabilities).
 
 ### Handoff для следующей сессии — точка продолжения 2026-09-26 (обновлено после сессии)
 

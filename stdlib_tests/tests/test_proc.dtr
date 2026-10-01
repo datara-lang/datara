@@ -1,0 +1,93 @@
+//! stdlib.sys tests: process spawn / pipes / wait (PLAN_V150 M1 remainder).
+//! `proc_spawn` returns a PID handle (fire-and-forget), `proc_run_input`
+//! pipes stdin into the child and captures merged stdout+stderr, and
+//! `proc_wait` reaps a spawned PID. All three are escalated ops gated by
+//! the manifest `exec` capability + an unsafe justification at the call
+//! site (helpers below). Windows and POSIX go through the same shell
+//! (`cmd /c` vs `sh -c`), picked via the `OS` environment variable.
+
+use stdlib.sys.sys
+use stdlib.text.string.StringUtils
+
+fn is_windows() -> Bool {
+    return sys_env_get("OS") == "Windows_NT"
+}
+
+fn run_echo(cmd: Str, input: Str) -> Outcome<Str> {
+    unsafe(justification: "test exercises the escalated piped-process API") {
+        return proc_run_input(cmd, input)
+    }
+}
+
+fn spawn_child(cmd: Str) -> Outcome<Int> {
+    unsafe(justification: "test exercises the escalated spawn API") {
+        return proc_spawn(cmd)
+    }
+}
+
+fn reap(pid: Int) -> Outcome<Int> {
+    unsafe(justification: "test exercises the escalated wait API") {
+        return proc_wait(pid)
+    }
+}
+
+@test
+fn proc_run_input_echoes_via_stdin() {
+    // `more` (Windows) and `cat` (POSIX) both echo stdin back.
+    val cmd = if is_windows() { "cmd /c more" } else { "cat" }
+    val r = run_echo(cmd, "stdin_line_42")
+    assert(r.is_ok(), "proc_run_input should succeed")
+    val out_text = r.unwrap()
+    assert(StringUtils.contains(out_text, "stdin_line_42"),
+        "stdin content must round-trip through the child")
+}
+
+@test
+fn proc_run_input_captures_merged_output() {
+    // Echo to stdout AND stderr: both must arrive through the merged pipe.
+    val cmd = if is_windows() {
+        "cmd /c echo A1 & echo B2 1>&2"
+    } else {
+        "echo A1; echo B2 1>&2"
+    }
+    val r = run_echo(cmd, "")
+    assert(r.is_ok(), "merged capture should succeed")
+    val out_text = r.unwrap()
+    assert(StringUtils.contains(out_text, "A1"), "stdout content captured")
+    assert(StringUtils.contains(out_text, "B2"), "stderr content captured (merged)")
+}
+
+@test
+fn proc_run_input_nonzero_exit_is_err() {
+    val cmd = if is_windows() { "cmd /c exit /b 3" } else { "exit 3" }
+    val r = run_echo(cmd, "")
+    assert(!r.is_ok(), "non-zero exit must produce an err Outcome")
+}
+
+@test
+fn proc_spawn_yields_pid_and_wait_reaps_exit_code() {
+    val cmd = if is_windows() { "cmd /c exit /b 7" } else { "exit 7" }
+    val p = spawn_child(cmd)
+    assert(p.is_ok(), "proc_spawn should yield a PID")
+    val pid = p.unwrap()
+    assert(pid > 0, "PID must be positive")
+    val w = reap(pid)
+    assert(w.is_ok(), "proc_wait should reap the spawned child")
+    assert(w.unwrap() == 7, "exit code must round-trip: expected 7")
+}
+
+@test
+fn proc_spawn_exit_zero_reaps_zero() {
+    val cmd = if is_windows() { "cmd /c exit /b 0" } else { "exit 0" }
+    val p = spawn_child(cmd)
+    assert(p.is_ok(), "fire-and-forget spawn should succeed")
+    val w = reap(p.unwrap())
+    assert(w.is_ok(), "wait after spawn should succeed")
+    assert(w.unwrap() == 0, "clean child should exit 0")
+}
+
+@test
+fn proc_wait_invalid_pid_fails_checked() {
+    val w = reap(0)
+    assert(!w.is_ok(), "proc_wait(0) must not succeed")
+}

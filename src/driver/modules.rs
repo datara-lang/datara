@@ -825,6 +825,14 @@ impl ForgenCompiler {
                                     // (both Outcome-returning).
                                     | "sys_env"
                                     | "sys_exec"
+                                    // v1.5.0 (M1): process spawn/pipes/wait
+                                    // wrappers (Outcome<Int>/Outcome<Str>).
+                                    | "proc_spawn"
+                                    | "proc_run_input"
+                                    | "proc_wait"
+                                    | "datara_rt_proc_spawn"
+                                    | "datara_rt_proc_run_input"
+                                    | "datara_rt_proc_wait"
                             ),
                             Expr::MemberAccess { object, member, .. } => {
                                 matches!(member.as_str(), "ok" | "err")

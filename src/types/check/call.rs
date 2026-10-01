@@ -468,22 +468,26 @@ impl<'a> TypeChecker<'a> {
                         );
                         return DataraType::Unit;
                     }
+                    // v1.5.0: the err object adopts the payload of ANY
+                    // enclosing Outcome context — a `-> Outcome<T>` return
+                    // signature, or the typed variable being assigned
+                    // (`mut r = Outcome.err("init")` before checked-API
+                    // writes). Without a context it keeps the historical
+                    // Outcome<Str> payload.
+                    let adopt_payload = self
+                        .current_return_type
+                        .as_ref()
+                        .and_then(|r| r.result_like())
+                        .map(|(ok, _)| ok)
+                        .or_else(|| {
+                            self.current_assign_target
+                                .as_ref()
+                                .and_then(|t| t.result_like())
+                                .map(|(ok, _)| ok)
+                        });
                     return DataraType::GenericInstance {
                         name: "Outcome".to_string(),
-                        args: vec![if let Some((ok, _err)) = self
-                            .current_return_type
-                            .as_ref()
-                            .and_then(|r| r.result_like())
-                        {
-                            // In return position inside `-> Outcome<T>` the
-                            // err object adopts T, so `return Outcome.err(..)`
-                            // matches the signature instead of clashing with
-                            // an Outcome<Str>. Standalone err() (no Result
-                            // context) keeps the Str payload it always had.
-                            ok
-                        } else {
-                            DataraType::String
-                        }],
+                        args: vec![adopt_payload.unwrap_or(DataraType::String)],
                     };
                 }
                 let payload_ty = arg_types.first().cloned().unwrap_or(DataraType::Int);

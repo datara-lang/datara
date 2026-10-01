@@ -362,6 +362,13 @@ impl Resolver {
             "exec",
             "exec_utf8",
             "datara_rt_exec_utf8",
+            // v1.5.0 (M1): process spawn / pipes / wait.
+            "proc_spawn",
+            "datara_rt_proc_spawn",
+            "proc_run_input",
+            "datara_rt_proc_run_input",
+            "proc_wait",
+            "datara_rt_proc_wait",
             "math_sqrt",
             "sqrt",
             "math_pow",

@@ -397,6 +397,10 @@ int64_t     datara_rt_dialog_confirm(const char* title, const char* msg);
 int64_t     datara_rt_system(const char* cmd);
 const char* datara_rt_exec(const char* cmd);
 void*       datara_rt_exec_utf8(const char* cmd);
+// v1.5.0 (M1): process spawn/pipes/wait (Outcome<Int> / Outcome<Str> objects).
+void*       datara_rt_proc_spawn(const char* cmd);
+void*       datara_rt_proc_run_input(const char* cmd, const char* input);
+void*       datara_rt_proc_wait(int64_t pid);
 
 // High-Performance Fast Math
 double      datara_rt_math_sqrt(double x);

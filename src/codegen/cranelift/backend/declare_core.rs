@@ -1073,6 +1073,49 @@ pub fn declare_runtime_core<M: ClifModule>(
         (rt_exec_utf8_id, list_i64_1_sig.clone()),
     );
 
+    // v1.5.0 (M1): process spawn / pipes / wait. spawn(cmd) and wait(pid)
+    // return an Outcome object (ptr in, ptr out); run_input(cmd, input) is
+    // ptr,ptr -> ptr. All share the Outcome-obj ABI of exec_utf8.
+    let rt_proc_spawn_id = module
+        .declare_function("datara_rt_proc_spawn", Linkage::Import, &list_i64_1_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_proc_spawn".into(),
+        (rt_proc_spawn_id, list_i64_1_sig.clone()),
+    );
+    func_ids.insert(
+        "proc_spawn".into(),
+        (rt_proc_spawn_id, list_i64_1_sig.clone()),
+    );
+
+    let rt_proc_wait_id = module
+        .declare_function("datara_rt_proc_wait", Linkage::Import, &list_i64_1_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_proc_wait".into(),
+        (rt_proc_wait_id, list_i64_1_sig.clone()),
+    );
+    func_ids.insert(
+        "proc_wait".into(),
+        (rt_proc_wait_id, list_i64_1_sig.clone()),
+    );
+
+    let mut list_i64_2_sig = Signature::new(call_conv);
+    list_i64_2_sig.params.push(AbiParam::new(clif_types::I64));
+    list_i64_2_sig.params.push(AbiParam::new(clif_types::I64));
+    list_i64_2_sig.returns.push(AbiParam::new(clif_types::I64));
+    let rt_proc_run_input_id = module
+        .declare_function("datara_rt_proc_run_input", Linkage::Import, &list_i64_2_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_proc_run_input".into(),
+        (rt_proc_run_input_id, list_i64_2_sig.clone()),
+    );
+    func_ids.insert(
+        "proc_run_input".into(),
+        (rt_proc_run_input_id, list_i64_2_sig.clone()),
+    );
+
     // Lexicographic string comparison & environment setter
     let rt_str_cmp_id = module
         .declare_function("datara_rt_str_cmp", Linkage::Import, &i64_2_i64_sig)

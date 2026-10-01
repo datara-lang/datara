@@ -286,7 +286,15 @@ impl<'a> TypeChecker<'a> {
                 init,
                 span,
             } => {
+                // v1.5.0: publish the annotation while checking the init so
+                // Outcome.err(..) adopts the annotated payload
+                // (`mut r: Outcome<Int> = Outcome.err("init")`).
+                let saved_assign_target = self.current_assign_target.take();
+                if let Some(tn) = type_node {
+                    self.current_assign_target = Some(self.resolve_type_node(tn, diag));
+                }
                 let init_type = self.check_expr(init, diag);
+                self.current_assign_target = saved_assign_target;
                 let final_ty = if let Some(tn) = type_node {
                     self.var_refinements.insert(name.clone(), tn.clone());
                     self.check_refinement(tn, init, span, diag);
@@ -485,7 +493,16 @@ impl<'a> TypeChecker<'a> {
                 value,
                 span,
             } => {
+                // v1.5.0: publish the LHS type while checking the RHS so
+                // Outcome.err(..)/Maybe.none(..) in the assigned expression
+                // adopt the target's payload (checked-API init pattern).
+                let saved_assign_target = self.current_assign_target.take();
+                self.current_assign_target = match target {
+                    Expr::Identifier(name, _) => self.symbol_types.get(name).cloned(),
+                    _ => None,
+                };
                 let val_type = self.check_expr(value, diag);
+                self.current_assign_target = saved_assign_target;
                 if let Expr::Identifier(name, _) = target {
                     // Keep the tracked list length in step with a literal
                     // reassignment, so a later `xs[i]` is not checked against

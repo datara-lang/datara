@@ -904,7 +904,33 @@ impl<'a> Lowering<'a> {
                 Some(list_val)
             }
             Expr::OrRecovery { expr, arms, span } => {
-                let val = self.lower_expr(expr, cur_block)?;
+                // v1.5.0: `x.unwrap() or Y` / `x.unwrap_or(d) or Y` — `or`
+                // parsed over an unwrap method call on an Outcome variable.
+                // Semantically the unwrap already extracted the payload, so
+                // the recovery arm would never fire; the honest lowering is
+                // to build the or-site on the OUTCOME object itself (the
+                // same shape as `x or Y`), not on the payload struct. Without
+                // this, the default payload-repr fallback made GetField
+                // is_success target a non-outcome value and codegen failed
+                // with E0944 (field 'is_success' not in layout).
+                let mut site_expr: &Expr = expr;
+                if let Expr::Call { callee, .. } = &**expr
+                    && let Expr::MemberAccess { object, member, .. } = &**callee
+                    && (member == "unwrap" || member == "unwrap_or" || member == "value")
+                {
+                    let receiver_is_outcome = match &**object {
+                        Expr::Identifier(name, _) => match self.lookup_var_type(name) {
+                            Some(DataraType::GenericInstance { name, .. }) => name == "Outcome",
+                            Some(DataraType::Result(..)) => true,
+                            _ => false,
+                        },
+                        _ => false,
+                    };
+                    if receiver_is_outcome {
+                        site_expr = object;
+                    }
+                }
+                let val = self.lower_expr(site_expr, cur_block)?;
                 let res_var = format!("__or_res_{}", self.next_val().0);
                 let ok_block = self.create_block("or_ok");
                 let rec_block = self.create_block("or_recovery");

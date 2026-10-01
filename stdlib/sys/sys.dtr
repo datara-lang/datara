@@ -7,6 +7,11 @@
 //!   sys_env_set(key, val) -> Bool    -- set/update a variable.
 //!   sys_exec(cmd) -> Outcome<Str>    -- run a command, capture stdout (UTF-8);
 //!                                        `or`-friendly (checked exec).
+//!   proc_spawn(cmd) -> Outcome<Int>  -- fire-and-forget child (PID).
+//!   proc_run_input(cmd, input) -> Outcome<Str>
+//!                                        pipe `input` into the child's stdin,
+//!                                        capture merged stdout+stderr.
+//!   proc_wait(pid) -> Outcome<Int>   -- reap a spawned child (exit code).
 //!
 //! `sys_exec` and `env_get` are capability-guarded by the security verifier
 //! (E0940/E-CAP-001): declare `env = [...]` / `exec = [...]` in datara.toml.
@@ -42,5 +47,32 @@ fn sys_exec(cmd: Str) -> Outcome<Str> {
     // the security verifier also demands an explicit unsafe justification.
     unsafe(justification: "sys_exec forwards an escalated exec_utf8 call; the caller opts in via [capabilities] exec + this wrapper's justification") {
         return exec_utf8(cmd)
+    }
+}
+
+// v1.5.0 (M1): process spawn / pipes / wait.
+//   proc_spawn(cmd) -> Outcome<Int>      fire-and-forget child (PID handle);
+//                                        inherits the parent's stdio.
+//   proc_run_input(cmd, input) -> Outcome<Str>
+//                                        writes `input` to the child's stdin,
+//                                        captures merged stdout+stderr.
+//   proc_wait(pid) -> Outcome<Int>       reap a spawned child, yield its exit
+//                                        code.
+// All three are escalated ops ([capabilities] exec + unsafe justification).
+fn proc_spawn(cmd: Str) -> Outcome<Int> {
+    unsafe(justification: "proc_spawn forwards an escalated process spawn; the caller opts in via [capabilities] exec + this wrapper's justification") {
+        return datara_rt_proc_spawn(cmd)
+    }
+}
+
+fn proc_run_input(cmd: Str, input: Str) -> Outcome<Str> {
+    unsafe(justification: "proc_run_input forwards an escalated piped process run; the caller opts in via [capabilities] exec + this wrapper's justification") {
+        return datara_rt_proc_run_input(cmd, input)
+    }
+}
+
+fn proc_wait(pid: Int) -> Outcome<Int> {
+    unsafe(justification: "proc_wait forwards an escalated process wait; the caller opts in via [capabilities] exec + this wrapper's justification") {
+        return datara_rt_proc_wait(pid)
     }
 }

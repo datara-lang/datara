@@ -447,6 +447,12 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_list_slice", datara_rt_list_slice);
     reg!("datara_rt_exec_utf8", datara_rt_exec_utf8);
     reg!("exec_utf8", datara_rt_exec_utf8);
+    reg!("datara_rt_proc_spawn", datara_rt_proc_spawn);
+    reg!("proc_spawn", datara_rt_proc_spawn);
+    reg!("datara_rt_proc_run_input", datara_rt_proc_run_input);
+    reg!("proc_run_input", datara_rt_proc_run_input);
+    reg!("datara_rt_proc_wait", datara_rt_proc_wait);
+    reg!("proc_wait", datara_rt_proc_wait);
     reg!("datara_rt_range_str", datara_rt_range_str);
     reg!("datara_rt_map_create", datara_rt_map_create);
     reg!("datara_rt_map_create_2", datara_rt_map_create_2);

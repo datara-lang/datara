@@ -36,6 +36,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/mman.h>
+#include <sys/wait.h>
 #ifndef MAP_ANONYMOUS
 #ifdef MAP_ANON
 #define MAP_ANONYMOUS MAP_ANON
@@ -439,6 +440,309 @@ void* datara_rt_exec_utf8(const char* cmd) {
         return datara_rt_outcome_build_raw(0, 0, "exec_utf8 failed: process exited with non-zero status");
     }
     return datara_rt_outcome_build_raw(1, (int64_t)(uintptr_t)buf, "");
+}
+#endif
+
+// ---------------------------------------------------------------------------
+// v1.5.0 (M1): Process spawn / pipes / wait.
+//
+//   datara_rt_proc_spawn(cmd)         -> Outcome<Int>   PID handle (fire and
+//                                                          forget; the child
+//                                                          inherits the
+//                                                          parent's stdio).
+//   datara_rt_proc_run_input(cmd, in) -> Outcome<Str>   run with `in` written
+//                                                          to the child's
+//                                                          stdin; capture
+//                                                          merged stdout+stderr
+//                                                          as UTF-8.
+//   datara_rt_proc_wait(pid)          -> Outcome<Int>   exit code of a spawned
+//                                                          process.
+//
+// All three are escalated operations (E-CAP-001 without the manifest
+// `exec` capability) and return the stdlib Outcome<T> object built by
+// datara_rt_outcome_build_raw, exactly like datara_rt_exec_utf8 above.
+// ---------------------------------------------------------------------------
+#ifdef _WIN32
+static void* datara_rt_proc_spawn_win(const char* cmd, const char* stdin_data,
+                                      int capture, int64_t* out_pid,
+                                      int64_t* out_exit) {
+    datara_rt_cap_require(DATARA_CAP_SYS_EXEC, "sys::proc");
+    if (!cmd) {
+        return datara_rt_outcome_build_raw(0, 0, "proc failed: command is null");
+    }
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, cmd, -1, NULL, 0);
+    if (wlen <= 0) {
+        return datara_rt_outcome_build_raw(0, 0, "proc failed: command is not valid UTF-8");
+    }
+    wchar_t* wcmd = (wchar_t*)malloc((size_t)wlen * sizeof(wchar_t));
+    if (!wcmd) {
+        return datara_rt_outcome_build_raw(0, 0, "proc failed: out of memory");
+    }
+    MultiByteToWideChar(CP_UTF8, 0, cmd, -1, wcmd, wlen);
+
+    SECURITY_ATTRIBUTES sa;
+    sa.nLength = sizeof(sa);
+    sa.lpSecurityDescriptor = NULL;
+    sa.bInheritHandle = TRUE;
+
+    HANDLE in_read = NULL, in_write = NULL;
+    HANDLE out_read = NULL, out_write = NULL;
+    if (stdin_data) {
+        if (!CreatePipe(&in_read, &in_write, &sa, 0)) {
+            free(wcmd);
+            return datara_rt_outcome_build_raw(0, 0, "proc failed: cannot create stdin pipe");
+        }
+        SetHandleInformation(in_write, HANDLE_FLAG_INHERIT, 0);
+    }
+    if (capture) {
+        if (!CreatePipe(&out_read, &out_write, &sa, 0)) {
+            if (in_read) { CloseHandle(in_read); CloseHandle(in_write); }
+            free(wcmd);
+            return datara_rt_outcome_build_raw(0, 0, "proc failed: cannot create stdout pipe");
+        }
+        SetHandleInformation(out_read, HANDLE_FLAG_INHERIT, 0);
+    }
+
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    ZeroMemory(&pi, sizeof(pi));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = stdin_data ? in_read : GetStdHandle(STD_INPUT_HANDLE);
+    si.hStdOutput = capture ? out_write : GetStdHandle(STD_OUTPUT_HANDLE);
+    si.hStdError = capture ? out_write : GetStdHandle(STD_ERROR_HANDLE);
+
+    BOOL ok = CreateProcessW(NULL, wcmd, NULL, NULL, TRUE,
+                             stdin_data || capture ? CREATE_NO_WINDOW : 0,
+                             NULL, NULL, &si, &pi);
+    free(wcmd);
+    if (in_read) CloseHandle(in_read);
+    if (out_write) CloseHandle(out_write);
+    if (!ok) {
+        if (out_read) CloseHandle(out_read);
+        return datara_rt_outcome_build_raw(0, 0, "proc failed: cannot start process");
+    }
+
+    if (out_pid) *out_pid = (int64_t)pi.dwProcessId;
+
+    // Feed stdin from the parent, then close so the child sees EOF.
+    if (stdin_data) {
+        size_t total = strlen(stdin_data);
+        size_t sent = 0;
+        while (sent < total) {
+            DWORD wrote = 0;
+            if (!WriteFile(in_write, stdin_data + sent,
+                           (DWORD)((total - sent > 65536) ? 65536 : (total - sent)),
+                           &wrote, NULL) || wrote == 0) {
+                break;
+            }
+            sent += wrote;
+        }
+        CloseHandle(in_write);
+    }
+
+    if (capture) {
+        // Read the child's output to EOF BEFORE waiting on the process:
+        // waiting first can deadlock when the pipe buffer fills.
+        size_t cap = 4096, len = 0;
+        char* buf = (char*)malloc(cap);
+        if (!buf) {
+            CloseHandle(out_read);
+            CloseHandle(pi.hThread);
+            CloseHandle(pi.hProcess);
+            return datara_rt_outcome_build_raw(0, 0, "proc failed: out of memory");
+        }
+        for (;;) {
+            if (len + 4096 + 1 > cap) {
+                size_t new_cap = cap * 2;
+                char* nb = (char*)realloc(buf, new_cap);
+                if (!nb) {
+                    free(buf);
+                    CloseHandle(out_read);
+                    CloseHandle(pi.hThread);
+                    CloseHandle(pi.hProcess);
+                    return datara_rt_outcome_build_raw(0, 0, "proc failed: out of memory");
+                }
+                buf = nb; cap = new_cap;
+            }
+            DWORD got = 0;
+            if (!ReadFile(out_read, buf + len, 4096, &got, NULL) || got == 0) break;
+            len += (size_t)got;
+        }
+        buf[len] = '\0';
+        CloseHandle(out_read);
+        WaitForSingleObject(pi.hProcess, INFINITE);
+        DWORD exit_code = 0;
+        GetExitCodeProcess(pi.hProcess, &exit_code);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+        if (out_exit) *out_exit = (int64_t)exit_code;
+        if (exit_code != 0) {
+            free(buf);
+            return datara_rt_outcome_build_raw(0, 0, "proc failed: process exited with non-zero status");
+        }
+        // The merged output is passed through as bytes (runtime strings are
+        // byte buffers; UTF-8 transcoding happens on the print path).
+        return datara_rt_outcome_build_raw(1, (int64_t)(uintptr_t)buf, "");
+    }
+
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return datara_rt_outcome_build_raw(1, out_pid ? *out_pid : 0, "");
+}
+
+void* datara_rt_proc_spawn(const char* cmd) {
+    datara_rt_cap_require(DATARA_CAP_SYS_EXEC, "sys::proc_spawn");
+    if (!cmd) {
+        return datara_rt_outcome_build_raw(0, 0, "proc_spawn failed: command is null");
+    }
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, cmd, -1, NULL, 0);
+    if (wlen <= 0) {
+        return datara_rt_outcome_build_raw(0, 0, "proc_spawn failed: command is not valid UTF-8");
+    }
+    wchar_t* wcmd = (wchar_t*)malloc((size_t)wlen * sizeof(wchar_t));
+    if (!wcmd) {
+        return datara_rt_outcome_build_raw(0, 0, "proc_spawn failed: out of memory");
+    }
+    MultiByteToWideChar(CP_UTF8, 0, cmd, -1, wcmd, wlen);
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    ZeroMemory(&pi, sizeof(pi));
+    si.cb = sizeof(si);
+    // Fire-and-forget: the child inherits the parent's stdio.
+    BOOL ok = CreateProcessW(NULL, wcmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
+    free(wcmd);
+    if (!ok) {
+        return datara_rt_outcome_build_raw(0, 0, "proc_spawn failed: cannot start process");
+    }
+    int64_t pid = (int64_t)pi.dwProcessId;
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return datara_rt_outcome_build_raw(1, pid, "");
+}
+
+void* datara_rt_proc_run_input(const char* cmd, const char* input) {
+    return datara_rt_proc_spawn_win(cmd, input ? input : "", 1, NULL, NULL);
+}
+
+void* datara_rt_proc_wait(int64_t pid) {
+    datara_rt_cap_require(DATARA_CAP_SYS_EXEC, "sys::proc_wait");
+    if (pid <= 0) {
+        return datara_rt_outcome_build_raw(0, 0, "proc_wait failed: invalid pid");
+    }
+    HANDLE h = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)pid);
+    if (!h) {
+        return datara_rt_outcome_build_raw(0, 0, "proc_wait failed: cannot open process");
+    }
+    WaitForSingleObject(h, INFINITE);
+    DWORD exit_code = 0;
+    GetExitCodeProcess(h, &exit_code);
+    CloseHandle(h);
+    return datara_rt_outcome_build_raw(1, (int64_t)exit_code, "");
+}
+#else
+void* datara_rt_proc_spawn(const char* cmd) {
+    datara_rt_cap_require(DATARA_CAP_SYS_EXEC, "sys::proc_spawn");
+    if (!cmd) {
+        return datara_rt_outcome_build_raw(0, 0, "proc_spawn failed: command is null");
+    }
+    pid_t pid = fork();
+    if (pid < 0) {
+        return datara_rt_outcome_build_raw(0, 0, "proc_spawn failed: fork error");
+    }
+    if (pid == 0) {
+        execl("/bin/sh", "sh", "-c", cmd, (char*)NULL);
+        _exit(127);
+    }
+    return datara_rt_outcome_build_raw(1, (int64_t)pid, "");
+}
+
+
+void* datara_rt_proc_run_input(const char* cmd, const char* input) {
+    datara_rt_cap_require(DATARA_CAP_SYS_EXEC, "sys::proc_run_input");
+    if (!cmd) {
+        return datara_rt_outcome_build_raw(0, 0, "proc_run_input failed: command is null");
+    }
+    int in_pipe[2], out_pipe[2];
+    if (pipe(in_pipe) != 0) {
+        return datara_rt_outcome_build_raw(0, 0, "proc_run_input failed: cannot create stdin pipe");
+    }
+    if (pipe(out_pipe) != 0) {
+        close(in_pipe[0]); close(in_pipe[1]);
+        return datara_rt_outcome_build_raw(0, 0, "proc_run_input failed: cannot create stdout pipe");
+    }
+    pid_t pid = fork();
+    if (pid < 0) {
+        close(in_pipe[0]); close(in_pipe[1]);
+        close(out_pipe[0]); close(out_pipe[1]);
+        return datara_rt_outcome_build_raw(0, 0, "proc_run_input failed: fork error");
+    }
+    if (pid == 0) {
+        dup2(in_pipe[0], STDIN_FILENO);
+        dup2(out_pipe[1], STDOUT_FILENO);
+        dup2(out_pipe[1], STDERR_FILENO);
+        close(in_pipe[0]); close(in_pipe[1]);
+        close(out_pipe[0]); close(out_pipe[1]);
+        execl("/bin/sh", "sh", "-c", cmd, (char*)NULL);
+        _exit(127);
+    }
+    close(in_pipe[0]);
+    close(out_pipe[1]);
+    if (input) {
+        size_t total = strlen(input), sent = 0;
+        while (sent < total) {
+            ssize_t w = write(in_pipe[1], input + sent, total - sent);
+            if (w <= 0) break;
+            sent += (size_t)w;
+        }
+    }
+    close(in_pipe[1]);
+    size_t cap = 4096, len = 0;
+    char* buf = (char*)malloc(cap);
+    if (!buf) {
+        close(out_pipe[0]);
+        return datara_rt_outcome_build_raw(0, 0, "proc_run_input failed: out of memory");
+    }
+    char tmp[4096];
+    for (;;) {
+        ssize_t got = read(out_pipe[0], tmp, sizeof(tmp));
+        if (got <= 0) break;
+        if (len + (size_t)got + 1 > cap) {
+            cap *= 2;
+            char* nb = (char*)realloc(buf, cap);
+            if (!nb) {
+                free(buf); close(out_pipe[0]);
+                return datara_rt_outcome_build_raw(0, 0, "proc_run_input failed: out of memory");
+            }
+            buf = nb;
+        }
+        memcpy(buf + len, tmp, (size_t)got);
+        len += (size_t)got;
+    }
+    close(out_pipe[0]);
+    int status = 0;
+    waitpid(pid, &status, 0);
+    buf[len] = '\0';
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        free(buf);
+        return datara_rt_outcome_build_raw(0, 0, "proc_run_input failed: process exited with non-zero status");
+    }
+    return datara_rt_outcome_build_raw(1, (int64_t)(uintptr_t)buf, "");
+}
+
+void* datara_rt_proc_wait(int64_t pid) {
+    datara_rt_cap_require(DATARA_CAP_SYS_EXEC, "sys::proc_wait");
+    if (pid <= 0) {
+        return datara_rt_outcome_build_raw(0, 0, "proc_wait failed: invalid pid");
+    }
+    int status = 0;
+    if (waitpid((pid_t)pid, &status, 0) < 0) {
+        return datara_rt_outcome_build_raw(0, 0, "proc_wait failed: no such child process");
+    }
+    int code = WIFEXITED(status) ? WEXITSTATUS(status) : 1;
+    return datara_rt_outcome_build_raw(1, (int64_t)code, "");
 }
 #endif
 

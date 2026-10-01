@@ -278,6 +278,10 @@ unsafe extern "C" {
     pub fn datara_rt_list_is_empty(list: *mut i64) -> i64;
     pub fn datara_rt_list_slice(list: *mut i64, start: i64, end: i64) -> *mut i64;
     pub fn datara_rt_exec_utf8(cmd: *const c_char) -> *mut ();
+    // v1.5.0 (M1): process spawn / pipes / wait.
+    pub fn datara_rt_proc_spawn(cmd: *const c_char) -> *mut ();
+    pub fn datara_rt_proc_run_input(cmd: *const c_char, input: *const c_char) -> *mut ();
+    pub fn datara_rt_proc_wait(pid: i64) -> *mut ();
     pub fn datara_rt_range_str(start: i64, end: i64) -> *const c_char;
     pub fn datara_rt_map_create() -> *mut ();
     pub fn datara_rt_map_create_2(k1: i64, v1: i64, k2: i64, v2: i64) -> *mut ();

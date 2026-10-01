@@ -171,6 +171,10 @@ impl<'a> LlvmEmitter<'a> {
             "env_get" => "datara_rt_env_get",
             "env_set" => "datara_rt_env_set",
             "env_get_checked" => "datara_rt_env_get_checked",
+            // v1.5.0 (M1): process spawn / pipes / wait.
+            "proc_spawn" => "datara_rt_proc_spawn",
+            "proc_run_input" => "datara_rt_proc_run_input",
+            "proc_wait" => "datara_rt_proc_wait",
             "args_count" => "datara_rt_args_count",
             "args_get" => "datara_rt_args_get",
             "dir_list" => "datara_rt_dir_list",

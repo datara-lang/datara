@@ -1543,6 +1543,40 @@ impl<'a> TypeChecker<'a> {
                 Vec::new(),
             ),
         );
+        // v1.5.0 (M1): process spawn / pipes / wait. spawn yields the PID
+        // (Outcome<Int>), run_input feeds stdin and captures merged stdout
+        // (Outcome<Str>), wait reaps a spawned PID (Outcome<Int>). All are
+        // escalated ops gated by the manifest `exec` capability.
+        for spawn_name in &["proc_spawn", "datara_rt_proc_spawn"] {
+            function_signatures.insert(
+                spawn_name.to_string(),
+                (
+                    vec![DataraType::String],
+                    DataraType::Result(Box::new(DataraType::Int), Box::new(DataraType::String)),
+                    Vec::new(),
+                ),
+            );
+        }
+        for run_name in &["proc_run_input", "datara_rt_proc_run_input"] {
+            function_signatures.insert(
+                run_name.to_string(),
+                (
+                    vec![DataraType::String, DataraType::String],
+                    DataraType::Result(Box::new(DataraType::String), Box::new(DataraType::String)),
+                    Vec::new(),
+                ),
+            );
+        }
+        for wait_name in &["proc_wait", "datara_rt_proc_wait"] {
+            function_signatures.insert(
+                wait_name.to_string(),
+                (
+                    vec![DataraType::Int],
+                    DataraType::Result(Box::new(DataraType::Int), Box::new(DataraType::String)),
+                    Vec::new(),
+                ),
+            );
+        }
 
         for (name, sym) in &resolver.functions {
             let mut p_types = Vec::new();
@@ -1680,6 +1714,7 @@ impl<'a> TypeChecker<'a> {
             active_requires: Vec::new(),
             in_unsafe: false,
             allowed_devices: HashSet::new(),
+            current_assign_target: None,
         }
     }
 }
