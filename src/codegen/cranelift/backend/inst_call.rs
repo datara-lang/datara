@@ -90,11 +90,19 @@ pub fn compile_call<M: ClifModule>(
         // its own, so the explicit opcode is required for hardware FMA.
         // Fallback keeps mul+add for FMA-less hosts (two roundings, same
         // shape as before — bit-identical to the historical lowering).
+        // FMA fusion requires an x86_64 host target; on other arches (e.g.
+        // aarch64-darwin release builds) fall back to separate mul+add.
+        #[cfg(target_arch = "x86_64")]
         let res = if std::is_x86_feature_detected!("fma") {
             ctx.builder
                 .ins()
                 .fma(f_operands[0], f_operands[1], f_operands[2])
         } else {
+            let prod = ctx.builder.ins().fmul(f_operands[0], f_operands[1]);
+            ctx.builder.ins().fadd(prod, f_operands[2])
+        };
+        #[cfg(not(target_arch = "x86_64"))]
+        let res = {
             let prod = ctx.builder.ins().fmul(f_operands[0], f_operands[1]);
             ctx.builder.ins().fadd(prod, f_operands[2])
         };
