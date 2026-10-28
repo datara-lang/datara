@@ -1,0 +1,22 @@
+mut slots: List<Int> = List.new(100000)
+fn work(x: Int) {
+    slots[x] = x + 1
+}
+fn main() {
+    fiber_mt_start(8)
+    mut i = 0
+    while i < 100000 {
+        fiber_mt_spawn(work, i)
+        i = i + 1
+    }
+    fiber_mt_wait_idle()
+    mut ok = 0
+    mut j = 0
+    while j < 100000 {
+        if slots[j] == j + 1 {
+            ok = ok + 1
+        }
+        j = j + 1
+    }
+    out int_to_str(ok)
+}

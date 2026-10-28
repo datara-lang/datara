@@ -1,0 +1,26 @@
+// PLAN_V151 N2: MT scheduler — 10k tasks on 8 workers, race-free pattern:
+// each task writes its own slot (single-writer per cell).
+mut slots: List<Int> = List.new(10000)
+fn work(x: Int) {
+    slots[x] = x + 1
+}
+fn main() {
+    val workers = fiber_mt_start(8)
+    out int_to_str(workers)
+    mut i = 0
+    while i < 10000 {
+        fiber_mt_spawn(work, i)
+        i = i + 1
+    }
+    fiber_mt_wait_idle()
+    out int_to_str(fiber_mt_done_count())
+    mut ok = 0
+    mut j = 0
+    while j < 10000 {
+        if slots[j] == j + 1 {
+            ok = ok + 1
+        }
+        j = j + 1
+    }
+    out int_to_str(ok)
+}

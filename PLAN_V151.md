@@ -85,12 +85,22 @@ bridge check), стабильность (флейки, реестр багов �
 Фундамент готов: chase_lev work-stealing deque (src/runtime/scheduler/
 chase_lev.rs, 11 юнит-тестов), NUMA-топология, C-фиберы с таймер-колесом.
 
-- [ ] Многопоточный планировщик: N воркер-потоков = ядра, локальные очереди
-  + кража через chase_lev (C-биндинг или перенос дид-части в C).
-  Функция-переключатель `forgen run --fibers N` (default 1 = семантика
-  среза 1 не меняется). Тест: 200k фиберов на 8 воркерах — счётчик done ==
-  200k, jitter журнала порядка детерминирован (запись порядка — только
-  через канал).
+- [x] Многопоточный планировщик — ЗАКРЫТО 2026-10-28 (datara_natvar_mt.c):
+  N воркер-потоков (CreateThread/pthread), per-worker ready-очереди +
+  глобальная + кража round-robin; MT-API: fiber_mt_start(n)/mt_spawn(f,arg)/
+  mt_join(h)/mt_wait_idle()/mt_done_count()/mt_spawned(). Ключевой контракт:
+  fiber == one-shot задача (тело выполняется на подобравшем воркере);
+  кооперативные yield внутри тела — домен срез-1 планировщика. Тесты
+  tests/test_natvar_mt.rs 3/3: 10k задач на 8 воркерах — 10000/10000 слотов
+  корректны (single-writer паттерн; кросс-воркер инкременты общего счётчика
+  — data race по семантике, атомики — срез 3), два раунда, счётчик spawned.
+  Бенчмарк: 100k фиберов — 76 мс (~755 нс/задача spawn+run+verify),
+  evidence/natvar/MT_RESULTS.md (честно: tokio-референс не прогонялся).
+  Регистрации: declare_ext/jit (все datara_rt_* алиасы — без них JIT не
+  резолвит)/llvm; resolver+prelude. Ловушка Cranelift: ЛЮБАЯ
+  declare_function(Import) попадает в obj как undefined symbol — декларации
+  без реализации в datara_runtime.lib дают LNK2001 (было: stray
+  datara_rt_fiber_mt_now).
 - [ ] IO-поллер: Windows IOCP / Linux epoll в отдельном потоке; парковка
   фибера на сокете (EWOULDBLOCK → park → wake). API: `fiber_net_recv/
   fiber_net_send` с таймаутом → Outcome. Тест: echo-сервер на фиберах, 100

@@ -440,6 +440,13 @@ unsafe extern "C" {
     pub fn datara_rt_fiber_chan_send(chan_id: i64, value: i64);
     pub fn datara_rt_fiber_chan_recv(chan_id: i64) -> i64;
     pub fn datara_rt_fiber_now_ms() -> i64;
+    pub fn datara_rt_fiber_mt_start(n: i64) -> i64;
+    pub fn datara_rt_fiber_mt_spawn(fn_addr: usize, arg: i64) -> i64;
+    pub fn datara_rt_fiber_mt_join(handle: i64) -> i64;
+    pub fn datara_rt_fiber_mt_done_count() -> i64;
+    pub fn datara_rt_fiber_mt_spawned() -> i64;
+    pub fn datara_rt_fiber_mt_wait_idle();
+    pub fn datara_rt_fiber_mt_shutdown();
     pub fn datara_rt_num_workers() -> i64;
 
     pub fn datara_rt_arena_alloc(bytes: i64) -> *mut ();

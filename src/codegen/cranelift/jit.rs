@@ -651,6 +651,23 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_fiber_chan_recv", datara_rt_fiber_chan_recv);
     reg!("fiber_chan_recv", datara_rt_fiber_chan_recv);
     reg!("datara_rt_fiber_now_ms", datara_rt_fiber_now_ms);
+    reg!("fiber_mt_start", datara_rt_fiber_mt_start);
+    reg!("datara_rt_fiber_mt_start", datara_rt_fiber_mt_start);
+    reg!("fiber_mt_spawn", datara_rt_fiber_mt_spawn);
+    reg!("datara_rt_fiber_mt_spawn", datara_rt_fiber_mt_spawn);
+    reg!("fiber_mt_join", datara_rt_fiber_mt_join);
+    reg!("datara_rt_fiber_mt_join", datara_rt_fiber_mt_join);
+    reg!("fiber_mt_done_count", datara_rt_fiber_mt_done_count);
+    reg!("fiber_mt_spawned", datara_rt_fiber_mt_spawned);
+    reg!(
+        "datara_rt_fiber_mt_done_count",
+        datara_rt_fiber_mt_done_count
+    );
+    reg!("datara_rt_fiber_mt_spawned", datara_rt_fiber_mt_spawned);
+    reg!("fiber_mt_wait_idle", datara_rt_fiber_mt_wait_idle);
+    reg!("datara_rt_fiber_mt_wait_idle", datara_rt_fiber_mt_wait_idle);
+    reg!("datara_rt_fiber_mt_shutdown", datara_rt_fiber_mt_shutdown);
+    reg!("fiber_mt_shutdown", datara_rt_fiber_mt_shutdown);
     reg!("parallel_invoke", datara_rt_parallel_invoke);
     reg!("datara_rt_num_workers", datara_rt_num_workers);
     reg!("num_workers", datara_rt_num_workers);

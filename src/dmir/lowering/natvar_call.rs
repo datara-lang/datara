@@ -141,6 +141,95 @@ impl<'a> Lowering<'a> {
                         });
                     return Some(dummy);
                 }
+                "fiber_mt_start" | "datara_rt_fiber_mt_start" if args.len() == 1 => {
+                    let n = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest,
+                            func: "datara_rt_fiber_mt_start".into(),
+                            args: vec![n],
+                            ty: "Int".into(),
+                        });
+                    return Some(dest);
+                }
+                "fiber_mt_spawn" | "datara_rt_fiber_mt_spawn" if args.len() == 2 => {
+                    let fn_addr = match &args[0] {
+                        Expr::Identifier(f, _) => {
+                            let v = self.next_val();
+                            self.get_block_mut(*cur_block)
+                                .instructions
+                                .push(Inst::GetFuncAddr {
+                                    dest: v,
+                                    func_name: f.clone(),
+                                });
+                            Some(v)
+                        }
+                        _ => None,
+                    };
+                    let fn_addr = fn_addr?;
+                    let arg = self.lower_expr(&args[1], cur_block).unwrap_or(ValueId(0));
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest,
+                            func: "datara_rt_fiber_mt_spawn".into(),
+                            args: vec![fn_addr, arg],
+                            ty: "Int".into(),
+                        });
+                    return Some(dest);
+                }
+                "fiber_mt_join" | "datara_rt_fiber_mt_join" if args.len() == 1 => {
+                    let h = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest,
+                            func: "datara_rt_fiber_mt_join".into(),
+                            args: vec![h],
+                            ty: "Int".into(),
+                        });
+                    return Some(dest);
+                }
+                "fiber_mt_wait_idle" | "datara_rt_fiber_mt_wait_idle" if args.is_empty() => {
+                    let dummy = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest: dummy,
+                            func: "datara_rt_fiber_mt_wait_idle".into(),
+                            args: vec![],
+                            ty: "Unit".into(),
+                        });
+                    return Some(dummy);
+                }
+                "fiber_mt_done_count" | "datara_rt_fiber_mt_done_count" if args.is_empty() => {
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest,
+                            func: "datara_rt_fiber_mt_done_count".into(),
+                            args: vec![],
+                            ty: "Int".into(),
+                        });
+                    return Some(dest);
+                }
+                "fiber_mt_spawned" | "datara_rt_fiber_mt_spawned" if args.is_empty() => {
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest,
+                            func: "datara_rt_fiber_mt_spawned".into(),
+                            args: vec![],
+                            ty: "Int".into(),
+                        });
+                    return Some(dest);
+                }
                 "fiber_chan_recv" | "datara_rt_fiber_chan_recv" if args.len() == 1 => {
                     let c = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
                     let dest = self.next_val();

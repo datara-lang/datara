@@ -1150,6 +1150,39 @@ pub fn declare_runtime_ext<M: ClifModule>(
         func_ids.insert(name.into(), (fid, sig));
     }
     // chan_recv returns i64.
+    // M10 slice 2: multi-threaded fiber scheduler.
+    let mt_fns: [(&str, usize, usize); 5] = [
+        ("datara_rt_fiber_mt_start", 1, 1),
+        ("datara_rt_fiber_mt_spawn", 2, 1),
+        ("datara_rt_fiber_mt_join", 1, 1),
+        ("datara_rt_fiber_mt_done_count", 0, 1),
+        ("datara_rt_fiber_mt_spawned", 0, 1),
+    ];
+    for (name, nparams, nrets) in mt_fns {
+        let mut sig = Signature::new(call_conv);
+        for _ in 0..nparams {
+            sig.params.push(AbiParam::new(clif_types::I64));
+        }
+        for _ in 0..nrets {
+            sig.returns.push(AbiParam::new(clif_types::I64));
+        }
+        let fid = module
+            .declare_function(name, Linkage::Import, &sig)
+            .map_err(|e| e.to_string())?;
+        func_ids.insert(name.into(), (fid, sig));
+    }
+    let mt_void_fns: [&str; 2] = [
+        "datara_rt_fiber_mt_wait_idle",
+        "datara_rt_fiber_mt_shutdown",
+    ];
+    for name in mt_void_fns {
+        let sig = Signature::new(call_conv);
+        let fid = module
+            .declare_function(name, Linkage::Import, &sig)
+            .map_err(|e| e.to_string())?;
+        func_ids.insert(name.into(), (fid, sig));
+    }
+
     let mut rt_chan_recv_sig = Signature::new(call_conv);
     rt_chan_recv_sig.params.push(AbiParam::new(clif_types::I64));
     rt_chan_recv_sig

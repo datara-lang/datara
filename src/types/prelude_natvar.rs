@@ -58,6 +58,41 @@ pub fn insert_fiber_signatures(
             (vec![], DataraType::Int, Vec::new()),
         );
     }
+    for zero_int_name in &[
+        "fiber_mt_start",
+        "datara_rt_fiber_mt_start",
+        "fiber_mt_done_count",
+        "datara_rt_fiber_mt_done_count",
+        "fiber_mt_spawned",
+        "datara_rt_fiber_mt_spawned",
+    ] {
+        function_signatures.insert(
+            zero_int_name.to_string(),
+            (vec![], DataraType::Int, Vec::new()),
+        );
+    }
+    for take_int_name in &["fiber_mt_join", "datara_rt_fiber_mt_join"] {
+        function_signatures.insert(
+            take_int_name.to_string(),
+            (vec![DataraType::Int], DataraType::Int, Vec::new()),
+        );
+    }
+    for mt_spawn_name in &["fiber_mt_spawn", "datara_rt_fiber_mt_spawn"] {
+        function_signatures.insert(
+            mt_spawn_name.to_string(),
+            (
+                vec![DataraType::RawPtr, DataraType::Int],
+                DataraType::Int,
+                Vec::new(),
+            ),
+        );
+    }
+    for mt_void_name in &["fiber_mt_wait_idle", "datara_rt_fiber_mt_wait_idle"] {
+        function_signatures.insert(
+            mt_void_name.to_string(),
+            (vec![], DataraType::Unit, Vec::new()),
+        );
+    }
     for take_int_name in &[
         "fiber_join",
         "datara_rt_fiber_join",

@@ -132,6 +132,15 @@ void    datara_rt_fiber_chan_send(int64_t chan_id, int64_t value);
 int64_t datara_rt_fiber_chan_recv(int64_t chan_id);
 int64_t datara_rt_fiber_now_ms(void);
 
+// M10 slice 2: multi-threaded fiber scheduler (N workers, work stealing)
+int64_t datara_rt_fiber_mt_start(int64_t n_workers);
+int64_t datara_rt_fiber_mt_spawn(int64_t fn_addr, int64_t arg);
+int64_t datara_rt_fiber_mt_join(int64_t handle);
+int64_t datara_rt_fiber_mt_done_count(void);
+int64_t datara_rt_fiber_mt_spawned(void);
+void    datara_rt_fiber_mt_wait_idle(void);
+void    datara_rt_fiber_mt_shutdown(void);
+
 // M7 TSU: checked/typed val conversions (bits forms for the all-I64
 // codegen ABI — a double rides in a GP register as its IEEE bits)
 DataraValue datara_rt_val_from_f64_bits(int64_t bits);
