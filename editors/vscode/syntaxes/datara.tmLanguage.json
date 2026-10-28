@@ -137,7 +137,7 @@
           "name": "keyword.declaration.datara"
         },
         {
-          "match": "\b(assert|break|catch|continue|decide|else|ensure|for|if|import|in|loop|match|or|panic|require|return|select|then|try|use|when|where|while|with)\b",
+          "match": "\\b(assert|break|catch|continue|decide|else|ensure|for|if|in|loop|match|or|panic|require|return|select|then|try|when|where|while|with)\\b",
           "name": "keyword.control.datara"
         },
         {
