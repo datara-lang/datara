@@ -589,7 +589,9 @@ impl<'a> Lowering<'a> {
                 }
                 let first_kind = elem_kinds.first().copied().unwrap_or(255);
                 let mixed = items.len() > 1
-                    && elem_kinds.iter().any(|&k| k != first_kind && k != 255 && first_kind != 255);
+                    && elem_kinds
+                        .iter()
+                        .any(|&k| k != first_kind && k != 255 && first_kind != 255);
                 let mut vals = Vec::new();
                 if mixed {
                     for (item, k) in items.iter().zip(elem_kinds.iter()) {
@@ -910,9 +912,9 @@ impl<'a> Lowering<'a> {
                     });
                 Some(dest)
             }
-            Expr::IsCheck { operand, ty_name, .. } => {
-                self.lower_is_check(operand, ty_name, cur_block)
-            }
+            Expr::IsCheck {
+                operand, ty_name, ..
+            } => self.lower_is_check(operand, ty_name, cur_block),
             Expr::ErrorPropagate(inner, span) => {
                 let val = self.lower_expr(inner, cur_block)?;
                 // Real error propagation, replacing the old pass-through

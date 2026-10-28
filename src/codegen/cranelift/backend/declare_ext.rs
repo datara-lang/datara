@@ -1152,15 +1152,20 @@ pub fn declare_runtime_ext<M: ClifModule>(
     // chan_recv returns i64.
     let mut rt_chan_recv_sig = Signature::new(call_conv);
     rt_chan_recv_sig.params.push(AbiParam::new(clif_types::I64));
-    rt_chan_recv_sig.returns.push(AbiParam::new(clif_types::I64));
+    rt_chan_recv_sig
+        .returns
+        .push(AbiParam::new(clif_types::I64));
     let rt_chan_recv_id = module
-        .declare_function("datara_rt_fiber_chan_recv", Linkage::Import, &rt_chan_recv_sig)
+        .declare_function(
+            "datara_rt_fiber_chan_recv",
+            Linkage::Import,
+            &rt_chan_recv_sig,
+        )
         .map_err(|e| e.to_string())?;
     func_ids.insert(
         "datara_rt_fiber_chan_recv".into(),
         (rt_chan_recv_id, rt_chan_recv_sig),
     );
-
 
     let mut rt_num_workers_sig = Signature::new(call_conv);
     rt_num_workers_sig

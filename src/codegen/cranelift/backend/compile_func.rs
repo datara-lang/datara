@@ -636,8 +636,7 @@ pub fn compile_all_functions<M: ClifModule>(
                         // explicit `return x` seeds via LoadVar unions;
                         // this keeps the classification exact for return
                         // paths that do not go through a named variable.
-                        let escapes = escape_set.contains(dest)
-                            || f.return_type == *class_name;
+                        let escapes = escape_set.contains(dest) || f.return_type == *class_name;
                         let is_packed = dmir_module.packed_classes.contains(class_name);
                         // M5 TMM Layer 2: @arc classes carry a 16-byte
                         // refcount header (strong, weak) BEFORE the object

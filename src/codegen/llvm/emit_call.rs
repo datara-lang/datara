@@ -370,8 +370,8 @@ impl<'a> LlvmEmitter<'a> {
             // Every fixed-arity map literal constructor is named
             // `datara_rt_map_create_<n>` / `datara_rt_map_create_i64_<n>` and
             // takes its values in i64 slots.
-            let is_map_literal_ctor = aty == "double"
-                && actual_func.starts_with("datara_rt_map_create_");
+            let is_map_literal_ctor =
+                aty == "double" && actual_func.starts_with("datara_rt_map_create_");
             let is_list_slot_f64 = aty == "double"
                 && !is_set_f64
                 && (((actual_func == "datara_rt_list_append"
@@ -439,15 +439,9 @@ impl<'a> LlvmEmitter<'a> {
                 raw, call_prefix, actual_func, args_str
             ));
             if ret_ty == "double" {
-                out.push_str(&format!(
-                    "  %v{} = bitcast i64 {} to double\n",
-                    dest.0, raw
-                ));
+                out.push_str(&format!("  %v{} = bitcast i64 {} to double\n", dest.0, raw));
             } else if ret_ty == "ptr" {
-                out.push_str(&format!(
-                    "  %v{} = inttoptr i64 {} to ptr\n",
-                    dest.0, raw
-                ));
+                out.push_str(&format!("  %v{} = inttoptr i64 {} to ptr\n", dest.0, raw));
             } else {
                 out.push_str(&format!("  %v{} = add i64 {}, 0\n", dest.0, raw));
             }

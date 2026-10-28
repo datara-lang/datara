@@ -62,7 +62,11 @@ fn main() {
     if res.success {
         let exe = res.exe_path.expect("exe");
         let (stdout, _, code, _) = compiler.cranelift.run_executable(&exe, &[]).unwrap();
-        assert!(code != 0 || !stdout.contains("STOLEN"), "dir_list bypass leaked: {}", stdout);
+        assert!(
+            code != 0 || !stdout.contains("STOLEN"),
+            "dir_list bypass leaked: {}",
+            stdout
+        );
         let _ = std::fs::remove_file(&exe);
         let _ = std::fs::remove_file(exe.with_extension("obj"));
     } else {
@@ -85,7 +89,11 @@ fn main() {
     if res.success {
         let exe = res.exe_path.expect("exe");
         let (stdout, _, code, _) = compiler.cranelift.run_executable(&exe, &[]).unwrap();
-        assert!(code != 0 || !stdout.contains("SPAWNED"), "proc_spawn bypass leaked: {}", stdout);
+        assert!(
+            code != 0 || !stdout.contains("SPAWNED"),
+            "proc_spawn bypass leaked: {}",
+            stdout
+        );
         let _ = std::fs::remove_file(&exe);
         let _ = std::fs::remove_file(exe.with_extension("obj"));
     } else {
@@ -107,7 +115,11 @@ fn main() {
     if res.success {
         let exe = res.exe_path.expect("exe");
         let (stdout, _, code, _) = compiler.cranelift.run_executable(&exe, &[]).unwrap();
-        assert!(code != 0 || !stdout.contains("SET"), "escalated op without justification leaked: {}", stdout);
+        assert!(
+            code != 0 || !stdout.contains("SET"),
+            "escalated op without justification leaked: {}",
+            stdout
+        );
         let _ = std::fs::remove_file(&exe);
         let _ = std::fs::remove_file(exe.with_extension("obj"));
     } else {
@@ -130,7 +142,11 @@ fn main() {
     if res.success {
         let exe = res.exe_path.expect("exe");
         let (stdout, _, code, _) = compiler.cranelift.run_executable(&exe, &[]).unwrap();
-        assert!(code != 0 || !stdout.contains("STOLEN"), "deep traversal leaked: {}", stdout);
+        assert!(
+            code != 0 || !stdout.contains("STOLEN"),
+            "deep traversal leaked: {}",
+            stdout
+        );
         let _ = std::fs::remove_file(&exe);
         let _ = std::fs::remove_file(exe.with_extension("obj"));
     } else {

@@ -140,7 +140,11 @@ impl<'a> Lowering<'a> {
                         if std::env::var("DATARA_CODEGEN_TRACE").is_ok() {
                             eprintln!(
                                 "[match-arm] slot_key={} idx={} field_ty={} enum={} variant={}",
-                                slot_key, idx, field_ty, enum_name.clone().unwrap_or_default(), variant_name
+                                slot_key,
+                                idx,
+                                field_ty,
+                                enum_name.clone().unwrap_or_default(),
+                                variant_name
                             );
                         }
                         self.get_block_mut(*cur_block)

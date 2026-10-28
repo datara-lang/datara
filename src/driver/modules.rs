@@ -605,11 +605,7 @@ impl ForgenCompiler {
     /// the root file and no filesystem resolution at all; the full
     /// [`Self::module_dependency_fingerprint`] then re-derives the identical
     /// value for the miss path, so key and entry always agree.
-    pub fn module_dependency_fingerprint_quick(
-        &self,
-        source: &str,
-        file: &str,
-    ) -> Option<u64> {
+    pub fn module_dependency_fingerprint_quick(&self, source: &str, file: &str) -> Option<u64> {
         let root_paths = nested_use_paths(source);
         if root_paths.is_empty() {
             return None;
@@ -954,8 +950,7 @@ impl ForgenCompiler {
                         ..
                     }
                     | Stmt::ParallelFor { iterable, body, .. } => {
-                        expr_uses_checked_accessor(iterable)
-                            || stmt_uses_checked_accessor(body)
+                        expr_uses_checked_accessor(iterable) || stmt_uses_checked_accessor(body)
                     }
                     Stmt::Loop { body, .. } | Stmt::Unsafe { body, .. } => {
                         stmt_uses_checked_accessor(body)

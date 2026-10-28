@@ -101,7 +101,10 @@ fn every_category_has_up_to_two_nonempty_hints() {
     // The rendered explanation embeds the hints.
     let text = forgen::diagnostics::explain_data::explain_for_code("E-TYPE-001")
         .expect("E-TYPE-001 must explain");
-    assert!(text.contains("Hints:"), "explanation must include the hints block");
+    assert!(
+        text.contains("Hints:"),
+        "explanation must include the hints block"
+    );
     assert!(
         text.contains("- Make the conversion explicit"),
         "explanation must list the category hints"

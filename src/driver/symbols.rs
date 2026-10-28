@@ -104,19 +104,17 @@ impl SymbolTable {
     }
 
     /// Record one definition of `name`. Returns the definition's symbol id.
-    pub fn define(
-        &mut self,
-        name: &str,
-        kind: &'static str,
-        span: Option<SourceSpan>,
-    ) -> SymbolId {
+    pub fn define(&mut self, name: &str, kind: &'static str, span: Option<SourceSpan>) -> SymbolId {
         let id = self.interner.intern(name);
-        self.defs.entry(name.to_string()).or_default().push(SymbolDef {
-            id,
-            name: name.to_string(),
-            span,
-            kind,
-        });
+        self.defs
+            .entry(name.to_string())
+            .or_default()
+            .push(SymbolDef {
+                id,
+                name: name.to_string(),
+                span,
+                kind,
+            });
         id
     }
 
@@ -143,7 +141,9 @@ pub fn mangle_method(type_name: &str, method_name: &str) -> String {
 }
 
 pub fn mangle_specialization(fn_name: &str, type_args: &[&str]) -> String {
-    let mut out = String::with_capacity(fn_name.len() + 1 + type_args.iter().map(|s| s.len() + 1).sum::<usize>());
+    let mut out = String::with_capacity(
+        fn_name.len() + 1 + type_args.iter().map(|s| s.len() + 1).sum::<usize>(),
+    );
     out.push_str(fn_name);
     for arg in type_args {
         out.push('_');
@@ -185,7 +185,11 @@ pub fn check_module_link(
                 .or_else(|| module.function_spans.get(name).cloned());
             let help = format!(
                 "Every symbol must mangle to a unique link name. If this is a method, rename the method or the colliding top-level function so the '{}' prefix keeps it unique.",
-                if dup.kind == "method" || first.kind == "method" { "<type>" } else { "top-level" }
+                if dup.kind == "method" || first.kind == "method" {
+                    "<type>"
+                } else {
+                    "top-level"
+                }
             );
             diag.error_with_help(
                 ErrorCode::LinkDuplicateSymbol,
@@ -249,8 +253,16 @@ mod tests {
     #[test]
     fn symbol_table_detects_duplicates() {
         let mut t = SymbolTable::new();
-        t.define("Foo_bar", "function", Some(SourceSpan::point(1, 1, "a.dtr".into())));
-        t.define("Foo_bar", "method", Some(SourceSpan::point(9, 5, "b.dtr".into())));
+        t.define(
+            "Foo_bar",
+            "function",
+            Some(SourceSpan::point(1, 1, "a.dtr".into())),
+        );
+        t.define(
+            "Foo_bar",
+            "method",
+            Some(SourceSpan::point(9, 5, "b.dtr".into())),
+        );
         let dups = t.duplicates();
         assert_eq!(dups.len(), 1);
         assert_eq!(dups[0].0, "Foo_bar");
@@ -277,7 +289,11 @@ mod tests {
         assert!(!diag.has_errors());
 
         // Different spans for the same name = real collision.
-        t.define("Type_m", "method", Some(SourceSpan::point(30, 1, "m.dtr".into())));
+        t.define(
+            "Type_m",
+            "method",
+            Some(SourceSpan::point(30, 1, "m.dtr".into())),
+        );
         let mut diag2 = DiagnosticEngine::new("en");
         assert_eq!(check_module_link(&module, &t, &mut diag2), 1);
         assert!(diag2.has_errors());
@@ -288,6 +304,9 @@ mod tests {
     #[test]
     fn mangling_scheme() {
         assert_eq!(mangle_method("Vec2", "len"), "Vec2_len");
-        assert_eq!(mangle_specialization("pair_swap", &["Int", "Str"]), "pair_swap_Int_Str");
+        assert_eq!(
+            mangle_specialization("pair_swap", &["Int", "Str"]),
+            "pair_swap_Int_Str"
+        );
     }
 }

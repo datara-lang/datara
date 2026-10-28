@@ -8,7 +8,7 @@
 //! `prove_body_arithmetic` runs the function-wide range fixpoint that marks
 //! bounded Int arithmetic inside proven loops.
 
-use super::ovf_range::{induction_range, join_state, ProvenInduction, Range, RState};
+use super::ovf_range::{ProvenInduction, RState, Range, induction_range, join_state};
 use crate::dmir::cfg::ControlFlowGraph;
 use crate::dmir::{Function, Inst, Terminator, ValueId};
 use std::collections::HashMap;
@@ -357,8 +357,13 @@ pub(super) fn prove_body_arithmetic(
                     if ty == "Int"
                         && matches!(
                             op.as_str(),
-                            "+" | "-" | "*" | "wrapping_+" | "wrapping_-
-                            " | "&" | "|" | "^"
+                            "+" | "-"
+                                | "*"
+                                | "wrapping_+"
+                                | "wrapping_-
+                            " | "&"
+                                | "|"
+                                | "^"
                         ) =>
                 {
                     analyzable.insert(*dest);
@@ -403,9 +408,10 @@ pub(super) fn prove_body_arithmetic(
         if let Some(entry) = f.blocks.iter().find(|b| b.id == f.entry_block)
             && entry.params.iter().any(|bp| bp.val == *pv)
         {
-            proven_params
-                .entry((f.entry_block, *pv))
-                .or_insert(Range { lo: i64::MIN, hi: i64::MAX });
+            proven_params.entry((f.entry_block, *pv)).or_insert(Range {
+                lo: i64::MIN,
+                hi: i64::MAX,
+            });
         }
     }
 
@@ -646,7 +652,9 @@ pub(super) fn prove_body_arithmetic(
     let mut innermost_order: Vec<(crate::dmir::BasicBlockId, ValueId)> = Vec::new();
     for (i, a) in inductions.iter().enumerate() {
         let innermost = !inductions.iter().enumerate().any(|(j, b)| {
-            i != j && b.blocks.len() < a.blocks.len() && b.blocks.iter().all(|x| a.blocks.contains(x))
+            i != j
+                && b.blocks.len() < a.blocks.len()
+                && b.blocks.iter().all(|x| a.blocks.contains(x))
         });
         if innermost {
             innermost_order.push((a.header_id, a.vid));
@@ -689,7 +697,10 @@ pub(super) fn prove_body_arithmetic(
         // of this loop body only touches `f` through the collected ids.
         for (param, param_idx) in &param_idx_by_val {
             if std::env::var("DATARA_OVF_DEBUG").is_ok() {
-                eprintln!("[ovf-acc] examining param v{} (idx {}) of loop bb{}", param.0, param_idx, pi.header_id.0);
+                eprintln!(
+                    "[ovf-acc] examining param v{} (idx {}) of loop bb{}",
+                    param.0, param_idx, pi.header_id.0
+                );
             }
             // Structural latch feed of this param: the arg the unconditional
             // latch hands back. Mid-run back edges (continue-style) carry a
@@ -1213,10 +1224,9 @@ pub(super) fn prove_body_arithmetic(
             ) else {
                 continue;
             };
-            let (Some(hull_full_lo), Some(hull_full_hi)) = (
-                entry_lo.checked_add(lo_term),
-                entry_hi.checked_add(hi_term),
-            ) else {
+            let (Some(hull_full_lo), Some(hull_full_hi)) =
+                (entry_lo.checked_add(lo_term), entry_hi.checked_add(hi_term))
+            else {
                 continue;
             };
             // `>=`/`<=` against the type extremes: the hull must be strictly

@@ -75,7 +75,8 @@ impl<'a> Lowering<'a> {
                             return Some(ty.clone());
                         }
                         return self.infer_lambda_ret_type(ret);
-                    }                    return None;
+                    }
+                    return None;
                 }
                 let ty = self.infer_expr_datara_type(other)?;
                 match ty {
@@ -358,9 +359,7 @@ impl<'a> Lowering<'a> {
                     // callback carried no type: `acc + w` on Str values was
                     // lowered as integer pointer addition (silent dangling
                     // addresses instead of concatenation).
-                    if self.is_expr_list(object)
-                        && matches!(member.as_str(), "get" | "at")
-                    {
+                    if self.is_expr_list(object) && matches!(member.as_str(), "get" | "at") {
                         return Some(self.infer_list_elem_type(object));
                     }
                     if self.is_expr_list(object)
@@ -946,7 +945,9 @@ impl<'a> Lowering<'a> {
         }
         match expr {
             Expr::Literal(LiteralValue::Int(_), _) => true,
-            Expr::Unary { op, expr: inner, .. } if op == "-" => {
+            Expr::Unary {
+                op, expr: inner, ..
+            } if op == "-" => {
                 matches!(inner.as_ref(), Expr::Literal(LiteralValue::Int(_), _))
             }
             _ => false,
@@ -1052,12 +1053,10 @@ impl<'a> Lowering<'a> {
             for (name, old_val) in shadowed_symbols.iter().rev() {
                 if let Some(ov) = old_val {
                     s.symbol_values.insert(name.clone(), *ov);
-                    s.get_block_mut(b)
-                        .instructions
-                        .push(Inst::AssignVar {
-                            name: name.clone(),
-                            value: *ov,
-                        });
+                    s.get_block_mut(b).instructions.push(Inst::AssignVar {
+                        name: name.clone(),
+                        value: *ov,
+                    });
                 } else {
                     s.symbol_values.remove(name);
                 }

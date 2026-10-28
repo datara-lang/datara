@@ -68,7 +68,10 @@ impl<'a> DmirOwnershipAnalyzer<'a> {
                 let blocks = func.blocks.len();
                 let rep = self.analyze_and_lower_function(func, diag);
                 if debug_slow {
-                    timings.push((format!("{name} (blocks={blocks})"), t0.elapsed().as_micros()));
+                    timings.push((
+                        format!("{name} (blocks={blocks})"),
+                        t0.elapsed().as_micros(),
+                    ));
                 }
                 reports.insert(name, rep);
             }

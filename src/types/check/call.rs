@@ -316,9 +316,7 @@ impl<'a> TypeChecker<'a> {
                     if *a_ty == DataraType::Val
                         && !matches!(
                             p_ty,
-                            DataraType::Val
-                                | DataraType::TypeParam(_)
-                                | DataraType::Unit
+                            DataraType::Val | DataraType::TypeParam(_) | DataraType::Unit
                         )
                         && !matches!(p_ty, DataraType::Class(c) if c == "Val")
                     {
@@ -363,13 +361,7 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
 
-                check_generic_trait_bounds(
-                    self,
-                    fn_name,
-                    &type_bindings,
-                    span,
-                    diag,
-                );
+                check_generic_trait_bounds(self, fn_name, &type_bindings, span, diag);
 
                 if !type_bindings.is_empty() {
                     // A generic parameter bound to a Function type means a
@@ -766,7 +758,14 @@ impl<'a> TypeChecker<'a> {
                     // desynced the two stages and broke `?`/`or` composition
                     // (E-TYPE-001 on a lowered-Outcome operand).
                     "get" | "contains" | "has_key" => {
-                        check_map_key_arg(diag, member, key.as_ref(), &arg_types, span, self.resolver);
+                        check_map_key_arg(
+                            diag,
+                            member,
+                            key.as_ref(),
+                            &arg_types,
+                            span,
+                            self.resolver,
+                        );
                         if member != "get" {
                             return DataraType::Bool;
                         }
@@ -776,7 +775,14 @@ impl<'a> TypeChecker<'a> {
                         );
                     }
                     "insert" => {
-                        check_map_key_arg(diag, member, key.as_ref(), &arg_types, span, self.resolver);
+                        check_map_key_arg(
+                            diag,
+                            member,
+                            key.as_ref(),
+                            &arg_types,
+                            span,
+                            self.resolver,
+                        );
                         if let Some(v) = arg_types.get(1)
                             && !v.is_compatible_with_args(val.as_ref(), Some(self.resolver))
                         {
@@ -787,10 +793,7 @@ impl<'a> TypeChecker<'a> {
                                     val, v
                                 ),
                                 Some(span.clone()),
-                                Some(format!(
-                                    "this map stores '{}' values",
-                                    val
-                                )),
+                                Some(format!("this map stores '{}' values", val)),
                             );
                         }
                         return DataraType::Map(key.clone(), val.clone());
@@ -881,8 +884,15 @@ impl<'a> TypeChecker<'a> {
             if obj_type == DataraType::Val
                 && matches!(
                     member.as_str(),
-                    "as_int" | "as_float" | "to_int" | "to_float" | "to_str" | "is_int"
-                        | "is_float" | "is_bool" | "is_str"
+                    "as_int"
+                        | "as_float"
+                        | "to_int"
+                        | "to_float"
+                        | "to_str"
+                        | "is_int"
+                        | "is_float"
+                        | "is_bool"
+                        | "is_str"
                 )
             {
                 if !arg_types.is_empty() {
@@ -894,10 +904,9 @@ impl<'a> TypeChecker<'a> {
                     return DataraType::Unit;
                 }
                 return match member.as_str() {
-                    "as_int" | "to_int" => DataraType::Result(
-                        Box::new(DataraType::Int),
-                        Box::new(DataraType::String),
-                    ),
+                    "as_int" | "to_int" => {
+                        DataraType::Result(Box::new(DataraType::Int), Box::new(DataraType::String))
+                    }
                     "as_float" | "to_float" => DataraType::Result(
                         Box::new(DataraType::Float),
                         Box::new(DataraType::String),
@@ -931,21 +940,19 @@ impl<'a> TypeChecker<'a> {
                         _ => {}
                     }
                 }
-                DataraType::RawPtr => {
-                    match member.as_str() {
-                        "upgrade" => {
-                            return DataraType::GenericInstance {
-                                name: "Outcome".into(),
-                                args: vec![DataraType::RawPtr],
-                            };
-                        }
-                        "is_alive" => return DataraType::Bool,
-                        "arc_count" => return DataraType::Int,
-                        "arc_acquire" => return DataraType::RawPtr,
-                        "arc_release" | "weak_drop" => return DataraType::Unit,
-                        _ => {}
+                DataraType::RawPtr => match member.as_str() {
+                    "upgrade" => {
+                        return DataraType::GenericInstance {
+                            name: "Outcome".into(),
+                            args: vec![DataraType::RawPtr],
+                        };
                     }
-                }
+                    "is_alive" => return DataraType::Bool,
+                    "arc_count" => return DataraType::Int,
+                    "arc_acquire" => return DataraType::RawPtr,
+                    "arc_release" | "weak_drop" => return DataraType::Unit,
+                    _ => {}
+                },
                 _ => {}
             }
             if let Some(cls) = cls_opt {

@@ -48,9 +48,17 @@ fn check_cache_does_not_hide_direct_or_transitive_import_edits() {
     let compiler = ForgenCompiler::new("check");
 
     let first = compiler.check_file(&root);
-    assert!(first.success, "initial project check failed: {}", first.diagnostics);
+    assert!(
+        first.success,
+        "initial project check failed: {}",
+        first.diagnostics
+    );
     let cached = compiler.check_file(&root);
-    assert!(cached.success, "unchanged cached check failed: {}", cached.diagnostics);
+    assert!(
+        cached.success,
+        "unchanged cached check failed: {}",
+        cached.diagnostics
+    );
 
     fs::write(&leaf, "pub fn value() -> Int => \"wrong\"\n")
         .expect("replace transitive module with invalid implementation");
@@ -67,10 +75,17 @@ fn check_cache_does_not_hide_direct_or_transitive_import_edits() {
 
     fs::write(&leaf, "pub fn value() -> Int => 42\n").expect("restore leaf");
     let restored = compiler.check_file(&root);
-    assert!(restored.success, "restored dependency must check: {}", restored.diagnostics);
+    assert!(
+        restored.success,
+        "restored dependency must check: {}",
+        restored.diagnostics
+    );
 
-    fs::write(&helper, "use leaf.value\npub fn answer() -> Str => \"changed\"\n")
-        .expect("replace direct module");
+    fs::write(
+        &helper,
+        "use leaf.value\npub fn answer() -> Str => \"changed\"\n",
+    )
+    .expect("replace direct module");
     let direct_edit = compiler.check_file(&root);
     assert!(
         !direct_edit.success,

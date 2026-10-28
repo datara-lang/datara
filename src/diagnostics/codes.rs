@@ -290,7 +290,9 @@ impl ErrorCode {
             ErrorCode::ResolveUndefinedSymbol => "Undefined symbol reference",
             ErrorCode::ResolveDuplicateSymbol => "Duplicate symbol declaration",
             ErrorCode::ResolveUnknownType => "Unknown type identifier",
-            ErrorCode::AnyTypeLeak => "A dynamic (val) value leaked into a statically-typed context",
+            ErrorCode::AnyTypeLeak => {
+                "A dynamic (val) value leaked into a statically-typed context"
+            }
             ErrorCode::ResolveCircularDependency => "Circular module dependency detected",
             ErrorCode::ResolveUnreachableModule => "Unreachable module detected",
             ErrorCode::PrivateItemAccess => {

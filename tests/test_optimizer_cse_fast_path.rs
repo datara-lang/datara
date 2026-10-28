@@ -87,7 +87,11 @@ fn repeated_expressions_still_use_global_cse() {
         Inst::UnOp { op, operand, .. } if op == "copy" && *operand == ValueId(3)
     ));
     assert_eq!(
-        trace.records.iter().filter(|record| record.pass == "CSE" && record.decision == "Applied").count(),
+        trace
+            .records
+            .iter()
+            .filter(|record| record.pass == "CSE" && record.decision == "Applied")
+            .count(),
         1
     );
 }

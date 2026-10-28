@@ -16,12 +16,12 @@
 //! 4. The release splice is idempotent: re-running insert_releases over
 //!    post-insert IR must not duplicate a free.
 
-use forgen::dmir::{verify_module, Inst, Lowering};
 use forgen::diagnostics::DiagnosticEngine;
+use forgen::dmir::{Inst, Lowering, verify_module};
 use forgen::driver::ForgenCompiler;
 use forgen::lexer::Lexer;
 use forgen::ownership::dataflow::{
-    analyze_module, compute_fresh_set, insert_releases, EscapeReason,
+    EscapeReason, analyze_module, compute_fresh_set, insert_releases,
 };
 use forgen::parser::Parser;
 use forgen::resolver::Resolver;
@@ -35,11 +35,7 @@ fn lower(src: &str, name: &str) -> forgen::dmir::Module {
     assert!(!diag.has_errors(), "parse failed: {}", diag.format_all());
     let mut resolver = Resolver::new();
     resolver.resolve_program(&program, &mut diag);
-    assert!(
-        !diag.has_errors(),
-        "resolve failed: {}",
-        diag.format_all()
-    );
+    assert!(!diag.has_errors(), "resolve failed: {}", diag.format_all());
     let mut tc = TypeChecker::new(&resolver);
     tc.check_program(&program, &mut diag);
     assert!(
@@ -115,9 +111,9 @@ fn returned_fresh_object_is_released_in_caller() {
         plan.releases
     );
     assert!(
-        plan.keeps.iter().any(|k| k.function == "mk"
-            && k.class == "A"
-            && k.reason == EscapeReason::Returned),
+        plan.keeps
+            .iter()
+            .any(|k| k.function == "mk" && k.class == "A" && k.reason == EscapeReason::Returned),
         "the object inside mk must be kept with the Returned reason: {:?}",
         plan.keeps
     );

@@ -110,8 +110,6 @@ pub struct Optimizer {
     pub module_mutable_globals: HashSet<String>,
 }
 
-
-
 impl Optimizer {
     pub fn new(mode: &str) -> Self {
         let cost_model = CostModel::new(mode);

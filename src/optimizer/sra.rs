@@ -147,9 +147,7 @@ impl SraOptimizer {
                     }
 
                     Inst::Call {
-                        ref func,
-                        ref args,
-                        ..
+                        ref func, ref args, ..
                     } => {
                         // M6 TMM Layer 1: when this pass decomposes the
                         // released object, its release call must go away with
@@ -159,8 +157,7 @@ impl SraOptimizer {
                             || func == "datara_rt_arc_release")
                             && args.len() == 1
                             && args.first().is_some_and(|&a| {
-                                non_escaping_vids.contains_key(&a)
-                                    || vid_to_root.contains_key(&a)
+                                non_escaping_vids.contains_key(&a) || vid_to_root.contains_key(&a)
                             });
                         if scalarized_release {
                             eliminated_allocs += 1;

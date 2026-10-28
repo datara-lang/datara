@@ -82,137 +82,146 @@ impl<'a> Lowering<'a> {
         // M10 NatVar: fiber runtime builtins — must run BEFORE the generic
         // builtin dispatch (which would emit a raw 2-arg call by name).
         if let Expr::Identifier(fn_name, _) = callee {
-                match fn_name.as_str() {
-                    "fiber_spawn" | "datara_rt_fiber_spawn" if args.len() >= 2 => {
-                        let fn_addr = match &args[0] {
-                            Expr::Identifier(f, _) => {
-                                let v = self.next_val();
-                                self.get_block_mut(*cur_block).instructions.push(
-                                    Inst::GetFuncAddr { dest: v, func_name: f.clone() },
-                                );
-                                Some(v)
-                            }
-                            _ => None,
-                        };
-                        let fn_addr = fn_addr?;
-                        let arg = self.lower_expr(&args[1], cur_block)
-                            .unwrap_or_else(|| {
-                                let z = self.next_val();
-                                self.get_block_mut(*cur_block).instructions.push(
-                                    Inst::ConstInt { dest: z, value: 0 },
-                                );
-                                z
-                            });
-                        let stack_kb = if args.len() >= 3 {
-                            self.lower_expr(&args[2], cur_block).unwrap_or_else(|| {
-                                let z = self.next_val();
-                                self.get_block_mut(*cur_block).instructions.push(
-                                    Inst::ConstInt { dest: z, value: 8 },
-                                );
-                                z
-                            })
-                        } else {
+            match fn_name.as_str() {
+                "fiber_spawn" | "datara_rt_fiber_spawn" if args.len() >= 2 => {
+                    let fn_addr = match &args[0] {
+                        Expr::Identifier(f, _) => {
+                            let v = self.next_val();
+                            self.get_block_mut(*cur_block)
+                                .instructions
+                                .push(Inst::GetFuncAddr {
+                                    dest: v,
+                                    func_name: f.clone(),
+                                });
+                            Some(v)
+                        }
+                        _ => None,
+                    };
+                    let fn_addr = fn_addr?;
+                    let arg = self.lower_expr(&args[1], cur_block).unwrap_or_else(|| {
+                        let z = self.next_val();
+                        self.get_block_mut(*cur_block)
+                            .instructions
+                            .push(Inst::ConstInt { dest: z, value: 0 });
+                        z
+                    });
+                    let stack_kb = if args.len() >= 3 {
+                        self.lower_expr(&args[2], cur_block).unwrap_or_else(|| {
                             let z = self.next_val();
-                            self.get_block_mut(*cur_block).instructions.push(
-                                Inst::ConstInt { dest: z, value: 8 },
-                            );
+                            self.get_block_mut(*cur_block)
+                                .instructions
+                                .push(Inst::ConstInt { dest: z, value: 8 });
                             z
-                        };
-                        let dest = self.next_val();
-                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                        })
+                    } else {
+                        let z = self.next_val();
+                        self.get_block_mut(*cur_block)
+                            .instructions
+                            .push(Inst::ConstInt { dest: z, value: 8 });
+                        z
+                    };
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
                             dest,
                             func: "datara_rt_fiber_spawn".into(),
                             args: vec![fn_addr, arg, stack_kb],
                             ty: "Int".into(),
                         });
-                        return Some(dest);
-                    }
-                    "fiber_yield" | "datara_rt_fiber_yield" if args.is_empty() => {
-                        let dummy = self.next_val();
-                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                    return Some(dest);
+                }
+                "fiber_yield" | "datara_rt_fiber_yield" if args.is_empty() => {
+                    let dummy = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
                             dest: dummy,
                             func: "datara_rt_fiber_yield".into(),
                             args: vec![],
                             ty: "Unit".into(),
                         });
-                        return Some(dummy);
-                    }
-                    "fiber_sleep_ms" | "datara_rt_fiber_sleep_ms" if args.len() == 1 => {
-                        let ms = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
-                        let dummy = self.next_val();
-                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                    return Some(dummy);
+                }
+                "fiber_sleep_ms" | "datara_rt_fiber_sleep_ms" if args.len() == 1 => {
+                    let ms = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
+                    let dummy = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
                             dest: dummy,
                             func: "datara_rt_fiber_sleep_ms".into(),
                             args: vec![ms],
                             ty: "Unit".into(),
                         });
-                        return Some(dummy);
-                    }
-                    "fiber_run_until_done" | "datara_rt_fiber_run_until_done"
-                        if args.is_empty() =>
-                    {
-                        let dest = self.next_val();
-                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                    return Some(dummy);
+                }
+                "fiber_run_until_done" | "datara_rt_fiber_run_until_done" if args.is_empty() => {
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
                             dest,
                             func: "datara_rt_fiber_run_until_done".into(),
                             args: vec![],
                             ty: "Int".into(),
                         });
-                        return Some(dest);
-                    }
-                    "fiber_join" | "datara_rt_fiber_join" if args.len() == 1 => {
-                        let h = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
-                        let dest = self.next_val();
-                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                    return Some(dest);
+                }
+                "fiber_join" | "datara_rt_fiber_join" if args.len() == 1 => {
+                    let h = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
                             dest,
                             func: "datara_rt_fiber_join".into(),
                             args: vec![h],
                             ty: "Int".into(),
                         });
-                        return Some(dest);
-                    }
-                    "fiber_chan_create" | "datara_rt_fiber_chan_create"
-                        if args.is_empty() =>
-                    {
-                        let dest = self.next_val();
-                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                    return Some(dest);
+                }
+                "fiber_chan_create" | "datara_rt_fiber_chan_create" if args.is_empty() => {
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
                             dest,
                             func: "datara_rt_fiber_chan_create".into(),
                             args: vec![],
                             ty: "Int".into(),
                         });
-                        return Some(dest);
-                    }
-                    "fiber_chan_send" | "datara_rt_fiber_chan_send"
-                        if args.len() == 2 =>
-                    {
-                        let c = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
-                        let v = self.lower_expr(&args[1], cur_block).unwrap_or(ValueId(0));
-                        let dummy = self.next_val();
-                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                    return Some(dest);
+                }
+                "fiber_chan_send" | "datara_rt_fiber_chan_send" if args.len() == 2 => {
+                    let c = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
+                    let v = self.lower_expr(&args[1], cur_block).unwrap_or(ValueId(0));
+                    let dummy = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
                             dest: dummy,
                             func: "datara_rt_fiber_chan_send".into(),
                             args: vec![c, v],
                             ty: "Unit".into(),
                         });
-                        return Some(dummy);
-                    }
-                    "fiber_chan_recv" | "datara_rt_fiber_chan_recv"
-                        if args.len() == 1 =>
-                    {
-                        let c = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
-                        let dest = self.next_val();
-                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                    return Some(dummy);
+                }
+                "fiber_chan_recv" | "datara_rt_fiber_chan_recv" if args.len() == 1 => {
+                    let c = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
                             dest,
                             func: "datara_rt_fiber_chan_recv".into(),
                             args: vec![c],
                             ty: "Int".into(),
                         });
-                        return Some(dest);
-                    }
-                    _ => {}
+                    return Some(dest);
                 }
-
+                _ => {}
+            }
         }
         if let Expr::Identifier(fn_name, fn_span) = callee {
             if let Some(f) = self.comptime_functions.get(fn_name).cloned() {
@@ -329,12 +338,10 @@ impl<'a> Lowering<'a> {
                     for (cname, old_val) in &shadowed_captures {
                         if let Some(ov) = old_val {
                             s.symbol_values.insert(cname.clone(), *ov);
-                            s.get_block_mut(b)
-                                .instructions
-                                .push(Inst::AssignVar {
-                                    name: cname.clone(),
-                                    value: *ov,
-                                });
+                            s.get_block_mut(b).instructions.push(Inst::AssignVar {
+                                name: cname.clone(),
+                                value: *ov,
+                            });
                         } else {
                             s.symbol_values.remove(cname);
                         }
@@ -591,7 +598,13 @@ impl<'a> Lowering<'a> {
             {
                 let elem_repr = self.list_elem_repr(&args[0]);
                 let list_val = self.lower_expr(&args[0], cur_block)?;
-                return self.lower_list_higher_order(list_val, fn_name, &args[1..], cur_block, elem_repr);
+                return self.lower_list_higher_order(
+                    list_val,
+                    fn_name,
+                    &args[1..],
+                    cur_block,
+                    elem_repr,
+                );
             }
             if fn_name == "reduce"
                 && args.len() == 3
@@ -600,7 +613,13 @@ impl<'a> Lowering<'a> {
             {
                 let elem_repr = self.list_elem_repr(&args[0]);
                 let list_val = self.lower_expr(&args[0], cur_block)?;
-                return self.lower_list_higher_order(list_val, fn_name, &args[1..], cur_block, elem_repr);
+                return self.lower_list_higher_order(
+                    list_val,
+                    fn_name,
+                    &args[1..],
+                    cur_block,
+                    elem_repr,
+                );
             }
             // v1.4.1: fold(xs, init, acc_fn) -- same shape as reduce.
             if fn_name == "fold"
@@ -610,7 +629,13 @@ impl<'a> Lowering<'a> {
             {
                 let elem_repr = self.list_elem_repr(&args[0]);
                 let list_val = self.lower_expr(&args[0], cur_block)?;
-                return self.lower_list_higher_order(list_val, fn_name, &args[1..], cur_block, elem_repr);
+                return self.lower_list_higher_order(
+                    list_val,
+                    fn_name,
+                    &args[1..],
+                    cur_block,
+                    elem_repr,
+                );
             }
             // collect(xs) materializes the pipeline sink; map/filter already
             // build eager result lists, so the list itself is the value.
@@ -1305,15 +1330,18 @@ impl<'a> Lowering<'a> {
                     && self.is_callable_expr(&args[0])
                 {
                     let elem_repr = self.list_elem_repr(object);
-                    return self.lower_list_higher_order(obj_val, member, args, cur_block, elem_repr);
+                    return self
+                        .lower_list_higher_order(obj_val, member, args, cur_block, elem_repr);
                 }
                 if member == "reduce" && args.len() == 2 && self.is_callable_expr(&args[1]) {
                     let elem_repr = self.list_elem_repr(object);
-                    return self.lower_list_higher_order(obj_val, member, args, cur_block, elem_repr);
+                    return self
+                        .lower_list_higher_order(obj_val, member, args, cur_block, elem_repr);
                 }
                 if member == "fold" && args.len() == 2 && self.is_callable_expr(&args[1]) {
                     let elem_repr = self.list_elem_repr(object);
-                    return self.lower_list_higher_order(obj_val, member, args, cur_block, elem_repr);
+                    return self
+                        .lower_list_higher_order(obj_val, member, args, cur_block, elem_repr);
                 }
                 // collect() materializes the pipeline: map/filter already
                 // build eager result lists, so the sink list is the value.
@@ -1414,9 +1442,7 @@ impl<'a> Lowering<'a> {
                 let val_repr = self
                     .infer_expr_datara_type(object)
                     .map(|obj_ty| match obj_ty {
-                        DataraType::Map(_, val) => {
-                            super::expr_composite::index_elem_ret_ty(&val)
-                        }
+                        DataraType::Map(_, val) => super::expr_composite::index_elem_ret_ty(&val),
                         DataraType::GenericInstance { name, args }
                             if name == "Map" && args.len() >= 2 =>
                         {
@@ -1598,14 +1624,19 @@ impl<'a> Lowering<'a> {
             }
             // M7 TSU: val methods on dynamic receivers lower to the
             // NaN-box runtime API, not to method dispatch.
-            if matches!(
-                self.infer_expr_datara_type(object),
-                Some(DataraType::Val)
-            ) && matches!(
-                member.as_str(),
-                "as_int" | "as_float" | "to_int" | "to_float" | "to_str" | "is_int"
-                    | "is_float" | "is_bool" | "is_str"
-            )
+            if matches!(self.infer_expr_datara_type(object), Some(DataraType::Val))
+                && matches!(
+                    member.as_str(),
+                    "as_int"
+                        | "as_float"
+                        | "to_int"
+                        | "to_float"
+                        | "to_str"
+                        | "is_int"
+                        | "is_float"
+                        | "is_bool"
+                        | "is_str"
+                )
             {
                 let recv = self.lower_expr(object, cur_block)?;
                 let func = match member.as_str() {
@@ -1824,12 +1855,10 @@ impl<'a> Lowering<'a> {
                 for (name, old_val) in &shadowed_symbols {
                     if let Some(ov) = old_val {
                         s.symbol_values.insert(name.clone(), *ov);
-                        s.get_block_mut(b)
-                            .instructions
-                            .push(Inst::AssignVar {
-                                name: name.clone(),
-                                value: *ov,
-                            });
+                        s.get_block_mut(b).instructions.push(Inst::AssignVar {
+                            name: name.clone(),
+                            value: *ov,
+                        });
                     } else {
                         s.symbol_values.remove(name);
                     }

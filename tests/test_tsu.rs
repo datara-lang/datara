@@ -41,7 +41,11 @@ fn run_jit(source: &str, name: &str) -> String {
 
 fn assert_both_tiers(source: &str, name: &str, expected: &str) {
     assert_eq!(run_native(source, name), expected, "native tier");
-    assert_eq!(run_jit(source, &format!("{}_jit", name)), expected, "jit tier");
+    assert_eq!(
+        run_jit(source, &format!("{}_jit", name)),
+        expected,
+        "jit tier"
+    );
 }
 
 /// 1. `is` tag checks on a heterogeneous list, all four primitive tags.
@@ -258,16 +262,12 @@ fn main() {
     let res = compiler.compile_source(src, "tsu_llvm.dtr", None);
     assert!(res.success, "llvm smoke compile failed: {:?}", res.error);
     if let Some(exe) = res.exe_path {
-        let (stdout, _e, code, _) =
-            compiler
-                .cranelift
-                .run_executable(&exe, &[])
-                .expect("run exe");
+        let (stdout, _e, code, _) = compiler
+            .cranelift
+            .run_executable(&exe, &[])
+            .expect("run exe");
         assert_eq!(code, 0);
-        assert_eq!(
-            stdout.trim().replace("\r\n", "\n"),
-            "true\ntrue\n5\n1.5"
-        );
+        assert_eq!(stdout.trim().replace("\r\n", "\n"), "true\ntrue\n5\n1.5");
         let _ = std::fs::remove_file(&exe);
         let _ = std::fs::remove_file(exe.with_extension("obj"));
     }

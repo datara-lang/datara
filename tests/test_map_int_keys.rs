@@ -103,7 +103,10 @@ fn main() {
 "#;
     let (stdout, code) = run_native(src, "map_new_int_keys.dtr");
     assert_eq!(code, 0);
-    assert_eq!(stdout.lines().collect::<Vec<_>>(), vec!["2", "10", "11", "2"]);
+    assert_eq!(
+        stdout.lines().collect::<Vec<_>>(),
+        vec!["2", "10", "11", "2"]
+    );
 }
 
 #[test]
@@ -186,7 +189,10 @@ fn main() {
 "#;
     let (stdout, code) = run_native(src, "map_str_keys_regression.dtr");
     assert_eq!(code, 0);
-    assert_eq!(stdout.lines().collect::<Vec<_>>(), vec!["2", "20", "true", "30"]);
+    assert_eq!(
+        stdout.lines().collect::<Vec<_>>(),
+        vec!["2", "20", "true", "30"]
+    );
 }
 
 #[test]
@@ -199,7 +205,10 @@ fn main() {
 }
 "#;
     let res = compiler.check_source(src, "map_wrong_key.dtr");
-    assert!(!res.success, "an Int key on a Map<Str, Int> must be rejected");
+    assert!(
+        !res.success,
+        "an Int key on a Map<Str, Int> must be rejected"
+    );
     let diags = res.diagnostics.clone();
     assert!(
         diags.contains("map.insert key type mismatch"),
@@ -234,7 +243,10 @@ fn main() {
 }
 "#;
     let res = compiler.check_source(src, "map_wrong_value.dtr");
-    assert!(!res.success, "a Str value in a Map<Int, Int> must be rejected");
+    assert!(
+        !res.success,
+        "a Str value in a Map<Int, Int> must be rejected"
+    );
     let diags = res.diagnostics.clone();
     assert!(
         diags.contains("map.insert value type mismatch"),

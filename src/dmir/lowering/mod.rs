@@ -161,7 +161,10 @@ impl<'a> Lowering<'a> {
         function_return_types.insert("datara_rt_file_exists".into(), "Bool".into());
         // Capability token factory: `SystemCapabilities {}` lowers to this
         // zero-arg runtime call; the result is the opaque token pointer.
-        function_return_types.insert("datara_rt_sys_caps_create".into(), "SystemCapabilities".into());
+        function_return_types.insert(
+            "datara_rt_sys_caps_create".into(),
+            "SystemCapabilities".into(),
+        );
         // Checked I/O builtins return Outcome<Str> objects (stdlib Outcome<T>
         // layout). The codegen call classifier special-cases the
         // "Outcome<...>" prefix so the object pointer is tagged as a class
@@ -879,11 +882,8 @@ impl<'a> Lowering<'a> {
                 }
                 for (v_idx, v) in e.variants.iter().enumerate() {
                     let full_vname = format!("{}_{}", e.name, v.name);
-                    let v_slots: Vec<String> = v
-                        .fields
-                        .iter()
-                        .map(|fty| fty.full_type_name())
-                        .collect();
+                    let v_slots: Vec<String> =
+                        v.fields.iter().map(|fty| fty.full_type_name()).collect();
                     self.enum_variant_tags
                         .insert(format!("{}.{}", e.name, v.name), v_idx as i64);
                     self.enum_variant_tags.insert(v.name.clone(), v_idx as i64);
@@ -1142,10 +1142,7 @@ impl<'a> Lowering<'a> {
         // f0..fN-1) so offsets agree on both tiers. or_insert: a class with
         // the same name declared structurally keeps its own field list.
         for (enum_name, field_names) in self.enum_class_field_names.clone() {
-            module
-                .class_fields
-                .entry(enum_name)
-                .or_insert(field_names);
+            module.class_fields.entry(enum_name).or_insert(field_names);
         }
 
         // Pre-register generic specialization return types so earlier functions (like main)
@@ -1289,8 +1286,11 @@ impl<'a> Lowering<'a> {
                             .map(Self::repr_type_string)
                             .unwrap_or_else(|| "Unit".into());
                         self.function_return_types.insert(mangled_name.clone(), ret);
-                        self.symbol_table
-                            .define(&mangled_name, "specialization", Some(f.span.clone()));
+                        self.symbol_table.define(
+                            &mangled_name,
+                            "specialization",
+                            Some(f.span.clone()),
+                        );
                         let lowered_spec = self.lower_function(&specialized_f);
                         module.functions.insert(mangled_name.clone(), lowered_spec);
                         module

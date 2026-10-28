@@ -2,9 +2,9 @@
 //! inline-return frame). Split out of lowering/mod.rs for the 60 KB
 //! release size gate.
 
+use super::InlineRetFrame;
 use super::Lowering;
 use crate::ast::Expr;
-use super::InlineRetFrame;
 use crate::dmir::ir::{BasicBlockId, Inst, Terminator, ValueId};
 
 impl<'a> Lowering<'a> {
@@ -85,7 +85,10 @@ impl<'a> Lowering<'a> {
         let out = self.next_val();
         {
             let b = self.get_block_mut(join);
-            b.instructions.push(Inst::LoadVar { dest: out, name: slot });
+            b.instructions.push(Inst::LoadVar {
+                dest: out,
+                name: slot,
+            });
         }
         *cur_block = join;
         restore(self, join);

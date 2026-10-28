@@ -7,10 +7,10 @@
 //! reports the collision with E-LINK-001 instead of producing a wrong binary
 //! or an opaque backend failure.
 
-use forgen::driver::{Interner, SymbolId, SymbolTable};
-use forgen::driver::symbols::{check_module_link, mangle_method, mangle_specialization};
 use forgen::diagnostics::DiagnosticEngine;
 use forgen::dmir::ir::Module;
+use forgen::driver::symbols::{check_module_link, mangle_method, mangle_specialization};
+use forgen::driver::{Interner, SymbolId, SymbolTable};
 
 #[test]
 fn interner_returns_stable_dense_ids() {
@@ -32,7 +32,10 @@ fn interner_returns_stable_dense_ids() {
 fn mangling_is_stable_and_colliding_by_construction() {
     // The documented v1.5.0 mangling scheme: Type_method and fn_T1_T2.
     assert_eq!(mangle_method("Vec2", "len"), "Vec2_len");
-    assert_eq!(mangle_specialization("pair_swap", &["Int", "Str"]), "pair_swap_Int_Str");
+    assert_eq!(
+        mangle_specialization("pair_swap", &["Int", "Str"]),
+        "pair_swap_Int_Str"
+    );
     // A top-level function with exactly this name collides by construction.
     assert_eq!(mangle_method("Vec2", "len"), "Vec2_len");
 }
@@ -58,7 +61,10 @@ fn duplicate_symbol_yields_elink001_diagnostic() {
     let d = &diag.diagnostics[0];
     assert_eq!(d.code, "E-LINK-001");
     assert!(d.message.contains("Foo_bar"), "message names the symbol");
-    assert!(d.message.contains("a.dtr:1"), "message anchors the first definition");
+    assert!(
+        d.message.contains("a.dtr:1"),
+        "message anchors the first definition"
+    );
     assert!(d.help.is_some());
 }
 
@@ -105,10 +111,7 @@ fn end_to_end_collision_fails_check_with_elink001() {
 
     let compiler = forgen::driver::ForgenCompiler::new("check");
     let result = compiler.check_file(&file);
-    assert!(
-        !result.success,
-        "collision program must not pass check"
-    );
+    assert!(!result.success, "collision program must not pass check");
     assert!(
         result.diagnostics.contains("E-LINK-001"),
         "expected E-LINK-001 in check diagnostics, got:\n{}",

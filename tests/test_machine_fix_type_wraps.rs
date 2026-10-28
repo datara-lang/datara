@@ -77,7 +77,11 @@ fn str_to_float_wrap_fix_on_declaration() {
 
     let fixed = apply_fix(source, &fix);
     let res = compiler.check_source(&fixed, "fix_float_decl_fixed.dtr");
-    assert!(res.success, "fixed source must compile: {}\n{}", fixed, res.diagnostics);
+    assert!(
+        res.success,
+        "fixed source must compile: {}\n{}",
+        fixed, res.diagnostics
+    );
 }
 
 #[test]
@@ -92,7 +96,11 @@ fn str_to_int_wrap_fix_on_assignment() {
 
     let fixed = apply_fix(source, &fix);
     let res = compiler.check_source(&fixed, "fix_int_assign_fixed.dtr");
-    assert!(res.success, "fixed source must compile: {}\n{}", fixed, res.diagnostics);
+    assert!(
+        res.success,
+        "fixed source must compile: {}\n{}",
+        fixed, res.diagnostics
+    );
 }
 
 #[test]
@@ -123,5 +131,9 @@ fn question_mark_removal_fix() {
 
     let fixed = apply_fix(source, &fix);
     let res = compiler.check_source(&fixed, "fix_qmark_fixed.dtr");
-    assert!(res.success, "fixed source must compile: {}\n{}", fixed, res.diagnostics);
+    assert!(
+        res.success,
+        "fixed source must compile: {}\n{}",
+        fixed, res.diagnostics
+    );
 }

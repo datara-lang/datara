@@ -16,11 +16,11 @@
 //!    caused by the first-cut structural escape pass missing the LoadVar
 //!    alias flow).
 
-use forgen::dmir::{verify_module, Lowering};
 use forgen::diagnostics::DiagnosticEngine;
+use forgen::dmir::{Lowering, verify_module};
 use forgen::driver::ForgenCompiler;
 use forgen::lexer::Lexer;
-use forgen::ownership::dataflow::{analyze_module, EscapeReason};
+use forgen::ownership::dataflow::{EscapeReason, analyze_module};
 use forgen::parser::Parser;
 use forgen::resolver::Resolver;
 use forgen::types::TypeChecker;
@@ -33,11 +33,7 @@ fn lower(src: &str, name: &str) -> forgen::dmir::Module {
     assert!(!diag.has_errors(), "parse failed: {}", diag.format_all());
     let mut resolver = Resolver::new();
     resolver.resolve_program(&program, &mut diag);
-    assert!(
-        !diag.has_errors(),
-        "resolve failed: {}",
-        diag.format_all()
-    );
+    assert!(!diag.has_errors(), "resolve failed: {}", diag.format_all());
     let mut tc = TypeChecker::new(&resolver);
     tc.check_program(&program, &mut diag);
     assert!(
@@ -69,16 +65,8 @@ fn in_frame_cycle_is_region_resident_without_releases() {
         m.cyclic_classes
     );
     let plan = analyze_module(&m);
-    let a_keeps: Vec<_> = plan
-        .keeps
-        .iter()
-        .filter(|k| k.class == "A")
-        .collect();
-    let b_keeps: Vec<_> = plan
-        .keeps
-        .iter()
-        .filter(|k| k.class == "B")
-        .collect();
+    let a_keeps: Vec<_> = plan.keeps.iter().filter(|k| k.class == "A").collect();
+    let b_keeps: Vec<_> = plan.keeps.iter().filter(|k| k.class == "B").collect();
     assert!(
         a_keeps
             .iter()
@@ -125,8 +113,7 @@ fn returned_cycle_keeps_region_residency_via_alias_flow() {
         .filter(|k| k.function == "mk" && k.reason == EscapeReason::CyclicStructure)
         .collect();
     assert!(
-        mk_keeps.iter().any(|k| k.class == "A")
-            && mk_keeps.iter().any(|k| k.class == "B"),
+        mk_keeps.iter().any(|k| k.class == "A") && mk_keeps.iter().any(|k| k.class == "B"),
         "returned cycle must keep BOTH objects region-resident in mk(): {:?}",
         plan.keeps
     );
@@ -158,7 +145,8 @@ fn acyclic_class_keeps_historical_release_path() {
     );
     let plan = analyze_module(&m);
     assert!(
-        !plan.keeps
+        !plan
+            .keeps
             .iter()
             .any(|k| k.class == "P" && k.reason == EscapeReason::CyclicStructure),
         "acyclic P must not be kept with CyclicStructure: {:?}",
@@ -180,10 +168,9 @@ fn arc_classes_are_not_region_converted() {
     );
     let plan = analyze_module(&m);
     assert!(
-        !plan.keeps
-            .iter()
-            .any(|k| (k.class == "A" || k.class == "B")
-                && k.reason == EscapeReason::CyclicStructure),
+        !plan.keeps.iter().any(
+            |k| (k.class == "A" || k.class == "B") && k.reason == EscapeReason::CyclicStructure
+        ),
         "@arc objects must not be region-converted: {:?}",
         plan.keeps
     );

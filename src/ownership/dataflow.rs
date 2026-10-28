@@ -28,17 +28,15 @@
 //! escape predicate so a released object stays heap-allocated (or is
 //! promoted to a stack slot with the release skipped).
 
-use crate::dmir::ir::{
-    ArenaHint, BasicBlockId, Function, Inst, Module, Terminator, ValueId,
-};
 pub use super::fresh::compute_fresh_set;
 use super::fresh::{
     Fnv1a, LIFETIME_CACHE, LIFETIME_CACHE_HITS, LIFETIME_CACHE_MISSES, LIFETIME_CACHE_VERSION,
 };
+use crate::dmir::ir::{ArenaHint, BasicBlockId, Function, Inst, Module, Terminator, ValueId};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::{Hash, Hasher};
-use std::sync::atomic::Ordering;
 use std::sync::Mutex;
+use std::sync::atomic::Ordering;
 
 /// M6.3: emit the release instructions into the lowered module. Called at
 /// the end of `lower_program`, when every function body (including methods
@@ -111,7 +109,12 @@ pub fn insert_releases(module: &mut Module) {
                         Terminator::Return { value: Some(v) } => vs.push(*v),
                         Terminator::Return { value: None } => {}
                         Terminator::Branch { args, .. } => vs.extend(args.iter().copied()),
-                        Terminator::CondBranch { cond, then_args, else_args, .. } => {
+                        Terminator::CondBranch {
+                            cond,
+                            then_args,
+                            else_args,
+                            ..
+                        } => {
                             vs.push(*cond);
                             vs.extend(then_args.iter().copied());
                             vs.extend(else_args.iter().copied());
@@ -293,12 +296,7 @@ const IDENTITY_CALLS: [&str; 2] = ["datara_rt_arc_init", "datara_rt_arc_acquire"
 /// (The pass-inserted datara_rt_arc_release/datara_rt_free are handled
 /// separately in walk_insts: they are NOT uses, so re-analysis of a
 /// module that already carries Layer 1 releases stays idempotent.)
-const RELEASE_CALLS: [&str; 4] = [
-    "arc_release",
-    "datara_rt_weak_drop",
-    "destroy",
-    "drop",
-];
+const RELEASE_CALLS: [&str; 4] = ["arc_release", "datara_rt_weak_drop", "destroy", "drop"];
 /// Method names that CONSUME the receiver (user-initiated release).
 const RELEASE_METHODS: [&str; 4] = ["arc_release", "weak_drop", "destroy", "drop"];
 
@@ -433,7 +431,11 @@ impl FnFacts {
         let mut stack: Vec<usize> = Vec::new();
         match &blocks[start].terminator {
             Terminator::Branch { target, .. } => stack.push(target.0),
-            Terminator::CondBranch { then_block, else_block, .. } => {
+            Terminator::CondBranch {
+                then_block,
+                else_block,
+                ..
+            } => {
                 stack.push(then_block.0);
                 stack.push(else_block.0);
             }
@@ -445,7 +447,11 @@ impl FnFacts {
             }
             match &blocks[b].terminator {
                 Terminator::Branch { target, .. } => stack.push(target.0),
-                Terminator::CondBranch { then_block, else_block, .. } => {
+                Terminator::CondBranch {
+                    then_block,
+                    else_block,
+                    ..
+                } => {
                     stack.push(then_block.0);
                     stack.push(else_block.0);
                 }
@@ -472,14 +478,24 @@ impl FnFacts {
     /// Walk one instruction list; `in_loop` marks WhileLoop nests. `fresh`
     /// (M6 escape policy) lists the functions that return a freshly created
     /// object — a call to one makes its dest a fresh creation in the caller.
-    pub(crate) fn walk_insts(&mut self, block: usize, insts: &[Inst], in_loop: bool, fresh: &FreshSet) {
+    pub(crate) fn walk_insts(
+        &mut self,
+        block: usize,
+        insts: &[Inst],
+        in_loop: bool,
+        fresh: &FreshSet,
+    ) {
         for (i, inst) in insts.iter().enumerate() {
             let pos = Pos { block, index: i };
             if in_loop {
                 self.loop_positions.insert((block, i));
             }
             match inst {
-                Inst::StructInit { dest, class_name, fields } => {
+                Inst::StructInit {
+                    dest,
+                    class_name,
+                    fields,
+                } => {
                     self.creations.insert(*dest, (class_name.clone(), pos));
                     // Field values are consumed by the container: an object
                     // built as `Outer { inner: t }` hands t's ownership to
@@ -492,7 +508,12 @@ impl FnFacts {
                         self.record_use(*fv, pos, UseKind::StoredValue);
                     }
                 }
-                Inst::Call { dest, func, args, ty } => {
+                Inst::Call {
+                    dest,
+                    func,
+                    args,
+                    ty,
+                } => {
                     if IDENTITY_CALLS.contains(&func.as_str())
                         && let Some(&src) = args.first()
                     {
@@ -530,7 +551,13 @@ impl FnFacts {
                         }
                     }
                 }
-                Inst::MethodCall { dest: _, object, method, args, .. } => {
+                Inst::MethodCall {
+                    dest: _,
+                    object,
+                    method,
+                    args,
+                    ..
+                } => {
                     // The receiver is a borrow (view self) EXCEPT for the
                     // consuming release methods; arguments may be retained
                     // by the callee.
@@ -567,7 +594,11 @@ impl FnFacts {
                     self.record_use(*object, pos, UseKind::Read);
                     self.field_views.push((pos, *dest, *object));
                 }
-                Inst::WhileLoop { condition_insts, cond_val, body_insts } => {
+                Inst::WhileLoop {
+                    condition_insts,
+                    cond_val,
+                    body_insts,
+                } => {
                     self.walk_insts(block, condition_insts, true, fresh);
                     self.record_use(*cond_val, pos, UseKind::Read);
                     self.walk_insts(block, body_insts, true, fresh);
@@ -591,29 +622,37 @@ impl FnFacts {
                 if let Some(v) = value {
                     self.record_use(
                         *v,
-                        Pos { block, index: TERMINATOR },
+                        Pos {
+                            block,
+                            index: TERMINATOR,
+                        },
                         UseKind::Returned,
                     );
                 }
             }
             Terminator::Branch { args, .. } => {
                 for v in args {
-                    self.terminator_uses
-                        .entry(*v)
-                        .or_default()
-                        .push(Pos { block, index: TERMINATOR });
+                    self.terminator_uses.entry(*v).or_default().push(Pos {
+                        block,
+                        index: TERMINATOR,
+                    });
                 }
             }
-            Terminator::CondBranch { cond, then_args, else_args, .. } => {
-                self.terminator_uses
-                    .entry(*cond)
-                    .or_default()
-                    .push(Pos { block, index: TERMINATOR });
+            Terminator::CondBranch {
+                cond,
+                then_args,
+                else_args,
+                ..
+            } => {
+                self.terminator_uses.entry(*cond).or_default().push(Pos {
+                    block,
+                    index: TERMINATOR,
+                });
                 for v in then_args.iter().chain(else_args) {
-                    self.terminator_uses
-                        .entry(*v)
-                        .or_default()
-                        .push(Pos { block, index: TERMINATOR });
+                    self.terminator_uses.entry(*v).or_default().push(Pos {
+                        block,
+                        index: TERMINATOR,
+                    });
                 }
             }
             Terminator::Unreachable => {}
@@ -715,8 +754,7 @@ fn fn_analysis_fingerprint(
         b.instructions.hash(&mut h);
         b.terminator.hash(&mut h);
     }
-    let mut class_names: Vec<&String> =
-        arc_classes.iter().chain(cyclic_classes.iter()).collect();
+    let mut class_names: Vec<&String> = arc_classes.iter().chain(cyclic_classes.iter()).collect();
     class_names.sort();
     for c in class_names {
         c.hash(&mut h);
@@ -908,8 +946,7 @@ fn analyze_function_inner(
     // every copy-binding regardless of the target's lifetime.)
     for (name, value, pos) in &facts.bindings {
         if ctx.globals.contains(name)
-            && let Some((canon, _, _)) =
-                resolve_creation(*value, &facts.creations, &facts.identity)
+            && let Some((canon, _, _)) = resolve_creation(*value, &facts.creations, &facts.identity)
         {
             by_obj.entry(canon).or_default().push(WindowCandidate {
                 variable: name.clone(),
@@ -958,7 +995,8 @@ fn analyze_function_inner(
                 }
                 continue;
             }
-            let Some((canon, class, _)) = resolve_creation(def_val, &facts.creations, &facts.identity)
+            let Some((canon, class, _)) =
+                resolve_creation(def_val, &facts.creations, &facts.identity)
             else {
                 // Bound from a copy or a non-object producer. Report as
                 // CopyBound only when the copy's SOURCE def is a fresh
@@ -990,13 +1028,10 @@ fn analyze_function_inner(
                 });
                 continue;
             }
-            let window_end = defs
-                .get(di + 1)
-                .map(|&(_, p)| p)
-                .unwrap_or(Pos {
-                    block: usize::MAX,
-                    index: usize::MAX,
-                });
+            let window_end = defs.get(di + 1).map(|&(_, p)| p).unwrap_or(Pos {
+                block: usize::MAX,
+                index: usize::MAX,
+            });
             let _is_arc = arc_classes.contains(&class);
 
             // CFG-cycle guard: a def inside a loop body re-executes every
@@ -1026,11 +1061,8 @@ fn analyze_function_inner(
             let mut use_positions: Vec<(Pos, UseKind)> = Vec::new();
             let mut escaped: Option<EscapeReason> = None;
 
-            let mut direct_uses: Vec<(Pos, UseKind)> = facts
-                .value_uses
-                .get(&def_val)
-                .cloned()
-                .unwrap_or_default();
+            let mut direct_uses: Vec<(Pos, UseKind)> =
+                facts.value_uses.get(&def_val).cloned().unwrap_or_default();
             direct_uses.retain(|(p, _)| *p < window_end && *p > def_pos);
             use_positions.append(&mut direct_uses);
 
@@ -1065,9 +1097,10 @@ fn analyze_function_inner(
                         // Direct same-value rebinding under another name
                         // (rare — copy-free aliasing). Copy-based aliasing
                         // is handled by the pre-pass above.
-                        let aliases_other = facts.bindings.iter().any(|(bn, bv, _)| {
-                            *bv == def_val && bn != name
-                        });
+                        let aliases_other = facts
+                            .bindings
+                            .iter()
+                            .any(|(bn, bv, _)| *bv == def_val && bn != name);
                         if aliases_other {
                             escaped = Some(EscapeReason::Aliased);
                             break;
@@ -1178,7 +1211,9 @@ fn analyze_function_inner(
         // All windows must share one block (each healthy window was already
         // proven same-block); the last use of the LAST window is the object's
         // true last use because shadow copies observe the same value.
-        let last_window = windows.iter().max_by_key(|w| (w.def_pos.block, w.def_pos.index));
+        let last_window = windows
+            .iter()
+            .max_by_key(|w| (w.def_pos.block, w.def_pos.index));
         let Some(w) = last_window else { continue };
         if !windows.iter().all(|x| x.def_pos.block == w.def_pos.block) {
             plan.keeps.push(Keep {
@@ -1270,7 +1305,11 @@ pub fn layer1_report(m: &Module) -> String {
                 r.class,
                 if r.is_arc { ", @arc" } else { "" },
                 r.block.0,
-                if r.after_index == usize::MAX { "term" } else { "" },
+                if r.after_index == usize::MAX {
+                    "term"
+                } else {
+                    ""
+                },
                 if r.after_index == usize::MAX {
                     String::new()
                 } else {
@@ -1280,11 +1319,7 @@ pub fn layer1_report(m: &Module) -> String {
         }
         for k in keeps {
             if k.class.is_empty() {
-                out.push_str(&format!(
-                    "    keep {}: {}\n",
-                    k.variable,
-                    k.reason.as_str()
-                ));
+                out.push_str(&format!("    keep {}: {}\n", k.variable, k.reason.as_str()));
             } else {
                 out.push_str(&format!(
                     "    keep {} ({}): {}\n",

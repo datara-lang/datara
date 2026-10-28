@@ -1,11 +1,11 @@
 //! Trait/role method lookup (split out of check/expr.rs for the 60 KB
 //! release size gate).
 
+use crate::ast::SourceSpan;
 use crate::ast::{Expr, TraitMethodSignature};
 use crate::diagnostics::{DiagnosticEngine, ErrorCode};
 use crate::types::{DataraType, TypeChecker};
 use std::collections::HashSet;
-use crate::ast::SourceSpan;
 
 impl<'a> TypeChecker<'a> {
     pub fn find_trait_method(

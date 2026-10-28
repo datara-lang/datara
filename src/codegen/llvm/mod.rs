@@ -624,7 +624,12 @@ impl<'a> LlvmEmitter<'a> {
             for inst in &b.instructions {
                 if let Inst::AssignVar { name, .. } = inst {
                     local_vars.insert(name.clone());
-                } else if let Inst::StructInit { dest, fields, class_name } = inst {
+                } else if let Inst::StructInit {
+                    dest,
+                    fields,
+                    class_name,
+                } = inst
+                {
                     // M6.2: size by the CLASS's declared fields, not by the
                     // literal's initializer list — the literal may omit
                     // fields that only ever receive values through later

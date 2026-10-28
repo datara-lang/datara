@@ -117,16 +117,10 @@ pub fn compute_escape_set(
                     }
                 }
                 Inst::SetField { object, value, .. } => {
-                    stored_into
-                        .entry(*object)
-                        .or_default()
-                        .push(*value);
+                    stored_into.entry(*object).or_default().push(*value);
                 }
                 Inst::AssignVar { name, value } => {
-                    name_vids
-                        .entry(name.as_str())
-                        .or_default()
-                        .push(*value);
+                    name_vids.entry(name.as_str()).or_default().push(*value);
                 }
                 _ => {}
             }
@@ -157,12 +151,11 @@ pub fn compute_escape_set(
     for (vid, class) in &class_of {
         root_class.insert(uf.find(*vid), class.clone());
     }
-    let is_cyclic =
-        |uf: &mut Uf, vid: ValueId| -> bool {
-            root_class
-                .get(&uf.find(vid))
-                .is_some_and(|c| cyclic_classes.contains(c))
-        };
+    let is_cyclic = |uf: &mut Uf, vid: ValueId| -> bool {
+        root_class
+            .get(&uf.find(vid))
+            .is_some_and(|c| cyclic_classes.contains(c))
+    };
 
     // Pass 3: escape seeds. Each seed is recorded on its alias-class ROOT,
     // so a seed on a LoadVar copy (e.g. the returned `LoadVar a`) reaches
@@ -186,8 +179,7 @@ pub fn compute_escape_set(
                     }
                 }
                 Inst::AssignVar { name, value } => {
-                    if assign_var_seeds
-                        && !(is_cyclic(&mut uf, *value) && !globals.contains(name))
+                    if assign_var_seeds && !(is_cyclic(&mut uf, *value) && !globals.contains(name))
                     {
                         escaped_roots.insert(uf.find(*value));
                     }
@@ -225,9 +217,7 @@ pub fn compute_escape_set(
                 continue;
             }
             for child in children {
-                if is_cyclic(&mut uf, *child)
-                    && escaped_roots.insert(uf.find(*child))
-                {
+                if is_cyclic(&mut uf, *child) && escaped_roots.insert(uf.find(*child)) {
                     grew = true;
                 }
             }

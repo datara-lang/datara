@@ -194,8 +194,7 @@ impl RealCraneliftBackend {
             rt_strbuf_join_id,
             rt_strbuf_len_id,
         } = strbuf_ids;
-        let arc_ids =
-            declare_memory::declare_runtime_arc(module, call_conv, &mut func_ids)?;
+        let arc_ids = declare_memory::declare_runtime_arc(module, call_conv, &mut func_ids)?;
 
         let runtime = RuntimeIds {
             rt_out_int_id: core_ids.rt_out_int_id,

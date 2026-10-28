@@ -324,10 +324,7 @@ fn main() {
 #[test]
 fn diamond_accumulator_marked_at_speed_and_identical_results() {
     let speed = optimize(DIAMOND_SRC, OptTier::Speed);
-    let f = speed
-        .functions
-        .get("diamond")
-        .expect("diamond must exist");
+    let f = speed.functions.get("diamond").expect("diamond must exist");
     assert!(
         !f.proven_no_overflow.is_empty(),
         "branch-aware accumulator hull must mark diamond-join adds at speed"
@@ -335,7 +332,12 @@ fn diamond_accumulator_marked_at_speed_and_identical_results() {
 
     let default = optimize(DIAMOND_SRC, OptTier::Default);
     assert!(
-        default.functions.get("diamond").unwrap().proven_no_overflow.is_empty(),
+        default
+            .functions
+            .get("diamond")
+            .unwrap()
+            .proven_no_overflow
+            .is_empty(),
         "default tier must never mark overflow elision"
     );
 
@@ -346,7 +348,11 @@ fn diamond_accumulator_marked_at_speed_and_identical_results() {
     };
     let (out_d, code_d) = compile_and_run(&default, "diamond_default");
     assert_eq!(code_d, 0);
-    assert_eq!(out_d, expected.to_string(), "default tier changed the result");
+    assert_eq!(
+        out_d,
+        expected.to_string(),
+        "default tier changed the result"
+    );
     let (out_s, code_s) = compile_and_run(&speed, "diamond_speed");
     assert_eq!(code_s, 0);
     assert_eq!(out_s, expected.to_string(), "speed tier changed the result");
@@ -385,7 +391,12 @@ fn nested_accumulator_runs_and_marks_soundly() {
     let default = optimize(NESTED_SRC, OptTier::Default);
     let speed = optimize(NESTED_SRC, OptTier::Speed);
     assert!(
-        default.functions.get("nested").unwrap().proven_no_overflow.is_empty(),
+        default
+            .functions
+            .get("nested")
+            .unwrap()
+            .proven_no_overflow
+            .is_empty(),
         "default tier must never mark overflow elision"
     );
     // The speed tier MAY mark the inner accumulator adds (3*i hull) and/or
@@ -466,9 +477,9 @@ fn diamond_hull_beyond_i64_keeps_checks() {
                         for b2 in &f.blocks {
                             for inst2 in &b2.instructions {
                                 match inst2 {
-                                    forgen::dmir::Inst::ConstInt { dest: cd, value, .. }
-                                        if *cd == v =>
-                                    {
+                                    forgen::dmir::Inst::ConstInt {
+                                        dest: cd, value, ..
+                                    } if *cd == v => {
                                         step_const = Some(*value);
                                         break 'scan;
                                     }

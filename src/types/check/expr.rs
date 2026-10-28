@@ -840,10 +840,7 @@ impl<'a> TypeChecker<'a> {
                         ),
                     );
                 }
-                DataraType::Map(
-                    Box::new(key_ty),
-                    Box::new(value.unwrap_or(DataraType::Val)),
-                )
+                DataraType::Map(Box::new(key_ty), Box::new(value.unwrap_or(DataraType::Val)))
             }
             Expr::IndexAccess { object, index, .. } => {
                 let obj_ty = self.check_expr(object, diag);
@@ -1096,9 +1093,11 @@ impl<'a> TypeChecker<'a> {
             }
             Expr::Comptime { expr, .. } => self.check_expr(expr, diag),
             Expr::Wrapping(expr, _) | Expr::Saturating(expr, _) => self.check_expr(expr, diag),
-            Expr::IsCheck { operand, ty_name, span } => {
-                self.check_is_check(operand, ty_name, span, diag)
-            }
+            Expr::IsCheck {
+                operand,
+                ty_name,
+                span,
+            } => self.check_is_check(operand, ty_name, span, diag),
             Expr::Cast {
                 expr: inner,
                 target_ty,

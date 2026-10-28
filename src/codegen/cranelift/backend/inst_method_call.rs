@@ -208,9 +208,7 @@ pub fn compile_method_call<M: ClifModule>(
             // Inline: upgrade -> read tag -> (release if ok) -> bool.
             // Uses the same runtime primitives; no extra runtime helper.
             let up_id = ctx.runtime.rt_weak_upgrade_id;
-            let callee_ref = ctx
-                .module
-                .declare_func_in_func(up_id, ctx.builder.func);
+            let callee_ref = ctx.module.declare_func_in_func(up_id, ctx.builder.func);
             let obj_arg = ctx
                 .val_map
                 .get(object)
@@ -219,18 +217,12 @@ pub fn compile_method_call<M: ClifModule>(
             let call_inst = ctx.builder.ins().call(callee_ref, &[obj_arg]);
             let outcome = ctx.builder.inst_results(call_inst)[0];
             let flags = cranelift_codegen::ir::MachMemFlags::new();
-            let tag = ctx
-                .builder
-                .ins()
-                .load(clif_types::I64, flags, outcome, 0);
-            let alive = ctx
-                .builder
-                .ins()
-                .icmp_imm_s(
-                    cranelift_codegen::ir::condcodes::IntCC::NotEqual,
-                    tag,
-                    0,
-                );
+            let tag = ctx.builder.ins().load(clif_types::I64, flags, outcome, 0);
+            let alive = ctx.builder.ins().icmp_imm_s(
+                cranelift_codegen::ir::condcodes::IntCC::NotEqual,
+                tag,
+                0,
+            );
             // Release the transient acquire when alive so is_alive is
             // refcount-neutral: load payload then release.
             let zero_i = ctx.builder.ins().iconst(clif_types::I64, 0);
@@ -240,7 +232,8 @@ pub fn compile_method_call<M: ClifModule>(
                 .declare_func_in_func(ctx.runtime.rt_arc_release_id, ctx.builder.func);
             ctx.builder.ins().call(rel_ref, &[outcome]);
             ctx.bool_vids.insert(*dest);
-            ctx.val_map.insert(*dest, ctx.builder.ins().uextend(clif_types::I64, alive));
+            ctx.val_map
+                .insert(*dest, ctx.builder.ins().uextend(clif_types::I64, alive));
             return Ok(());
         }
     }

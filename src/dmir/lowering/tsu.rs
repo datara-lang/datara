@@ -34,7 +34,10 @@ impl<'a> Lowering<'a> {
             };
             self.get_block_mut(*cur_block)
                 .instructions
-                .push(Inst::ConstBool { dest, value: matches_static });
+                .push(Inst::ConstBool {
+                    dest,
+                    value: matches_static,
+                });
             return Some(dest);
         }
         let v = self.lower_expr(operand, cur_block)?;

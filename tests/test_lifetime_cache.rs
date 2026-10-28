@@ -11,8 +11,8 @@
 //!   cargo test --release --test test_lifetime_cache -- --ignored --nocapture
 //!   DATARA_NO_LIFETIME_CACHE=1 cargo test --release --test test_lifetime_cache -- --ignored --nocapture
 
-use forgen::dmir::{verify_module, Lowering};
 use forgen::diagnostics::DiagnosticEngine;
+use forgen::dmir::{Lowering, verify_module};
 use forgen::lexer::Lexer;
 use forgen::ownership::{
     analyze_module, insert_releases, lifetime_cache_reset, lifetime_cache_stats,
@@ -31,11 +31,7 @@ fn lower(src: &str, name: &str) -> forgen::dmir::Module {
     assert!(!diag.has_errors(), "parse failed: {}", diag.format_all());
     let mut resolver = Resolver::new();
     resolver.resolve_program(&program, &mut diag);
-    assert!(
-        !diag.has_errors(),
-        "resolve failed: {}",
-        diag.format_all()
-    );
+    assert!(!diag.has_errors(), "resolve failed: {}", diag.format_all());
     let mut tc = TypeChecker::new(&resolver);
     tc.check_program(&program, &mut diag);
     assert!(
@@ -121,28 +117,25 @@ fn cached_plans_equal_uncached_analysis() {
     // Uncached reference: the public per-function API.
     let mut refs = std::collections::BTreeMap::new();
     for (name, f) in &m.functions {
-        let fl = forgen::ownership::dataflow::analyze_function(
-            f,
-            &m.arc_classes,
-            &m.cyclic_classes,
-        );
+        let fl =
+            forgen::ownership::dataflow::analyze_function(f, &m.arc_classes, &m.cyclic_classes);
         refs.insert(name.clone(), fl);
     }
     for r in &cached.releases {
         let fl = &refs[&r.function];
         assert!(
-            fl.releases
-                .iter()
-                .any(|x| x.block == r.block && x.after_index == r.after_index && x.value == r.value),
+            fl.releases.iter().any(|x| x.block == r.block
+                && x.after_index == r.after_index
+                && x.value == r.value),
             "release decision must be identical with and without the memo"
         );
     }
     for k in &cached.keeps {
         let fl = &refs[&k.function];
         assert!(
-            fl.keeps.iter().any(|x| x.variable == k.variable
-                && x.class == k.class
-                && x.reason == k.reason),
+            fl.keeps
+                .iter()
+                .any(|x| x.variable == k.variable && x.class == k.class && x.reason == k.reason),
             "keep decision must be identical with and without the memo"
         );
     }

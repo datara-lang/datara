@@ -174,8 +174,7 @@ impl<'a> TypeChecker<'a> {
                         // M2 fix 4/5: a Str initializer where Int/Float is
                         // declared gets a wrap-in-str_to_int/str_to_float
                         // machine edit (source-sliced from the expression).
-                        let machine_fix =
-                            self.str_parse_machine_fix(&declared, &init_type, init);
+                        let machine_fix = self.str_parse_machine_fix(&declared, &init_type, init);
                         diag.error_with_fix(
                             ErrorCode::TypeMismatch,
                             format!(
@@ -269,8 +268,7 @@ impl<'a> TypeChecker<'a> {
                         // M2 fix 4/5: a Str initializer where Int/Float is
                         // declared gets a wrap-in-str_to_int/str_to_float
                         // machine edit (source-sliced from the expression).
-                        let machine_fix =
-                            self.str_parse_machine_fix(&declared, &init_type, init);
+                        let machine_fix = self.str_parse_machine_fix(&declared, &init_type, init);
                         diag.error_with_fix(
                             ErrorCode::TypeMismatch,
                             format!(
@@ -372,8 +370,7 @@ impl<'a> TypeChecker<'a> {
                         // M2 fix 4/5: a Str initializer where Int/Float is
                         // declared gets a wrap-in-str_to_int/str_to_float
                         // machine edit (source-sliced from the expression).
-                        let machine_fix =
-                            self.str_parse_machine_fix(&declared, &init_type, init);
+                        let machine_fix = self.str_parse_machine_fix(&declared, &init_type, init);
                         diag.error_with_fix(
                             ErrorCode::TypeMismatch,
                             format!(
@@ -477,8 +474,7 @@ impl<'a> TypeChecker<'a> {
                         // M2 fix 4/5: a Str initializer where Int/Float is
                         // declared gets a wrap-in-str_to_int/str_to_float
                         // machine edit (source-sliced from the expression).
-                        let machine_fix =
-                            self.str_parse_machine_fix(&declared, &init_type, init);
+                        let machine_fix = self.str_parse_machine_fix(&declared, &init_type, init);
                         diag.error_with_fix(
                             ErrorCode::TypeMismatch,
                             format!(
@@ -737,8 +733,7 @@ impl<'a> TypeChecker<'a> {
                         // returned payload type matching the signature is
                         // checked at the `?` site itself (E-TYPE-010 /
                         // payload compat there), not here.
-                        let is_propagate_return =
-                            matches!(opt_e, Some(Expr::ErrorPropagate(..)));
+                        let is_propagate_return = matches!(opt_e, Some(Expr::ErrorPropagate(..)));
                         let matches = if is_propagate_return {
                             true
                         } else if let Some((eok, eerr)) = &enc_res {
@@ -894,7 +889,10 @@ impl<'a> TypeChecker<'a> {
                         }
                     }
                     res
-                } else if let Expr::IsCheck { operand, ty_name, .. } = condition {
+                } else if let Expr::IsCheck {
+                    operand, ty_name, ..
+                } = condition
+                {
                     // M7 TSU narrowing: `if x is T` types x as T inside the
                     // then-branch (the degenerate TypeSet {T}) and keeps the
                     // dynamic type in the else-branch.

@@ -194,9 +194,7 @@ impl ForgenCompiler {
         // cannot be served.
         if let Some(fingerprint) = self.module_dependency_fingerprint_quick(source, file) {
             let tier = format!("{:?}", self.opt_tier);
-            if let Some(cached) =
-                CheckCache::get_with_deps(source, file, abi, &tier, fingerprint)
-            {
+            if let Some(cached) = CheckCache::get_with_deps(source, file, abi, &tier, fingerprint) {
                 return cached;
             }
             let total_start = Instant::now();
@@ -219,13 +217,7 @@ impl ForgenCompiler {
             let base_dirs = self.module_base_dirs(Path::new(file));
             self.resolve_modules(&mut program, &mut diag, &[], base_dirs);
 
-            let res = run_check_pipeline(
-                program,
-                &mut diag,
-                timings,
-                total_start,
-                abi,
-            );
+            let res = run_check_pipeline(program, &mut diag, timings, total_start, abi);
             CheckCache::put_with_deps(source, file, abi, &res, &tier, fingerprint);
             return res;
         }

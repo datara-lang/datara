@@ -465,7 +465,10 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_map_get", datara_rt_map_get);
     reg!("datara_rt_map_get_i64", datara_rt_map_get_i64);
     reg!("datara_rt_map_get_outcome", datara_rt_map_get_outcome);
-    reg!("datara_rt_map_get_outcome_i64", datara_rt_map_get_outcome_i64);
+    reg!(
+        "datara_rt_map_get_outcome_i64",
+        datara_rt_map_get_outcome_i64
+    );
     reg!("datara_rt_map_contains", datara_rt_map_contains);
     reg!("datara_rt_map_contains_i64", datara_rt_map_contains_i64);
     reg!("datara_rt_map_create_i64_1", datara_rt_map_create_i64_1);
@@ -611,9 +614,15 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_val_to_bool", datara_val_to_bool);
     reg!("datara_val_to_str", datara_val_to_str);
     reg!("datara_rt_val_as_int_outcome", datara_rt_val_as_int_outcome);
-    reg!("datara_rt_val_as_float_outcome", datara_rt_val_as_float_outcome);
+    reg!(
+        "datara_rt_val_as_float_outcome",
+        datara_rt_val_as_float_outcome
+    );
     reg!("datara_rt_val_to_int_checked", datara_rt_val_to_int_checked);
-    reg!("datara_rt_val_to_f64_bits_checked", datara_rt_val_to_f64_bits_checked);
+    reg!(
+        "datara_rt_val_to_f64_bits_checked",
+        datara_rt_val_to_f64_bits_checked
+    );
     reg!("datara_rt_val_to_str_tagged", datara_rt_val_to_str_tagged);
     reg!("datara_rt_parallel_for", datara_rt_parallel_for);
     reg!("parallel_for", datara_rt_parallel_for);
@@ -626,7 +635,10 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("fiber_sleep_ms", datara_rt_fiber_sleep_ms);
     reg!("datara_rt_fiber_join", datara_rt_fiber_join);
     reg!("fiber_join", datara_rt_fiber_join);
-    reg!("datara_rt_fiber_run_until_done", datara_rt_fiber_run_until_done);
+    reg!(
+        "datara_rt_fiber_run_until_done",
+        datara_rt_fiber_run_until_done
+    );
     reg!("fiber_run_until_done", datara_rt_fiber_run_until_done);
     reg!("datara_rt_fiber_count", datara_rt_fiber_count);
     reg!("datara_rt_fiber_done_count", datara_rt_fiber_done_count);

@@ -8,7 +8,6 @@ use crate::diagnostics::{DiagnosticEngine, ErrorCode, SourceSpan};
 use crate::types::{DataraType, LiteralValue, MutabilityKind, TypeChecker};
 
 impl<'a> TypeChecker<'a> {
-
     pub(crate) fn check_return_exhaustiveness(
         &self,
         fn_name: &str,

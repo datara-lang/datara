@@ -326,11 +326,7 @@ pub fn declare_runtime_core<M: ClifModule>(
     // The ABIs are identical to the Str versions; only the key word is an
     // integer rather than a pointer.
     let rt_map_get_i64_id = module
-        .declare_function(
-            "datara_rt_map_get_i64",
-            Linkage::Import,
-            &rt_map_get_sig,
-        )
+        .declare_function("datara_rt_map_get_i64", Linkage::Import, &rt_map_get_sig)
         .map_err(|e| e.to_string())?;
     let rt_map_get_outcome_i64_id = module
         .declare_function(
@@ -477,7 +473,10 @@ pub fn declare_runtime_core<M: ClifModule>(
             .map_err(|e| e.to_string())?;
         func_ids.insert(name, (id, sig));
     }
-    func_ids.insert("datara_rt_map_get".into(), (rt_map_get_id, rt_map_get_sig.clone()));
+    func_ids.insert(
+        "datara_rt_map_get".into(),
+        (rt_map_get_id, rt_map_get_sig.clone()),
+    );
     func_ids.insert(
         "datara_rt_map_get_outcome".into(),
         (rt_map_get_outcome_id, rt_map_get_outcome_sig.clone()),
@@ -655,9 +654,15 @@ pub fn declare_runtime_core<M: ClifModule>(
 
     let mut str_sanitize_sig = Signature::new(call_conv);
     str_sanitize_sig.params.push(AbiParam::new(clif_types::I64));
-    str_sanitize_sig.returns.push(AbiParam::new(clif_types::I64));
+    str_sanitize_sig
+        .returns
+        .push(AbiParam::new(clif_types::I64));
     let str_sanitize_id = module
-        .declare_function("datara_rt_str_sanitize_utf8", Linkage::Import, &str_sanitize_sig)
+        .declare_function(
+            "datara_rt_str_sanitize_utf8",
+            Linkage::Import,
+            &str_sanitize_sig,
+        )
         .map_err(|e| e.to_string())?;
     func_ids.insert(
         "str_sanitize_utf8".into(),

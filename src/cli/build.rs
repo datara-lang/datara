@@ -60,7 +60,10 @@ pub(crate) fn cmd_check(args: &[String]) -> bool {
     };
 
     if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
-        eprintln!("[phases2] check_files returned at {}ms", check_start.elapsed().as_millis());
+        eprintln!(
+            "[phases2] check_files returned at {}ms",
+            check_start.elapsed().as_millis()
+        );
     }
     let elapsed = start.elapsed().as_millis();
 
@@ -92,7 +95,10 @@ pub(crate) fn cmd_check(args: &[String]) -> bool {
                 crate::lint::LintProfile::Standard,
             );
             if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
-                eprintln!("[phases2] merged lint done at {}ms", lint_start.elapsed().as_millis());
+                eprintln!(
+                    "[phases2] merged lint done at {}ms",
+                    lint_start.elapsed().as_millis()
+                );
             }
             if let Ok(diags) = lint_res {
                 for d in &diags {
@@ -672,9 +678,7 @@ pub(crate) fn cmd_build(command: &str, args: &[String]) -> bool {
         // source argument — it used to, overwriting the source with profile
         // data (found 2026-09-28: `--pgo-train branchy.dtr` clobbered the
         // benchmark source with JSON).
-        let looks_like_profile = |p: &str| {
-            p.ends_with(".profdata") || p.ends_with(".json")
-        };
+        let looks_like_profile = |p: &str| p.ends_with(".profdata") || p.ends_with(".json");
         let prof_gen_path = args
             .iter()
             .position(|a| a == "--profile-generate" || a == "--pgo-train")
@@ -695,13 +699,17 @@ pub(crate) fn cmd_build(command: &str, args: &[String]) -> bool {
         // Datara source file, even when the user names one explicitly.
         let prof_dir = layout.root.join(".forgen_profile");
         let _ = fs::create_dir_all(&prof_dir);
-        Some(prof_gen_path.filter(|p| !p.to_string_lossy().ends_with(".dtr")).unwrap_or_else(|| {
-            if is_pgo_train {
-                layout.root.join("app.profdata")
-            } else {
-                prof_dir.join(format!("{}.json", layout.binary_name()))
-            }
-        }))
+        Some(
+            prof_gen_path
+                .filter(|p| !p.to_string_lossy().ends_with(".dtr"))
+                .unwrap_or_else(|| {
+                    if is_pgo_train {
+                        layout.root.join("app.profdata")
+                    } else {
+                        prof_dir.join(format!("{}.json", layout.binary_name()))
+                    }
+                }),
+        )
     } else {
         None
     };

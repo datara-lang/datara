@@ -3,16 +3,15 @@
 //! dataflow.rs for the 60 KB release size gate; the lifetime solver in
 //! dataflow.rs consumes `ModuleCtx::fresh`.
 
-use crate::dmir::ir::*;
 use super::dataflow::{
-    FreshSet, FnLifetimePlan, ModuleCtx, PRIMITIVE_TYPES, FnFacts, Pos,
-    resolve_creation,
+    FnFacts, FnLifetimePlan, FreshSet, ModuleCtx, PRIMITIVE_TYPES, Pos, resolve_creation,
 };
 use crate::dmir::ir::ValueId;
-use std::hash::Hasher;
+use crate::dmir::ir::*;
 use std::collections::{BTreeMap, HashMap};
-use std::sync::{Mutex, OnceLock};
+use std::hash::Hasher;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 // ---------------------------------------------------------------------------
 // M6 escape policy (PLAN_V150 M6 item "Escape-политика: объект, ушедший за
@@ -200,4 +199,3 @@ impl Hasher for Fnv1a {
         self.0 = h;
     }
 }
-

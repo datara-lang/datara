@@ -398,7 +398,10 @@ pub(super) fn run_check_pipeline(
     effects.verify_comptime_purity(&program, diag);
     timings.effects_ms = eff_start.elapsed().as_millis();
     if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
-        eprintln!("[phases2] effects done at {}ms", total_start.elapsed().as_millis());
+        eprintln!(
+            "[phases2] effects done at {}ms",
+            total_start.elapsed().as_millis()
+        );
     }
 
     // 5. Ownership
@@ -412,7 +415,10 @@ pub(super) fn run_check_pipeline(
     crate::ownership::check_ffi_boundaries(&program, diag);
     timings.ownership_ms = own_start.elapsed().as_millis();
     if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
-        eprintln!("[phases2] ownership done at {}ms", total_start.elapsed().as_millis());
+        eprintln!(
+            "[phases2] ownership done at {}ms",
+            total_start.elapsed().as_millis()
+        );
     }
 
     // 6. Security & Zero-Trust Verifier (Proof-Carrying Code)
@@ -420,7 +426,10 @@ pub(super) fn run_check_pipeline(
     security.capabilities_manifest = resolve_manifest_capabilities(base_dir.as_deref());
     security.verify_program(&program, diag);
     if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
-        eprintln!("[phases2] security done at {}ms", total_start.elapsed().as_millis());
+        eprintln!(
+            "[phases2] security done at {}ms",
+            total_start.elapsed().as_millis()
+        );
     }
 
     // 7. DMIR Ownership Fixpoint Verification (if no prior errors)
@@ -437,7 +446,10 @@ pub(super) fn run_check_pipeline(
             return check_failure(d_str.clone(), program, timings, diag);
         }
         if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
-            eprintln!("[phases2] lowering done at {}ms", total_start.elapsed().as_millis());
+            eprintln!(
+                "[phases2] lowering done at {}ms",
+                total_start.elapsed().as_millis()
+            );
             let _ = lower_start;
         }
         let mut dmir_analyzer = DmirOwnershipAnalyzer::new(&resolver);
@@ -476,7 +488,10 @@ pub(super) fn run_check_pipeline(
         dmir_analyzer.set_signatures(signatures);
         let _ = dmir_analyzer.analyze_and_lower_module(&mut dmir_module, diag);
         if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
-            eprintln!("[phases2] dmir ownership analyze done at {}ms", total_start.elapsed().as_millis());
+            eprintln!(
+                "[phases2] dmir ownership analyze done at {}ms",
+                total_start.elapsed().as_millis()
+            );
         }
         if !diag.has_errors() {
             let mut optimizer = crate::optimizer::Optimizer::new("release");
@@ -484,42 +499,51 @@ pub(super) fn run_check_pipeline(
                 diag.error_raw(*err_diag);
             } else {
                 if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
-                    eprintln!("[phases2] optimizer done at {}ms", total_start.elapsed().as_millis());
+                    eprintln!(
+                        "[phases2] optimizer done at {}ms",
+                        total_start.elapsed().as_millis()
+                    );
                 }
                 if std::env::var("FORGEN_CHECK_VERIFY_BACKEND")
                     .map(|v| v != "0")
                     .unwrap_or(true)
                 {
-                let has_inline_asm = dmir_module.functions.values().any(|f| {
-                    f.has_inline_asm
-                        || f.blocks.iter().any(|b| {
-                            b.instructions
-                                .iter()
-                                .any(|i| matches!(i, crate::dmir::Inst::InlineAsm { .. }))
-                        })
-                });
-                if !has_inline_asm {
-                    let backend = crate::codegen::cranelift::CraneliftBackend::for_host();
-                    if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
-                        eprintln!("[phases2] pre-backend-verify at {}ms", total_start.elapsed().as_millis());
-                    }
-                    if let Err(codegen_err) =
-                        backend.real_backend.compile_to_object_bytes(&dmir_module)
-                    {
-                        diag.error(
-                            crate::diagnostics::ErrorCode::CodegenBackendFailed,
-                            format!(
-                                "[E-CODEGEN-001] Backend compilation verification failed: {}",
-                                codegen_err
-                            ),
-                            None,
-                        );
-                    }
-                    if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
-                        eprintln!("[phases2] backend-verify done at {}ms", total_start.elapsed().as_millis());
+                    let has_inline_asm = dmir_module.functions.values().any(|f| {
+                        f.has_inline_asm
+                            || f.blocks.iter().any(|b| {
+                                b.instructions
+                                    .iter()
+                                    .any(|i| matches!(i, crate::dmir::Inst::InlineAsm { .. }))
+                            })
+                    });
+                    if !has_inline_asm {
+                        let backend = crate::codegen::cranelift::CraneliftBackend::for_host();
+                        if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
+                            eprintln!(
+                                "[phases2] pre-backend-verify at {}ms",
+                                total_start.elapsed().as_millis()
+                            );
+                        }
+                        if let Err(codegen_err) =
+                            backend.real_backend.compile_to_object_bytes(&dmir_module)
+                        {
+                            diag.error(
+                                crate::diagnostics::ErrorCode::CodegenBackendFailed,
+                                format!(
+                                    "[E-CODEGEN-001] Backend compilation verification failed: {}",
+                                    codegen_err
+                                ),
+                                None,
+                            );
+                        }
+                        if std::env::var("DATARA_PHASE_DEBUG").is_ok() {
+                            eprintln!(
+                                "[phases2] backend-verify done at {}ms",
+                                total_start.elapsed().as_millis()
+                            );
+                        }
                     }
                 }
-            }
             }
         }
     }

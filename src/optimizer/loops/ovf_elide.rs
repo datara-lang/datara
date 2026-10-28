@@ -110,7 +110,10 @@ pub fn elide_induction_overflow(
     trace: &mut OptimizationDecisionTrace,
 ) -> usize {
     if std::env::var("DATARA_OVF_DEBUG").is_ok() {
-        eprintln!("[ovf-acc] elide_induction_overflow entered, {} functions", module.functions.len());
+        eprintln!(
+            "[ovf-acc] elide_induction_overflow entered, {} functions",
+            module.functions.len()
+        );
     }
     let mut names: Vec<String> = module.functions.keys().cloned().collect();
     names.sort();
@@ -145,9 +148,7 @@ pub fn elide_induction_overflow(
 /// Returns `(marked_count, proof_descriptions, rejection_reasons)`.
 /// Rejection reasons are recorded in the decision trace so a missed
 /// optimization is visible rather than silent.
-fn prove_induction_increments(
-    f: &mut Function,
-) -> (usize, Vec<String>, Vec<String>) {
+fn prove_induction_increments(f: &mut Function) -> (usize, Vec<String>, Vec<String>) {
     let cfg = ControlFlowGraph::build(f);
     let mut marked = 0usize;
     let mut plans: Vec<(ValueId, String)> = Vec::new();

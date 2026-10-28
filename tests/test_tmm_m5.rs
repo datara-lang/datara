@@ -13,20 +13,16 @@
 //!    balance exactly, and weak handles must observe deterministic death
 //!    after the last strong release.
 
+use forgen::diagnostics::DiagnosticEngine;
 use forgen::driver::ForgenCompiler;
+use forgen::lexer::Lexer;
 use forgen::ownership::memory_report;
 use forgen::parser::Parser;
-use forgen::lexer::Lexer;
-use forgen::diagnostics::DiagnosticEngine;
 use std::sync::Arc as RustArc;
 use std::sync::Barrier;
 
 fn check_source(name: &str, source: &str) -> (bool, String) {
-    let dir = std::env::temp_dir().join(format!(
-        "forgen_tmm_m5_{}_{}",
-        std::process::id(),
-        name
-    ));
+    let dir = std::env::temp_dir().join(format!("forgen_tmm_m5_{}_{}", std::process::id(), name));
     let _ = std::fs::create_dir_all(&dir);
     let path = dir.join(format!("{}.dtr", name));
     std::fs::write(&path, source).expect("write TMM test source");
@@ -126,7 +122,10 @@ fn borrowed_param_returned_is_etmm002() {
     // `own p: T` / `view p: T` (src/parser/types.rs parse_param_list).
     let src = "extern fn take_owned(own p: RawPtr) -> Int\n\nfn leak(view p: RawPtr) -> RawPtr {\n    return p\n}\n\nfn main() {\n    out 0\n}\n";
     let (ok, diags) = check_source("tmm_ffi_return", src);
-    assert!(!ok, "returning a borrowed value must be a compile error: {diags}");
+    assert!(
+        !ok,
+        "returning a borrowed value must be a compile error: {diags}"
+    );
     assert!(diags.contains("E-TMM-002"), "expected E-TMM-002: {diags}");
 }
 
@@ -134,7 +133,10 @@ fn borrowed_param_returned_is_etmm002() {
 fn borrowed_param_into_owned_slot_is_etmm002() {
     let src = "extern fn take_owned(own p: RawPtr) -> Int\n\nfn misuse(view p: RawPtr) {\n    take_owned(p)\n}\n\nfn main() {\n    out 0\n}\n";
     let (ok, diags) = check_source("tmm_ffi_transfer", src);
-    assert!(!ok, "borrowed→owned transfer must be a compile error: {diags}");
+    assert!(
+        !ok,
+        "borrowed→owned transfer must be a compile error: {diags}"
+    );
     assert!(diags.contains("E-TMM-002"), "expected E-TMM-002: {diags}");
 }
 

@@ -276,10 +276,7 @@ fn dfs_cycle(
             // closes back to path[pos], so it appears once).
             let mut cycle: Vec<String> = path[pos..].to_vec();
             cycle.push(edge.target.clone());
-            let first = cycle
-                .first()
-                .cloned()
-                .unwrap_or_default();
+            let first = cycle.first().cloned().unwrap_or_default();
             // Canonical form: sorted members dedupe rotations of the cycle.
             let mut members: Vec<String> = path[pos..].to_vec();
             members.sort();
@@ -672,9 +669,8 @@ mod tests {
 
     #[test]
     fn memory_report_lists_layers() {
-        let program = parse(
-            "@arc\nstruct Node { value: Int }\n\nfn main() -> Int {\n    return 0\n}\n",
-        );
+        let program =
+            parse("@arc\nstruct Node { value: Int }\n\nfn main() -> Int {\n    return 0\n}\n");
         let report = memory_report(&program);
         assert!(report.contains("Node"));
         assert!(report.contains("L2 @arc"));
@@ -707,18 +703,28 @@ mod tests {
     #[test]
     fn cyclic_detector_finds_mutual_cycle_and_self_loop() {
         let mut plan = TmmPlan::default();
-        plan.classes.insert("A".into(), mk_dataflow("A", Some(("peer", "B", false))));
-        plan.classes.insert("B".into(), mk_dataflow("B", Some(("peer", "A", false))));
+        plan.classes
+            .insert("A".into(), mk_dataflow("A", Some(("peer", "B", false))));
+        plan.classes
+            .insert("B".into(), mk_dataflow("B", Some(("peer", "A", false))));
         // Self-loop through a container edge (List<Node> resolves to Node).
-        plan.classes.insert("Node".into(), mk_dataflow("Node", Some(("next", "Node", false))));
+        plan.classes.insert(
+            "Node".into(),
+            mk_dataflow("Node", Some(("next", "Node", false))),
+        );
         // An acyclic chain is NOT cyclic.
-        plan.classes.insert("Leaf".into(), mk_dataflow("Leaf", Some(("a", "A", false))));
-        plan.classes.insert("Lonely".into(), mk_dataflow("Lonely", None));
+        plan.classes
+            .insert("Leaf".into(), mk_dataflow("Leaf", Some(("a", "A", false))));
+        plan.classes
+            .insert("Lonely".into(), mk_dataflow("Lonely", None));
         let cyclic = cyclic_dataflow_classes(&plan);
         assert!(cyclic.contains("A"), "A is in the A→B→A cycle");
         assert!(cyclic.contains("B"), "B is in the A→B→A cycle");
         assert!(cyclic.contains("Node"), "Node self-loop via container edge");
-        assert!(!cyclic.contains("Leaf"), "acyclic chain member stays Layer 1");
+        assert!(
+            !cyclic.contains("Leaf"),
+            "acyclic chain member stays Layer 1"
+        );
         assert!(!cyclic.contains("Lonely"));
         assert_eq!(cyclic.len(), 3);
     }
@@ -727,8 +733,10 @@ mod tests {
     fn cyclic_detector_skips_weak_arc_and_autofree() {
         let mut plan = TmmPlan::default();
         // @weak back-edge breaks the cycle: neither class is cyclic.
-        plan.classes.insert("A".into(), mk_dataflow("A", Some(("peer", "B", false))));
-        plan.classes.insert("B".into(), mk_dataflow("B", Some(("peer", "A", true))));
+        plan.classes
+            .insert("A".into(), mk_dataflow("A", Some(("peer", "B", false))));
+        plan.classes
+            .insert("B".into(), mk_dataflow("B", Some(("peer", "A", true))));
         // @arc classes never participate (Layer 2 owns their lifetime).
         let mut arc_a = mk_dataflow("ArcA", Some(("peer", "ArcB", false)));
         arc_a.layer = TmmLayer::Arc;
@@ -739,16 +747,23 @@ mod tests {
         plan.classes.insert("ArcA".into(), arc_a);
         plan.classes.insert("ArcB".into(), arc_b);
         // Edge INTO an @arc class is a dead end, not a cycle.
-        plan.classes.insert("P".into(), mk_dataflow("P", Some(("a", "ArcA", false))));
+        plan.classes
+            .insert("P".into(), mk_dataflow("P", Some(("a", "ArcA", false))));
         // @derive(AutoFree) classes keep their Layer 3 scope frees — a
         // region-routed object must never also get a datara_rt_free.
         let mut af = mk_dataflow("AF", Some(("back", "AFBack", false)));
         af.layer = TmmLayer::AutoFree;
         af.has_autofree = true;
         plan.classes.insert("AF".into(), af);
-        plan.classes.insert("AFBack".into(), mk_dataflow("AFBack", Some(("peer", "AF", false))));
+        plan.classes.insert(
+            "AFBack".into(),
+            mk_dataflow("AFBack", Some(("peer", "AF", false))),
+        );
         let cyclic = cyclic_dataflow_classes(&plan);
-        assert!(cyclic.is_empty(), "expected no cyclic classes, got {cyclic:?}");
+        assert!(
+            cyclic.is_empty(),
+            "expected no cyclic classes, got {cyclic:?}"
+        );
     }
 
     #[test]

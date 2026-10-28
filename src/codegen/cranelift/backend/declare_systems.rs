@@ -32,13 +32,7 @@ pub fn declare_runtime_systems<M: ClifModule>(
     {
         let mut sig = Signature::new(call_conv);
         sig.returns.push(AbiParam::new(clif_types::I64));
-        reg_fn(
-            module,
-            func_ids,
-            "datara_rt_sys_caps_create",
-            &[],
-            sig,
-        )?;
+        reg_fn(module, func_ids, "datara_rt_sys_caps_create", &[], sig)?;
     }
 
     // 1. Endianness & byte swap intrinsics: (i64) -> i64

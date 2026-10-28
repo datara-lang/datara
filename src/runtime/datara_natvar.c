@@ -21,6 +21,13 @@
 #include <string.h>
 #include <stdio.h>
 
+// macOS: ucontext routines are deprecated XSI extensions — without
+// _XOPEN_SOURCE the SDK header emits #error and makecontext/swapcontext
+// stay undeclared (CI: Test (macos-latest) failure).
+#if defined(__APPLE__) && !defined(_XOPEN_SOURCE)
+#define _XOPEN_SOURCE 600
+#endif
+
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN

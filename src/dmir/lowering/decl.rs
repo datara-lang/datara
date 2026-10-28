@@ -159,31 +159,17 @@ impl<'a> Lowering<'a> {
                 // off the receiver's value type, and without this entry
                 // the repr fell back to Int (raw pointer printed as a
                 // number, E0944-class silent wrong data).
-                let key_repr = inner
-                    .split(',')
-                    .next()
-                    .unwrap_or("Str")
-                    .trim()
-                    .to_string();
+                let key_repr = inner.split(',').next().unwrap_or("Str").trim().to_string();
                 let key_ty = match key_repr.as_str() {
-                    "Int" | "Int64" | "Int32" | "Int16" | "Int8" => {
-                        crate::types::DataraType::Int
-                    }
+                    "Int" | "Int64" | "Int32" | "Int16" | "Int8" => crate::types::DataraType::Int,
                     _ => crate::types::DataraType::String,
                 };
-                let val_repr = inner
-                    .rsplit(',')
-                    .next()
-                    .unwrap_or("Int")
-                    .trim()
-                    .to_string();
+                let val_repr = inner.rsplit(',').next().unwrap_or("Int").trim().to_string();
                 let val_ty = match val_repr.as_str() {
                     "Float" | "Float64" | "f64" => crate::types::DataraType::Float,
                     "Float32" | "f32" => crate::types::DataraType::Float32,
                     "Bool" => crate::types::DataraType::Bool,
-                    "Int" | "Int64" | "Int32" | "Int16" | "Int8" => {
-                        crate::types::DataraType::Int
-                    }
+                    "Int" | "Int64" | "Int32" | "Int16" | "Int8" => crate::types::DataraType::Int,
                     _ => crate::types::DataraType::String,
                 };
                 self.local_var_types.insert(

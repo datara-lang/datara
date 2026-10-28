@@ -229,6 +229,10 @@ fn test_lambda_returning_container_keeps_type() {
     let (stdout, code) = run_stdout(&path);
     assert_eq!(code, 0);
     let lines: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
-    assert_eq!(lines, vec!["5", "6", "7", "6"], "map/list results keep their container types");
+    assert_eq!(
+        lines,
+        vec!["5", "6", "7", "6"],
+        "map/list results keep their container types"
+    );
     cleanup(&path);
 }

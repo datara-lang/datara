@@ -3,18 +3,16 @@ pub mod dataflow;
 pub mod domain;
 pub mod fresh;
 pub mod region;
-pub(crate) mod transfer;
 pub mod tmm;
+pub(crate) mod transfer;
 
 pub use r#abstract::{
     AbstractVarState, DmirOwnershipAnalyzer, FunctionDataflowState, OwnershipFunctionReport,
     VarBaseState,
 };
-pub use fresh::{lifetime_cache_reset, lifetime_cache_stats, LIFETIME_CACHE_VERSION};
-pub use tmm::{check_ffi_boundaries, detect_arc_cycles, memory_report, TmmLayer, TmmPlan};
-pub use dataflow::{
-    analyze_module, insert_releases, layer1_report, LifetimePlan,
-};
+pub use dataflow::{LifetimePlan, analyze_module, insert_releases, layer1_report};
+pub use fresh::{LIFETIME_CACHE_VERSION, lifetime_cache_reset, lifetime_cache_stats};
+pub use tmm::{TmmLayer, TmmPlan, check_ffi_boundaries, detect_arc_cycles, memory_report};
 
 use crate::ast::*;
 use crate::diagnostics::{DiagnosticEngine, ErrorCode, SourceSpan};
@@ -101,10 +99,8 @@ impl<'a> OwnershipTracker<'a> {
                 }
                 Decl::Impl(i) => {
                     for m in &i.methods {
-                        fn_signatures.insert(
-                            format!("{}_{}", i.target_type, m.name),
-                            m.params.clone(),
-                        );
+                        fn_signatures
+                            .insert(format!("{}_{}", i.target_type, m.name), m.params.clone());
                         fn_signatures.insert(m.name.clone(), m.params.clone());
                     }
                 }

@@ -49,7 +49,11 @@ fn run_jit(source: &str, name: &str) -> String {
 
 fn assert_both_tiers(source: &str, name: &str, expected: &str) {
     assert_eq!(run_native(source, name), expected, "native tier");
-    assert_eq!(run_jit(source, &format!("{}_jit", name)), expected, "jit tier");
+    assert_eq!(
+        run_jit(source, &format!("{}_jit", name)),
+        expected,
+        "jit tier"
+    );
 }
 
 /// Native-only variant: the fiber channels' main-thread drain and the

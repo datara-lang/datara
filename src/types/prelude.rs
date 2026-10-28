@@ -987,13 +987,23 @@ impl<'a> TypeChecker<'a> {
         }
         // M5 TMM Layer 2: ARC primitives. Pointers flow as RawPtr; the
         // @arc-annotated class objects are pointer-sized handles.
-        for f in &["arc_init", "datara_rt_arc_init", "arc_acquire", "datara_rt_arc_acquire"] {
+        for f in &[
+            "arc_init",
+            "datara_rt_arc_init",
+            "arc_acquire",
+            "datara_rt_arc_acquire",
+        ] {
             function_signatures.insert(
                 f.to_string(),
                 (vec![DataraType::RawPtr], DataraType::RawPtr, Vec::new()),
             );
         }
-        for f in &["arc_release", "datara_rt_arc_release", "weak_drop", "datara_rt_weak_drop"] {
+        for f in &[
+            "arc_release",
+            "datara_rt_arc_release",
+            "weak_drop",
+            "datara_rt_weak_drop",
+        ] {
             function_signatures.insert(
                 f.to_string(),
                 (vec![DataraType::RawPtr], DataraType::Unit, Vec::new()),

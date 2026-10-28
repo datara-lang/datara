@@ -4,10 +4,10 @@
 //! inserted: immediately after the LAST use, never at scope end, and
 //! never for anything that escapes.
 
-use forgen::dmir::{verify_module, Lowering};
 use forgen::diagnostics::DiagnosticEngine;
+use forgen::dmir::{Lowering, verify_module};
 use forgen::lexer::Lexer;
-use forgen::ownership::dataflow::{analyze_module, layer1_report, EscapeReason};
+use forgen::ownership::dataflow::{EscapeReason, analyze_module, layer1_report};
 use forgen::parser::Parser;
 use forgen::resolver::Resolver;
 use forgen::types::TypeChecker;
@@ -17,11 +17,7 @@ fn lower(src: &str, name: &str) -> forgen::dmir::Module {
     diag.set_source(name, src);
     let tokens = Lexer::new(src, name).tokenize(&mut diag);
     let program = Parser::new(tokens, &mut diag, name).parse_program();
-    assert!(
-        !diag.has_errors(),
-        "parse failed: {}",
-        diag.format_all()
-    );
+    assert!(!diag.has_errors(), "parse failed: {}", diag.format_all());
     let mut resolver = Resolver::new();
     resolver.resolve_program(&program, &mut diag);
     assert!(!diag.has_errors(), "resolve failed: {}", diag.format_all());
@@ -44,18 +40,16 @@ fn last_use_release_replaces_scope_end() {
     // t is used twice; its release point must sit after the SECOND use
     // (the s computation), not after the first and not at scope end.
     let m = lower(
-        &format!("{PLAIN}\nfn main() -> Int {{\n    val t = Plain {{ a: 1, b: 2 }}\n    val s = t.a + t.b\n    out s\n    return 0\n}}\n"),
+        &format!(
+            "{PLAIN}\nfn main() -> Int {{\n    val t = Plain {{ a: 1, b: 2 }}\n    val s = t.a + t.b\n    out s\n    return 0\n}}\n"
+        ),
         "l1_last_use.dtr",
     );
     let plan = analyze_module(&m);
     // t is a plain struct whose object value never escapes (only field
     // reads); there must be exactly one release decision for it and its
     // insertion index must be after the LAST use instruction.
-    let t_rels: Vec<_> = plan
-        .releases
-        .iter()
-        .filter(|r| r.variable == "t")
-        .collect();
+    let t_rels: Vec<_> = plan.releases.iter().filter(|r| r.variable == "t").collect();
     assert_eq!(t_rels.len(), 1, "exactly one release decision for t");
     let r = t_rels[0];
     assert_eq!(r.class, "Plain");
@@ -136,10 +130,9 @@ fn call_argument_escape_is_kept() {
     );
     let m = lower(src, "l1_calleh.dtr");
     let plan = analyze_module(&m);
-    let kept = plan
-        .keeps
-        .iter()
-        .any(|k| k.function == "main" && k.variable == "t" && k.reason == EscapeReason::PassedToCall);
+    let kept = plan.keeps.iter().any(|k| {
+        k.function == "main" && k.variable == "t" && k.reason == EscapeReason::PassedToCall
+    });
     assert!(kept, "call-arg object must be kept: {:?}", plan.keeps);
 }
 
@@ -175,7 +168,11 @@ fn manual_release_is_never_doubled() {
     let kept = plan.keeps.iter().any(|k| {
         k.function == "main" && k.variable == "c" && k.reason == EscapeReason::ManuallyReleased
     });
-    assert!(kept, "manually released object must be kept: {:?}", plan.keeps);
+    assert!(
+        kept,
+        "manually released object must be kept: {:?}",
+        plan.keeps
+    );
 }
 
 #[test]
@@ -185,10 +182,9 @@ fn parameter_objects_are_caller_owned() {
     );
     let m = lower(src, "l1_param.dtr");
     let plan = analyze_module(&m);
-    let kept = plan
-        .keeps
-        .iter()
-        .any(|k| k.function == "consume" && k.variable == "p" && k.reason == EscapeReason::CallerOwned);
+    let kept = plan.keeps.iter().any(|k| {
+        k.function == "consume" && k.variable == "p" && k.reason == EscapeReason::CallerOwned
+    });
     assert!(kept, "parameters are caller-owned: {:?}", plan.keeps);
 }
 
@@ -205,9 +201,7 @@ fn cross_block_use_is_kept() {
         .filter(|r| r.function == "main" && r.variable == "t")
         .count();
     let kept = plan.keeps.iter().any(|k| {
-        k.function == "main"
-            && k.variable == "t"
-            && matches!(k.reason, EscapeReason::CrossBlock)
+        k.function == "main" && k.variable == "t" && matches!(k.reason, EscapeReason::CrossBlock)
     });
     assert!(
         t_rels == 0 || kept,
@@ -219,7 +213,9 @@ fn cross_block_use_is_kept() {
 #[test]
 fn inspect_report_renders_layer1_section() {
     let m = lower(
-        &format!("{PLAIN}\nfn main() {{\n    val t = Plain {{ a: 1, b: 2 }}\n    out t.a\n    val dead = Plain {{ a: 3, b: 4 }}\n    out 0\n}}\n"),
+        &format!(
+            "{PLAIN}\nfn main() {{\n    val t = Plain {{ a: 1, b: 2 }}\n    out t.a\n    val dead = Plain {{ a: 3, b: 4 }}\n    out 0\n}}\n"
+        ),
         "l1_report.dtr",
     );
     let report = layer1_report(&m);

@@ -10,7 +10,6 @@
 use crate::dmir::{Function, Inst, Terminator, ValueId};
 use crate::optimizer::loops::LoopOptimizer;
 
-
 /// Abstract signed range of one SSA value.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct Range {
@@ -193,14 +192,20 @@ pub(super) struct ProvenInduction {
 /// `i < B` / `i <= B` against a constant bound with a positive constant
 /// step and a single latch, all entry edges passing the same constant
 /// start. Returns the body-entry range `lo..=hi` of `i`.
-pub(super) fn induction_range(f: &Function, lp: &crate::dmir::cfg::NaturalLoop) -> Option<ProvenInduction> {
+pub(super) fn induction_range(
+    f: &Function,
+    lp: &crate::dmir::cfg::NaturalLoop,
+) -> Option<ProvenInduction> {
     let dbg = std::env::var("DATARA_OVF_DEBUG").is_ok();
     let header = f.get_block(lp.header)?;
     let cond_vid = match &header.terminator {
         Terminator::CondBranch { cond, .. } => *cond,
         _ => {
             if dbg {
-                eprintln!("[ovf-ind] bb{}: header terminator is not CondBranch", lp.header.0);
+                eprintln!(
+                    "[ovf-ind] bb{}: header terminator is not CondBranch",
+                    lp.header.0
+                );
             }
             return None;
         }
@@ -246,7 +251,10 @@ pub(super) fn induction_range(f: &Function, lp: &crate::dmir::cfg::NaturalLoop) 
     }
     let (i_vid, op, bound) = found?;
     if dbg {
-        eprintln!("[ovf-ind] bb{}: induction v{} op '{}' bound {}", lp.header.0, i_vid.0, op, bound);
+        eprintln!(
+            "[ovf-ind] bb{}: induction v{} op '{}' bound {}",
+            lp.header.0, i_vid.0, op, bound
+        );
     }
     if lp.back_edges.len() != 1 {
         return None;
@@ -355,7 +363,12 @@ pub(super) fn induction_range(f: &Function, lp: &crate::dmir::cfg::NaturalLoop) 
     }
     let start = start?;
     if dbg {
-        eprintln!("[ovf-ind] bb{}: start={} chain_deltas={:?}", lp.header.0, start, chain.iter().map(|(_, d)| d).collect::<Vec<_>>());
+        eprintln!(
+            "[ovf-ind] bb{}: start={} chain_deltas={:?}",
+            lp.header.0,
+            start,
+            chain.iter().map(|(_, d)| d).collect::<Vec<_>>()
+        );
     }
 
     let hi = match op {

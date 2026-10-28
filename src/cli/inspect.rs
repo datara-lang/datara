@@ -255,8 +255,7 @@ pub(crate) fn cmd_inspect(args: &[String]) -> bool {
                     resolver.resolve_program(&program, &mut diag);
                     if !diag.has_errors() {
                         let tc = crate::types::TypeChecker::new(&resolver);
-                        let mut lowering =
-                            crate::dmir::Lowering::new(&resolver, &tc);
+                        let mut lowering = crate::dmir::Lowering::new(&resolver, &tc);
                         let dmir = lowering.lower_program(&program, "main");
                         print!("{}", crate::ownership::layer1_report(&dmir));
                     }

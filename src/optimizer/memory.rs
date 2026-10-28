@@ -330,7 +330,12 @@ impl MemoryOptimizer {
                     }
                     new_instructions.push(inst.clone());
                 }
-                Inst::Call { dest: _, func, args, .. } => {
+                Inst::Call {
+                    dest: _,
+                    func,
+                    args,
+                    ..
+                } => {
                     // M6 TMM Layer 1: when this pass scalarizes the released
                     // object, its release call must go away with it — kept,
                     // it would survive as the StructInit's only user (DCE
@@ -349,8 +354,7 @@ impl MemoryOptimizer {
                                     _ => break,
                                 }
                             }
-                            !escaping_structs.contains(&root)
-                                && struct_defs.contains_key(&root)
+                            !escaping_structs.contains(&root) && struct_defs.contains_key(&root)
                         });
                     if scalarized_release {
                         eliminated += 1;

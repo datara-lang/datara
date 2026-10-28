@@ -45,8 +45,7 @@ fn third(c: Int) -> Int => c - 3
     for name in ["first", "second", "third"] {
         let function = module.functions.get(name).expect("function was lowered");
         assert_eq!(
-            function.params[0].2.0,
-            0,
+            function.params[0].2.0, 0,
             "ValueIds must start at zero in function {name}"
         );
     }

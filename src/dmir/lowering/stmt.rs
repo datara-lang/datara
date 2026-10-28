@@ -85,9 +85,7 @@ impl<'a> Lowering<'a> {
                         // exist at runtime; the checker rejects the rest.
                         let parse = |t: Option<&crate::ast::TypeNode>| match t {
                             Some(tn) => match tn.name.as_str() {
-                                "Int" | "Int64" | "Int32" | "Int16" | "Int8" => {
-                                    DataraType::Int
-                                }
+                                "Int" | "Int64" | "Int32" | "Int16" | "Int8" => DataraType::Int,
                                 "Float" | "Float64" | "f64" | "Float32" | "f32" => {
                                     DataraType::Float
                                 }
@@ -99,8 +97,10 @@ impl<'a> Lowering<'a> {
                         };
                         let k_ty = parse(tn.generic_args.first());
                         let v_ty = parse(tn.generic_args.get(1));
-                        self.local_var_types
-                            .insert(name.clone(), DataraType::Map(Box::new(k_ty), Box::new(v_ty)));
+                        self.local_var_types.insert(
+                            name.clone(),
+                            DataraType::Map(Box::new(k_ty), Box::new(v_ty)),
+                        );
                     } else if matches!(tn.name.as_str(), "Float" | "Float64" | "f64") {
                         self.local_var_types.insert(name.clone(), DataraType::Float);
                         self.class_field_types.insert(name.clone(), "Float".into());
@@ -220,7 +220,8 @@ impl<'a> Lowering<'a> {
                                 saw_int = true;
                             }
                         }
-                        let kinds = saw_int as u32 + saw_flt as u32 + saw_str as u32 + saw_bool as u32;
+                        let kinds =
+                            saw_int as u32 + saw_flt as u32 + saw_str as u32 + saw_bool as u32;
                         let val_ty = if kinds > 1 {
                             DataraType::Val
                         } else if saw_str {
@@ -284,14 +285,12 @@ impl<'a> Lowering<'a> {
                         if let Some(v) = self.symbol_values.get(&c.name).copied() {
                             let snap_v = if let Some(class) = self.arc_class_of_var(&c.name) {
                                 let acq = self.next_val();
-                                self.get_block_mut(cur_block)
-                                    .instructions
-                                    .push(Inst::Call {
-                                        dest: acq,
-                                        func: "datara_rt_arc_acquire".into(),
-                                        args: vec![v],
-                                        ty: class,
-                                    });
+                                self.get_block_mut(cur_block).instructions.push(Inst::Call {
+                                    dest: acq,
+                                    func: "datara_rt_arc_acquire".into(),
+                                    args: vec![v],
+                                    ty: class,
+                                });
                                 acq
                             } else {
                                 v
@@ -342,21 +341,17 @@ impl<'a> Lowering<'a> {
                                     DataraType::Class(c) => c,
                                     other => other.to_string(),
                                 })
-                                .or_else(|| {
-                                    match value {
-                                        Expr::Identifier(src, _) => self
-                                            .local_var_types
-                                            .get(src)
-                                            .map(|t| match t {
-                                                DataraType::Class(c) => c.clone(),
-                                                other => other.to_string(),
-                                            }),
-                                        _ => None,
+                                .or_else(|| match value {
+                                    Expr::Identifier(src, _) => {
+                                        self.local_var_types.get(src).map(|t| match t {
+                                            DataraType::Class(c) => c.clone(),
+                                            other => other.to_string(),
+                                        })
                                     }
+                                    _ => None,
                                 });
                             if let Some(c) = src_class
-                                && (self.arc_classes_lower.contains(&c)
-                                    || c.starts_with("RawPtr"))
+                                && (self.arc_classes_lower.contains(&c) || c.starts_with("RawPtr"))
                             {
                                 // Class check only: RawPtr values coming from
                                 // arc_init/acquire are also refcounted. The
@@ -364,14 +359,12 @@ impl<'a> Lowering<'a> {
                                 // guarded by the static TMM check (only @arc
                                 // types reach this path).
                                 let acq = self.next_val();
-                                self.get_block_mut(cur_block)
-                                    .instructions
-                                    .push(Inst::Call {
-                                        dest: acq,
-                                        func: "datara_rt_arc_acquire".into(),
-                                        args: vec![v],
-                                        ty: "RawPtr".into(),
-                                    });
+                                self.get_block_mut(cur_block).instructions.push(Inst::Call {
+                                    dest: acq,
+                                    func: "datara_rt_arc_acquire".into(),
+                                    args: vec![v],
+                                    ty: "RawPtr".into(),
+                                });
                                 self.symbol_values.insert(name.clone(), acq);
                                 self.get_block_mut(cur_block)
                                     .instructions
@@ -542,7 +535,10 @@ impl<'a> Lowering<'a> {
                     let flag = self.next_val();
                     self.get_block_mut(cur_block)
                         .instructions
-                        .push(Inst::ConstBool { dest: flag, value: true });
+                        .push(Inst::ConstBool {
+                            dest: flag,
+                            value: true,
+                        });
                     if is_outcome {
                         let empty = self.next_val();
                         self.get_block_mut(cur_block)
@@ -634,15 +630,25 @@ impl<'a> Lowering<'a> {
                 // the dynamic binding afterwards. Only identifier operands
                 // narrow; index/call results re-evaluate per read.
                 let narrow = match condition {
-                    Expr::IsCheck { operand, ty_name, .. } => {
-                        match (&**operand, ty_name.as_str()) {
-                            (Expr::Identifier(v, _), "Int") => Some((v.clone(), "datara_rt_val_to_int_checked", "Int".to_string())),
-                            (Expr::Identifier(v, _), "Float") => Some((v.clone(), "datara_rt_val_to_float_checked", "Float".to_string())),
-                            (Expr::Identifier(v, _), "Str" | "String") => Some((v.clone(), "datara_val_to_str", "String".to_string())),
-                            (Expr::Identifier(v, _), "Bool") => Some((v.clone(), "datara_val_to_bool", "Bool".to_string())),
-                            _ => None,
+                    Expr::IsCheck {
+                        operand, ty_name, ..
+                    } => match (&**operand, ty_name.as_str()) {
+                        (Expr::Identifier(v, _), "Int") => {
+                            Some((v.clone(), "datara_rt_val_to_int_checked", "Int".to_string()))
                         }
-                    }
+                        (Expr::Identifier(v, _), "Float") => Some((
+                            v.clone(),
+                            "datara_rt_val_to_float_checked",
+                            "Float".to_string(),
+                        )),
+                        (Expr::Identifier(v, _), "Str" | "String") => {
+                            Some((v.clone(), "datara_val_to_str", "String".to_string()))
+                        }
+                        (Expr::Identifier(v, _), "Bool") => {
+                            Some((v.clone(), "datara_val_to_bool", "Bool".to_string()))
+                        }
+                        _ => None,
+                    },
                     _ => None,
                 };
                 let cond_val = self
@@ -662,29 +668,26 @@ impl<'a> Lowering<'a> {
 
                 // Narrow re-binding inside the then-block.
                 let narrow_shadow = narrow.map(|(var, func, ty)| {
-                    let raw = self
-                        .symbol_values
-                        .get(&var)
-                        .copied()
-                        .unwrap_or(ValueId(0));
+                    let raw = self.symbol_values.get(&var).copied().unwrap_or(ValueId(0));
                     let unboxed = self.next_val();
-                    self.get_block_mut(then_id)
-                        .instructions
-                        .push(Inst::Call {
-                            dest: unboxed,
-                            func: func.into(),
-                            args: vec![raw],
-                            ty: ty.clone(),
-                        });
+                    self.get_block_mut(then_id).instructions.push(Inst::Call {
+                        dest: unboxed,
+                        func: func.into(),
+                        args: vec![raw],
+                        ty: ty.clone(),
+                    });
                     let old_val = self.symbol_values.get(&var).copied();
                     let old_ty = self.local_var_types.get(&var).cloned();
                     self.symbol_values.insert(var.clone(), unboxed);
-                    self.local_var_types.insert(var.clone(), match ty.as_str() {
-                        "Float" => DataraType::Float,
-                        "Bool" => DataraType::Bool,
-                        "String" | "Str" => DataraType::String,
-                        _ => DataraType::Int,
-                    });
+                    self.local_var_types.insert(
+                        var.clone(),
+                        match ty.as_str() {
+                            "Float" => DataraType::Float,
+                            "Bool" => DataraType::Bool,
+                            "String" | "Str" => DataraType::String,
+                            _ => DataraType::Int,
+                        },
+                    );
                     self.get_block_mut(then_id)
                         .instructions
                         .push(Inst::AssignVar {

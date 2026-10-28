@@ -5,7 +5,6 @@ use crate::diagnostics::{DiagnosticEngine, ErrorCode, SourceSpan};
 use crate::types::DataraType;
 use std::collections::{HashMap, HashSet};
 
-
 /// v1.4.1 E-TYPE-008 gate for the List combinators: a wrong arity or a
 /// definitively non-callable argument is a hard type error instead of the
 /// old silent "returns the receiver list" fallback. Named functions surface
@@ -95,7 +94,6 @@ pub(crate) fn bind_type_params(
     }
 }
 
-
 /// True when `name` occurs anywhere inside `ty` (recursively through
 /// List/Map/GenericInstance arguments). Used by the callback-binding
 /// heuristic at generic call sites.
@@ -107,7 +105,11 @@ pub(crate) fn contains_type_param(ty: &DataraType, name: &str) -> bool {
         DataraType::GenericInstance { args, .. } => {
             args.iter().any(|a| contains_type_param(a, name))
         }
-        DataraType::Function { params, return_type, .. } => {
+        DataraType::Function {
+            params,
+            return_type,
+            ..
+        } => {
             params.iter().any(|a| contains_type_param(a, name))
                 || contains_type_param(return_type, name)
         }
@@ -117,7 +119,6 @@ pub(crate) fn contains_type_param(ty: &DataraType, name: &str) -> bool {
         _ => false,
     }
 }
-
 
 /// Bare-generic callback binding: a generic parameter bound to a lambda AND
 /// appearing bare inside the generic fn's return type is a callback whose
@@ -148,7 +149,10 @@ where
     callback_bound
 }
 
-pub(crate) fn subst_type_params(ty: &DataraType, bindings: &HashMap<String, DataraType>) -> DataraType {
+pub(crate) fn subst_type_params(
+    ty: &DataraType,
+    bindings: &HashMap<String, DataraType>,
+) -> DataraType {
     match ty {
         DataraType::TypeParam(p) => bindings.get(p).cloned().unwrap_or_else(|| ty.clone()),
         DataraType::List(inner) => DataraType::List(Box::new(subst_type_params(inner, bindings))),
@@ -253,62 +257,55 @@ pub(crate) fn check_generic_trait_bounds(
             for tr_name in trait_names {
                 let type_str = match concrete_ty {
                     DataraType::Class(c) => c.clone(),
-                                DataraType::Int => "Int".to_string(),
-                                DataraType::Float => "Float".to_string(),
-                                DataraType::String => "String".to_string(),
-                                DataraType::Bool => "Bool".to_string(),
-                                DataraType::Unit => "Unit".to_string(),
-                                DataraType::GenericInstance { name, .. } => name.clone(),
+                    DataraType::Int => "Int".to_string(),
+                    DataraType::Float => "Float".to_string(),
+                    DataraType::String => "String".to_string(),
+                    DataraType::Bool => "Bool".to_string(),
+                    DataraType::Unit => "Unit".to_string(),
+                    DataraType::GenericInstance { name, .. } => name.clone(),
                     other => other.to_string(),
-    };
-                let mut satisfied = tc
-                    .impls
-                    .contains_key(&(tr_name.clone(), type_str.clone()));
+                };
+                let mut satisfied = tc.impls.contains_key(&(tr_name.clone(), type_str.clone()));
                 if !satisfied {
                     if let DataraType::TypeParam(p) = concrete_ty {
                         let caller_bounds = tc
                             .current_fn_name
                             .as_ref()
-                            .and_then(|fn_n| {
-                                tc.trait_bounds.get(&format!("{}:{}", fn_n, p))
-                })
+                            .and_then(|fn_n| tc.trait_bounds.get(&format!("{}:{}", fn_n, p)))
                             .or_else(|| tc.trait_bounds.get(p));
                         if let Some(tb) = caller_bounds {
                             if tb.contains(tr_name) {
                                 satisfied = true;
-                }
+                            }
                         }
                     }
-                            }
-                            if !satisfied {
+                }
+                if !satisfied {
                     let mut queue = vec![type_str.clone()];
                     let mut visited = HashSet::new();
                     while let Some(cls_name) = queue.pop() {
                         if !visited.insert(cls_name.clone()) {
                             continue;
                         }
-                        if tc
-                            .impls
-                            .contains_key(&(tr_name.clone(), cls_name.clone()))
-                        {
+                        if tc.impls.contains_key(&(tr_name.clone(), cls_name.clone())) {
                             satisfied = true;
                             break;
-                                    }
+                        }
                         if let Some(cls_sym) = tc.resolver.classes.get(&cls_name) {
                             if cls_sym.compositions.iter().any(|comp| comp == tr_name) {
-                                            satisfied = true;
-                                            break;
-                                        }
+                                satisfied = true;
+                                break;
+                            }
                             for comp in &cls_sym.compositions {
                                 queue.push(comp.clone());
-                                        }
+                            }
                             if let Some(base) = &cls_sym.base_type {
                                 queue.push(base.clone());
-                                        }
-                                    }
-                                }
                             }
-                            if !satisfied {
+                        }
+                    }
+                }
+                if !satisfied {
                     diag.error(
                         ErrorCode::TypeMismatch,
                         format!(
@@ -317,8 +314,8 @@ pub(crate) fn check_generic_trait_bounds(
                         ),
                         Some(span.clone()),
                     );
-                            }
-                        }
-                    }
                 }
+            }
+        }
+    }
 }
