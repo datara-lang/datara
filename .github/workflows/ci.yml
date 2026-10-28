@@ -56,6 +56,19 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      
+      - name: Add LLVM to PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $llvm = "C:\Program Files\LLVM\bin"
+          if (Test-Path $llvm) {
+            Add-Content $env:GITHUB_PATH $llvm
+            Write-Host "LLVM added to PATH"
+          } else {
+            Write-Host "LLVM not found — LLVM-dependent tests will skip"
+          }
+
       - name: Build
         run: cargo build --release --verbose
 

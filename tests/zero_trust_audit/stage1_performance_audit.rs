@@ -17,6 +17,7 @@ use std::fs;
 use std::process::Command;
 use std::time::Instant;
 
+
 // ============================================================================
 // 1. fastcc / Fast Calling Convention Audit
 // ============================================================================
@@ -419,6 +420,11 @@ fn main() {
 
 #[test]
 fn test_stage1_inline_asm_rdtsc_licm_and_diagnostics() {
+    if !crate::llvm_gate::llvm_toolchain_available() {
+        println!("skipped: LLVM toolchain (llc/opt) not found on PATH");
+        return;
+    }
+
     let tsc_instr = if cfg!(target_arch = "aarch64") {
         "yield"
     } else {

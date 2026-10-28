@@ -1,4 +1,7 @@
 use forgen::driver::ForgenCompiler;
+#[path = "llvm_gate.rs"]
+mod llvm_gate;
+
 
 #[test]
 fn test_wave1_tail_call_optimization() {
@@ -133,6 +136,11 @@ fn main() {
 
 #[test]
 fn test_wave1_inline_asm_llvm() {
+    if !llvm_gate::llvm_toolchain_available() {
+        println!("skipped: LLVM toolchain (llc/opt) not found on PATH");
+        return;
+    }
+
     let pause_instr = if cfg!(target_arch = "aarch64") {
         "yield"
     } else {

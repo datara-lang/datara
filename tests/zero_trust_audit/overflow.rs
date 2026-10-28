@@ -1,7 +1,13 @@
 use super::helpers::*;
 
+
 #[test]
 fn audit_overflow_i64_max_plus_one_traps_all_backends_debug_and_release() {
+    if !crate::llvm_gate::llvm_toolchain_available() {
+        println!("skipped: LLVM toolchain (llc/opt) not found on PATH");
+        return;
+    }
+
     let source = r#"
 fn main() {
     mut max = 9223372036854775807

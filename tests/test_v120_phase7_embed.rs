@@ -15,6 +15,9 @@ use forgen::export::{export_c_header, export_embed_header, export_embed_package}
 use std::ffi::CString;
 use std::fs;
 use std::path::{Path, PathBuf};
+#[path = "llvm_gate.rs"]
+mod llvm_gate;
+
 
 fn setup_test_dir(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("datara_test_v120_p7_{}", name));
@@ -232,6 +235,11 @@ fn main() {
 
 #[test]
 fn test_v120_embed_export_embed_package() {
+    if !llvm_gate::llvm_toolchain_available() {
+        println!("skipped: LLVM toolchain (llc/opt) not found on PATH");
+        return;
+    }
+
     let dir = setup_test_dir("embed_pkg");
     let src_path = dir.join("physics_core.dtr");
     let out_dir = dir.join("dist");

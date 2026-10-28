@@ -1,3 +1,6 @@
+#[path = "llvm_gate.rs"]
+mod llvm_gate;
+
 #[path = "zero_trust_audit/helpers.rs"]
 pub mod helpers;
 
