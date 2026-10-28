@@ -1,0 +1,56 @@
+{
+  "probes": {
+    "cyrillic_check.dtr": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "\u043f\u0440\u0438\u0432\u0435\u0442 \u043c\u0438\u0440"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "\u043f\u0440\u0438\u0432\u0435\u0442 \u043c\u0438\u0440"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "\u043f\u0440\u0438\u0432\u0435\u0442 \u043c\u0438\u0440"
+        }
+      }
+    },
+    "list_new_check.dtr": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "5\n0\n7"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "5\n0\n7"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "5\n0\n7"
+        }
+      }
+    },
+    "str_scalar_cp_check.dtr": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "\u03b1\n\u03c7\nb\n\u0435"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "\u03b1\n\u03c7\nb\n\u0435"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "\u03b1\n\u03c7\nb\n\u0435"
+        }
+      }
+    }
+  },
+  "fails": 0
+}
