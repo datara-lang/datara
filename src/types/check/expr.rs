@@ -4,40 +4,6 @@ use crate::types::{DataraType, MutabilityKind, PropagationKind, PropagationSite,
 use std::collections::{HashMap, HashSet};
 
 impl<'a> TypeChecker<'a> {
-    pub fn find_trait_method(
-        &self,
-        tr_name: &str,
-        method_name: &str,
-        visited: &mut HashSet<String>,
-    ) -> Option<TraitMethodSignature> {
-        if !visited.insert(tr_name.to_string()) {
-            return None;
-        }
-        if let Some(tr) = self.traits.get(tr_name) {
-            if let Some(tm) = tr.methods.iter().find(|m| m.name == method_name) {
-                return Some(tm.clone());
-            }
-            for super_tr in &tr.super_traits {
-                if let Some(tm) = self.find_trait_method(super_tr, method_name, visited) {
-                    return Some(tm);
-                }
-            }
-        }
-        if let Some(r) = self.roles.get(tr_name) {
-            if let Some(rm) = r.methods.iter().find(|m| m.name == method_name) {
-                return Some(TraitMethodSignature {
-                    name: rm.name.clone(),
-                    generic_params: rm.generic_params.clone(),
-                    params: rm.params.clone(),
-                    return_type: rm.return_type.clone(),
-                    default_body: rm.body.clone(),
-                    span: rm.span.clone(),
-                });
-            }
-        }
-        None
-    }
-
     pub fn check_expr(&mut self, expr: &Expr, diag: &mut DiagnosticEngine) -> DataraType {
         // Guard against stack overflow from pathologically-nested input.
         // Increment on entry, decrement on exit via a guard value.
@@ -836,7 +802,7 @@ impl<'a> TypeChecker<'a> {
                 self.last_list_element = Some(elem_ty.clone());
                 DataraType::List(Box::new(elem_ty))
             }
-            Expr::MapLiteral(entries, _) => {
+            Expr::MapLiteral(entries, span) => {
                 // Unify key/value types the same way list elements are
                 // unified: one type -> Map(K, V); mixed/empty -> Val.
                 let mut key: Option<DataraType> = None;
@@ -855,8 +821,27 @@ impl<'a> TypeChecker<'a> {
                         Some(_) => value = Some(DataraType::Val),
                     }
                 }
+                let key_ty = key.unwrap_or(DataraType::Val);
+                // v1.5.0 map key contract: the runtime has exactly two key
+                // layouts (owned Str and raw Int). A Float/Bool/class key used
+                // to be accepted by the checker and then reinterpreted as a
+                // pointer at run time — fail at compile time instead.
+                if !matches!(
+                    key_ty,
+                    DataraType::String | DataraType::Int | DataraType::Val
+                ) {
+                    diag.error_with_help(
+                        ErrorCode::TypeMismatch,
+                        format!("unsupported map key type '{}'", key_ty),
+                        Some(span.clone()),
+                        Some(
+                            "map keys must be 'Str' or 'Int' (convert with int_to_str/str_to_int)"
+                                .to_string(),
+                        ),
+                    );
+                }
                 DataraType::Map(
-                    Box::new(key.unwrap_or(DataraType::Val)),
+                    Box::new(key_ty),
                     Box::new(value.unwrap_or(DataraType::Val)),
                 )
             }
@@ -1000,13 +985,29 @@ impl<'a> TypeChecker<'a> {
                 } else if let Some(inner_ty) = t.option_like() {
                     (PropagationKind::Maybe, inner_ty)
                 } else {
-                    diag.error(
+                    // M2 fix 5/5: a `?` on a non-Result operand is
+                    // mechanically removable — slice the `expr?` span and
+                    // drop the trailing `?` from the replacement.
+                    let machine_fix = self.source_slice(&span).and_then(|text| {
+                        let trimmed = text.trim_end();
+                        let inner = trimmed.strip_suffix('?')?.trim_end().to_string();
+                        if inner.is_empty() {
+                            return None;
+                        }
+                        Some(crate::diagnostics::MachineFix {
+                            span: span.clone(),
+                            replacement: inner,
+                        })
+                    });
+                    diag.error_with_fix(
                         ErrorCode::TypeMismatch,
                         format!(
                             "'?' requires a Result ('T!E') or Option ('T?') operand, got '{}'",
                             t
                         ),
                         Some(span.clone()),
+                        None,
+                        machine_fix,
                     );
                     return t;
                 };
@@ -1095,6 +1096,9 @@ impl<'a> TypeChecker<'a> {
             }
             Expr::Comptime { expr, .. } => self.check_expr(expr, diag),
             Expr::Wrapping(expr, _) | Expr::Saturating(expr, _) => self.check_expr(expr, diag),
+            Expr::IsCheck { operand, ty_name, span } => {
+                self.check_is_check(operand, ty_name, span, diag)
+            }
             Expr::Cast {
                 expr: inner,
                 target_ty,

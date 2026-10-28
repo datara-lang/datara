@@ -1,0 +1,7 @@
+fn main() {
+    val words: List<Str> = ["a", "bb"]
+    val bang = words.map(w => w + "!")
+    out bang[0]
+    out bang[1]
+    out "done"
+}

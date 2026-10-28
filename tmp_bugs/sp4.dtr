@@ -1,0 +1,10 @@
+struct Store { xs: List<Float> }
+struct World2 { count: Int, store: Store }
+fn main() {
+    val xs: List<Float> = []
+    xs.append(1.5)
+    val st = Store { xs: xs }
+    val w = World2 { count: 1, store: st }
+    out float_to_str(w.store.xs[0])
+    out "INLINE-STRUCT-OK"
+}

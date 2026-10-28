@@ -27,6 +27,7 @@ impl<'a> LlvmEmitter<'a> {
         next_meta_id: &mut usize,
         address_taken: &HashSet<String>,
         stack_structs: &HashSet<ValueId>,
+        released_structs: &HashSet<ValueId>,
     ) -> Result<(), String> {
         match inst {
             Inst::ConstInt { dest, value } => {
@@ -706,9 +707,18 @@ impl<'a> LlvmEmitter<'a> {
                 value_classes.insert(*dest, class_name.clone());
                 if !stack_structs.contains(dest) {
                     let byte_size = fields.len().saturating_mul(8).max(8);
+                    // M6 TMM Layer 1: an object the inserted last-use pass
+                    // frees via datara_rt_free (= plain free) must come from
+                    // malloc — pool_alloc returns slab-interior pointers that
+                    // free() cannot reclaim (0xC0000374 heap corruption).
+                    let alloc_fn = if released_structs.contains(dest) {
+                        "malloc"
+                    } else {
+                        "datara_rt_pool_alloc"
+                    };
                     out.push_str(&format!(
-                        "  %v{} = call ptr @datara_rt_pool_alloc(i64 {})\n",
-                        dest.0, byte_size
+                        "  %v{} = call ptr @{}(i64 {})\n",
+                        dest.0, alloc_fn, byte_size
                     ));
                 }
                 for (idx, (_, val_id)) in fields.iter().enumerate() {
@@ -820,6 +830,14 @@ impl<'a> LlvmEmitter<'a> {
                 } else if bool_vids.contains(value) {
                     out.push_str(&format!(
                         "  call void @datara_rt_out_bool(i64 %v{})\n",
+                        value.0
+                    ));
+                } else if ty == "Val" {
+                    // M7 TSU: dynamic values print through the NaN-box
+                    // runtime printer (tag-dispatched).
+                    out.push_str(&format!(
+                        "  call void @datara_rt_out_val(i64 %v{})
+",
                         value.0
                     ));
                 } else {

@@ -1,0 +1,11 @@
+mut log = "init"
+fn step_a(x: Int) {
+    log = log + "a1"
+    fiber_yield()
+    log = log + "a2"
+}
+fn main() {
+    fiber_spawn(step_a, 0)
+    fiber_run_until_done()
+    out log
+}

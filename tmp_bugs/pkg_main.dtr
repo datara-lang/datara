@@ -1,0 +1,6 @@
+use mathx
+
+fn main() {
+    out int_to_str(clamp(15, 0, 10))
+    out int_to_str(clamp(5, 0, 10))
+}

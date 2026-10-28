@@ -213,6 +213,99 @@ void datara_rt_out_val(uint64_t box) {
     }
 }
 
+// M7 TSU: the codegen ABI is all-I64 (a float rides as its IEEE bits in a
+// GP register), so the box constructor for doubles takes the BITS, not a
+// double (the C-ABI `datara_val_from_float(double)` reads xmm0, which the
+// Cranelift caller never sets). Canonicalizes NaN-pattern doubles that
+// would collide with the tag prefixes.
+DataraValue datara_rt_val_from_f64_bits(int64_t bits) {
+    uint64_t v = (uint64_t)bits;
+    if ((v & DATARA_QNAN_MASK) == DATARA_QNAN_PREFIX && (v & DATARA_TAG_MASK) != 0) {
+        v = DATARA_QNAN_PREFIX; // canonical float NaN
+    }
+    return v;
+}
+
+// Bits form of the fail-loud float read: returns the IEEE bits in RAX; the
+// backends bitcast them back to a double register.
+static void datara_rt_val_tag_panic(DataraValue v, const char* want);
+
+int64_t datara_rt_val_to_f64_bits_checked(DataraValue v) {
+    if (!datara_val_is_float(v)) {
+        datara_rt_val_tag_panic(v, "Float");
+    }
+    double d = datara_val_to_float(v);
+    int64_t bits;
+    memcpy(&bits, &d, sizeof(bits));
+    return bits;
+}
+
+// ============================================================================
+// M7 TSU: checked/typed val conversions
+// ============================================================================
+void* datara_rt_outcome_build_raw(int64_t is_success, int64_t value_raw, const char* msg);
+
+void* datara_rt_val_as_int_outcome(DataraValue v) {
+    if (!datara_val_is_int(v)) {
+        return datara_rt_outcome_build_raw(0, 0, "val: not an Int");
+    }
+    return datara_rt_outcome_build_raw(1, datara_val_to_int(v), "");
+}
+
+void* datara_rt_val_as_float_outcome(DataraValue v) {
+    if (!datara_val_is_float(v)) {
+        return datara_rt_outcome_build_raw(0, 0, "val: not a Float");
+    }
+    double d = datara_val_to_float(v);
+    int64_t bits;
+    memcpy(&bits, &d, sizeof(bits));
+    return datara_rt_outcome_build_raw(1, bits, "");
+}
+
+// Fail-loud typed reads: wrong tag = panic with the expected type name.
+static void datara_rt_val_tag_panic(DataraValue v, const char* want) {
+    const char* got = "unknown";
+    if (datara_val_is_int(v)) got = "Int";
+    else if (datara_val_is_float(v)) got = "Float";
+    else if (datara_val_is_bool(v)) got = "Bool";
+    else if (datara_val_is_str(v)) got = "Str";
+    char msg[128];
+    snprintf(msg, sizeof(msg), "val type error: expected %s, got %s", want, got);
+    datara_rt_panic(msg);
+}
+
+int64_t datara_rt_val_to_int_checked(DataraValue v) {
+    if (!datara_val_is_int(v)) {
+        datara_rt_val_tag_panic(v, "Int");
+    }
+    return datara_val_to_int(v);
+}
+
+double datara_rt_val_to_float_checked(DataraValue v) {
+    if (!datara_val_is_float(v)) {
+        datara_rt_val_tag_panic(v, "Float");
+    }
+    return datara_val_to_float(v);
+}
+
+// Tag-aware string form of a dynamic value (caller-owned scratch string,
+// like the other runtime to_str helpers: valid until the next ring turn).
+const char* datara_rt_val_to_str_tagged(DataraValue v) {
+    if (datara_val_is_str(v)) {
+        return datara_val_to_str(v);
+    }
+    if (datara_val_is_int(v)) {
+        return datara_rt_int_to_str(datara_val_to_int(v));
+    }
+    if (datara_val_is_float(v)) {
+        return datara_rt_float_to_str(datara_val_to_float(v));
+    }
+    if (datara_val_is_bool(v)) {
+        return datara_val_to_bool(v) ? "true" : "false";
+    }
+    return "";
+}
+
 // ============================================================================
 // Foreign Handle Table Implementation (Thread-Safe, Mutex-Guarded, Auto-Growing)
 // ============================================================================

@@ -55,6 +55,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src/runtime/datara_thread.h");
     println!("cargo:rerun-if-changed=src/runtime/datara_ui.c");
     println!("cargo:rerun-if-changed=src/runtime/datara_value.c");
+    println!("cargo:rerun-if-changed=src/runtime/datara_natvar.c");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()));
     let runtime_dir = manifest_dir.join("src").join("runtime");
@@ -86,6 +87,7 @@ fn main() {
         .file(runtime_dir.join("datara_thread.c"))
         .file(runtime_dir.join("datara_ui.c"))
         .file(runtime_dir.join("datara_value.c"))
+        .file(runtime_dir.join("datara_natvar.c"))
         .include(&runtime_dir)
         .opt_level(3)
         .cargo_metadata(true);

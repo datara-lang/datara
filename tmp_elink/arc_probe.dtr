@@ -1,0 +1,9 @@
+@arc
+struct Node {
+    value: Int
+}
+
+fn main() -> Int {
+    val n = Node { value: 5 }
+    return n.value
+}

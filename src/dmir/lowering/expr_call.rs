@@ -79,6 +79,141 @@ impl<'a> Lowering<'a> {
             }
             return self.lower_expr(body, cur_block);
         }
+        // M10 NatVar: fiber runtime builtins — must run BEFORE the generic
+        // builtin dispatch (which would emit a raw 2-arg call by name).
+        if let Expr::Identifier(fn_name, _) = callee {
+                match fn_name.as_str() {
+                    "fiber_spawn" | "datara_rt_fiber_spawn" if args.len() >= 2 => {
+                        let fn_addr = match &args[0] {
+                            Expr::Identifier(f, _) => {
+                                let v = self.next_val();
+                                self.get_block_mut(*cur_block).instructions.push(
+                                    Inst::GetFuncAddr { dest: v, func_name: f.clone() },
+                                );
+                                Some(v)
+                            }
+                            _ => None,
+                        };
+                        let fn_addr = fn_addr?;
+                        let arg = self.lower_expr(&args[1], cur_block)
+                            .unwrap_or_else(|| {
+                                let z = self.next_val();
+                                self.get_block_mut(*cur_block).instructions.push(
+                                    Inst::ConstInt { dest: z, value: 0 },
+                                );
+                                z
+                            });
+                        let stack_kb = if args.len() >= 3 {
+                            self.lower_expr(&args[2], cur_block).unwrap_or_else(|| {
+                                let z = self.next_val();
+                                self.get_block_mut(*cur_block).instructions.push(
+                                    Inst::ConstInt { dest: z, value: 8 },
+                                );
+                                z
+                            })
+                        } else {
+                            let z = self.next_val();
+                            self.get_block_mut(*cur_block).instructions.push(
+                                Inst::ConstInt { dest: z, value: 8 },
+                            );
+                            z
+                        };
+                        let dest = self.next_val();
+                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                            dest,
+                            func: "datara_rt_fiber_spawn".into(),
+                            args: vec![fn_addr, arg, stack_kb],
+                            ty: "Int".into(),
+                        });
+                        return Some(dest);
+                    }
+                    "fiber_yield" | "datara_rt_fiber_yield" if args.is_empty() => {
+                        let dummy = self.next_val();
+                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                            dest: dummy,
+                            func: "datara_rt_fiber_yield".into(),
+                            args: vec![],
+                            ty: "Unit".into(),
+                        });
+                        return Some(dummy);
+                    }
+                    "fiber_sleep_ms" | "datara_rt_fiber_sleep_ms" if args.len() == 1 => {
+                        let ms = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
+                        let dummy = self.next_val();
+                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                            dest: dummy,
+                            func: "datara_rt_fiber_sleep_ms".into(),
+                            args: vec![ms],
+                            ty: "Unit".into(),
+                        });
+                        return Some(dummy);
+                    }
+                    "fiber_run_until_done" | "datara_rt_fiber_run_until_done"
+                        if args.is_empty() =>
+                    {
+                        let dest = self.next_val();
+                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                            dest,
+                            func: "datara_rt_fiber_run_until_done".into(),
+                            args: vec![],
+                            ty: "Int".into(),
+                        });
+                        return Some(dest);
+                    }
+                    "fiber_join" | "datara_rt_fiber_join" if args.len() == 1 => {
+                        let h = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
+                        let dest = self.next_val();
+                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                            dest,
+                            func: "datara_rt_fiber_join".into(),
+                            args: vec![h],
+                            ty: "Int".into(),
+                        });
+                        return Some(dest);
+                    }
+                    "fiber_chan_create" | "datara_rt_fiber_chan_create"
+                        if args.is_empty() =>
+                    {
+                        let dest = self.next_val();
+                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                            dest,
+                            func: "datara_rt_fiber_chan_create".into(),
+                            args: vec![],
+                            ty: "Int".into(),
+                        });
+                        return Some(dest);
+                    }
+                    "fiber_chan_send" | "datara_rt_fiber_chan_send"
+                        if args.len() == 2 =>
+                    {
+                        let c = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
+                        let v = self.lower_expr(&args[1], cur_block).unwrap_or(ValueId(0));
+                        let dummy = self.next_val();
+                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                            dest: dummy,
+                            func: "datara_rt_fiber_chan_send".into(),
+                            args: vec![c, v],
+                            ty: "Unit".into(),
+                        });
+                        return Some(dummy);
+                    }
+                    "fiber_chan_recv" | "datara_rt_fiber_chan_recv"
+                        if args.len() == 1 =>
+                    {
+                        let c = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
+                        let dest = self.next_val();
+                        self.get_block_mut(*cur_block).instructions.push(Inst::Call {
+                            dest,
+                            func: "datara_rt_fiber_chan_recv".into(),
+                            args: vec![c],
+                            ty: "Int".into(),
+                        });
+                        return Some(dest);
+                    }
+                    _ => {}
+                }
+
+        }
         if let Expr::Identifier(fn_name, fn_span) = callee {
             if let Some(f) = self.comptime_functions.get(fn_name).cloned() {
                 if f.is_comptime() {
@@ -131,7 +266,28 @@ impl<'a> Lowering<'a> {
                             value: *cval,
                         });
                 }
-                for (p, aval) in params.iter().zip(arg_vals) {
+                // Bind the lambda parameters' TYPES from the call-site
+                // expressions as well as their values. A generic caller passes
+                // e.g. `items.get(i)` (Str) to a callback whose parameter is
+                // otherwise untyped; without this the body read `acc + w` as
+                // integer addition and produced pointer arithmetic.
+                let arg_types: Vec<Option<DataraType>> = args
+                    .iter()
+                    .map(|a| self.infer_expr_datara_type(a))
+                    .collect();
+                let mut shadowed_param_types: Vec<(String, Option<DataraType>)> = Vec::new();
+                // Locals declared INSIDE the inlined body (acc, i, n, ...)
+                // are recorded in local_var_types and would otherwise survive
+                // the call: the next inline dispatch of the same generic body
+                // inherited the previous call's types (a Str fold typed every
+                // later `acc` as Str and turned Int accumulation into pointer
+                // arithmetic). Fresh keys are removed in the restore below.
+                let var_types_snapshot: Vec<(String, DataraType)> = self
+                    .local_var_types
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect();
+                for (i, (p, aval)) in params.iter().zip(arg_vals).enumerate() {
                     self.symbol_values.insert(p.name.clone(), aval);
                     self.get_block_mut(*cur_block)
                         .instructions
@@ -139,21 +295,51 @@ impl<'a> Lowering<'a> {
                             name: p.name.clone(),
                             value: aval,
                         });
-                }
-                let res = self.lower_expr(&body, cur_block);
-                for (cname, old_val) in shadowed_captures {
-                    if let Some(ov) = old_val {
-                        self.symbol_values.insert(cname.clone(), ov);
-                        self.get_block_mut(*cur_block)
-                            .instructions
-                            .push(Inst::AssignVar {
-                                name: cname,
-                                value: ov,
-                            });
-                    } else {
-                        self.symbol_values.remove(&cname);
+                    let old_ty = self.local_var_types.get(&p.name).cloned();
+                    shadowed_param_types.push((p.name.clone(), old_ty));
+                    match arg_types.get(i).and_then(|t| t.clone()) {
+                        Some(t) => {
+                            self.local_var_types.insert(p.name.clone(), t);
+                        }
+                        None => {
+                            self.local_var_types.remove(&p.name);
+                        }
                     }
                 }
+                let res = self.lower_inline_body_with_returns(&body, cur_block, |s, b| {
+                    let fresh: Vec<String> = s
+                        .local_var_types
+                        .keys()
+                        .filter(|k| !var_types_snapshot.iter().any(|(sk, _)| sk == *k))
+                        .cloned()
+                        .collect();
+                    for k in fresh {
+                        s.local_var_types.remove(&k);
+                    }
+                    for (name, old_ty) in &shadowed_param_types {
+                        match old_ty {
+                            Some(t) => {
+                                s.local_var_types.insert(name.clone(), t.clone());
+                            }
+                            None => {
+                                s.local_var_types.remove(name);
+                            }
+                        }
+                    }
+                    for (cname, old_val) in &shadowed_captures {
+                        if let Some(ov) = old_val {
+                            s.symbol_values.insert(cname.clone(), *ov);
+                            s.get_block_mut(b)
+                                .instructions
+                                .push(Inst::AssignVar {
+                                    name: cname.clone(),
+                                    value: *ov,
+                                });
+                        } else {
+                            s.symbol_values.remove(cname);
+                        }
+                    }
+                });
                 return res;
             }
             if (fn_name == "view" || fn_name == "borrow" || fn_name == "clone" || fn_name == "move")
@@ -403,16 +589,18 @@ impl<'a> Lowering<'a> {
                 && self.is_expr_list(&args[0])
                 && self.is_callable_expr(&args[1])
             {
+                let elem_repr = self.list_elem_repr(&args[0]);
                 let list_val = self.lower_expr(&args[0], cur_block)?;
-                return self.lower_list_higher_order(list_val, fn_name, &args[1..], cur_block);
+                return self.lower_list_higher_order(list_val, fn_name, &args[1..], cur_block, elem_repr);
             }
             if fn_name == "reduce"
                 && args.len() == 3
                 && self.is_expr_list(&args[0])
                 && self.is_callable_expr(&args[2])
             {
+                let elem_repr = self.list_elem_repr(&args[0]);
                 let list_val = self.lower_expr(&args[0], cur_block)?;
-                return self.lower_list_higher_order(list_val, fn_name, &args[1..], cur_block);
+                return self.lower_list_higher_order(list_val, fn_name, &args[1..], cur_block, elem_repr);
             }
             // v1.4.1: fold(xs, init, acc_fn) -- same shape as reduce.
             if fn_name == "fold"
@@ -420,8 +608,9 @@ impl<'a> Lowering<'a> {
                 && self.is_expr_list(&args[0])
                 && self.is_callable_expr(&args[2])
             {
+                let elem_repr = self.list_elem_repr(&args[0]);
                 let list_val = self.lower_expr(&args[0], cur_block)?;
-                return self.lower_list_higher_order(list_val, fn_name, &args[1..], cur_block);
+                return self.lower_list_higher_order(list_val, fn_name, &args[1..], cur_block, elem_repr);
             }
             // collect(xs) materializes the pipeline sink; map/filter already
             // build eager result lists, so the list itself is the value.
@@ -1115,13 +1304,16 @@ impl<'a> Lowering<'a> {
                     && args.len() == 1
                     && self.is_callable_expr(&args[0])
                 {
-                    return self.lower_list_higher_order(obj_val, member, args, cur_block);
+                    let elem_repr = self.list_elem_repr(object);
+                    return self.lower_list_higher_order(obj_val, member, args, cur_block, elem_repr);
                 }
                 if member == "reduce" && args.len() == 2 && self.is_callable_expr(&args[1]) {
-                    return self.lower_list_higher_order(obj_val, member, args, cur_block);
+                    let elem_repr = self.list_elem_repr(object);
+                    return self.lower_list_higher_order(obj_val, member, args, cur_block, elem_repr);
                 }
                 if member == "fold" && args.len() == 2 && self.is_callable_expr(&args[1]) {
-                    return self.lower_list_higher_order(obj_val, member, args, cur_block);
+                    let elem_repr = self.list_elem_repr(object);
+                    return self.lower_list_higher_order(obj_val, member, args, cur_block, elem_repr);
                 }
                 // collect() materializes the pipeline: map/filter already
                 // build eager result lists, so the sink list is the value.
@@ -1193,11 +1385,18 @@ impl<'a> Lowering<'a> {
                 let k = self.lower_expr(&args[0], cur_block)?;
                 let v = self.lower_expr(&args[1], cur_block)?;
                 let dest = self.next_val();
+                // Int-keyed maps use the integer key ABI; the runtime stores
+                // the key word verbatim instead of copying a C string.
+                let func = if self.is_int_keyed_map(object) {
+                    "datara_rt_map_insert_i64"
+                } else {
+                    "datara_rt_map_insert"
+                };
                 self.get_block_mut(*cur_block)
                     .instructions
                     .push(Inst::Call {
                         dest,
-                        func: "datara_rt_map_insert".into(),
+                        func: func.into(),
                         args: vec![obj_val, k, v],
                         ty: "Map".into(),
                     });
@@ -1226,11 +1425,16 @@ impl<'a> Lowering<'a> {
                         _ => "Int".to_string(),
                     })
                     .unwrap_or_else(|| "Int".to_string());
+                let get_func = if self.is_int_keyed_map(object) {
+                    "datara_rt_map_get_outcome_i64"
+                } else {
+                    "datara_rt_map_get_outcome"
+                };
                 self.get_block_mut(*cur_block)
                     .instructions
                     .push(Inst::Call {
                         dest,
-                        func: "datara_rt_map_get_outcome".into(),
+                        func: get_func.into(),
                         args: vec![obj_val, k],
                         ty: format!("Outcome<{}>", val_repr),
                     });
@@ -1243,11 +1447,16 @@ impl<'a> Lowering<'a> {
             {
                 let k = self.lower_expr(&args[0], cur_block)?;
                 let dest = self.next_val();
+                let contains_func = if self.is_int_keyed_map(object) {
+                    "datara_rt_map_contains_i64"
+                } else {
+                    "datara_rt_map_contains"
+                };
                 self.get_block_mut(*cur_block)
                     .instructions
                     .push(Inst::Call {
                         dest,
-                        func: "datara_rt_map_contains".into(),
+                        func: contains_func.into(),
                         args: vec![obj_val, k],
                         ty: "Bool".into(),
                     });
@@ -1387,6 +1596,50 @@ impl<'a> Lowering<'a> {
                     method_ty = "String".into();
                 }
             }
+            // M7 TSU: val methods on dynamic receivers lower to the
+            // NaN-box runtime API, not to method dispatch.
+            if matches!(
+                self.infer_expr_datara_type(object),
+                Some(DataraType::Val)
+            ) && matches!(
+                member.as_str(),
+                "as_int" | "as_float" | "to_int" | "to_float" | "to_str" | "is_int"
+                    | "is_float" | "is_bool" | "is_str"
+            )
+            {
+                let recv = self.lower_expr(object, cur_block)?;
+                let func = match member.as_str() {
+                    "as_int" => "datara_rt_val_as_int_outcome",
+                    "as_float" => "datara_rt_val_as_float_outcome",
+                    "to_int" => "datara_rt_val_to_int_checked",
+                    "to_float" => "datara_rt_val_to_f64_bits_checked",
+                    "to_str" => "datara_rt_val_to_str_tagged",
+                    "is_int" => "datara_val_is_int",
+                    "is_float" => "datara_val_is_float",
+                    "is_bool" => "datara_val_is_bool",
+                    _ => "datara_val_is_str",
+                };
+                let dest = self.next_val();
+                let ty = match member.as_str() {
+                    "as_int" | "to_int" => "Outcome<Int>".to_string(),
+                    "as_float" => "Outcome<Float>".to_string(),
+                    // The bits read returns the IEEE bits in RAX; the
+                    // backends bitcast a Float-typed call result back to a
+                    // double register.
+                    "to_float" => "Float".to_string(),
+                    "to_str" => "String".to_string(),
+                    _ => "Bool".to_string(),
+                };
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::Call {
+                        dest,
+                        func: func.into(),
+                        args: vec![recv],
+                        ty,
+                    });
+                return Some(dest);
+            }
             // v1.4.1: remaining List protocol methods reach the backends'
             // list dispatch tables as MethodCall. Their result repr must not
             // fall through to the name-heuristic default: contains/is_empty
@@ -1482,6 +1735,16 @@ impl<'a> Lowering<'a> {
             // lower_inline_closure_call.
             let mut shadowed_symbols: Vec<(String, Option<ValueId>)> = Vec::new();
             let mut shadowed_lambdas: Vec<String> = Vec::new();
+            let mut shadowed_param_types: Vec<(String, Option<DataraType>)> = Vec::new();
+            // Same local_var_types pollution guard as the closure-dispatch
+            // site above: the inlined body's locals (acc, i, n, ...) must not
+            // outlive the call, or the next inline dispatch of the same
+            // generic body inherits the previous call's types.
+            let var_types_snapshot: Vec<(String, DataraType)> = self
+                .local_var_types
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
             for (i, p) in params.iter().enumerate() {
                 let Some(&aval) = arg_vals.get(i) else {
                     break;
@@ -1495,6 +1758,20 @@ impl<'a> Lowering<'a> {
                         name: p.name.clone(),
                         value: aval,
                     });
+                // Bind the generic parameter's concrete type from the actual
+                // argument. Inlining `iter_fold<Str,...>` otherwise left
+                // `acc`/`init` typed as the erased type parameter and turned
+                // string concatenation into integer pointer addition.
+                let old_ty = self.local_var_types.get(&p.name).cloned();
+                shadowed_param_types.push((p.name.clone(), old_ty));
+                match args.get(i).and_then(|a| self.infer_expr_datara_type(a)) {
+                    Some(t) => {
+                        self.local_var_types.insert(p.name.clone(), t);
+                    }
+                    None => {
+                        self.local_var_types.remove(&p.name);
+                    }
+                }
                 // A lambda argument binds its value to the parameter name in
                 // local_lambdas so `<param>(x)` inside the body inlines it.
                 // Positional lookup goes through `args`, not `arg_vals`,
@@ -1511,38 +1788,53 @@ impl<'a> Lowering<'a> {
                     self.local_lambdas.insert(p.name.clone(), (lp, lb));
                 }
             }
-            let res = {
-                for s in &inline_stmts {
-                    let (next_b, _val) = self.lower_stmt_cfg(s, *cur_block);
-                    *cur_block = next_b;
+            // The body is lowered under an inline-return frame so a
+            // `return e` in one of its statements exits the inlined body with
+            // value e instead of returning from the enclosing function (the
+            // old behavior silently swallowed the rest of the caller).
+            let span = inline_stmts
+                .first()
+                .map(|s| s.span().clone())
+                .or_else(|| tail_expr.as_ref().map(|e| e.span().clone()))
+                .unwrap_or_else(|| crate::diagnostics::SourceSpan::new(0, 0, 0, 0, String::new()));
+            let body_expr = Expr::Block(inline_stmts, tail_expr.map(Box::new), span);
+            let res = self.lower_inline_body_with_returns(&body_expr, cur_block, |s, b| {
+                let fresh: Vec<String> = s
+                    .local_var_types
+                    .keys()
+                    .filter(|k| !var_types_snapshot.iter().any(|(sk, _)| sk == *k))
+                    .cloned()
+                    .collect();
+                for k in fresh {
+                    s.local_var_types.remove(&k);
                 }
-                match &tail_expr {
-                    Some(e) => self.lower_expr(e, cur_block),
-                    None => {
-                        let zero = self.next_val();
-                        self.get_block_mut(*cur_block)
-                            .instructions
-                            .push(Inst::ConstInt {
-                                dest: zero,
-                                value: 0,
-                            });
-                        Some(zero)
+                for (name, old_ty) in &shadowed_param_types {
+                    match old_ty {
+                        Some(t) => {
+                            s.local_var_types.insert(name.clone(), t.clone());
+                        }
+                        None => {
+                            s.local_var_types.remove(name);
+                        }
                     }
                 }
-            };
-            for name in shadowed_lambdas {
-                self.local_lambdas.remove(&name);
-            }
-            for (name, old_val) in shadowed_symbols {
-                if let Some(ov) = old_val {
-                    self.symbol_values.insert(name.clone(), ov);
-                    self.get_block_mut(*cur_block)
-                        .instructions
-                        .push(Inst::AssignVar { name, value: ov });
-                } else {
-                    self.symbol_values.remove(&name);
+                for name in shadowed_lambdas.iter() {
+                    s.local_lambdas.remove(name);
                 }
-            }
+                for (name, old_val) in &shadowed_symbols {
+                    if let Some(ov) = old_val {
+                        s.symbol_values.insert(name.clone(), *ov);
+                        s.get_block_mut(b)
+                            .instructions
+                            .push(Inst::AssignVar {
+                                name: name.clone(),
+                                value: *ov,
+                            });
+                    } else {
+                        s.symbol_values.remove(name);
+                    }
+                }
+            });
             return res;
         }
 

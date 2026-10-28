@@ -1,0 +1,30 @@
+extern fn datara_rt_heap_live() -> Int
+
+struct A { v: Int }
+
+fn mk() -> A {
+    val a = A { v: 42 }
+    return a
+}
+
+fn main() {
+    mut before = 0
+    mut after = 0
+    unsafe(justification: "read runtime heap-live counter for leak diff test") {
+        before = datara_rt_heap_live()
+    }
+    mut i = 0
+    mut last = 0
+    while i < 1000 {
+        val a = mk()
+        last = a.v
+        i = i + 1
+    }
+    unsafe(justification: "read runtime heap-live counter for leak diff test") {
+        after = datara_rt_heap_live()
+    }
+    out last
+    out before
+    out after
+    return
+}

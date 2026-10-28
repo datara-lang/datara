@@ -1,0 +1,5 @@
+use stdlib.collections.iter as iter
+fn main() {
+    val joined = iter_fold(["a", "b", "c"], "", (acc, w) => acc + w)
+    out joined
+}

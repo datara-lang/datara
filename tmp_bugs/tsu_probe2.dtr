@@ -1,0 +1,6 @@
+fn main() {
+    val xs = [1, "two", 3.5]
+    out xs[0]
+    out xs[1]
+    out xs[2]
+}

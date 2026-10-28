@@ -1,0 +1,10 @@
+@derive(AutoFree)
+struct Res { id: Int }
+
+fn main() {
+    val a = Res { id: 1 }
+    out a.id
+    val b = Res { id: 2 }
+    out a.id + b.id
+    return
+}

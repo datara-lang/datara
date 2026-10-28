@@ -1,0 +1,12 @@
+fn find(s: Str) -> Maybe<Int> {
+    if s == "a" { return Maybe.some(1) }
+    return Maybe.none()
+}
+fn lvl(name: Str) -> Maybe<Int> {
+    val v = find(name)?
+    return Maybe.some(v * 2)
+}
+fn main() {
+    val a = lvl("a")
+    out fmt"a: found={a.is_some} v={a.value}"
+}

@@ -174,7 +174,8 @@ fn expr_has_asm_kind(expr: &Expr, structured_only: bool) -> bool {
         | Expr::Wrapping(expr, _)
         | Expr::Saturating(expr, _)
         | Expr::Comptime { expr, .. }
-        | Expr::Cast { expr, .. } => expr_has_asm_kind(expr, structured_only),
+        | Expr::Cast { expr, .. }
+        | Expr::IsCheck { operand: expr, .. } => expr_has_asm_kind(expr, structured_only),
         Expr::Call { callee, args, .. } => {
             expr_has_asm_kind(callee, structured_only)
                 || args.iter().any(|a| expr_has_asm_kind(a, structured_only))
@@ -895,6 +896,14 @@ pub enum Expr {
     /// arm body: `{ let y = 2; y }`. The trailing expression (if any) is the
     /// block's value; `None` means the block evaluates to Unit.
     Block(Vec<Stmt>, Option<Box<Expr>>, SourceSpan),
+    /// M7 TSU: `expr is Type` — runtime type test on a dynamic (val) value.
+    /// The result is Bool; when used as an `if` condition the checker narrows
+    /// the operand's static type inside the then-branch.
+    IsCheck {
+        operand: Box<Expr>,
+        ty_name: String,
+        span: SourceSpan,
+    },
 }
 
 impl Expr {
@@ -925,6 +934,7 @@ impl Expr {
             | Expr::Wrapping(_, s)
             | Expr::Saturating(_, s)
             | Expr::Cast { span: s, .. }
+            | Expr::IsCheck { span: s, .. }
             | Expr::Block(_, _, s) => s,
         }
     }
@@ -1091,6 +1101,9 @@ pub fn infer_captures(
                 for e in expressions {
                     walk_expr(e, params, enclosing, is_escaping, captured, seen);
                 }
+            }
+            Expr::IsCheck { operand, .. } => {
+                walk_expr(operand, params, enclosing, is_escaping, captured, seen);
             }
             Expr::Decide { arms, else_arm, .. } => {
                 for a in arms {

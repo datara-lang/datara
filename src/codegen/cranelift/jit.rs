@@ -461,9 +461,18 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_map_create_4", datara_rt_map_create_4);
     reg!("datara_rt_map_create_5", datara_rt_map_create_5);
     reg!("datara_rt_map_insert", datara_rt_map_insert);
+    reg!("datara_rt_map_insert_i64", datara_rt_map_insert_i64);
     reg!("datara_rt_map_get", datara_rt_map_get);
+    reg!("datara_rt_map_get_i64", datara_rt_map_get_i64);
     reg!("datara_rt_map_get_outcome", datara_rt_map_get_outcome);
+    reg!("datara_rt_map_get_outcome_i64", datara_rt_map_get_outcome_i64);
     reg!("datara_rt_map_contains", datara_rt_map_contains);
+    reg!("datara_rt_map_contains_i64", datara_rt_map_contains_i64);
+    reg!("datara_rt_map_create_i64_1", datara_rt_map_create_i64_1);
+    reg!("datara_rt_map_create_i64_2", datara_rt_map_create_i64_2);
+    reg!("datara_rt_map_create_i64_3", datara_rt_map_create_i64_3);
+    reg!("datara_rt_map_create_i64_4", datara_rt_map_create_i64_4);
+    reg!("datara_rt_map_create_i64_5", datara_rt_map_create_i64_5);
     reg!("datara_rt_map_len", datara_rt_map_len);
     reg!("datara_rt_map_free", datara_rt_map_free);
 
@@ -589,9 +598,46 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
 
     reg!("datara_rt_slice", datara_rt_slice);
     reg!("datara_rt_out_val", datara_rt_out_val);
+    reg!("datara_val_from_int", datara_val_from_int);
+    reg!("datara_rt_val_from_f64_bits", datara_rt_val_from_f64_bits);
+    reg!("datara_val_from_bool", datara_val_from_bool);
+    reg!("datara_val_from_str", datara_val_from_str);
+    reg!("datara_val_is_int", datara_val_is_int);
+    reg!("datara_val_is_float", datara_val_is_float);
+    reg!("datara_val_is_bool", datara_val_is_bool);
+    reg!("datara_val_is_str", datara_val_is_str);
+    reg!("datara_val_to_int", datara_val_to_int);
+    reg!("datara_val_to_float", datara_val_to_float);
+    reg!("datara_val_to_bool", datara_val_to_bool);
+    reg!("datara_val_to_str", datara_val_to_str);
+    reg!("datara_rt_val_as_int_outcome", datara_rt_val_as_int_outcome);
+    reg!("datara_rt_val_as_float_outcome", datara_rt_val_as_float_outcome);
+    reg!("datara_rt_val_to_int_checked", datara_rt_val_to_int_checked);
+    reg!("datara_rt_val_to_f64_bits_checked", datara_rt_val_to_f64_bits_checked);
+    reg!("datara_rt_val_to_str_tagged", datara_rt_val_to_str_tagged);
     reg!("datara_rt_parallel_for", datara_rt_parallel_for);
     reg!("parallel_for", datara_rt_parallel_for);
     reg!("datara_rt_parallel_invoke", datara_rt_parallel_invoke);
+    reg!("datara_rt_fiber_spawn", datara_rt_fiber_spawn);
+    reg!("fiber_spawn", datara_rt_fiber_spawn);
+    reg!("datara_rt_fiber_yield", datara_rt_fiber_yield);
+    reg!("fiber_yield", datara_rt_fiber_yield);
+    reg!("datara_rt_fiber_sleep_ms", datara_rt_fiber_sleep_ms);
+    reg!("fiber_sleep_ms", datara_rt_fiber_sleep_ms);
+    reg!("datara_rt_fiber_join", datara_rt_fiber_join);
+    reg!("fiber_join", datara_rt_fiber_join);
+    reg!("datara_rt_fiber_run_until_done", datara_rt_fiber_run_until_done);
+    reg!("fiber_run_until_done", datara_rt_fiber_run_until_done);
+    reg!("datara_rt_fiber_count", datara_rt_fiber_count);
+    reg!("datara_rt_fiber_done_count", datara_rt_fiber_done_count);
+    reg!("datara_rt_fiber_reset", datara_rt_fiber_reset);
+    reg!("datara_rt_fiber_chan_create", datara_rt_fiber_chan_create);
+    reg!("fiber_chan_create", datara_rt_fiber_chan_create);
+    reg!("datara_rt_fiber_chan_send", datara_rt_fiber_chan_send);
+    reg!("fiber_chan_send", datara_rt_fiber_chan_send);
+    reg!("datara_rt_fiber_chan_recv", datara_rt_fiber_chan_recv);
+    reg!("fiber_chan_recv", datara_rt_fiber_chan_recv);
+    reg!("datara_rt_fiber_now_ms", datara_rt_fiber_now_ms);
     reg!("parallel_invoke", datara_rt_parallel_invoke);
     reg!("datara_rt_num_workers", datara_rt_num_workers);
     reg!("num_workers", datara_rt_num_workers);
@@ -704,6 +750,8 @@ pub unsafe fn run_jit_entry(
     }
 
     type MainFn = unsafe extern "C" fn(i32, *const *const c_char) -> i32;
+    // SAFETY: code_ptr — адрес входной точки, сгенерированной и исполнимой
+    // на этом же JIT-сеансе; сигнатура main зафиксирована codegen-контрактом.
     let main_fn: MainFn = unsafe { std::mem::transmute(code_ptr) };
 
     let mut c_strings = Vec::with_capacity(args.len() + 1);

@@ -310,9 +310,45 @@ unsafe extern "C" {
         v5: i64,
     ) -> *mut ();
     pub fn datara_rt_map_insert(map: *mut i64, key: *const c_char, val: i64) -> *mut i64;
+    pub fn datara_rt_map_insert_i64(map: *mut i64, key: i64, val: i64) -> *mut i64;
     pub fn datara_rt_map_get(map: *mut i64, key: *const c_char) -> i64;
+    pub fn datara_rt_map_get_i64(map: *mut i64, key: i64) -> i64;
     pub fn datara_rt_map_get_outcome(map: *mut i64, key: *const c_char) -> *mut ();
+    pub fn datara_rt_map_get_outcome_i64(map: *mut i64, key: i64) -> *mut ();
     pub fn datara_rt_map_contains(map: *mut i64, key: *const c_char) -> i64;
+    pub fn datara_rt_map_contains_i64(map: *mut i64, key: i64) -> i64;
+    pub fn datara_rt_map_create_i64_1(k0: i64, v0: i64) -> *mut i64;
+    pub fn datara_rt_map_create_i64_2(k0: i64, v0: i64, k1: i64, v1: i64) -> *mut i64;
+    pub fn datara_rt_map_create_i64_3(
+        k0: i64,
+        v0: i64,
+        k1: i64,
+        v1: i64,
+        k2: i64,
+        v2: i64,
+    ) -> *mut i64;
+    pub fn datara_rt_map_create_i64_4(
+        k0: i64,
+        v0: i64,
+        k1: i64,
+        v1: i64,
+        k2: i64,
+        v2: i64,
+        k3: i64,
+        v3: i64,
+    ) -> *mut i64;
+    pub fn datara_rt_map_create_i64_5(
+        k0: i64,
+        v0: i64,
+        k1: i64,
+        v1: i64,
+        k2: i64,
+        v2: i64,
+        k3: i64,
+        v3: i64,
+        k4: i64,
+        v4: i64,
+    ) -> *mut i64;
     pub fn datara_rt_map_len(map: *mut i64) -> i64;
     pub fn datara_rt_map_free(map: *mut ());
 
@@ -372,8 +408,37 @@ unsafe extern "C" {
 
     pub fn datara_rt_slice(list: *mut i64, start: i64, end: i64) -> *mut i64;
     pub fn datara_rt_out_val(v: i64);
+    pub fn datara_val_from_int(v: i64) -> u64;
+    pub fn datara_rt_val_from_f64_bits(v: i64) -> u64;
+    pub fn datara_val_from_bool(v: i32) -> u64;
+    pub fn datara_val_from_str(v: *const u8) -> u64;
+    pub fn datara_val_is_int(v: u64) -> i32;
+    pub fn datara_val_is_float(v: u64) -> i32;
+    pub fn datara_val_is_bool(v: u64) -> i32;
+    pub fn datara_val_is_str(v: u64) -> i32;
+    pub fn datara_val_to_int(v: u64) -> i64;
+    pub fn datara_val_to_float(v: u64) -> f64;
+    pub fn datara_val_to_bool(v: u64) -> i32;
+    pub fn datara_val_to_str(v: u64) -> *const u8;
+    pub fn datara_rt_val_as_int_outcome(v: u64) -> *const u8;
+    pub fn datara_rt_val_as_float_outcome(v: u64) -> *const u8;
+    pub fn datara_rt_val_to_int_checked(v: u64) -> i64;
+    pub fn datara_rt_val_to_f64_bits_checked(v: u64) -> i64;
+    pub fn datara_rt_val_to_str_tagged(v: u64) -> *const u8;
     pub fn datara_rt_parallel_for(start: i64, end: i64, worker_fn: usize, ctx: usize);
     pub fn datara_rt_parallel_invoke(fn1: usize, ctx1: usize, fn2: usize, ctx2: usize);
+    pub fn datara_rt_fiber_spawn(fn_addr: usize, arg: i64, stack_kb: i64) -> i64;
+    pub fn datara_rt_fiber_yield();
+    pub fn datara_rt_fiber_sleep_ms(ms: i64);
+    pub fn datara_rt_fiber_join(handle: i64) -> i64;
+    pub fn datara_rt_fiber_run_until_done() -> i64;
+    pub fn datara_rt_fiber_count() -> i64;
+    pub fn datara_rt_fiber_done_count() -> i64;
+    pub fn datara_rt_fiber_reset();
+    pub fn datara_rt_fiber_chan_create() -> i64;
+    pub fn datara_rt_fiber_chan_send(chan_id: i64, value: i64);
+    pub fn datara_rt_fiber_chan_recv(chan_id: i64) -> i64;
+    pub fn datara_rt_fiber_now_ms() -> i64;
     pub fn datara_rt_num_workers() -> i64;
 
     pub fn datara_rt_arena_alloc(bytes: i64) -> *mut ();

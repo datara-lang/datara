@@ -1,0 +1,9 @@
+use stdlib.text.text
+
+fn f(s: Str) -> Bool {
+    val r = text_parse_float(s)
+    return r.is_ok()
+}
+fn main() {
+    out f("1.5")
+}

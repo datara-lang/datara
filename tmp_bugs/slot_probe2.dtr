@@ -1,0 +1,37 @@
+struct Store { xs: List<Float> }
+struct World2 { count: Int, store: Store }
+fn make(n: Int) -> World2 {
+    val xs: List<Float> = []
+    mut i = 0
+    while i < n {
+        xs.append(str_to_float(int_to_str(i)))
+        i = i + 1
+    }
+    return World2 { count: n, store: Store { xs: xs } }
+}
+fn bump(w: World2) -> World2 {
+    val nxs: List<Float> = []
+    mut i = 0
+    while i < w.count {
+        nxs.append(w.store.xs[i] + 0.5)
+        i = i + 1
+    }
+    return World2 { count: w.count, store: Store { xs: nxs } }
+}
+fn main() {
+    mut w = make(4)
+    mut frame = 0
+    mut ticks = 0
+    while frame < 5 {
+        mut k = 0
+        while k < 2 {
+            w = bump(w)
+            ticks = ticks + 1
+            k = k + 1
+        }
+        frame = frame + 1
+    }
+    out int_to_str(ticks)
+    out int_to_str(w.count)
+    out float_to_str(w.store.xs[0])
+}

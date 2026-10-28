@@ -16,6 +16,12 @@
       "include": "#triad-declarations"
     },
     {
+      "include": "#binding-keywords"
+    },
+    {
+      "include": "#attributes"
+    },
+    {
       "include": "#interop-keywords"
     },
     {
@@ -131,7 +137,7 @@
           "name": "keyword.declaration.datara"
         },
         {
-          "match": "\\b(assert|break|catch|continue|decide|else|ensure|for|if|in|loop|match|or|panic|require|return|select|then|try|when|where|while|with)\\b",
+          "match": "\b(assert|break|catch|continue|decide|else|ensure|for|if|import|in|loop|match|or|panic|require|return|select|then|try|use|when|where|while|with)\b",
           "name": "keyword.control.datara"
         },
         {
@@ -234,6 +240,30 @@
           "name": "constant.language.null.datara"
         }
       ]
+    },
+    "binding-keywords": {
+      "patterns": [
+        {
+          "name": "storage.type.var.datara",
+          "match": "\b(val|mut)\b"
+        },
+        {
+          "name": "invalid.deprecated.legacy-binding.datara",
+          "match": "\blet\b"
+        }
+      ]
+    },
+    "attributes": {
+      "name": "meta.attribute.datara",
+      "match": "(@)(derive|arc|weak|soa|arena|pool|inline|cold)\b",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.attribute.datara"
+        },
+        "2": {
+          "name": "entity.other.attribute-name.datara"
+        }
+      }
     }
   }
 }

@@ -1,0 +1,11 @@
+fn main() {
+    let words = ["a", "bb", "ccc"]
+    let upper = words.map(w => w + "!")
+    println(upper[0])
+    println(upper[1])
+    println(upper[2])
+    let filtered = words.filter(w => w.len() >= 2)
+    println(filtered[0])
+    println(filtered[1])
+    println(filtered.len())
+}

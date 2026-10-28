@@ -361,6 +361,13 @@ pub(super) fn run_check_pipeline(
     let tc_start = Instant::now();
     let mut type_checker = TypeChecker::new(&resolver);
     type_checker.program_module_aliases = program.module_aliases.clone();
+    // M2 machine fixes: hand the checker the root source so type-mismatch
+    // diagnostics can source-slice their expression and emit wrap fixes.
+    type_checker.source_text = diag
+        .source_map
+        .get(&program.file)
+        .cloned()
+        .or_else(|| diag.source_map.values().next().cloned());
     if let Some((_, manifest)) = crate::rust_bridge::find_manifest(Path::new(".")) {
         if let Some(devs) = manifest.devices {
             type_checker.allowed_devices.extend(devs.allowed);
@@ -658,6 +665,13 @@ pub(super) fn run_analysis_and_lower<R>(
     let tc_start = Instant::now();
     let mut type_checker = TypeChecker::new(&resolver);
     type_checker.program_module_aliases = program.module_aliases.clone();
+    // M2 machine fixes: hand the checker the root source so type-mismatch
+    // diagnostics can source-slice their expression and emit wrap fixes.
+    type_checker.source_text = diag
+        .source_map
+        .get(&program.file)
+        .cloned()
+        .or_else(|| diag.source_map.values().next().cloned());
     if let Some((_, manifest)) = crate::rust_bridge::find_manifest(Path::new(".")) {
         if let Some(devs) = manifest.devices {
             type_checker.allowed_devices.extend(devs.allowed);

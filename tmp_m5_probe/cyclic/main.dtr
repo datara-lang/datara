@@ -1,0 +1,35 @@
+// M6.2 probe: plain (Layer 1 dataflow) cyclic structure — a linked list.
+// Self-edge Node -> List<Node> -> Node in the ownership graph.
+// Expected output: 10 (0+1+2+3+4).
+
+struct Node {
+    val: Int
+    next: List<Node>
+}
+
+fn build(n: Int) -> List<Node> {
+    mut head: List<Node> = []
+    mut i = 0
+    while i < n {
+        mut node = Node { val: i, next: head }
+        head = [node]
+        i = i + 1
+    }
+    return head
+}
+
+fn sum(h: List<Node>) -> Int {
+    mut s = 0
+    mut cur = h
+    while cur.is_empty() == false {
+        val node: Node = cur.get(0)
+        s = s + node.val
+        cur = node.next
+    }
+    return s
+}
+
+fn main() {
+    val h = build(5)
+    out sum(h)
+}

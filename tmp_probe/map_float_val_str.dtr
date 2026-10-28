@@ -1,0 +1,5 @@
+fn main() {
+    val m: Map<Str, Float> = {"a": 1.5, "b": 2.25}
+    out m["a"]
+    out m.get("b") or 0.0
+}

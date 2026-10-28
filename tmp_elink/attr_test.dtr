@@ -1,0 +1,10 @@
+@packed
+struct P {
+    a: Int
+    b: Int
+}
+
+fn main() -> Int {
+    val p = P { a: 1, b: 2 }
+    return p.a + p.b
+}

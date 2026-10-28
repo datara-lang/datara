@@ -23,9 +23,18 @@ pub fn resolve_field_offset(
         .or_else(|| class_field_offsets.get(base_c))
         .and_then(|m| m.get(field).copied())
         .ok_or_else(|| {
+            let known_fields = class_field_offsets
+                .get(cls)
+                .or_else(|| class_field_offsets.get(base_c))
+                .map(|m| {
+                    let mut names: Vec<&str> = m.keys().map(|s| s.as_str()).collect();
+                    names.sort();
+                    names.join(", ")
+                })
+                .unwrap_or_else(|| "<class has no registered layout>".to_string());
             format!(
-                "Code generation failed: [E0944] field '{}' does not exist in the layout of class '{}' in function '{}': refusing cross-class offset fallback",
-                field, cls, fn_name
+                "Code generation failed: [E0944] field '{}' does not exist in the layout of class '{}' in function '{}': refusing cross-class offset fallback (known fields: {})",
+                field, cls, fn_name, known_fields
             )
         })
 }

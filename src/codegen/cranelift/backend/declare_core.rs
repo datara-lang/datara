@@ -321,6 +321,53 @@ pub fn declare_runtime_core<M: ClifModule>(
         .declare_function("datara_rt_map_insert", Linkage::Import, &rt_map_insert_sig)
         .map_err(|e| e.to_string())?;
 
+    // Int-keyed map entrypoints (PLAN_V150 §5: "Map<Int, ...> accepted by
+    // the checker but rt_map_insert expected a Str pointer -> segfault").
+    // The ABIs are identical to the Str versions; only the key word is an
+    // integer rather than a pointer.
+    let rt_map_get_i64_id = module
+        .declare_function(
+            "datara_rt_map_get_i64",
+            Linkage::Import,
+            &rt_map_get_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    let rt_map_get_outcome_i64_id = module
+        .declare_function(
+            "datara_rt_map_get_outcome_i64",
+            Linkage::Import,
+            &rt_map_get_outcome_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    let rt_map_contains_i64_id = module
+        .declare_function(
+            "datara_rt_map_contains_i64",
+            Linkage::Import,
+            &rt_map_contains_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    let rt_map_insert_i64_id = module
+        .declare_function(
+            "datara_rt_map_insert_i64",
+            Linkage::Import,
+            &rt_map_insert_sig,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let mut rt_map_create_i64_sigs: Vec<(String, FuncId, Signature)> = Vec::new();
+    for arity in 1..=5usize {
+        let name = format!("datara_rt_map_create_i64_{}", arity);
+        let mut sig = Signature::new(call_conv);
+        for _ in 0..arity * 2 {
+            sig.params.push(AbiParam::new(clif_types::I64));
+        }
+        sig.returns.push(AbiParam::new(clif_types::I64));
+        let id = module
+            .declare_function(&name, Linkage::Import, &sig)
+            .map_err(|e| e.to_string())?;
+        rt_map_create_i64_sigs.push((name, id, sig));
+    }
+
     let mut rt_range_str_sig = Signature::new(call_conv);
     rt_range_str_sig.params.push(AbiParam::new(clif_types::I64));
     rt_range_str_sig.params.push(AbiParam::new(clif_types::I64));
@@ -430,20 +477,39 @@ pub fn declare_runtime_core<M: ClifModule>(
             .map_err(|e| e.to_string())?;
         func_ids.insert(name, (id, sig));
     }
-    func_ids.insert("datara_rt_map_get".into(), (rt_map_get_id, rt_map_get_sig));
+    func_ids.insert("datara_rt_map_get".into(), (rt_map_get_id, rt_map_get_sig.clone()));
     func_ids.insert(
         "datara_rt_map_get_outcome".into(),
-        (rt_map_get_outcome_id, rt_map_get_outcome_sig),
+        (rt_map_get_outcome_id, rt_map_get_outcome_sig.clone()),
     );
     func_ids.insert(
         "datara_rt_map_contains".into(),
-        (rt_map_contains_id, rt_map_contains_sig),
+        (rt_map_contains_id, rt_map_contains_sig.clone()),
     );
     func_ids.insert("datara_rt_map_len".into(), (rt_map_len_id, rt_map_len_sig));
     func_ids.insert(
         "datara_rt_map_insert".into(),
-        (rt_map_insert_id, rt_map_insert_sig),
+        (rt_map_insert_id, rt_map_insert_sig.clone()),
     );
+    func_ids.insert(
+        "datara_rt_map_get_i64".into(),
+        (rt_map_get_i64_id, rt_map_get_sig.clone()),
+    );
+    func_ids.insert(
+        "datara_rt_map_get_outcome_i64".into(),
+        (rt_map_get_outcome_i64_id, rt_map_get_outcome_sig.clone()),
+    );
+    func_ids.insert(
+        "datara_rt_map_contains_i64".into(),
+        (rt_map_contains_i64_id, rt_map_contains_sig.clone()),
+    );
+    func_ids.insert(
+        "datara_rt_map_insert_i64".into(),
+        (rt_map_insert_i64_id, rt_map_insert_sig.clone()),
+    );
+    for (name, id, sig) in rt_map_create_i64_sigs {
+        func_ids.insert(name, (id, sig));
+    }
     func_ids.insert(
         "datara_rt_range_str".into(),
         (rt_range_str_id, rt_range_str_sig),
@@ -585,6 +651,21 @@ pub fn declare_runtime_core<M: ClifModule>(
     func_ids.insert(
         "datara_rt_str_scalar_at".into(),
         (str_scalar_at_id, str_offset_sig.clone()),
+    );
+
+    let mut str_sanitize_sig = Signature::new(call_conv);
+    str_sanitize_sig.params.push(AbiParam::new(clif_types::I64));
+    str_sanitize_sig.returns.push(AbiParam::new(clif_types::I64));
+    let str_sanitize_id = module
+        .declare_function("datara_rt_str_sanitize_utf8", Linkage::Import, &str_sanitize_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "str_sanitize_utf8".into(),
+        (str_sanitize_id, str_sanitize_sig.clone()),
+    );
+    func_ids.insert(
+        "datara_rt_str_sanitize_utf8".into(),
+        (str_sanitize_id, str_sanitize_sig),
     );
 
     let str_next_offset_id = module
@@ -1199,6 +1280,45 @@ pub fn declare_runtime_core<M: ClifModule>(
         .map_err(|e| e.to_string())?;
     func_ids.insert("datara_rt_out_val".into(), (rt_out_val_id, rt_out_val_sig));
 
+    // M7 TSU: NaN-boxed dynamic values (constructors, tag predicates,
+    // unboxers). All take/return one I64 word (the boxed value).
+    for name in [
+        "datara_rt_val_as_int_outcome",
+        "datara_rt_val_as_float_outcome",
+        "datara_rt_val_to_int_checked",
+        "datara_rt_val_to_f64_bits_checked",
+        "datara_rt_val_to_str_tagged",
+    ] {
+        let mut sig = Signature::new(call_conv);
+        sig.params.push(AbiParam::new(clif_types::I64));
+        sig.returns.push(AbiParam::new(clif_types::I64));
+        let fid = module
+            .declare_function(name, Linkage::Import, &sig)
+            .map_err(|e| e.to_string())?;
+        func_ids.insert(name.into(), (fid, sig));
+    }
+    for name in [
+        "datara_val_from_int",
+        "datara_rt_val_from_f64_bits",
+        "datara_val_from_bool",
+        "datara_val_from_str",
+        "datara_val_is_int",
+        "datara_val_is_float",
+        "datara_val_is_bool",
+        "datara_val_is_str",
+        "datara_val_to_int",
+        "datara_val_to_bool",
+        "datara_val_to_str",
+    ] {
+        let mut sig = Signature::new(call_conv);
+        sig.params.push(AbiParam::new(clif_types::I64));
+        sig.returns.push(AbiParam::new(clif_types::I64));
+        let fid = module
+            .declare_function(name, Linkage::Import, &sig)
+            .map_err(|e| e.to_string())?;
+        func_ids.insert(name.into(), (fid, sig));
+    }
+
     // File I/O: write
     let mut rt_file_write_sig = Signature::new(call_conv);
     rt_file_write_sig
@@ -1756,6 +1876,7 @@ pub fn declare_runtime_core<M: ClifModule>(
         rt_out_flt_id,
         rt_out_f32_id,
         rt_out_dec64_id,
+        rt_out_val_id,
         rt_out_str_id,
         rt_err_id,
         rt_concat_id,

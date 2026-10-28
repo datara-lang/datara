@@ -1,0 +1,9 @@
+@arc
+struct Counter {
+    value: Int
+}
+
+fn main() {
+    val c = Counter { value: 41 }
+    out c.value
+}

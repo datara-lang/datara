@@ -1,0 +1,23 @@
+struct BoxS { xs: List<Float> }
+struct BoxW { count: Int, inner: BoxS }
+fn make(n: Int) -> BoxW {
+    val xs: List<Float> = []
+    xs.append(1.5)
+    return BoxW { count: n, inner: BoxS { xs: xs } }
+}
+fn bump(w: BoxW) -> BoxW {
+    val nxs: List<Float> = []
+    mut i = 0
+    while i < w.count {
+        nxs.append(w.inner.xs[i] + 0.5)
+        i = i + 1
+    }
+    return BoxW { count: w.count, inner: BoxS { xs: nxs } }
+}
+fn main() {
+    val n = 4
+    val w = make(n)
+    val w2 = bump(w)
+    out float_to_str(w2.inner.xs[0])
+    out "R3-OK"
+}

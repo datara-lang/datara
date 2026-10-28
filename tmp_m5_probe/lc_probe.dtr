@@ -1,0 +1,15 @@
+struct P { a: Int, b: Int }
+
+fn first() -> Int {
+    val t = P { a: 10, b: 20 }
+    val s = t.a + t.b
+    out s
+    return s
+}
+
+fn second() -> Int {
+    val u = P { a: 1, b: 2 }
+    val w = u.a + u.b
+    out w
+    return w
+}

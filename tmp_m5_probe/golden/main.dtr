@@ -1,0 +1,7 @@
+use stdlib.text.string.StringUtils
+
+fn main() {
+    let s_util = StringUtils { prefix: "GOLDEN" }
+    let q = s_util.quote("datara_0_1_0")
+    out "QUOTED: " + q
+}

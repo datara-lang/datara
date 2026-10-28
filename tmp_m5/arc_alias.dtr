@@ -1,0 +1,8 @@
+@arc
+struct P { n: Int }
+
+fn main() {
+    val a = P { n: 1 }
+    val b = a
+    out a.arc_count()
+}

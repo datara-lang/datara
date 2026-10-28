@@ -1,0 +1,97 @@
+{
+  "Function": {
+    "prefix": "fn",
+    "body": ["fn ${1:name}(${2:args}) -> ${3:Type} {", "\t${4:body}", "}"],
+    "description": "Function with a return type"
+  },
+  "Main function": {
+    "prefix": "main",
+    "body": ["fn main() {", "\t$0", "}"],
+    "description": "Program entry point"
+  },
+  "Struct": {
+    "prefix": "struct",
+    "body": ["struct ${1:Name} {", "\t${2:field}: ${3:Type}", "}"],
+    "description": "Struct (canonical data-oriented record)"
+  },
+  "Behavior": {
+    "prefix": "behavior",
+    "body": ["behavior ${1:Name} {", "\t${2:method}(${3:args}) -> ${4:Type} {", "\t\treturn ${5:value}", "\t}", "}"],
+    "description": "Behavior block (methods over a struct)"
+  },
+  "Val binding": {
+    "prefix": "val",
+    "body": ["val ${1:name}: ${2:Type} = ${3:value}"],
+    "description": "Immutable binding (canonical)"
+  },
+  "Mut binding": {
+    "prefix": "mut",
+    "body": ["mut ${1:name}: ${2:Type} = ${3:value}"],
+    "description": "Mutable binding (canonical)"
+  },
+  "For..in loop": {
+    "prefix": "forin",
+    "body": ["for ${1:item} in ${2:iterable} {", "\t$0", "}"],
+    "description": "Iterate a range or a List"
+  },
+  "While loop": {
+    "prefix": "while",
+    "body": ["while ${1:condition} {", "\t$0", "}"],
+    "description": "While loop"
+  },
+  "Match": {
+    "prefix": "match",
+    "body": ["match ${1:value} {", "\t${2:Pattern} => ${3:result}", "\t_ => ${4:fallback}", "}"],
+    "description": "Exhaustive pattern match"
+  },
+  "Outcome function": {
+    "prefix": "outcome",
+    "body": ["fn ${1:name}(${2:args}) -> Outcome<${3:Type}> {", "\treturn Outcome.ok(${4:value})", "}"],
+    "description": "Function returning a checked Outcome"
+  },
+  "Outcome fallback": {
+    "prefix": "or",
+    "body": ["${1:expr} or ${2:fallback}"],
+    "description": "or-fallback on a Result/Option"
+  },
+  "Error propagation": {
+    "prefix": "tryq",
+    "body": ["${1:expr}?"],
+    "description": "Propagate an error with ?"
+  },
+  "Arc class": {
+    "prefix": "arc",
+    "body": ["@arc", "struct ${1:Name} {", "\t${2:field}: ${3:Type}", "}"],
+    "description": "Shared-ownership @arc struct"
+  },
+  "Weak reference": {
+    "prefix": "weak",
+    "body": ["${1:field}: Weak<${2:Name}>"],
+    "description": "Weak reference field (breaks ownership cycles)"
+  },
+  "Derive Display": {
+    "prefix": "derive",
+    "body": ["@derive(Display)", "struct ${1:Name} {", "\t$0", "}"],
+    "description": "Derive printable Display"
+  },
+  "Unsafe block": {
+    "prefix": "unsafe",
+    "body": ["unsafe(justification: \"${1:why this is safe}\") {", "\t$0", "}"],
+    "description": "Escalated operation with justification"
+  },
+  "Import module": {
+    "prefix": "use",
+    "body": ["use ${1:stdlib.text.text}"],
+    "description": "Import a module path"
+  },
+  "comptime": {
+    "prefix": "comptime",
+    "body": ["val ${1:name}: Int = comptime { ${2:1024 * 64} }"],
+    "description": "Compile-time constant"
+  },
+  "Parallel for": {
+    "prefix": "parfor",
+    "body": ["parallel for ${1:i} in 0..${2:n} {", "\t$0", "}"],
+    "description": "Parallel for loop over a range"
+  }
+}

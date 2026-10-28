@@ -112,3 +112,12 @@ __pycache__/
 # Session working notes (local only)
 /FIXPLAN_V145.md
 times.txt
+
+# Root debug dumps from compiler investigations (local scratch, M14 cleanup checklist)
+/st.asm
+/syms.txt
+/ir_p.txt
+/demo_config.txt
+/probe_proc.dtr
+/val_bug_tmp.dtr
+/stdlib_tests/tests/probe_proc.dtr

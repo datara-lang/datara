@@ -1,0 +1,15 @@
+struct Store { xs: List<Float> }
+struct World2 { count: Int, store: Store }
+fn make(n: Int) -> World2 {
+    val xs: List<Float> = []
+    xs.append(1.5)
+    val st = Store { xs: xs }
+    return World2 { count: n, store: st }
+}
+fn main() {
+    val n = 4
+    val w = make(n)
+    out int_to_str(w.count)
+    out float_to_str(w.store.xs[0])
+    out "CROSS-FN-OK"
+}

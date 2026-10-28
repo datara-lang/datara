@@ -1,0 +1,8 @@
+fn f(x: Int) -> Str {
+    mut out = "a"
+    out = out + "&amp;"
+    return out
+}
+fn main() {
+    out f(1)
+}

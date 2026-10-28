@@ -113,11 +113,36 @@ impl<'a> Lowering<'a> {
                     for (idx, b_name) in bindings.iter().enumerate() {
                         let field_dest = self.next_val();
                         let field_name = format!("f{}", idx);
+                        // Per-variant slot type first: the global
+                        // class_field_types["fN"].entry is overwritten by the
+                        // LAST enum processed (Color.Blue made `f0` = Str while
+                        // Color.Red's f0 payload is Int), so a match arm bound
+                        // to an Int payload loaded its value through a Str
+                        // TypedField — the fmt formatter then dereferenced the
+                        // raw integer as a char* (exit 139). The variant slot
+                        // table (enum_slots[Enum.Variant]) carries the
+                        // declared payload types per variant.
+                        let slot_key = match enum_name {
+                            Some(en) => format!("{}.{}", en, variant_name),
+                            None => variant_name.clone(),
+                        };
                         let field_ty = self
-                            .class_field_types
-                            .get(&field_name)
-                            .cloned()
+                            .enum_slots
+                            .get(&slot_key)
+                            .and_then(|slots| slots.get(idx).cloned())
+                            .or_else(|| {
+                                self.class_field_types
+                                    .get(&format!("{}.{}", variant_name, field_name))
+                                    .cloned()
+                            })
+                            .or_else(|| self.class_field_types.get(&field_name).cloned())
                             .unwrap_or_else(|| "Int".into());
+                        if std::env::var("DATARA_CODEGEN_TRACE").is_ok() {
+                            eprintln!(
+                                "[match-arm] slot_key={} idx={} field_ty={} enum={} variant={}",
+                                slot_key, idx, field_ty, enum_name.clone().unwrap_or_default(), variant_name
+                            );
+                        }
                         self.get_block_mut(*cur_block)
                             .instructions
                             .push(Inst::GetField {

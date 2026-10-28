@@ -1,0 +1,29 @@
+fn main() -> Int {
+    val n = 256
+    mut a = []
+    mut b = []
+    mut i = 0
+    while i < n * n {
+        a.push(i % 7)
+        b.push((i * 3) % 5)
+        i = i + 1
+    }
+    mut sum = 0
+    mut r = 0
+    while r < n {
+        mut c = 0
+        while c < n {
+            mut acc = 0
+            mut k = 0
+            while k < n {
+                acc = acc + a[r * n + k] * b[k * n + c]
+                k = k + 1
+            }
+            sum = sum + (acc % 13)
+            c = c + 1
+        }
+        r = r + 1
+    }
+    print(int_to_str(sum))
+    return 0
+}

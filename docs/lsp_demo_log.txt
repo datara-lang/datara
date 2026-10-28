@@ -1,0 +1,18 @@
+# forgen lsp demo log (M3): hover / goto-definition / references / rename
+# demo source: fn helper(a: Int) -> Int { return a * 2 } + main calling helper(21)
+
+=== hover ===
+request : {"jsonrpc": "2.0", "id": 2, "method": "textDocument/hover", "params": {"textDocument": {"uri": "file:///demo_lsp.dtr"}, "position": {"line": 5, "character": 13}}}
+response: {"id": 2, "jsonrpc": "2.0", "result": {"contents": {"kind": "markdown", "value": "```datara\nfn helper(a: Int) -> Int\n```\n- **Symbol**: User Function `helper`\n- **Symbol Type**: Native Compiled Function\n\nOwnership: 100.0% proven (zero-cost)"}}}
+
+=== goto-definition ===
+request : {"jsonrpc": "2.0", "id": 3, "method": "textDocument/definition", "params": {"textDocument": {"uri": "file:///demo_lsp.dtr"}, "position": {"line": 5, "character": 13}}}
+response: {"id": 3, "jsonrpc": "2.0", "result": {"range": {"end": {"character": 9, "line": 0}, "start": {"character": 3, "line": 0}}, "uri": "file:///demo_lsp.dtr"}}
+
+=== references ===
+request : {"jsonrpc": "2.0", "id": 4, "method": "textDocument/references", "params": {"textDocument": {"uri": "file:///demo_lsp.dtr"}, "position": {"line": 0, "character": 3}, "context": {"includeDeclaration": true}}}
+response: {"id": 4, "jsonrpc": "2.0", "result": [{"range": {"end": {"character": 9, "line": 0}, "start": {"character": 3, "line": 0}}, "uri": "file:///demo_lsp.dtr"}, {"range": {"end": {"character": 18, "line": 5}, "start": {"character": 12, "line": 5}}, "uri": "file:///demo_lsp.dtr"}]}
+
+=== rename ===
+request : {"jsonrpc": "2.0", "id": 5, "method": "textDocument/rename", "params": {"textDocument": {"uri": "file:///demo_lsp.dtr"}, "position": {"line": 0, "character": 3}, "newName": "double_value"}}
+response: {"id": 5, "jsonrpc": "2.0", "result": {"changes": {"file:///demo_lsp.dtr": [{"newText": "double_value", "range": {"end": {"character": 9, "line": 0}, "start": {"character": 3, "line": 0}}}, {"newText": "double_value", "range": {"end": {"character": 18, "line": 5}, "start": {"character": 12, "line": 5}}}]}}}

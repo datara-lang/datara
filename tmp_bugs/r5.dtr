@@ -1,0 +1,20 @@
+struct BoxS { xs: List<Float> }
+struct BoxW { count: Int, inner: BoxS }
+fn make(n: Int) -> BoxW {
+    val xs: List<Float> = []
+    mut i = 0
+    while i < n {
+        xs.append(str_to_float(int_to_str(i)))
+        i = i + 1
+    }
+    return BoxW { count: n, inner: BoxS { xs: xs } }
+}
+fn main() {
+    val n = 4
+    val w = make(n)
+    out float_to_str(w.inner.xs[0])
+    out "STEP1-OK"
+    val w2 = make(n)
+    out float_to_str(w2.inner.xs[0])
+    out "STEP2-OK"
+}

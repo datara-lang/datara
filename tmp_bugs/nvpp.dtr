@@ -1,0 +1,18 @@
+mut seq = ""
+fn sender(ch: Int) {
+    fiber_chan_send(ch, 1)
+    fiber_chan_send(ch, 2)
+    fiber_chan_send(ch, 3)
+}
+fn main() {
+    val ch = fiber_chan_create()
+    fiber_spawn(sender, ch)
+    mut v = fiber_chan_recv(ch)
+    seq = seq + int_to_str(v)
+    v = fiber_chan_recv(ch)
+    seq = seq + int_to_str(v)
+    v = fiber_chan_recv(ch)
+    seq = seq + int_to_str(v)
+    fiber_run_until_done()
+    out seq
+}

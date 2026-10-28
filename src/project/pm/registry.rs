@@ -771,12 +771,33 @@ behavior Matrix2x2 {
         // Update datara.toml
         Self::update_manifest_dependency(project_root, &pkg.name, &pkg.version);
 
-        // Update datara.lock
+        // Update datara.lock. The digest MUST describe what is actually on
+        // disk — `verify` re-derives it from the linked directory. A digest
+        // supplied by the caller is HONOURED when it already matches the
+        // linked files under its own scheme (merkle: → merkle root, plain
+        // sha256: → sha256): that keeps the publish path's merkle digest
+        // authoritative. An empty or mismatching digest (an in-memory
+        // pkg.files that lacks the generated package.json) is recomputed
+        // from disk so even a pristine install verifies clean.
+        let mut linked_files: HashMap<String, String> = HashMap::new();
+        let _ = Self::collect_files_recursive(&proj_pkg_dir, &proj_pkg_dir, &mut linked_files);
+        let supplied_matches_disk = if pkg.digest.starts_with("merkle:") {
+            pkg.digest == Self::compute_merkle_root(&linked_files)
+        } else {
+            !pkg.digest.is_empty() && pkg.digest == Self::compute_digest(&linked_files)
+        };
+        let digest = if supplied_matches_disk {
+            pkg.digest.clone()
+        } else if pkg.digest.starts_with("merkle:") {
+            Self::compute_merkle_root(&linked_files)
+        } else {
+            Self::compute_digest(&linked_files)
+        };
         let mut lock = DataraLock::load(project_root).unwrap_or_default();
         lock.insert_or_update(
             &pkg.name,
             &pkg.version,
-            &pkg.digest,
+            &digest,
             source,
             pkg.dependencies.clone(),
         );

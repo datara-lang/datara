@@ -1,0 +1,24 @@
+use stdlib.result.result.Outcome
+use stdlib.result.option.Maybe
+
+fn look_up(s: Str) -> Maybe<Int> {
+    if s == "a" { return Maybe.some(1) }
+    return Maybe.none()
+}
+fn lvl(name: Str) -> Maybe<Int> {
+    return look_up(name)?
+}
+fn main() {
+    val a = lvl("a")
+    out fmt"a: found={a.is_some} v={a.value}"
+    val b = lvl("b")
+    out fmt"b: found={b.is_some}"
+    val e = fail_path("x")
+    out fmt"e: ok={e.is_success} msg={e.error_msg}"
+}
+fn fail_path(s: Str) -> Outcome<Int> {
+    return parse_bad(s)?
+}
+fn parse_bad(s: Str) -> Outcome<Int> {
+    return Outcome.err(fmt"bad: {s}")
+}

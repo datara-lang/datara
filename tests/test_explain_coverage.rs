@@ -71,6 +71,44 @@ fn code_strings_are_unique_and_prefixed() {
 }
 
 #[test]
+fn every_category_has_up_to_two_nonempty_hints() {
+    // M2 audit: "каждому коду — код, сообщение, span, до 2 подсказок". The
+    // hint table is category-keyed; every category used by the code set must
+    // carry 1..=2 non-empty hints, and the rendered explanation must include
+    // them.
+    let categories: std::collections::HashSet<&str> =
+        forgen::diagnostics::explain_data::CODE_CATEGORY
+            .iter()
+            .map(|(_, cat)| *cat)
+            .collect();
+    for cat in &categories {
+        let hints = forgen::diagnostics::explain_data::CATEGORY_HINTS
+            .iter()
+            .find(|(k, _)| k == cat)
+            .map(|(_, h)| *h)
+            .unwrap_or_else(|| panic!("category '{}' has no hints", cat));
+        assert!(
+            (1..=2).contains(&hints.len()),
+            "category '{}' must carry 1..=2 hints, got {}",
+            cat,
+            hints.len()
+        );
+        for h in hints {
+            assert!(!h.trim().is_empty(), "category '{}' has an empty hint", cat);
+        }
+    }
+
+    // The rendered explanation embeds the hints.
+    let text = forgen::diagnostics::explain_data::explain_for_code("E-TYPE-001")
+        .expect("E-TYPE-001 must explain");
+    assert!(text.contains("Hints:"), "explanation must include the hints block");
+    assert!(
+        text.contains("- Make the conversion explicit"),
+        "explanation must list the category hints"
+    );
+}
+
+#[test]
 fn explain_anchor_codes_exist() {
     // The explain surface must resolve at least these anchors used across
     // docs and tests; full-matrix coverage is the remaining M2 work.

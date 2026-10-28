@@ -1,0 +1,13 @@
+fn worker(x: Int) {
+    out x
+}
+fn main() {
+    val h1 = fiber_spawn(worker, 10)
+    val h2 = fiber_spawn(worker, 20)
+    fiber_yield()
+    fiber_run_until_done()
+    val j1 = fiber_join(h1)
+    out int_to_str(j1)
+    val j2 = fiber_join(h2)
+    out int_to_str(j2)
+}

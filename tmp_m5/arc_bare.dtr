@@ -1,0 +1,7 @@
+@arc
+struct Box { v: Int }
+
+fn main() -> Int {
+    val b = Box { v: 7 }
+    return b.v
+}

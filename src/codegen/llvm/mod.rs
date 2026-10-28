@@ -105,6 +105,8 @@ impl<'a> LlvmEmitter<'a> {
             "Int4" | "i32x4" | "<4 x i32>" => "<4 x i32>",
             "i32x8" | "<8 x i32>" => "<8 x i32>",
             "Str" | "String" => "ptr",
+            // M7 TSU: a dynamic value rides in one I64 word (NaN-box).
+            "Val" => "i64",
             "Unit" | "void" | "Never" => "void",
             s if s.starts_with("Int<") || s.starts_with("UInt<") => "i64",
             s if s.starts_with("Float<") => "double",
@@ -597,45 +599,87 @@ impl<'a> LlvmEmitter<'a> {
         // Track local variable types and allocas
         let mut local_vars: BTreeSet<String> = BTreeSet::new();
         let mut all_struct_inits: Vec<(ValueId, usize)> = Vec::new();
-        let mut escaping_structs: HashSet<ValueId> = HashSet::new();
+        // M6 TMM Layer 1: structs the inserted last-use pass releases via
+        // datara_rt_free (= plain free). pool_alloc hands out slab-interior
+        // pointers that free() cannot reclaim, so these must be malloc'd
+        // instead (see the StructInit emission).
+        let mut released_structs: HashSet<ValueId> = HashSet::new();
+        // M6 escape policy: a function proven (dataflow fresh-set) to return
+        // a freshly created plain-class object hands ownership to the caller,
+        // which releases it via datara_rt_free — so every StructInit of the
+        // returned class in this function must be malloc'd, not pool_alloc'd
+        // (slab interiors cannot be reclaimed by free()).
+        let fresh_class = if !f.return_type.is_empty()
+            && !crate::ownership::dataflow::PRIMITIVE_TYPES.contains(&f.return_type.as_str())
+        {
+            crate::ownership::fresh::compute_fresh_set(module)
+                .get(&f.name)
+                .cloned()
+                .filter(|c| c == &f.return_type)
+        } else {
+            None
+        };
 
         for b in &f.blocks {
             for inst in &b.instructions {
                 if let Inst::AssignVar { name, .. } = inst {
                     local_vars.insert(name.clone());
-                } else if let Inst::StructInit { dest, fields, .. } = inst {
-                    let byte_size = fields.len().saturating_mul(8).max(8);
+                } else if let Inst::StructInit { dest, fields, class_name } = inst {
+                    // M6.2: size by the CLASS's declared fields, not by the
+                    // literal's initializer list — the literal may omit
+                    // fields that only ever receive values through later
+                    // `SetField` stores (e.g. a cycle-closing `a.peer = b`).
+                    // Sizing by the literal under-allocates the entry alloca
+                    // and the later store writes past its end (the LLVM-side
+                    // stack decay of the first-cut region probes).
+                    let byte_size = module
+                        .class_fields
+                        .get(class_name)
+                        .map(|decl| decl.len().saturating_mul(8).max(8))
+                        .unwrap_or_else(|| fields.len().saturating_mul(8).max(8));
                     all_struct_inits.push((*dest, byte_size));
+                    // M6 escape policy: in a fresh-return function a
+                    // StructInit of the returned class flows to Return — the
+                    // caller owns and frees it via datara_rt_free → malloc,
+                    // the same rule as in-frame released structs.
+                    if fresh_class.as_deref() == Some(class_name.as_str()) {
+                        released_structs.insert(*dest);
+                    }
                 }
             }
         }
 
+        // M6.2 auto-region: one shared escape analysis with the Cranelift
+        // backend (ownership::region). LLVM's historical seeds minus the
+        // ones the shared pass owns: no per-AssignVar seeds (LLVM never
+        // had them), StructInit field seeds ON (LLVM historically seeded
+        // them). The cyclic-structure relaxation (in-frame cycle closing
+        // stores stay region-resident), alias-flow unions and transitive
+        // propagation live in the shared pass.
+        let mut escaping_structs = crate::ownership::region::compute_escape_set(
+            f,
+            &module.cyclic_classes,
+            &module
+                .globals
+                .keys()
+                .cloned()
+                .collect::<std::collections::HashSet<String>>(),
+            false,
+            true,
+        );
+
+        // M6 TMM Layer 1: track structs the inserted last-use pass releases
+        // via datara_rt_free (= plain free). pool_alloc hands out
+        // slab-interior pointers that free() cannot reclaim, so these must
+        // be malloc'd instead (see the StructInit emission).
         for b in &f.blocks {
-            if let Terminator::Return { value: Some(v) } = &b.terminator {
-                escaping_structs.insert(*v);
-            }
             for inst in &b.instructions {
-                match inst {
-                    Inst::Call { args, .. } => {
+                if let Inst::Call { func, args, .. } = inst {
+                    if func == "datara_rt_free" {
                         for a in args {
-                            escaping_structs.insert(*a);
+                            released_structs.insert(*a);
                         }
                     }
-                    Inst::MethodCall { object, args, .. } => {
-                        escaping_structs.insert(*object);
-                        for a in args {
-                            escaping_structs.insert(*a);
-                        }
-                    }
-                    Inst::SetField { value, .. } => {
-                        escaping_structs.insert(*value);
-                    }
-                    Inst::StructInit { fields, .. } => {
-                        for (_, fv) in fields {
-                            escaping_structs.insert(*fv);
-                        }
-                    }
-                    _ => {}
                 }
             }
         }
@@ -1045,6 +1089,7 @@ impl<'a> LlvmEmitter<'a> {
                     next_meta_id,
                     &address_taken,
                     &stack_structs,
+                    &released_structs,
                 )?;
             }
 

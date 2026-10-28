@@ -247,6 +247,20 @@ pub(crate) fn cmd_inspect(args: &[String]) -> bool {
                 let mut parser = crate::parser::Parser::new(tokens, &mut diag, file_arg);
                 let program = parser.parse_program();
                 print!("{}", crate::ownership::memory_report(&program));
+                // M6 Layer 1 transparency: lower the module (no errors
+                // expected for an inspect target) and print the dataflow
+                // last-use decisions so the release points are visible.
+                if !diag.has_errors() {
+                    let mut resolver = crate::resolver::Resolver::new();
+                    resolver.resolve_program(&program, &mut diag);
+                    if !diag.has_errors() {
+                        let tc = crate::types::TypeChecker::new(&resolver);
+                        let mut lowering =
+                            crate::dmir::Lowering::new(&resolver, &tc);
+                        let dmir = lowering.lower_program(&program, "main");
+                        print!("{}", crate::ownership::layer1_report(&dmir));
+                    }
+                }
                 return true;
             }
             Err(e) => {

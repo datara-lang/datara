@@ -1,0 +1,18 @@
+fn main() {
+    val m: Map<Int, Int> = {1: 10, 2: 20, 3: 30}
+    out m[1]
+    out m.get(2) or -1
+    out m.contains(3)
+    m.insert(2, 22)
+    out m.get(2) or -1
+    out m.get(99) or -1
+    out m.len()
+    mut i = 0
+    while i < 2000 {
+        m.insert(i, i * 3)
+        i = i + 1
+    }
+    out m.len()
+    out m.get(1999) or -1
+    out m.contains(1500)
+}

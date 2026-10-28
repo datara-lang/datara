@@ -7,9 +7,9 @@
 <p align="center">
   <a href="https://github.com/datara-lang/datara"><img src="https://img.shields.io/badge/language-Datara-%23E3B341.svg" alt="Language" /></a>
   <a href="LICENSE-APACHE"><img src="https://img.shields.io/badge/License-Apache_2.0_OR_MIT-blue.svg" alt="License" /></a>
-  <img src="https://img.shields.io/badge/version-1.4.5-blue.svg" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.5.0-blue.svg" alt="Version" />
   <a href="https://github.com/datara-lang/datara/actions/workflows/ci.yml"><img src="https://github.com/datara-lang/datara/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <img src="https://img.shields.io/badge/tests-285%20suites%20%7C%201332%20passing-brightgreen.svg" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-316%20suites%20%7C%201509%20passing-brightgreen.svg" alt="Tests" />
   <a href="https://datara-lang.github.io/datara/"><img src="https://img.shields.io/badge/docs-GitHub_Pages-blue.svg" alt="Docs" /></a>
   <a href="docs/CONFORMANCE_MATRIX.md"><img src="https://img.shields.io/badge/Spec_V1_Conformance-84%2F84_Gates_PASS-brightgreen.svg" alt="Conformance" /></a>
   <img src="https://img.shields.io/badge/target-x86__64_native-orange.svg" alt="Target" />

@@ -1,0 +1,6 @@
+use stdlib.text.text
+
+fn main() {
+    out text_slice_cp("abc", 1, 1)
+    out int_to_str(text_parse_int("42") or -1)
+}

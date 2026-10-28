@@ -1,0 +1,29 @@
+// M6.2 control probe: the same cyclic pairs, but each `a` is pushed into
+// a holder list — a call argument, so the cycle escapes the iteration and
+// the objects must be heap-promoted (propagated escape). Values exact.
+struct A {
+    v: Int
+    peer: B
+}
+
+struct B {
+    v: Int
+    peer: A
+}
+
+fn main() {
+    mut holder: List<A> = []
+    mut acc = 0
+    mut i = 0
+    while i < 200000 {
+        mut a = A { v: i }
+        mut b = B { v: i * 2 }
+        a.peer = b
+        b.peer = a
+        acc = acc + a.peer.v + b.peer.v
+        holder = holder.push(a)
+        i = i + 1
+    }
+    out acc
+    out holder.count()
+}

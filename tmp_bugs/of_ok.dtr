@@ -1,0 +1,4 @@
+fn main() {
+    val r = str_to_float_checked("3.14")
+    out r.is_ok()
+}

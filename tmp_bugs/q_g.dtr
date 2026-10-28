@@ -1,0 +1,8 @@
+fn g(l: List<Outcome<Int>>) -> Outcome<Int> {
+    return l[0]?
+}
+fn main() {
+    val l = [Outcome.ok(42)]
+    val b = g(l)
+    out fmt"value b={b.value}"
+}

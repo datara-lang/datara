@@ -11,6 +11,9 @@ impl<'a> SecurityVerifier<'a> {
         diag: &mut DiagnosticEngine,
     ) {
         match expr {
+            Expr::IsCheck { operand, .. } => {
+                self.verify_expr(operand, ctx, diag);
+            }
             Expr::Binary {
                 op,
                 left,

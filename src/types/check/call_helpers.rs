@@ -3,7 +3,7 @@
 use crate::ast::*;
 use crate::diagnostics::{DiagnosticEngine, ErrorCode, SourceSpan};
 use crate::types::DataraType;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 
 /// v1.4.1 E-TYPE-008 gate for the List combinators: a wrong arity or a
@@ -95,6 +95,59 @@ pub(crate) fn bind_type_params(
     }
 }
 
+
+/// True when `name` occurs anywhere inside `ty` (recursively through
+/// List/Map/GenericInstance arguments). Used by the callback-binding
+/// heuristic at generic call sites.
+pub(crate) fn contains_type_param(ty: &DataraType, name: &str) -> bool {
+    match ty {
+        DataraType::TypeParam(p) => p == name,
+        DataraType::List(inner) => contains_type_param(inner, name),
+        DataraType::Map(k, v) => contains_type_param(k, name) || contains_type_param(v, name),
+        DataraType::GenericInstance { args, .. } => {
+            args.iter().any(|a| contains_type_param(a, name))
+        }
+        DataraType::Function { params, return_type, .. } => {
+            params.iter().any(|a| contains_type_param(a, name))
+                || contains_type_param(return_type, name)
+        }
+        DataraType::Result(ok, err) => {
+            contains_type_param(ok, name) || contains_type_param(err, name)
+        }
+        _ => false,
+    }
+}
+
+
+/// Bare-generic callback binding: a generic parameter bound to a lambda AND
+/// appearing bare inside the generic fn's return type is a callback whose
+/// RESULT flows out (`fn iter_map<T, U>(items: List<T>, f: U) -> List<U>`).
+/// Bind U to the lambda's RETURN type, not its Function type — `f(x)` call
+/// sites inside the body type via the declared return type (lambda-argument
+/// static dispatch), so the old binding made every result `(Int) -> Int`-
+/// shaped ("expected List, got List"). Parameters NOT referenced in the
+/// return type keep the Function binding (the callback is only consumed,
+/// not its result). Returns the overridden parameter names.
+pub(crate) fn apply_callback_binding_overrides<'a, I>(
+    params_args: I,
+    ret_type: &DataraType,
+    type_bindings: &mut HashMap<String, DataraType>,
+) -> Vec<String>
+where
+    I: Iterator<Item = (&'a DataraType, &'a DataraType)>,
+{
+    let mut callback_bound: Vec<String> = Vec::new();
+    for (p_ty, a_ty) in params_args {
+        if let (DataraType::TypeParam(p), DataraType::Function { return_type, .. }) = (p_ty, a_ty)
+            && contains_type_param(ret_type, p)
+        {
+            type_bindings.insert(p.clone(), (**return_type).clone());
+            callback_bound.push(p.clone());
+        }
+    }
+    callback_bound
+}
+
 pub(crate) fn subst_type_params(ty: &DataraType, bindings: &HashMap<String, DataraType>) -> DataraType {
     match ty {
         DataraType::TypeParam(p) => bindings.get(p).cloned().unwrap_or_else(|| ty.clone()),
@@ -112,6 +165,46 @@ pub(crate) fn subst_type_params(ty: &DataraType, bindings: &HashMap<String, Data
         },
         _ => ty.clone(),
     }
+}
+
+/// Validates the key argument of `Map<K, V>.insert/get/contains` against the
+/// receiver's key type. Before v1.5.0 the checker accepted any key, so e.g.
+/// `m.insert(1, 10)` on a `Map<Str, Int>` reached the C runtime and was
+/// reinterpreted as a `char*` (segfault). A clear compile-time error is the
+/// only sound answer: the runtime key layouts are not interchangeable.
+pub(crate) fn check_map_key_arg(
+    diag: &mut DiagnosticEngine,
+    member: &str,
+    key_ty: &DataraType,
+    arg_types: &[DataraType],
+    span: &SourceSpan,
+    resolver: &crate::resolver::Resolver,
+) {
+    let Some(arg) = arg_types.first() else {
+        return;
+    };
+    if arg.is_compatible_with_args(key_ty, Some(resolver)) {
+        return;
+    }
+    let help = match (key_ty, arg) {
+        (DataraType::String, DataraType::Int) => {
+            "convert the key with int_to_str(...) before inserting/looking it up".to_string()
+        }
+        (DataraType::Int, DataraType::String) => {
+            "convert the key with text_parse_int(...) / str_to_int(...) (an Outcome — use `or`)"
+                .to_string()
+        }
+        _ => format!("this map is keyed by '{}'", key_ty),
+    };
+    diag.error_with_help(
+        ErrorCode::TypeMismatch,
+        format!(
+            "map.{} key type mismatch: expected '{}', got '{}'",
+            member, key_ty, arg
+        ),
+        Some(span.clone()),
+        Some(help),
+    );
 }
 
 pub(crate) fn is_comptime_constant(expr: &Expr, resolver: &crate::resolver::Resolver) -> bool {
@@ -138,4 +231,94 @@ pub(crate) fn is_comptime_constant(expr: &Expr, resolver: &crate::resolver::Reso
         }
         _ => false,
     }
+}
+
+/// Trait-bound satisfaction for the concrete types a generic call bound
+/// (moved out of call.rs for the 60 KB release size gate). Walks impls and
+/// composition/base-class closure; a TypeParam bound through the CALLER's
+/// own bounds passes through.
+pub(crate) fn check_generic_trait_bounds(
+    tc: &super::super::TypeChecker,
+    fn_name: &str,
+    type_bindings: &HashMap<String, DataraType>,
+    span: &SourceSpan,
+    diag: &mut DiagnosticEngine,
+) {
+    for (param_name, concrete_ty) in type_bindings {
+        let bounds = tc
+            .trait_bounds
+            .get(&format!("{}:{}", fn_name, param_name))
+            .or_else(|| tc.trait_bounds.get(param_name));
+        if let Some(trait_names) = bounds {
+            for tr_name in trait_names {
+                let type_str = match concrete_ty {
+                    DataraType::Class(c) => c.clone(),
+                                DataraType::Int => "Int".to_string(),
+                                DataraType::Float => "Float".to_string(),
+                                DataraType::String => "String".to_string(),
+                                DataraType::Bool => "Bool".to_string(),
+                                DataraType::Unit => "Unit".to_string(),
+                                DataraType::GenericInstance { name, .. } => name.clone(),
+                    other => other.to_string(),
+    };
+                let mut satisfied = tc
+                    .impls
+                    .contains_key(&(tr_name.clone(), type_str.clone()));
+                if !satisfied {
+                    if let DataraType::TypeParam(p) = concrete_ty {
+                        let caller_bounds = tc
+                            .current_fn_name
+                            .as_ref()
+                            .and_then(|fn_n| {
+                                tc.trait_bounds.get(&format!("{}:{}", fn_n, p))
+                })
+                            .or_else(|| tc.trait_bounds.get(p));
+                        if let Some(tb) = caller_bounds {
+                            if tb.contains(tr_name) {
+                                satisfied = true;
+                }
+                        }
+                    }
+                            }
+                            if !satisfied {
+                    let mut queue = vec![type_str.clone()];
+                    let mut visited = HashSet::new();
+                    while let Some(cls_name) = queue.pop() {
+                        if !visited.insert(cls_name.clone()) {
+                            continue;
+                        }
+                        if tc
+                            .impls
+                            .contains_key(&(tr_name.clone(), cls_name.clone()))
+                        {
+                            satisfied = true;
+                            break;
+                                    }
+                        if let Some(cls_sym) = tc.resolver.classes.get(&cls_name) {
+                            if cls_sym.compositions.iter().any(|comp| comp == tr_name) {
+                                            satisfied = true;
+                                            break;
+                                        }
+                            for comp in &cls_sym.compositions {
+                                queue.push(comp.clone());
+                                        }
+                            if let Some(base) = &cls_sym.base_type {
+                                queue.push(base.clone());
+                                        }
+                                    }
+                                }
+                            }
+                            if !satisfied {
+                    diag.error(
+                        ErrorCode::TypeMismatch,
+                        format!(
+                            "Type '{}' does not satisfy trait bound '{}' for parameter '{}' in function '{}'",
+                            concrete_ty, tr_name, param_name, fn_name
+                        ),
+                        Some(span.clone()),
+                    );
+                            }
+                        }
+                    }
+                }
 }

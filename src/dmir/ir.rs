@@ -818,6 +818,13 @@ pub struct Module {
     /// llvm/mod.rs reads the same set for its allocation path.
     #[serde(default)]
     pub arc_classes: HashSet<String>,
+    /// M6.2 auto-region: Layer-1 (dataflow) classes that participate in a
+    /// strong ownership cycle (`A.peer: B` + `B.peer: A`, or a self-loop
+    /// through a container edge like `next: List<Node>`). Their objects get
+    /// region semantics: no Layer 1 release, in-frame allocation reclaims
+    /// with the frame. See `tmm::cyclic_dataflow_classes`.
+    #[serde(default)]
+    pub cyclic_classes: HashSet<String>,
 }
 
 /// v1.4.5 W1: maps a DMIR type-repr string to its byte size for packed
@@ -921,6 +928,7 @@ impl Module {
             endian_classes: HashMap::new(),
             component_classes: HashSet::new(),
             arc_classes: HashSet::new(),
+            cyclic_classes: HashSet::new(),
         }
     }
 }

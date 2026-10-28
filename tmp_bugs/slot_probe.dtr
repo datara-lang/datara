@@ -1,0 +1,25 @@
+struct Inner { a: Int }
+struct Outer { count: Int, inner: Inner }
+fn make(n: Int) -> Outer {
+    val inn = Inner { a: 7 }
+    return Outer { count: n, inner: inn }
+}
+fn bump(o: Outer, x: Int) -> Outer {
+    return Outer { count: o.count + 1, inner: o.inner }
+}
+fn main() {
+    mut w = make(0)
+    mut frame = 0
+    mut ticks = 0
+    while frame < 5 {
+        mut k = 0
+        while k < 3 {
+            w = bump(w, frame)
+            ticks = ticks + 1
+            k = k + 1
+        }
+        frame = frame + 1
+    }
+    out int_to_str(ticks)
+    out int_to_str(w.count)
+}

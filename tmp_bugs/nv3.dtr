@@ -1,0 +1,10 @@
+fn noop(x: Int) {}
+fn main() {
+    val before = fiber_count()
+    fiber_spawn(noop, 1)
+    fiber_spawn(noop, 2)
+    val spawned = fiber_count() - before
+    fiber_run_until_done()
+    out int_to_str(spawned)
+    out int_to_str(fiber_done_count())
+}

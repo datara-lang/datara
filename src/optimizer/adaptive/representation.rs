@@ -48,9 +48,16 @@ impl RepresentationAdapter {
                         }
                         let is_collection_method = func.starts_with("datara_rt_list_")
                             || func.starts_with("datara_rt_map_");
+                        let is_release =
+                            func == "datara_rt_free" || func == "datara_rt_arc_release";
                         for (idx, a) in args.iter().enumerate() {
                             if is_collection_method && idx == 0 {
                                 // Object parameter in collection operations is queried, not leaked
+                                continue;
+                            }
+                            if is_release {
+                                // M6 TMM Layer 1: inserted last-use release calls are
+                                // the object's final consumer, not an escape.
                                 continue;
                             }
                             escaping_values.insert(*a);

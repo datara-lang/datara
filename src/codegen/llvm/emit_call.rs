@@ -358,6 +358,20 @@ impl<'a> LlvmEmitter<'a> {
                 converted_args.push(format!("i32 {}", tmp));
                 continue;
             }
+            // The runtime collection ABI is all-i64: Float payloads ride in
+            // their IEEE bit pattern. The LLVM emitter must bitcast f64
+            // arguments for list slots AND map slots (int- or str-keyed) —
+            // otherwise the call is emitted with a double argument against an
+            // i64 parameter and the bits are reinterpreted (or dropped).
+            let is_map_value_slot = aty == "double"
+                && ((actual_func == "datara_rt_map_insert"
+                    || actual_func == "datara_rt_map_insert_i64")
+                    && idx == 2);
+            // Every fixed-arity map literal constructor is named
+            // `datara_rt_map_create_<n>` / `datara_rt_map_create_i64_<n>` and
+            // takes its values in i64 slots.
+            let is_map_literal_ctor = aty == "double"
+                && actual_func.starts_with("datara_rt_map_create_");
             let is_list_slot_f64 = aty == "double"
                 && !is_set_f64
                 && (((actual_func == "datara_rt_list_append"
@@ -365,10 +379,11 @@ impl<'a> LlvmEmitter<'a> {
                     && idx == 1)
                     || (actual_func == "datara_rt_list_set" && idx == 2)
                     || (actual_func == "datara_rt_list_create_repeat" && idx == 0)
+                    || actual_func == "datara_rt_val_from_f64_bits"
                     || (actual_func.starts_with("datara_rt_list_create_")
                         && actual_func != "datara_rt_list_create_repeat"
                         && actual_func != "datara_rt_list_create_capacity"));
-            if is_list_slot_f64 {
+            if is_list_slot_f64 || is_map_value_slot || is_map_literal_ctor {
                 let tmp = format!("%bitcast_f64_i64_{}_{}", dest.0, a.0);
                 out.push_str(&format!("  {} = bitcast double %v{} to i64\n", tmp, a.0));
                 converted_args.push(format!("i64 {}", tmp));
@@ -409,6 +424,33 @@ impl<'a> LlvmEmitter<'a> {
                 "  %v{} = {} double @{}({})\n",
                 dest.0, call_prefix, callee, args_str
             ));
+        } else if actual_func == "datara_rt_map_get"
+            || actual_func == "datara_rt_map_get_i64"
+            || actual_func == "datara_rt_val_to_f64_bits_checked"
+        {
+            // The raw map accessor always returns the value word as i64.
+            // The lowering's element repr decides how that word is read: a
+            // Float payload must be bitcast, a Str/class payload is a pointer,
+            // and Int/Bool are already i64. Emitting `call double @...` here
+            // put the bits in rax while the caller read xmm0 (garbage/NaN).
+            let raw = format!("%v{}_mapraw", dest.0);
+            out.push_str(&format!(
+                "  {} = {} i64 @{}({})\n",
+                raw, call_prefix, actual_func, args_str
+            ));
+            if ret_ty == "double" {
+                out.push_str(&format!(
+                    "  %v{} = bitcast i64 {} to double\n",
+                    dest.0, raw
+                ));
+            } else if ret_ty == "ptr" {
+                out.push_str(&format!(
+                    "  %v{} = inttoptr i64 {} to ptr\n",
+                    dest.0, raw
+                ));
+            } else {
+                out.push_str(&format!("  %v{} = add i64 {}, 0\n", dest.0, raw));
+            }
         } else {
             out.push_str(&format!(
                 "  %v{} = {} {} @{}({})\n",

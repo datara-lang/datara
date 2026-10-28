@@ -1,0 +1,5 @@
+fn main() {
+    val m: Map<Str, Int> = {"a": 10, "b": 20}
+    out m.len()
+    out m.get("b") or -1
+}

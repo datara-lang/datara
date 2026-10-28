@@ -1,0 +1,5 @@
+=== M10 NatVar slice-1: 10k fibers spawn+drain (Windows 11 x64, n=9, cmd /c wall-time) ===
+Datara NatVar (LLVM --opt=speed): median 75.20 ms  min 74.96  max 80.99  out=10000
+Per-fiber cost: spawn + one-shot run + done accounting.
+tokio reference: NOT RUN — no tokio in this repo's env; honest comparison is a
+slice-2 item (PLAN_V150 M10 бенчмарки: echo 10k соединений — после IO-поллера).

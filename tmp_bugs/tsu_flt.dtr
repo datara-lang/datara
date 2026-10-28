@@ -1,0 +1,7 @@
+fn main() {
+    val xs = [9, 1.25]
+    out xs[0].to_str()
+    out xs[1].to_str()
+    out xs[1]
+    out xs[1].as_float() or -1.0
+}

@@ -1,0 +1,12 @@
+struct A { v: Int }
+
+fn mk() -> A {
+    val a = A { v: 42 }
+    return a
+}
+
+fn main() {
+    val a = mk()
+    out a.v
+    return
+}

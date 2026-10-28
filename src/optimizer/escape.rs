@@ -206,6 +206,12 @@ impl EscapeAnalyzer {
             for inst in &block.instructions {
                 match inst {
                     Inst::Call { func, args, .. } => {
+                        // M6 TMM Layer 1: inserted last-use release calls are
+                        // the object's FINAL consumer, not an escape. Counting
+                        // them would block SRA for every released object.
+                        if func == "datara_rt_free" || func == "datara_rt_arc_release" {
+                            continue;
+                        }
                         // Check if an allocation is passed to an external function
                         for arg in args {
                             if let Some(&root) = val_to_alloc_root.get(arg) {

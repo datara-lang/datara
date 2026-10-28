@@ -1,0 +1,11 @@
+use stdlib.result.result
+
+@arc
+struct P { n: Int }
+
+fn main() {
+    val p = P { n: 1 }
+    val w = weak_create(p)
+    val up = weak_upgrade(w)
+    out up.is_ok()
+}

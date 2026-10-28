@@ -1,0 +1,9 @@
+fn main() {
+    val r = Outcome.ok(5)
+    out r.is_ok()
+    if r.is_ok() {
+        out 100
+    } else {
+        out 200
+    }
+}

@@ -1,0 +1,8 @@
+mut n = 0
+fn touch() {
+    n = n + 1
+}
+fn main() {
+    touch()
+    out int_to_str(n)
+}

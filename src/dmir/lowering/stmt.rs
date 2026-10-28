@@ -5,6 +5,24 @@ use crate::types::DataraType;
 use super::Lowering;
 
 impl<'a> Lowering<'a> {
+    /// M5 TMM Layer 3: the @arc class a variable holds, if any. Mirrors
+    /// lookup_var_type but also resolves globals of user-class type —
+    /// global_vars stores the raw type string, which lookup_var_type
+    /// collapses to Int for classes.
+    pub(super) fn arc_class_of_var(&self, var_name: &str) -> Option<String> {
+        if let Some(DataraType::Class(c)) = self.lookup_var_type(var_name)
+            && self.arc_classes_lower.contains(&c)
+        {
+            return Some(c);
+        }
+        if let Some((ty_str, _)) = self.global_vars.get(var_name)
+            && self.arc_classes_lower.contains(ty_str)
+        {
+            return Some(ty_str.clone());
+        }
+        None
+    }
+
     pub fn lower_stmt_cfg(
         &mut self,
         stmt: &Stmt,
@@ -60,6 +78,29 @@ impl<'a> Lowering<'a> {
                         if elem_ty == DataraType::Float {
                             self.class_field_types.insert(name.clone(), "Float".into());
                         }
+                    } else if tn.name == "Map" {
+                        // Annotated maps keep BOTH type arguments: keying every
+                        // map as Map<Str, _> routed `Map<Int, Int>` inserts
+                        // through the string ABI (segfault). Only Str/Int keys
+                        // exist at runtime; the checker rejects the rest.
+                        let parse = |t: Option<&crate::ast::TypeNode>| match t {
+                            Some(tn) => match tn.name.as_str() {
+                                "Int" | "Int64" | "Int32" | "Int16" | "Int8" => {
+                                    DataraType::Int
+                                }
+                                "Float" | "Float64" | "f64" | "Float32" | "f32" => {
+                                    DataraType::Float
+                                }
+                                "Bool" => DataraType::Bool,
+                                "String" | "Str" => DataraType::String,
+                                other => DataraType::Class(other.to_string()),
+                            },
+                            None => DataraType::Int,
+                        };
+                        let k_ty = parse(tn.generic_args.first());
+                        let v_ty = parse(tn.generic_args.get(1));
+                        self.local_var_types
+                            .insert(name.clone(), DataraType::Map(Box::new(k_ty), Box::new(v_ty)));
                     } else if matches!(tn.name.as_str(), "Float" | "Float64" | "f64") {
                         self.local_var_types.insert(name.clone(), DataraType::Float);
                         self.class_field_types.insert(name.clone(), "Float".into());
@@ -123,22 +164,36 @@ impl<'a> Lowering<'a> {
                     self.local_var_types
                         .insert(name.clone(), DataraType::Class(class_name.clone()));
                 } else if let Expr::MapLiteral(entries, _) = init {
-                    let mut is_flt = false;
-                    for (_, v) in entries {
-                        if self.is_expr_float(v) {
-                            is_flt = true;
-                            break;
+                    // An explicit annotation wins; only infer for unannotated
+                    // literals. Key kind comes from the first key (Int or Str —
+                    // the checker rejects every other key type).
+                    if !self.local_var_types.contains_key(name) {
+                        let int_keys = entries
+                            .first()
+                            .map(|(k, _)| self.is_expr_int(k))
+                            .unwrap_or(false);
+                        let mut is_flt = false;
+                        for (_, v) in entries {
+                            if self.is_expr_float(v) {
+                                is_flt = true;
+                                break;
+                            }
                         }
+                        let val_ty = if is_flt {
+                            DataraType::Float
+                        } else {
+                            DataraType::Int
+                        };
+                        let key_ty = if int_keys {
+                            DataraType::Int
+                        } else {
+                            DataraType::String
+                        };
+                        self.local_var_types.insert(
+                            name.clone(),
+                            DataraType::Map(Box::new(key_ty), Box::new(val_ty)),
+                        );
                     }
-                    let val_ty = if is_flt {
-                        DataraType::Float
-                    } else {
-                        DataraType::Int
-                    };
-                    self.local_var_types.insert(
-                        name.clone(),
-                        DataraType::Map(Box::new(DataraType::String), Box::new(val_ty)),
-                    );
                 } else if let Expr::ListLiteral(elements, _) = init {
                     if !self.local_var_types.contains_key(name) {
                         // Element type must consider strings first: a list
@@ -146,21 +201,34 @@ impl<'a> Lowering<'a> {
                         // inline `parts[i]` read route to out_int as a raw
                         // pointer instead of the string value (E0944-class
                         // silent wrong data).
-                        let mut is_str = false;
-                        let mut is_flt = false;
+                        // M7 TSU: element kinds are computed per element; a
+                        // literal MIXING kinds (or containing a Val-typed
+                        // element) records List(Val) so indexing and `is`
+                        // checks route to the NaN-box dynamic path.
+                        let mut saw_int = false;
+                        let mut saw_flt = false;
+                        let mut saw_str = false;
+                        let mut saw_bool = false;
                         for e in elements {
                             if self.is_expr_str(e) {
-                                is_str = true;
-                                break;
-                            }
-                            if self.is_expr_float(e) {
-                                is_flt = true;
+                                saw_str = true;
+                            } else if self.is_expr_float(e) {
+                                saw_flt = true;
+                            } else if self.is_expr_bool(e) {
+                                saw_bool = true;
+                            } else if self.is_expr_int(e) {
+                                saw_int = true;
                             }
                         }
-                        let val_ty = if is_str {
+                        let kinds = saw_int as u32 + saw_flt as u32 + saw_str as u32 + saw_bool as u32;
+                        let val_ty = if kinds > 1 {
+                            DataraType::Val
+                        } else if saw_str {
                             DataraType::String
-                        } else if is_flt {
+                        } else if saw_flt {
                             DataraType::Float
+                        } else if saw_bool {
+                            DataraType::Bool
                         } else {
                             DataraType::Int
                         };
@@ -181,6 +249,17 @@ impl<'a> Lowering<'a> {
                 if let Expr::Lambda { params, body, .. } = init {
                     self.local_lambdas
                         .insert(name.clone(), (params.clone(), *body.clone()));
+                    // Record the statically inferred return type so a call to
+                    // this lambda dispatches correctly downstream (map/list
+                    // indexing, checked map.get interception). The value side
+                    // defaults to Int for untyped lambda params — same
+                    // historical default as Map.new() — and an explicit
+                    // annotation on the binding still wins.
+                    if let Some(ret) = self.infer_lambda_ret_type(body) {
+                        self.local_lambda_ret.insert(name.clone(), ret);
+                    } else {
+                        self.local_lambda_ret.remove(name.as_str());
+                    }
                     // By-value capture snapshot: record the free variables of
                     // the body with their CURRENT SSA values. Every inline
                     // call re-binds these names to the snapshot (with
@@ -190,14 +269,36 @@ impl<'a> Lowering<'a> {
                     let enclosing: std::collections::HashSet<String> =
                         self.symbol_values.keys().cloned().collect();
                     let captured = crate::ast::infer_captures(params, body, &enclosing, true);
-                    let snapshots: Vec<(String, ValueId)> = captured
-                        .iter()
-                        .filter_map(|c| {
-                            self.symbol_values
-                                .get(&c.name)
-                                .map(|v| (c.name.clone(), *v))
-                        })
-                        .collect();
+                    // M5 TMM Layer 3: a capture snapshot survives the
+                    // registering frame — it is re-bound at every inline
+                    // call, including calls made after the enclosing scope
+                    // is gone. When the captured variable holds an @arc
+                    // object the snapshot must share ownership, so a strong
+                    // reference is acquired for the snapshot itself (the
+                    // release of a superseded snapshot belongs to the
+                    // dataflow layer, M6). The Call keeps the CLASS repr so
+                    // GetField/method dispatch on the captured name inside
+                    // the body keeps resolving through the real layout.
+                    let mut snapshots: Vec<(String, ValueId)> = Vec::new();
+                    for c in &captured {
+                        if let Some(v) = self.symbol_values.get(&c.name).copied() {
+                            let snap_v = if let Some(class) = self.arc_class_of_var(&c.name) {
+                                let acq = self.next_val();
+                                self.get_block_mut(cur_block)
+                                    .instructions
+                                    .push(Inst::Call {
+                                        dest: acq,
+                                        func: "datara_rt_arc_acquire".into(),
+                                        args: vec![v],
+                                        ty: class,
+                                    });
+                                acq
+                            } else {
+                                v
+                            };
+                            snapshots.push((c.name.clone(), snap_v));
+                        }
+                    }
                     if !snapshots.is_empty() {
                         self.lambda_captures.insert(name.clone(), snapshots);
                     }
@@ -407,13 +508,115 @@ impl<'a> Lowering<'a> {
             }
             Stmt::Out(e, _) => self.lower_out_stmt(e, cur_block),
             Stmt::Err(e, _) => self.lower_err_stmt(e, cur_block),
-
             Stmt::Return(opt_e, _) => {
-                let val = if let Some(e) = opt_e {
+                // `return x?` in a Result/Option-returning function: the
+                // propagate-lowering's error path already returns the failed
+                // object, and its success path yields the payload — which
+                // must be re-wrapped in the enclosing constructor
+                // (semantics: `let v = x?; return Outcome.ok(v)`). Without
+                // the wrap the function would return the bare payload in an
+                // Outcome-returning frame.
+                let wrap_ctor: Option<bool> = match opt_e {
+                    Some(Expr::ErrorPropagate(..)) => {
+                        let ret = self
+                            .function_return_types
+                            .get(self.current_fn_name.as_str())
+                            .cloned()
+                            .unwrap_or_default();
+                        if ret.starts_with("Outcome") || ret.starts_with("Result") {
+                            Some(true)
+                        } else if ret.starts_with("Maybe") || ret.starts_with("Option") {
+                            Some(false)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                };
+                let val = if let Some(is_outcome) = wrap_ctor {
+                    let payload = match self.lower_expr(opt_e.as_ref().unwrap(), &mut cur_block) {
+                        Some(p) => p,
+                        None => ValueId(0),
+                    };
+                    let dest = self.next_val();
+                    let flag = self.next_val();
+                    self.get_block_mut(cur_block)
+                        .instructions
+                        .push(Inst::ConstBool { dest: flag, value: true });
+                    if is_outcome {
+                        let empty = self.next_val();
+                        self.get_block_mut(cur_block)
+                            .instructions
+                            .push(Inst::ConstStr {
+                                dest: empty,
+                                value: String::new(),
+                            });
+                        self.get_block_mut(cur_block)
+                            .instructions
+                            .push(Inst::StructInit {
+                                dest,
+                                class_name: "Outcome".into(),
+                                fields: vec![
+                                    ("is_success".into(), flag),
+                                    ("value".into(), payload),
+                                    ("error_msg".into(), empty),
+                                ],
+                            });
+                    } else {
+                        self.get_block_mut(cur_block)
+                            .instructions
+                            .push(Inst::StructInit {
+                                dest,
+                                class_name: "Maybe".into(),
+                                fields: vec![("is_some".into(), flag), ("value".into(), payload)],
+                            });
+                    }
+                    Some(dest)
+                } else if let Some(e) = opt_e {
                     self.lower_expr(e, &mut cur_block)
                 } else {
                     None
                 };
+                // Inline-return frame: a `return e` inside a lambda body that
+                // is being lowered IN PLACE must exit the inlined body with
+                // value e, not return from the enclosing function (the old
+                // behavior silently killed the rest of the caller — e.g. a
+                // block-bodied lambda with `if { return x }` returned from
+                // `main` mid-body). Store the value in the frame's synthetic
+                // slot and branch to the frame's join block; the inline call
+                // site loads the slot there as the lambda-call result.
+                if let Some(frame) = self.inline_ret_frames.last_mut() {
+                    frame.used = true;
+                }
+                let join = if let Some(frame) = self.inline_ret_frames.last() {
+                    frame.join
+                } else {
+                    None
+                };
+                if let Some(frame_idx) = self.inline_ret_frames.len().checked_sub(1) {
+                    let join = match join {
+                        Some(j) => j,
+                        None => {
+                            let j = self.create_block("inline_lam_join");
+                            self.inline_ret_frames[frame_idx].join = Some(j);
+                            j
+                        }
+                    };
+                    let slot = self.inline_ret_frames[frame_idx].ret_slot.clone();
+                    let b = self.get_block_mut(cur_block);
+                    if let Some(v) = val {
+                        b.instructions.push(Inst::AssignVar {
+                            name: slot,
+                            value: v,
+                        });
+                    }
+                    b.instructions.push(Inst::Return { value: None });
+                    b.terminator = Terminator::Branch {
+                        target: join,
+                        args: Vec::new(),
+                    };
+                    return (cur_block, None);
+                }
                 let b = self.get_block_mut(cur_block);
                 b.instructions.push(Inst::Return { value: val });
                 b.terminator = Terminator::Return { value: val };
@@ -425,6 +628,23 @@ impl<'a> Lowering<'a> {
                 else_branch,
                 ..
             } => {
+                // M7 TSU narrowing: `if x is T` re-binds x to the UNBOXED
+                // value for the whole then-branch (checked read — a tag
+                // mismatch panics instead of reinterpreting bits), restoring
+                // the dynamic binding afterwards. Only identifier operands
+                // narrow; index/call results re-evaluate per read.
+                let narrow = match condition {
+                    Expr::IsCheck { operand, ty_name, .. } => {
+                        match (&**operand, ty_name.as_str()) {
+                            (Expr::Identifier(v, _), "Int") => Some((v.clone(), "datara_rt_val_to_int_checked", "Int".to_string())),
+                            (Expr::Identifier(v, _), "Float") => Some((v.clone(), "datara_rt_val_to_float_checked", "Float".to_string())),
+                            (Expr::Identifier(v, _), "Str" | "String") => Some((v.clone(), "datara_val_to_str", "String".to_string())),
+                            (Expr::Identifier(v, _), "Bool") => Some((v.clone(), "datara_val_to_bool", "Bool".to_string())),
+                            _ => None,
+                        }
+                    }
+                    _ => None,
+                };
                 let cond_val = self
                     .lower_expr(condition, &mut cur_block)
                     .unwrap_or(ValueId(0));
@@ -440,7 +660,69 @@ impl<'a> Lowering<'a> {
                     else_args: Vec::new(),
                 };
 
+                // Narrow re-binding inside the then-block.
+                let narrow_shadow = narrow.map(|(var, func, ty)| {
+                    let raw = self
+                        .symbol_values
+                        .get(&var)
+                        .copied()
+                        .unwrap_or(ValueId(0));
+                    let unboxed = self.next_val();
+                    self.get_block_mut(then_id)
+                        .instructions
+                        .push(Inst::Call {
+                            dest: unboxed,
+                            func: func.into(),
+                            args: vec![raw],
+                            ty: ty.clone(),
+                        });
+                    let old_val = self.symbol_values.get(&var).copied();
+                    let old_ty = self.local_var_types.get(&var).cloned();
+                    self.symbol_values.insert(var.clone(), unboxed);
+                    self.local_var_types.insert(var.clone(), match ty.as_str() {
+                        "Float" => DataraType::Float,
+                        "Bool" => DataraType::Bool,
+                        "String" | "Str" => DataraType::String,
+                        _ => DataraType::Int,
+                    });
+                    self.get_block_mut(then_id)
+                        .instructions
+                        .push(Inst::AssignVar {
+                            name: var.clone(),
+                            value: unboxed,
+                        });
+                    (var, old_val, old_ty)
+                });
+
                 let (then_end, _) = self.lower_stmt_cfg(then_branch, then_id);
+                if let Some((var, old_val, old_ty)) = &narrow_shadow {
+                    let restore_val = *old_val;
+                    let restore_ty = old_ty.clone();
+                    let var = var.clone();
+                    match restore_val {
+                        Some(ov) => {
+                            self.symbol_values.insert(var.clone(), ov);
+                        }
+                        None => {
+                            self.symbol_values.remove(var.as_str());
+                        }
+                    }
+                    match restore_ty {
+                        Some(t) => {
+                            self.local_var_types.insert(var.clone(), t);
+                        }
+                        None => {
+                            self.local_var_types.remove(var.as_str());
+                        }
+                    }
+                    let b = self.get_block_mut(then_end);
+                    if let Some(ov) = restore_val {
+                        b.instructions.push(Inst::AssignVar {
+                            name: var,
+                            value: ov,
+                        });
+                    }
+                }
                 if matches!(
                     self.get_block_mut(then_end).terminator,
                     Terminator::Unreachable

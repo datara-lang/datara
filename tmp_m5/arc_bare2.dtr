@@ -1,0 +1,7 @@
+@arc
+struct Box { v: Int }
+
+fn main() {
+    val b = Box { v: 7 }
+    out b.arc_count()
+}

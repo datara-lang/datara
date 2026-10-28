@@ -123,16 +123,25 @@ impl ForgenCompiler {
         base_dirs
     }
 
-    /// Locate the stdlib directory: `<cwd>/stdlib` when running inside the
-    /// repository, or next to the compiler executable for installed builds.
+    /// Locate the stdlib directory: `<cwd>/stdlib` (or any ancestor's — v1.5.0
+    /// M4 repo-over-installed policy) when running inside the repository, or
+    /// next to the compiler executable for installed builds.
     fn find_stdlib_dir(&self) -> Option<PathBuf> {
         let mut candidates = Vec::new();
 
-        // 1. Current working directory (local repository/project stdlib has top priority)
+        // 1. Current working directory and its ancestors (local repository /
+        //    project stdlib has top priority). Walking ancestors matters for
+        //    sub-projects like `stdlib_tests/`: `forgen test` from inside the
+        //    sub-directory must resolve the repo stdlib it lives in, not the
+        //    stale installed copy in ProgramFiles/AppData.
         if let Ok(cwd) = std::env::current_dir() {
-            let local_stdlib = cwd.join("stdlib");
-            if local_stdlib.is_dir() {
-                candidates.push(local_stdlib);
+            let mut cur = Some(cwd);
+            while let Some(dir) = cur {
+                let local_stdlib = dir.join("stdlib");
+                if local_stdlib.is_dir() {
+                    candidates.push(local_stdlib);
+                }
+                cur = dir.parent().map(|p| p.to_path_buf());
             }
         }
 
@@ -883,7 +892,12 @@ impl ForgenCompiler {
                                 // accessors. get: v1.5.0 checked map lookup
                                 // (datara_rt_map_get_outcome) — same Outcome
                                 // object ABI, same auto-load requirement.
-                                matches!(member.as_str(), "pop" | "first" | "last" | "get")
+                                // as_int/as_float: M7 TSU checked val
+                                // conversions (datara_rt_val_as_*_outcome).
+                                matches!(
+                                    member.as_str(),
+                                    "pop" | "first" | "last" | "get" | "as_int" | "as_float"
+                                )
                             }
                             _ => false,
                         };
@@ -998,6 +1012,16 @@ impl ForgenCompiler {
             let already_imported = program.declarations.iter().any(|d| {
                 matches!(d, Decl::Use(u) if u.path.len() >= 2 && u.path[0] == "stdlib" && u.path[1] == "result")
             });
+            // M12: a root that IMPORTS stdlib.text pulls in text.dtr's body
+            // (text_is_float does `parse_float(s).is_ok()`), so the
+            // Outcome<object> class must be present even when the root's own
+            // AST never touches an Outcome — scan the imports too.
+            let imports_text = program.declarations.iter().any(|d| {
+                matches!(d, Decl::Use(u) if u.path.len() >= 2 && u.path[0] == "stdlib" && u.path[1] == "text")
+            }) || program.declarations.iter().any(|d| {
+                matches!(d, Decl::Use(u) if u.path.len() >= 3 && u.path[0] == "stdlib" && u.path[1] == "web")
+            });
+            let outcome_used = outcome_used || imports_text;
             if outcome_used && !already_imported {
                 if let Some(p) = self.stdlib_module_path(
                     &UseDecl {

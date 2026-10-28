@@ -1,0 +1,21 @@
+// M6.2 probe: TRUE two-class ownership cycle A -> B -> A built via
+// field-assignment mutation (SetField). Fields omitted in the literal.
+struct A {
+    v: Int
+    peer: B
+}
+
+struct B {
+    v: Int
+    peer: A
+}
+
+fn main() {
+    mut a = A { v: 1 }
+    mut b = B { v: 2 }
+    a.peer = b
+    b.peer = a
+    out a.v
+    out a.peer.v
+    out a.peer.peer.v
+}

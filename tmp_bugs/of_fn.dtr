@@ -1,0 +1,7 @@
+fn f(s: Str) -> Bool {
+    val r = str_to_float_checked(s)
+    return r.is_ok()
+}
+fn main() {
+    out f("1.5")
+}

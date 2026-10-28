@@ -1,0 +1,23 @@
+struct Inner { a: Int }
+struct Outer { count: Int, inner: Inner }
+fn make(n: Int) -> Outer {
+    val inn = Inner { a: 7 }
+    return Outer { count: n, inner: inn }
+}
+fn get_count(o: Outer) -> Int {
+    return o.count
+}
+fn sum_loop(o: Outer) -> Int {
+    mut i = 0
+    mut s = 0
+    while i < o.count {
+        s = s + i
+        i = i + 1
+    }
+    return s
+}
+fn main() {
+    val w = make(16)
+    out int_to_str(w.count)
+    out int_to_str(sum_loop(w))
+}

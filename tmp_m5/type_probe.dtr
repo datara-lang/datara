@@ -1,0 +1,6 @@
+use stdlib.result.result
+
+fn main() {
+    val r = Outcome.ok(5)
+    out r.is_ok()
+}

@@ -1,0 +1,6 @@
+use stdlib.collections.iter as iter
+fn main() {
+    val doubled = iter_map([1,2,3], x => x * 2)
+    out doubled[0]
+    out doubled[2]
+}

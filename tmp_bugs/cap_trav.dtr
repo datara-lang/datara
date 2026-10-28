@@ -1,0 +1,5 @@
+fn main() {
+    val p = "../../../x.txt"
+    val content = fs_read(p)
+    out content
+}

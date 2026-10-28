@@ -1,0 +1,2975 @@
+{
+  "arc_classes": [],
+  "class_field_types": {
+    "EcsWorld.count": "Int",
+    "EcsWorld.transforms": "TransformStore",
+    "EcsWorld.velocities": "VelocityStore",
+    "TransformStore.xs": "List<Float>",
+    "TransformStore.ys": "List<Float>",
+    "VelocityStore.vxs": "List<Float>",
+    "VelocityStore.vys": "List<Float>",
+    "accumulator": "Float",
+    "count": "Int",
+    "dt": "Float",
+    "fixed_dt": "Float",
+    "fixed_dt_sec": "Float",
+    "new_xs": "Float",
+    "new_ys": "Float",
+    "transforms": "TransformStore",
+    "velocities": "VelocityStore",
+    "vxs": "Float",
+    "vys": "Float",
+    "xs": "Float",
+    "ys": "Float"
+  },
+  "class_fields": {
+    "Channel": [],
+    "EcsWorld": [
+      "count",
+      "transforms",
+      "velocities"
+    ],
+    "SliceView": [],
+    "StrBuf": [],
+    "ThreadHandle": [],
+    "TransformStore": [
+      "xs",
+      "ys"
+    ],
+    "VelocityStore": [
+      "vxs",
+      "vys"
+    ],
+    "VolatilePtr": []
+  },
+  "component_classes": [],
+  "cyclic_classes": [],
+  "endian_classes": {},
+  "extern_functions": {},
+  "extern_sret": {},
+  "extern_sysv": {},
+  "function_line_spans": {
+    "compute_world_checksum": [
+      {
+        "end_col": 2,
+        "end_line": 80,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 51,
+        "start_line": 65
+      },
+      {
+        "end_col": 26,
+        "end_line": 66,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 66
+      },
+      {
+        "end_col": 14,
+        "end_line": 67,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 67
+      },
+      {
+        "end_col": 6,
+        "end_line": 78,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 68
+      },
+      {
+        "end_col": 6,
+        "end_line": 78,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 27,
+        "start_line": 68
+      },
+      {
+        "end_col": 40,
+        "end_line": 69,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 69
+      },
+      {
+        "end_col": 40,
+        "end_line": 70,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 70
+      },
+      {
+        "end_col": 67,
+        "end_line": 71,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 71
+      },
+      {
+        "end_col": 67,
+        "end_line": 72,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 72
+      },
+      {
+        "end_col": 50,
+        "end_line": 73,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 73
+      },
+      {
+        "end_col": 49,
+        "end_line": 74,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 74
+      },
+      {
+        "end_col": 45,
+        "end_line": 75,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 75
+      },
+      {
+        "end_col": 53,
+        "end_line": 76,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 76
+      },
+      {
+        "end_col": 18,
+        "end_line": 77,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 77
+      },
+      {
+        "end_col": 20,
+        "end_line": 79,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 79
+      }
+    ],
+    "create_world": [
+      {
+        "end_col": 2,
+        "end_line": 39,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 37,
+        "start_line": 20
+      },
+      {
+        "end_col": 29,
+        "end_line": 21,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 21
+      },
+      {
+        "end_col": 29,
+        "end_line": 22,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 22
+      },
+      {
+        "end_col": 30,
+        "end_line": 23,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 23
+      },
+      {
+        "end_col": 30,
+        "end_line": 24,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 24
+      },
+      {
+        "end_col": 14,
+        "end_line": 26,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 26
+      },
+      {
+        "end_col": 6,
+        "end_line": 34,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 27
+      },
+      {
+        "end_col": 6,
+        "end_line": 34,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 17,
+        "start_line": 27
+      },
+      {
+        "end_col": 45,
+        "end_line": 28,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 28
+      },
+      {
+        "end_col": 28,
+        "end_line": 29,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 29
+      },
+      {
+        "end_col": 29,
+        "end_line": 30,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 30
+      },
+      {
+        "end_col": 38,
+        "end_line": 31,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 31
+      },
+      {
+        "end_col": 41,
+        "end_line": 32,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 32
+      },
+      {
+        "end_col": 18,
+        "end_line": 33,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 33
+      },
+      {
+        "end_col": 46,
+        "end_line": 36,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 36
+      },
+      {
+        "end_col": 49,
+        "end_line": 37,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 37
+      },
+      {
+        "end_col": 63,
+        "end_line": 38,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 38
+      }
+    ],
+    "main": [
+      {
+        "end_col": 2,
+        "end_line": 116,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 11,
+        "start_line": 82
+      },
+      {
+        "end_col": 46,
+        "end_line": 84,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 84
+      },
+      {
+        "end_col": 44,
+        "end_line": 85,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 85
+      },
+      {
+        "end_col": 36,
+        "end_line": 88,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 88
+      },
+      {
+        "end_col": 42,
+        "end_line": 89,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 89
+      },
+      {
+        "end_col": 29,
+        "end_line": 90,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 90
+      },
+      {
+        "end_col": 33,
+        "end_line": 92,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 92
+      },
+      {
+        "end_col": 33,
+        "end_line": 93,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 93
+      },
+      {
+        "end_col": 33,
+        "end_line": 94,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 94
+      },
+      {
+        "end_col": 23,
+        "end_line": 97,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 97
+      },
+      {
+        "end_col": 6,
+        "end_line": 110,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 98
+      },
+      {
+        "end_col": 6,
+        "end_line": 110,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 35,
+        "start_line": 98
+      },
+      {
+        "end_col": 72,
+        "end_line": 100,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 100
+      },
+      {
+        "end_col": 45,
+        "end_line": 101,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 101
+      },
+      {
+        "end_col": 10,
+        "end_line": 108,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 104
+      },
+      {
+        "end_col": 10,
+        "end_line": 108,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 39,
+        "start_line": 104
+      },
+      {
+        "end_col": 54,
+        "end_line": 105,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 13,
+        "start_line": 105
+      },
+      {
+        "end_col": 49,
+        "end_line": 106,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 13,
+        "start_line": 106
+      },
+      {
+        "end_col": 50,
+        "end_line": 107,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 13,
+        "start_line": 107
+      },
+      {
+        "end_col": 26,
+        "end_line": 109,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 109
+      },
+      {
+        "end_col": 35,
+        "end_line": 112,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 112
+      },
+      {
+        "end_col": 49,
+        "end_line": 113,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 113
+      },
+      {
+        "end_col": 110,
+        "end_line": 114,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 114
+      },
+      {
+        "end_col": 31,
+        "end_line": 115,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 115
+      }
+    ],
+    "physics_step": [
+      {
+        "end_col": 2,
+        "end_line": 63,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 57,
+        "start_line": 41
+      },
+      {
+        "end_col": 33,
+        "end_line": 42,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 42
+      },
+      {
+        "end_col": 33,
+        "end_line": 43,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 43
+      },
+      {
+        "end_col": 14,
+        "end_line": 45,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 45
+      },
+      {
+        "end_col": 6,
+        "end_line": 55,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 46
+      },
+      {
+        "end_col": 6,
+        "end_line": 55,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 27,
+        "start_line": 46
+      },
+      {
+        "end_col": 40,
+        "end_line": 47,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 47
+      },
+      {
+        "end_col": 40,
+        "end_line": 48,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 48
+      },
+      {
+        "end_col": 41,
+        "end_line": 49,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 49
+      },
+      {
+        "end_col": 41,
+        "end_line": 50,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 50
+      },
+      {
+        "end_col": 36,
+        "end_line": 52,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 52
+      },
+      {
+        "end_col": 36,
+        "end_line": 53,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 53
+      },
+      {
+        "end_col": 18,
+        "end_line": 54,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 9,
+        "start_line": 54
+      },
+      {
+        "end_col": 54,
+        "end_line": 57,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 57
+      },
+      {
+        "end_col": 6,
+        "end_line": 62,
+        "file": "examples/showcase/game_loop/main.dtr",
+        "start_col": 5,
+        "start_line": 58
+      }
+    ]
+  },
+  "function_spans": {
+    "compute_world_checksum": {
+      "end_col": 2,
+      "end_line": 80,
+      "file": "examples/showcase/game_loop/main.dtr",
+      "start_col": 1,
+      "start_line": 65
+    },
+    "create_world": {
+      "end_col": 2,
+      "end_line": 39,
+      "file": "examples/showcase/game_loop/main.dtr",
+      "start_col": 1,
+      "start_line": 20
+    },
+    "main": {
+      "end_col": 2,
+      "end_line": 116,
+      "file": "examples/showcase/game_loop/main.dtr",
+      "start_col": 1,
+      "start_line": 82
+    },
+    "physics_step": {
+      "end_col": 2,
+      "end_line": 63,
+      "file": "examples/showcase/game_loop/main.dtr",
+      "start_col": 1,
+      "start_line": 41
+    }
+  },
+  "functions": {
+    "compute_world_checksum": {
+      "alloc_hint": "None",
+      "blocks": [
+        {
+          "id": 0,
+          "instructions": [
+            {
+              "ConstInt": {
+                "dest": 1,
+                "value": 0
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "checksum",
+                "value": 1
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 2,
+                "value": 0
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "i",
+                "value": 2
+              }
+            }
+          ],
+          "label": "entry_0",
+          "params": [],
+          "terminator": {
+            "Branch": {
+              "args": [],
+              "target": 1
+            }
+          }
+        },
+        {
+          "id": 1,
+          "instructions": [
+            {
+              "LoadVar": {
+                "dest": 3,
+                "name": "i"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 4,
+                "name": "world"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 5,
+                "field": "count",
+                "object": 4,
+                "ty": "Int"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 6,
+                "left": 3,
+                "op": "<",
+                "right": 5,
+                "ty": "Int"
+              }
+            }
+          ],
+          "label": "while_header_1",
+          "params": [],
+          "terminator": {
+            "CondBranch": {
+              "cond": 6,
+              "else_args": [],
+              "else_block": 3,
+              "then_args": [],
+              "then_block": 2
+            }
+          }
+        },
+        {
+          "id": 2,
+          "instructions": [
+            {
+              "LoadVar": {
+                "dest": 7,
+                "name": "world"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 8,
+                "field": "transforms",
+                "object": 7,
+                "ty": "TransformStore"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 9,
+                "field": "xs",
+                "object": 8,
+                "ty": "List"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 10,
+                "name": "i"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  9,
+                  10
+                ],
+                "dest": 11,
+                "func": "datara_rt_list_get",
+                "ty": "Float"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "px",
+                "value": 11
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 12,
+                "name": "world"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 13,
+                "field": "transforms",
+                "object": 12,
+                "ty": "TransformStore"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 14,
+                "field": "ys",
+                "object": 13,
+                "ty": "List"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 15,
+                "name": "i"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  14,
+                  15
+                ],
+                "dest": 16,
+                "func": "datara_rt_list_get",
+                "ty": "Float"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "py",
+                "value": 16
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 17,
+                "name": "px"
+              }
+            },
+            {
+              "ConstFloat": {
+                "dest": 18,
+                "value": 1000.0
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 19,
+                "left": 17,
+                "op": "*",
+                "right": 18,
+                "ty": "Float"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  19
+                ],
+                "dest": 20,
+                "func": "math_floor",
+                "ty": "Float"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  20
+                ],
+                "dest": 21,
+                "func": "float_to_str",
+                "ty": "String"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  21
+                ],
+                "dest": 22,
+                "func": "str_to_int",
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "ix",
+                "value": 22
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 23,
+                "name": "py"
+              }
+            },
+            {
+              "ConstFloat": {
+                "dest": 24,
+                "value": 1000.0
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 25,
+                "left": 23,
+                "op": "*",
+                "right": 24,
+                "ty": "Float"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  25
+                ],
+                "dest": 26,
+                "func": "math_floor",
+                "ty": "Float"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  26
+                ],
+                "dest": 27,
+                "func": "float_to_str",
+                "ty": "String"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  27
+                ],
+                "dest": 28,
+                "func": "str_to_int",
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "iy",
+                "value": 28
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 29,
+                "name": "ix"
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 30,
+                "value": 31
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 31,
+                "left": 29,
+                "op": "*",
+                "right": 30,
+                "ty": "Int"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 32,
+                "name": "iy"
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 33,
+                "value": 17
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 34,
+                "left": 32,
+                "op": "*",
+                "right": 33,
+                "ty": "Int"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  31,
+                  34
+                ],
+                "dest": 35,
+                "func": "math_xor",
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "combined",
+                "value": 35
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 36,
+                "name": "checksum"
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 37,
+                "value": 100000000
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 38,
+                "left": 36,
+                "op": "%",
+                "right": 37,
+                "ty": "Int"
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 39,
+                "value": 31
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 40,
+                "left": 38,
+                "op": "*",
+                "right": 39,
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "c_part",
+                "value": 40
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 41,
+                "name": "combined"
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 42,
+                "value": 100000000
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 43,
+                "left": 41,
+                "op": "%",
+                "right": 42,
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "comb_part",
+                "value": 43
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 44,
+                "name": "c_part"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 45,
+                "name": "comb_part"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 46,
+                "left": 44,
+                "op": "+",
+                "right": 45,
+                "ty": "Int"
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 47,
+                "value": 1000000007
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 48,
+                "left": 46,
+                "op": "%",
+                "right": 47,
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "checksum",
+                "value": 48
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 49,
+                "name": "i"
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 50,
+                "value": 1
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 51,
+                "left": 49,
+                "op": "+",
+                "right": 50,
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "i",
+                "value": 51
+              }
+            }
+          ],
+          "label": "while_body_2",
+          "params": [],
+          "terminator": {
+            "Branch": {
+              "args": [],
+              "target": 1
+            }
+          }
+        },
+        {
+          "id": 3,
+          "instructions": [
+            {
+              "LoadVar": {
+                "dest": 52,
+                "name": "checksum"
+              }
+            },
+            {
+              "Return": {
+                "value": 52
+              }
+            }
+          ],
+          "label": "while_exit_3",
+          "params": [],
+          "terminator": {
+            "Return": {
+              "value": 52
+            }
+          }
+        }
+      ],
+      "entry_block": 0,
+      "has_inline_asm": false,
+      "inline_hint": "None",
+      "name": "compute_world_checksum",
+      "param_refinements": [
+        [
+          "world",
+          null
+        ]
+      ],
+      "params": [
+        [
+          "world",
+          "EcsWorld",
+          0
+        ]
+      ],
+      "proven_no_overflow": [],
+      "requires": [],
+      "return_type": "Int"
+    },
+    "create_world": {
+      "alloc_hint": "None",
+      "blocks": [
+        {
+          "id": 0,
+          "instructions": [
+            {
+              "ConstInt": {
+                "dest": 2,
+                "value": 0
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  2
+                ],
+                "dest": 1,
+                "func": "datara_rt_list_create",
+                "ty": "List"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "xs",
+                "value": 1
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 4,
+                "value": 0
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  4
+                ],
+                "dest": 3,
+                "func": "datara_rt_list_create",
+                "ty": "List"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "ys",
+                "value": 3
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 6,
+                "value": 0
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  6
+                ],
+                "dest": 5,
+                "func": "datara_rt_list_create",
+                "ty": "List"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "vxs",
+                "value": 5
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 8,
+                "value": 0
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  8
+                ],
+                "dest": 7,
+                "func": "datara_rt_list_create",
+                "ty": "List"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "vys",
+                "value": 7
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 9,
+                "value": 0
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "i",
+                "value": 9
+              }
+            }
+          ],
+          "label": "entry_0",
+          "params": [],
+          "terminator": {
+            "Branch": {
+              "args": [],
+              "target": 1
+            }
+          }
+        },
+        {
+          "id": 1,
+          "instructions": [
+            {
+              "LoadVar": {
+                "dest": 10,
+                "name": "i"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 11,
+                "name": "n"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 12,
+                "left": 10,
+                "op": "<",
+                "right": 11,
+                "ty": "Int"
+              }
+            }
+          ],
+          "label": "while_header_1",
+          "params": [],
+          "terminator": {
+            "CondBranch": {
+              "cond": 12,
+              "else_args": [],
+              "else_block": 3,
+              "then_args": [],
+              "then_block": 2
+            }
+          }
+        },
+        {
+          "id": 2,
+          "instructions": [
+            {
+              "LoadVar": {
+                "dest": 13,
+                "name": "i"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  13
+                ],
+                "dest": 14,
+                "func": "int_to_str",
+                "ty": "String"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  14
+                ],
+                "dest": 15,
+                "func": "datara_rt_str_to_float",
+                "ty": "Float"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "fi",
+                "value": 15
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 16,
+                "name": "xs"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 17,
+                "name": "fi"
+              }
+            },
+            {
+              "ConstFloat": {
+                "dest": 18,
+                "value": 2.0
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 19,
+                "left": 17,
+                "op": "*",
+                "right": 18,
+                "ty": "Float"
+              }
+            },
+            {
+              "MethodCall": {
+                "args": [
+                  19
+                ],
+                "dest": 20,
+                "method": "append",
+                "object": 16,
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "xs",
+                "value": 20
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 21,
+                "name": "ys"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 22,
+                "name": "fi"
+              }
+            },
+            {
+              "ConstFloat": {
+                "dest": 23,
+                "value": 1.5
+              }
+            },
+            {
+              "UnOp": {
+                "dest": 24,
+                "op": "-",
+                "operand": 23,
+                "ty": "Float"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 25,
+                "left": 22,
+                "op": "*",
+                "right": 24,
+                "ty": "Float"
+              }
+            },
+            {
+              "MethodCall": {
+                "args": [
+                  25
+                ],
+                "dest": 26,
+                "method": "append",
+                "object": 21,
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "ys",
+                "value": 26
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 27,
+                "name": "vxs"
+              }
+            },
+            {
+              "ConstFloat": {
+                "dest": 28,
+                "value": 0.5
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 29,
+                "name": "fi"
+              }
+            },
+            {
+              "ConstFloat": {
+                "dest": 30,
+                "value": 0.01
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 31,
+                "left": 29,
+                "op": "*",
+                "right": 30,
+                "ty": "Float"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 32,
+                "left": 28,
+                "op": "+",
+                "right": 31,
+                "ty": "Float"
+              }
+            },
+            {
+              "MethodCall": {
+                "args": [
+                  32
+                ],
+                "dest": 33,
+                "method": "append",
+                "object": 27,
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "vxs",
+                "value": 33
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 34,
+                "name": "vys"
+              }
+            },
+            {
+              "ConstFloat": {
+                "dest": 35,
+                "value": 0.25
+              }
+            },
+            {
+              "UnOp": {
+                "dest": 36,
+                "op": "-",
+                "operand": 35,
+                "ty": "Float"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 37,
+                "name": "fi"
+              }
+            },
+            {
+              "ConstFloat": {
+                "dest": 38,
+                "value": 0.005
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 39,
+                "left": 37,
+                "op": "*",
+                "right": 38,
+                "ty": "Float"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 40,
+                "left": 36,
+                "op": "+",
+                "right": 39,
+                "ty": "Float"
+              }
+            },
+            {
+              "MethodCall": {
+                "args": [
+                  40
+                ],
+                "dest": 41,
+                "method": "append",
+                "object": 34,
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "vys",
+                "value": 41
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 42,
+                "name": "i"
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 43,
+                "value": 1
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 44,
+                "left": 42,
+                "op": "+",
+                "right": 43,
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "i",
+                "value": 44
+              }
+            }
+          ],
+          "label": "while_body_2",
+          "params": [],
+          "terminator": {
+            "Branch": {
+              "args": [],
+              "target": 1
+            }
+          }
+        },
+        {
+          "id": 3,
+          "instructions": [
+            {
+              "LoadVar": {
+                "dest": 45,
+                "name": "xs"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 46,
+                "name": "ys"
+              }
+            },
+            {
+              "StructInit": {
+                "class_name": "TransformStore",
+                "dest": 47,
+                "fields": [
+                  [
+                    "xs",
+                    45
+                  ],
+                  [
+                    "ys",
+                    46
+                  ]
+                ]
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "t",
+                "value": 47
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 48,
+                "name": "vxs"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 49,
+                "name": "vys"
+              }
+            },
+            {
+              "StructInit": {
+                "class_name": "VelocityStore",
+                "dest": 50,
+                "fields": [
+                  [
+                    "vxs",
+                    48
+                  ],
+                  [
+                    "vys",
+                    49
+                  ]
+                ]
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "v",
+                "value": 50
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 51,
+                "name": "n"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 52,
+                "name": "t"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 53,
+                "name": "v"
+              }
+            },
+            {
+              "StructInit": {
+                "class_name": "EcsWorld",
+                "dest": 54,
+                "fields": [
+                  [
+                    "count",
+                    51
+                  ],
+                  [
+                    "transforms",
+                    52
+                  ],
+                  [
+                    "velocities",
+                    53
+                  ]
+                ]
+              }
+            },
+            {
+              "Return": {
+                "value": 54
+              }
+            }
+          ],
+          "label": "while_exit_3",
+          "params": [],
+          "terminator": {
+            "Return": {
+              "value": 54
+            }
+          }
+        }
+      ],
+      "entry_block": 0,
+      "has_inline_asm": false,
+      "inline_hint": "None",
+      "name": "create_world",
+      "param_refinements": [
+        [
+          "n",
+          null
+        ]
+      ],
+      "params": [
+        [
+          "n",
+          "Int",
+          0
+        ]
+      ],
+      "proven_no_overflow": [],
+      "requires": [],
+      "return_type": "EcsWorld"
+    },
+    "main": {
+      "alloc_hint": "None",
+      "blocks": [
+        {
+          "id": 0,
+          "instructions": [
+            {
+              "Call": {
+                "args": [],
+                "dest": 0,
+                "func": "datara_rt_time_precise_ms",
+                "ty": "Float"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "t_start",
+                "value": 0
+              }
+            },
+            {
+              "Call": {
+                "args": [],
+                "dest": 1,
+                "func": "datara_rt_time_delta_ms",
+                "ty": "Float"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "dt_init",
+                "value": 1
+              }
+            },
+            {
+              "ConstFloat": {
+                "dest": 2,
+                "value": 16.666667
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "fixed_dt",
+                "value": 2
+              }
+            },
+            {
+              "ConstFloat": {
+                "dest": 3,
+                "value": 0.016666667
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "fixed_dt_sec",
+                "value": 3
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 4,
+                "value": 60
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "max_frame_ticks",
+                "value": 4
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 5,
+                "value": 16
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  5
+                ],
+                "dest": 6,
+                "func": "create_world",
+                "ty": "EcsWorld"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "world",
+                "value": 6
+              }
+            },
+            {
+              "ConstFloat": {
+                "dest": 7,
+                "value": 0.0
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "accumulator",
+                "value": 7
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 8,
+                "value": 0
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "ticks_simulated",
+                "value": 8
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 9,
+                "value": 0
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "frame",
+                "value": 9
+              }
+            }
+          ],
+          "label": "entry_0",
+          "params": [],
+          "terminator": {
+            "Branch": {
+              "args": [],
+              "target": 1
+            }
+          }
+        },
+        {
+          "id": 1,
+          "instructions": [
+            {
+              "LoadVar": {
+                "dest": 10,
+                "name": "frame"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 11,
+                "name": "max_frame_ticks"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 12,
+                "left": 10,
+                "op": "<",
+                "right": 11,
+                "ty": "Int"
+              }
+            }
+          ],
+          "label": "while_header_1",
+          "params": [],
+          "terminator": {
+            "CondBranch": {
+              "cond": 12,
+              "else_args": [],
+              "else_block": 3,
+              "then_args": [],
+              "then_block": 2
+            }
+          }
+        },
+        {
+          "id": 2,
+          "instructions": [
+            {
+              "ConstFloat": {
+                "dest": 13,
+                "value": 16.0
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 14,
+                "name": "frame"
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 15,
+                "value": 5
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 16,
+                "left": 14,
+                "op": "%",
+                "right": 15,
+                "ty": "Int"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  16
+                ],
+                "dest": 17,
+                "func": "int_to_str",
+                "ty": "String"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  17
+                ],
+                "dest": 18,
+                "func": "datara_rt_str_to_float",
+                "ty": "Float"
+              }
+            },
+            {
+              "ConstFloat": {
+                "dest": 19,
+                "value": 3.5
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 20,
+                "left": 18,
+                "op": "*",
+                "right": 19,
+                "ty": "Float"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 21,
+                "left": 13,
+                "op": "+",
+                "right": 20,
+                "ty": "Float"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "frame_ms",
+                "value": 21
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 22,
+                "name": "accumulator"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 23,
+                "name": "frame_ms"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 24,
+                "left": 22,
+                "op": "+",
+                "right": 23,
+                "ty": "Float"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "accumulator",
+                "value": 24
+              }
+            }
+          ],
+          "label": "while_body_2",
+          "params": [],
+          "terminator": {
+            "Branch": {
+              "args": [],
+              "target": 4
+            }
+          }
+        },
+        {
+          "id": 3,
+          "instructions": [
+            {
+              "LoadVar": {
+                "dest": 40,
+                "name": "world"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 41,
+                "field": "count",
+                "object": 40,
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "entity_count",
+                "value": 41
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 42,
+                "name": "world"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  42
+                ],
+                "dest": 43,
+                "func": "compute_world_checksum",
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "checksum",
+                "value": 43
+              }
+            },
+            {
+              "ConstStr": {
+                "dest": 44,
+                "value": "GAME_LOOP_OK: frames="
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 45,
+                "name": "max_frame_ticks"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 46,
+                "left": 44,
+                "op": "+",
+                "right": 45,
+                "ty": "String"
+              }
+            },
+            {
+              "ConstStr": {
+                "dest": 47,
+                "value": " ticks="
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 48,
+                "left": 46,
+                "op": "+",
+                "right": 47,
+                "ty": "String"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 49,
+                "name": "ticks_simulated"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 50,
+                "left": 48,
+                "op": "+",
+                "right": 49,
+                "ty": "String"
+              }
+            },
+            {
+              "ConstStr": {
+                "dest": 51,
+                "value": " entities="
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 52,
+                "left": 50,
+                "op": "+",
+                "right": 51,
+                "ty": "String"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 53,
+                "name": "entity_count"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 54,
+                "left": 52,
+                "op": "+",
+                "right": 53,
+                "ty": "String"
+              }
+            },
+            {
+              "Out": {
+                "ty": "Str",
+                "value": 54
+              }
+            },
+            {
+              "ConstStr": {
+                "dest": 55,
+                "value": "CHECKSUM:"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 56,
+                "name": "checksum"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 57,
+                "left": 55,
+                "op": "+",
+                "right": 56,
+                "ty": "String"
+              }
+            },
+            {
+              "Out": {
+                "ty": "Str",
+                "value": 57
+              }
+            }
+          ],
+          "label": "while_exit_3",
+          "params": [],
+          "terminator": {
+            "Return": {
+              "value": null
+            }
+          }
+        },
+        {
+          "id": 4,
+          "instructions": [
+            {
+              "LoadVar": {
+                "dest": 25,
+                "name": "accumulator"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 26,
+                "name": "fixed_dt"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 27,
+                "left": 25,
+                "op": ">=",
+                "right": 26,
+                "ty": "Float"
+              }
+            }
+          ],
+          "label": "while_header_4",
+          "params": [],
+          "terminator": {
+            "CondBranch": {
+              "cond": 27,
+              "else_args": [],
+              "else_block": 6,
+              "then_args": [],
+              "then_block": 5
+            }
+          }
+        },
+        {
+          "id": 5,
+          "instructions": [
+            {
+              "LoadVar": {
+                "dest": 28,
+                "name": "world"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 29,
+                "name": "fixed_dt_sec"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  28,
+                  29
+                ],
+                "dest": 30,
+                "func": "physics_step",
+                "ty": "EcsWorld"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "world",
+                "value": 30
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  30
+                ],
+                "dest": 58,
+                "func": "datara_rt_free",
+                "ty": "RawPtr"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 31,
+                "name": "accumulator"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 32,
+                "name": "fixed_dt"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 33,
+                "left": 31,
+                "op": "-",
+                "right": 32,
+                "ty": "Float"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "accumulator",
+                "value": 33
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 34,
+                "name": "ticks_simulated"
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 35,
+                "value": 1
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 36,
+                "left": 34,
+                "op": "+",
+                "right": 35,
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "ticks_simulated",
+                "value": 36
+              }
+            }
+          ],
+          "label": "while_body_5",
+          "params": [],
+          "terminator": {
+            "Branch": {
+              "args": [],
+              "target": 4
+            }
+          }
+        },
+        {
+          "id": 6,
+          "instructions": [
+            {
+              "LoadVar": {
+                "dest": 37,
+                "name": "frame"
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 38,
+                "value": 1
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 39,
+                "left": 37,
+                "op": "+",
+                "right": 38,
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "frame",
+                "value": 39
+              }
+            }
+          ],
+          "label": "while_exit_6",
+          "params": [],
+          "terminator": {
+            "Branch": {
+              "args": [],
+              "target": 1
+            }
+          }
+        }
+      ],
+      "entry_block": 0,
+      "has_inline_asm": false,
+      "inline_hint": "None",
+      "name": "main",
+      "param_refinements": [],
+      "params": [],
+      "proven_no_overflow": [],
+      "requires": [],
+      "return_type": "Unit"
+    },
+    "physics_step": {
+      "alloc_hint": "None",
+      "blocks": [
+        {
+          "id": 0,
+          "instructions": [
+            {
+              "ConstInt": {
+                "dest": 3,
+                "value": 0
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  3
+                ],
+                "dest": 2,
+                "func": "datara_rt_list_create",
+                "ty": "List"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "new_xs",
+                "value": 2
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 5,
+                "value": 0
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  5
+                ],
+                "dest": 4,
+                "func": "datara_rt_list_create",
+                "ty": "List"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "new_ys",
+                "value": 4
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 6,
+                "value": 0
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "i",
+                "value": 6
+              }
+            }
+          ],
+          "label": "entry_0",
+          "params": [],
+          "terminator": {
+            "Branch": {
+              "args": [],
+              "target": 1
+            }
+          }
+        },
+        {
+          "id": 1,
+          "instructions": [
+            {
+              "LoadVar": {
+                "dest": 7,
+                "name": "i"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 8,
+                "name": "world"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 9,
+                "field": "count",
+                "object": 8,
+                "ty": "Int"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 10,
+                "left": 7,
+                "op": "<",
+                "right": 9,
+                "ty": "Int"
+              }
+            }
+          ],
+          "label": "while_header_1",
+          "params": [],
+          "terminator": {
+            "CondBranch": {
+              "cond": 10,
+              "else_args": [],
+              "else_block": 3,
+              "then_args": [],
+              "then_block": 2
+            }
+          }
+        },
+        {
+          "id": 2,
+          "instructions": [
+            {
+              "LoadVar": {
+                "dest": 11,
+                "name": "world"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 12,
+                "field": "transforms",
+                "object": 11,
+                "ty": "TransformStore"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 13,
+                "field": "xs",
+                "object": 12,
+                "ty": "List"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 14,
+                "name": "i"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  13,
+                  14
+                ],
+                "dest": 15,
+                "func": "datara_rt_list_get",
+                "ty": "Float"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "px",
+                "value": 15
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 16,
+                "name": "world"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 17,
+                "field": "transforms",
+                "object": 16,
+                "ty": "TransformStore"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 18,
+                "field": "ys",
+                "object": 17,
+                "ty": "List"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 19,
+                "name": "i"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  18,
+                  19
+                ],
+                "dest": 20,
+                "func": "datara_rt_list_get",
+                "ty": "Float"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "py",
+                "value": 20
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 21,
+                "name": "world"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 22,
+                "field": "velocities",
+                "object": 21,
+                "ty": "VelocityStore"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 23,
+                "field": "vxs",
+                "object": 22,
+                "ty": "List"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 24,
+                "name": "i"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  23,
+                  24
+                ],
+                "dest": 25,
+                "func": "datara_rt_list_get",
+                "ty": "Float"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "vx",
+                "value": 25
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 26,
+                "name": "world"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 27,
+                "field": "velocities",
+                "object": 26,
+                "ty": "VelocityStore"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 28,
+                "field": "vys",
+                "object": 27,
+                "ty": "List"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 29,
+                "name": "i"
+              }
+            },
+            {
+              "Call": {
+                "args": [
+                  28,
+                  29
+                ],
+                "dest": 30,
+                "func": "datara_rt_list_get",
+                "ty": "Float"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "vy",
+                "value": 30
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 31,
+                "name": "new_xs"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 32,
+                "name": "px"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 33,
+                "name": "vx"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 34,
+                "name": "dt"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 35,
+                "left": 33,
+                "op": "*",
+                "right": 34,
+                "ty": "Float"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 36,
+                "left": 32,
+                "op": "+",
+                "right": 35,
+                "ty": "Float"
+              }
+            },
+            {
+              "MethodCall": {
+                "args": [
+                  36
+                ],
+                "dest": 37,
+                "method": "append",
+                "object": 31,
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "new_xs",
+                "value": 37
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 38,
+                "name": "new_ys"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 39,
+                "name": "py"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 40,
+                "name": "vy"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 41,
+                "name": "dt"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 42,
+                "left": 40,
+                "op": "*",
+                "right": 41,
+                "ty": "Float"
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 43,
+                "left": 39,
+                "op": "+",
+                "right": 42,
+                "ty": "Float"
+              }
+            },
+            {
+              "MethodCall": {
+                "args": [
+                  43
+                ],
+                "dest": 44,
+                "method": "append",
+                "object": 38,
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "new_ys",
+                "value": 44
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 45,
+                "name": "i"
+              }
+            },
+            {
+              "ConstInt": {
+                "dest": 46,
+                "value": 1
+              }
+            },
+            {
+              "BinOp": {
+                "dest": 47,
+                "left": 45,
+                "op": "+",
+                "right": 46,
+                "ty": "Int"
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "i",
+                "value": 47
+              }
+            }
+          ],
+          "label": "while_body_2",
+          "params": [],
+          "terminator": {
+            "Branch": {
+              "args": [],
+              "target": 1
+            }
+          }
+        },
+        {
+          "id": 3,
+          "instructions": [
+            {
+              "LoadVar": {
+                "dest": 48,
+                "name": "new_xs"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 49,
+                "name": "new_ys"
+              }
+            },
+            {
+              "StructInit": {
+                "class_name": "TransformStore",
+                "dest": 50,
+                "fields": [
+                  [
+                    "xs",
+                    48
+                  ],
+                  [
+                    "ys",
+                    49
+                  ]
+                ]
+              }
+            },
+            {
+              "AssignVar": {
+                "name": "t",
+                "value": 50
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 51,
+                "name": "world"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 52,
+                "field": "count",
+                "object": 51,
+                "ty": "Int"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 53,
+                "name": "t"
+              }
+            },
+            {
+              "LoadVar": {
+                "dest": 54,
+                "name": "world"
+              }
+            },
+            {
+              "GetField": {
+                "dest": 55,
+                "field": "velocities",
+                "object": 54,
+                "ty": "VelocityStore"
+              }
+            },
+            {
+              "StructInit": {
+                "class_name": "EcsWorld",
+                "dest": 56,
+                "fields": [
+                  [
+                    "count",
+                    52
+                  ],
+                  [
+                    "transforms",
+                    53
+                  ],
+                  [
+                    "velocities",
+                    55
+                  ]
+                ]
+              }
+            },
+            {
+              "Return": {
+                "value": 56
+              }
+            }
+          ],
+          "label": "while_exit_3",
+          "params": [],
+          "terminator": {
+            "Return": {
+              "value": 56
+            }
+          }
+        }
+      ],
+      "entry_block": 0,
+      "has_inline_asm": false,
+      "inline_hint": "None",
+      "name": "physics_step",
+      "param_refinements": [
+        [
+          "world",
+          null
+        ],
+        [
+          "dt",
+          null
+        ]
+      ],
+      "params": [
+        [
+          "world",
+          "EcsWorld",
+          0
+        ],
+        [
+          "dt",
+          "Float",
+          1
+        ]
+      ],
+      "proven_no_overflow": [],
+      "requires": [],
+      "return_type": "EcsWorld"
+    }
+  },
+  "globals": {},
+  "link_libraries": [],
+  "name": "main",
+  "packed_classes": []
+}

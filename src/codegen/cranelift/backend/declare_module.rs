@@ -604,8 +604,13 @@ pub fn declare_module_symbols<M: ClifModule>(
     for gname in dmir_module.globals.keys() {
         let mut data_ctx = DataDescription::new();
         data_ctx.define_zeroinit(8);
+        // Prefixed data name: the cranelift-module namespace is shared with
+        // functions, and a global named like a runtime import (`log`, `exp`,
+        // `pow`...) collided with its declare_function — pre-existing
+        // IncompatibleDeclaration crash for Str globals.
+        let data_name = format!("datara_g_{}", gname);
         let data_id = module
-            .declare_data(gname, Linkage::Export, true, false)
+            .declare_data(&data_name, Linkage::Export, true, false)
             .map_err(|e| e.to_string())?;
         module
             .define_data(data_id, &data_ctx)

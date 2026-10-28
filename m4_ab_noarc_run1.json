@@ -1,0 +1,344 @@
+{
+  "seed": 42,
+  "forgen": "D:\\DATARA\\datara + forgen\\target\\release\\forgen.exe",
+  "platform": "Windows",
+  "machine": "AMD64",
+  "processor": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+  "python": "3.14.3",
+  "fns_per_module": 20,
+  "backend_verification_required": true,
+  "results": [
+    {
+      "source_lines": 10000,
+      "modules": 57,
+      "functions": 1140,
+      "check_seconds": 0.708,
+      "peak_rss_mb": 62.1,
+      "phases": {
+        "pipeline_total_ms": 164,
+        "parse_ms": 20,
+        "resolve_ms": 5,
+        "typecheck_ms": 5,
+        "merged_lint_elapsed_ms": 20,
+        "backend_verified": true
+      },
+      "debug_trace": [
+        "[phases] so-far total=164ms parse=20ms resolve=5ms typecheck=5ms",
+        "[phases2] effects done at 165ms",
+        "[phases2] ownership done at 283ms",
+        "[phases2] security done at 288ms",
+        "[phases2] lowering done at 325ms",
+        "[phases2] dmir ownership analyze done at 341ms",
+        "[phases2] optimizer done at 600ms",
+        "[phases2] pre-backend-verify at 600ms",
+        "[phases2] backend-verify done at 650ms",
+        "[phases2] dmir ownership + optimize + backend verify done at 670ms",
+        "[phases2] format_all done at 670ms (0 diagnostics)",
+        "[phases2] check_files returned at 672ms",
+        "[phases2] merged lint done at 20ms"
+      ],
+      "phase_timeline": [
+        {
+          "phase": "effects",
+          "elapsed_ms": 165,
+          "duration_ms": 1
+        },
+        {
+          "phase": "ownership",
+          "elapsed_ms": 283,
+          "duration_ms": 118
+        },
+        {
+          "phase": "security",
+          "elapsed_ms": 288,
+          "duration_ms": 5
+        },
+        {
+          "phase": "lowering",
+          "elapsed_ms": 325,
+          "duration_ms": 37
+        },
+        {
+          "phase": "dmir ownership analyze",
+          "elapsed_ms": 341,
+          "duration_ms": 16
+        },
+        {
+          "phase": "optimizer",
+          "elapsed_ms": 600,
+          "duration_ms": 259
+        },
+        {
+          "phase": "backend-verify",
+          "elapsed_ms": 650,
+          "duration_ms": 50
+        },
+        {
+          "phase": "dmir ownership + optimize + backend verify",
+          "elapsed_ms": 670,
+          "duration_ms": 20
+        },
+        {
+          "phase": "format_all",
+          "elapsed_ms": 670,
+          "duration_ms": 0
+        }
+      ],
+      "optimizer_timings": [
+        {
+          "pass": "inline",
+          "elapsed_ms": 4
+        },
+        {
+          "pass": "mem2reg",
+          "elapsed_ms": 25
+        },
+        {
+          "pass": "intraproc",
+          "elapsed_ms": 95
+        },
+        {
+          "pass": "ipo",
+          "elapsed_ms": 6
+        },
+        {
+          "pass": "tail_recursion",
+          "elapsed_ms": 3
+        },
+        {
+          "pass": "inline",
+          "elapsed_ms": 3
+        },
+        {
+          "pass": "mem2reg",
+          "elapsed_ms": 5
+        },
+        {
+          "pass": "intraproc",
+          "elapsed_ms": 31
+        },
+        {
+          "pass": "ipo",
+          "elapsed_ms": 7
+        },
+        {
+          "pass": "tail_recursion",
+          "elapsed_ms": 3
+        },
+        {
+          "pass": "inline",
+          "elapsed_ms": 4
+        },
+        {
+          "pass": "mem2reg",
+          "elapsed_ms": 6
+        },
+        {
+          "pass": "intraproc",
+          "elapsed_ms": 32
+        },
+        {
+          "pass": "ipo",
+          "elapsed_ms": 6
+        },
+        {
+          "pass": "tail_recursion",
+          "elapsed_ms": 3
+        },
+        {
+          "pass": "dead_symbol_elimination",
+          "elapsed_ms": 3
+        }
+      ],
+      "ownership_hotspots": [
+        {
+          "function": "fn_0000_000 (blocks=4)",
+          "elapsed_us": 155
+        },
+        {
+          "function": "fn_0056_006 (blocks=4)",
+          "elapsed_us": 70
+        },
+        {
+          "function": "fn_0029_001 (blocks=4)",
+          "elapsed_us": 52
+        },
+        {
+          "function": "fn_0026_019 (blocks=4)",
+          "elapsed_us": 51
+        },
+        {
+          "function": "fn_0001_016 (blocks=4)",
+          "elapsed_us": 45
+        }
+      ],
+      "check_summary": "[Forgen check] Verified 100% OK in 672ms (58 modules, 0 errors, 0 warnings, valid ownership & effects)"
+    },
+    {
+      "source_lines": 50000,
+      "modules": 287,
+      "functions": 5740,
+      "check_seconds": 6.322,
+      "peak_rss_mb": 279.5,
+      "phases": {
+        "pipeline_total_ms": 867,
+        "parse_ms": 90,
+        "resolve_ms": 29,
+        "typecheck_ms": 35,
+        "merged_lint_elapsed_ms": 142,
+        "backend_verified": true
+      },
+      "debug_trace": [
+        "[phases] so-far total=867ms parse=90ms resolve=29ms typecheck=35ms",
+        "[phases2] effects done at 888ms",
+        "[phases2] ownership done at 3969ms",
+        "[phases2] security done at 3992ms",
+        "[phases2] lowering done at 4189ms",
+        "[phases2] dmir ownership analyze done at 4273ms",
+        "[phases2] optimizer done at 5779ms",
+        "[phases2] pre-backend-verify at 5780ms",
+        "[phases2] backend-verify done at 6026ms",
+        "[phases2] dmir ownership + optimize + backend verify done at 6130ms",
+        "[phases2] format_all done at 6131ms (0 diagnostics)",
+        "[phases2] check_files returned at 6143ms",
+        "[phases2] merged lint done at 142ms"
+      ],
+      "phase_timeline": [
+        {
+          "phase": "effects",
+          "elapsed_ms": 888,
+          "duration_ms": 21
+        },
+        {
+          "phase": "ownership",
+          "elapsed_ms": 3969,
+          "duration_ms": 3081
+        },
+        {
+          "phase": "security",
+          "elapsed_ms": 3992,
+          "duration_ms": 23
+        },
+        {
+          "phase": "lowering",
+          "elapsed_ms": 4189,
+          "duration_ms": 197
+        },
+        {
+          "phase": "dmir ownership analyze",
+          "elapsed_ms": 4273,
+          "duration_ms": 84
+        },
+        {
+          "phase": "optimizer",
+          "elapsed_ms": 5779,
+          "duration_ms": 1506
+        },
+        {
+          "phase": "backend-verify",
+          "elapsed_ms": 6026,
+          "duration_ms": 247
+        },
+        {
+          "phase": "dmir ownership + optimize + backend verify",
+          "elapsed_ms": 6130,
+          "duration_ms": 104
+        },
+        {
+          "phase": "format_all",
+          "elapsed_ms": 6131,
+          "duration_ms": 1
+        }
+      ],
+      "optimizer_timings": [
+        {
+          "pass": "inline",
+          "elapsed_ms": 35
+        },
+        {
+          "pass": "mem2reg",
+          "elapsed_ms": 155
+        },
+        {
+          "pass": "intraproc",
+          "elapsed_ms": 495
+        },
+        {
+          "pass": "ipo",
+          "elapsed_ms": 41
+        },
+        {
+          "pass": "tail_recursion",
+          "elapsed_ms": 18
+        },
+        {
+          "pass": "inline",
+          "elapsed_ms": 24
+        },
+        {
+          "pass": "mem2reg",
+          "elapsed_ms": 33
+        },
+        {
+          "pass": "intraproc",
+          "elapsed_ms": 180
+        },
+        {
+          "pass": "ipo",
+          "elapsed_ms": 48
+        },
+        {
+          "pass": "tail_recursion",
+          "elapsed_ms": 21
+        },
+        {
+          "pass": "inline",
+          "elapsed_ms": 26
+        },
+        {
+          "pass": "mem2reg",
+          "elapsed_ms": 38
+        },
+        {
+          "pass": "intraproc",
+          "elapsed_ms": 179
+        },
+        {
+          "pass": "ipo",
+          "elapsed_ms": 50
+        },
+        {
+          "pass": "tail_recursion",
+          "elapsed_ms": 28
+        },
+        {
+          "pass": "dead_symbol_elimination",
+          "elapsed_ms": 28
+        }
+      ],
+      "ownership_hotspots": [
+        {
+          "function": "fn_0000_000 (blocks=4)",
+          "elapsed_us": 111
+        },
+        {
+          "function": "fn_0019_007 (blocks=4)",
+          "elapsed_us": 84
+        },
+        {
+          "function": "fn_0256_007 (blocks=4)",
+          "elapsed_us": 81
+        },
+        {
+          "function": "fn_0032_012 (blocks=4)",
+          "elapsed_us": 66
+        },
+        {
+          "function": "fn_0143_001 (blocks=4)",
+          "elapsed_us": 63
+        }
+      ],
+      "check_summary": "[Forgen check] Verified 100% OK in 6143ms (288 modules, 0 errors, 0 warnings, valid ownership & effects)"
+    }
+  ]
+}

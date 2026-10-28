@@ -1,0 +1,18 @@
+fn iter_fold2<T, A, F>(items: List<T>, init: A, f: F) -> A {
+    mut acc = init
+    mut i = 0
+    val n = items.len()
+    while i < n {
+        acc = f(acc, items.get(i))
+        i = i + 1
+    }
+    return acc
+}
+fn main() {
+    val joined = iter_fold2(["a", "bb"], "", (acc, w) => acc + w)
+    out joined
+    val t = iter_fold2([1, 2], 0, (acc, x) => acc + x)
+    out int_to_str(t)
+    val t2 = iter_fold2([4, 5], 0, (acc, x) => acc + x)
+    out int_to_str(t2)
+}

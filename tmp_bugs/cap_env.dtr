@@ -1,0 +1,4 @@
+fn main() {
+    sys_env_set("P", "1")
+    out 1
+}

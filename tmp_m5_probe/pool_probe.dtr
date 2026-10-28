@@ -1,0 +1,15 @@
+struct P { a: Int }
+
+@pool(8)
+fn five() -> Int {
+    let a = P { a: 1 }
+    let b = P { a: 2 }
+    let c = P { a: 3 }
+    let d = P { a: 4 }
+    let e = P { a: 5 }
+    return a.a + b.a + c.a + d.a + e.a
+}
+
+fn main() {
+    out five()
+}

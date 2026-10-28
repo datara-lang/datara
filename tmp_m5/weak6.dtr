@@ -1,0 +1,16 @@
+use stdlib.result.result
+
+@arc
+struct Payload { n: Int }
+
+fn main() {
+    val p = Payload { n: 5 }
+    val w = weak_create(p)
+    out p.arc_count()
+    val up = weak_upgrade(w)
+    out up.is_ok()
+    out p.arc_count()
+    p.arc_release()
+    out p.arc_count()
+    out up.is_ok()
+}

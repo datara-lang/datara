@@ -10,7 +10,14 @@ impl<'a> Lowering<'a> {
         method: &str,
         args: &[Expr],
         cur_block: &mut BasicBlockId,
+        elem_repr: String,
     ) -> Option<ValueId> {
+        // `elem_repr` is the source list's element repr ("String" for Str
+        // elements, "Float" for IEEE bit patterns, else "Int"): the per-item
+        // `list_get` must carry it so string-ness reaches the inline lambda's
+        // parameter (the old hard-coded "Int" made `w.len()` on a Str element
+        // read garbage, breaking every filter predicate that calls methods on
+        // `w`).
         match method {
             "map" => {
                 if args.is_empty() {
@@ -105,7 +112,7 @@ impl<'a> Lowering<'a> {
                     dest: elem_val,
                     func: "datara_rt_list_get".into(),
                     args: vec![list_val, fetch_idx],
-                    ty: "Int".into(),
+                    ty: elem_repr,
                 });
 
                 let mut body_block = body_id;
@@ -269,7 +276,7 @@ impl<'a> Lowering<'a> {
                     dest: elem_val,
                     func: "datara_rt_list_get".into(),
                     args: vec![list_val, fetch_idx],
-                    ty: "Int".into(),
+                    ty: elem_repr,
                 });
 
                 let mut body_block = body_id;

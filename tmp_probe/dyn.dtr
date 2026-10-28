@@ -1,0 +1,8 @@
+fn main() {
+    mut val x = 100
+    out x
+    x = "now a string"
+    out x
+    x = 3.5
+    out x
+}

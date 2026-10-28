@@ -1,0 +1,12 @@
+fn describe(v: Int) -> Str {
+    return fmt"int {v}"
+}
+fn main() {
+    val xs = [1, "hi", 2.5]
+    if xs[0] is Int {
+        out describe(xs[0])
+    }
+    if xs[1] is Str {
+        out xs[1].to_str()
+    }
+}

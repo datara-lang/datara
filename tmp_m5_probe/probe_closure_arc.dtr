@@ -1,0 +1,24 @@
+// M5 Layer 3 probe: a named lambda captures an @arc object by value.
+// The snapshot must acquire a strong reference, so arc_count reports 2
+// right after the registration and the object stays readable through
+// the closure after the capture is re-bound by later calls.
+
+@arc
+struct Counter { value: Int }
+
+fn main() {
+    mut c = Counter { value: 5 }
+    out c.arc_count()
+
+    val get = () => c.value
+    out get()
+
+    out c.arc_count()
+
+    // Reassign c to a fresh counter: the snapshot must still see the
+    // ORIGINAL object (by-value capture), reading 5, not 9.
+    c = Counter { value: 9 }
+    out get()
+    out c.value
+    out c.arc_count()
+}

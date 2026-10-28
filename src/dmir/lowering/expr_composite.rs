@@ -15,6 +15,7 @@ pub(crate) fn index_elem_ret_ty(ty: &DataraType) -> String {
         DataraType::Float => "Float".into(),
         DataraType::String => "String".into(),
         DataraType::Bool => "Bool".into(),
+        DataraType::Val => "Val".into(),
         DataraType::Class(c) => c.clone(),
         // Generic class elements (e.g. a List<Outcome<Int>> holding
         // Outcome objects) must keep their class name in the call's `ty`:
@@ -565,7 +566,86 @@ impl<'a> Lowering<'a> {
                 Some(dest)
             }
             Expr::ListLiteral(items, _) => {
+                // M7 TSU: a HETEROGENEOUS literal (checker type List(Val)) —
+                // or any literal mixing element kinds — lowers each element
+                // to a NaN-boxed dynamic value (datara_val_from_*), and the
+                // element repr becomes "Val": `xs[i]` yields the box, `is`
+                // checks the tag, `.as_int()`/`.to_int()` unwrap it.
+                let mut elem_kinds: Vec<u8> = Vec::new();
+                for item in items {
+                    let k = if self.is_expr_str(item) {
+                        3u8
+                    } else if self.is_expr_float(item) {
+                        1
+                    } else if self.is_expr_bool(item) {
+                        2
+                    } else if self.is_expr_int(item) {
+                        0
+                    } else {
+                        // Unknown/static-class element: not a TSU literal.
+                        255
+                    };
+                    elem_kinds.push(k);
+                }
+                let first_kind = elem_kinds.first().copied().unwrap_or(255);
+                let mixed = items.len() > 1
+                    && elem_kinds.iter().any(|&k| k != first_kind && k != 255 && first_kind != 255);
                 let mut vals = Vec::new();
+                if mixed {
+                    for (item, k) in items.iter().zip(elem_kinds.iter()) {
+                        let raw = match self.lower_expr(item, cur_block) {
+                            Some(v) => v,
+                            None => continue,
+                        };
+                        let func = match k {
+                            0 => "datara_val_from_int",
+                            1 => "datara_rt_val_from_f64_bits",
+                            2 => "datara_val_from_bool",
+                            3 => "datara_val_from_str",
+                            _ => continue,
+                        };
+                        let boxed = self.next_val();
+                        self.get_block_mut(*cur_block)
+                            .instructions
+                            .push(Inst::Call {
+                                dest: boxed,
+                                func: func.into(),
+                                args: vec![raw],
+                                ty: "Val".into(),
+                            });
+                        vals.push(boxed);
+                    }
+                    let dest = self.next_val();
+                    let cap = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::ConstInt {
+                            dest: cap,
+                            value: vals.len() as i64,
+                        });
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest,
+                            func: "datara_rt_list_create".into(),
+                            args: vec![cap],
+                            ty: "List".into(),
+                        });
+                    let mut cur_list = dest;
+                    for v in vals {
+                        let next = self.next_val();
+                        self.get_block_mut(*cur_block)
+                            .instructions
+                            .push(Inst::Call {
+                                dest: next,
+                                func: "datara_rt_list_append".into(),
+                                args: vec![cur_list, v],
+                                ty: "List".into(),
+                            });
+                        cur_list = next;
+                    }
+                    return Some(cur_list);
+                }
                 for item in items {
                     if let Some(v) = self.lower_expr(item, cur_block) {
                         vals.push(v);
@@ -648,6 +728,25 @@ impl<'a> Lowering<'a> {
                 }
                 let dest = self.next_val();
                 let n_entries = vals.len() / 2;
+                // The literal's key kind is taken from its first key; the
+                // checker has already established the literal is homogeneous
+                // (Map<K, V>). Int keys use the integer ABI constructors.
+                let int_keys = entries
+                    .first()
+                    .map(|(k, _)| self.is_expr_int(k))
+                    .unwrap_or(false);
+                let create_name = |n: usize| {
+                    if int_keys {
+                        format!("datara_rt_map_create_i64_{}", n)
+                    } else {
+                        format!("datara_rt_map_create_{}", n)
+                    }
+                };
+                let insert_name = if int_keys {
+                    "datara_rt_map_insert_i64"
+                } else {
+                    "datara_rt_map_insert"
+                };
                 // Fixed-arity constructors exist for 1..=5 entries; empty maps
                 // use the 0-arg constructor and larger literals fall back to
                 // create + insert so any size lowers successfully.
@@ -661,12 +760,11 @@ impl<'a> Lowering<'a> {
                             ty: "Map".into(),
                         });
                 } else if n_entries <= 5 {
-                    let func_name = format!("datara_rt_map_create_{}", n_entries);
                     self.get_block_mut(*cur_block)
                         .instructions
                         .push(Inst::Call {
                             dest,
-                            func: func_name,
+                            func: create_name(n_entries),
                             args: vals,
                             ty: "Map".into(),
                         });
@@ -686,7 +784,7 @@ impl<'a> Lowering<'a> {
                             .instructions
                             .push(Inst::Call {
                                 dest: next,
-                                func: "datara_rt_map_insert".into(),
+                                func: insert_name.into(),
                                 args: vec![dest, k, v],
                                 ty: "Map".into(),
                             });
@@ -712,9 +810,17 @@ impl<'a> Lowering<'a> {
                 }
                 let idx = self.lower_expr(index, cur_block)?;
                 let dest = self.next_val();
-                let is_str_idx = self.is_expr_str(index);
-                let func_name = if is_str_idx {
-                    "datara_rt_map_get"
+                // Dispatch on the RECEIVER, not on the index expression: an
+                // Int-keyed map (`Map<Int, Int>`) indexes with an Int too, so
+                // keying off `is_expr_str(index)` used to lower map indexing
+                // as a list read and segfault.
+                let is_map_obj = self.is_expr_map(object);
+                let func_name = if is_map_obj {
+                    if self.is_int_keyed_map(object) {
+                        "datara_rt_map_get_i64"
+                    } else {
+                        "datara_rt_map_get"
+                    }
                 } else {
                     "datara_rt_list_get"
                 };
@@ -803,6 +909,9 @@ impl<'a> Lowering<'a> {
                         ty: "Tuple".into(),
                     });
                 Some(dest)
+            }
+            Expr::IsCheck { operand, ty_name, .. } => {
+                self.lower_is_check(operand, ty_name, cur_block)
             }
             Expr::ErrorPropagate(inner, span) => {
                 let val = self.lower_expr(inner, cur_block)?;

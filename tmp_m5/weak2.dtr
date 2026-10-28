@@ -1,0 +1,15 @@
+@arc
+struct Payload { n: Int }
+
+fn main() {
+    val p = Payload { n: 5 }
+    val w = weak_create(p)
+    out p.arc_count()
+    val r = w.upgrade()
+    if r.is_ok() {
+        out 100
+    } else {
+        out 200
+    }
+    out p.arc_count()
+}

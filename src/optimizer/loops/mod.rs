@@ -150,6 +150,17 @@ impl LoopOptimizer {
             .or_else(|| func.strip_prefix("math_"))
             .or_else(|| func.strip_prefix("datara_rt_"))
             .unwrap_or(func);
+        // Impure prefixes FIRST: "fib" is a pure arithmetic leaf, but
+        // "fiber_*" (NatVar runtime) is a scheduling/IO side effect — DCE
+        // must never drop a fiber yield, sleep, join or scheduler drain
+        // just because the name shares the three-letter prefix.
+        if clean.starts_with("fiber_")
+            || clean.starts_with("chan_")
+            || clean.starts_with("pgo_")
+            || clean.starts_with("profile")
+        {
+            return false;
+        }
         let pure_prefixes = [
             "abs",
             "min",

@@ -35,6 +35,7 @@ pub fn compile_all_functions<M: ClifModule>(
     let rt_out_flt_id = runtime.rt_out_flt_id;
     let rt_out_f32_id = runtime.rt_out_f32_id;
     let rt_out_dec64_id = runtime.rt_out_dec64_id;
+    let rt_out_val_id = runtime.rt_out_val_id;
     let rt_out_str_id = runtime.rt_out_str_id;
     let rt_err_id = runtime.rt_err_id;
     let rt_concat_id = runtime.rt_concat_id;
@@ -213,6 +214,28 @@ pub fn compile_all_functions<M: ClifModule>(
         // filled); see alloc_tier for the frame/checkpoint design.
         let mut tier_frame = TierFrame::none();
 
+        // M6.2 auto-region: one shared escape analysis for the whole
+        // function (the historical per-StructInit scan, reworked with the
+        // cyclic-structure region relaxation + transitive propagation).
+        // structinit_field_seeds = true: a struct literal nested in another
+        // struct that escapes (returned / stored) must be heap-allocated
+        // too — its pointer is stored into the parent's memory and dies
+        // with the frame otherwise (game_loop: the store lists of a
+        // returned EcsWorld pointed into the callee's dead stack slots —
+        // garbage counts, infinite physics loop, wrong checksums). The
+        // LLVM path always seeded fields; the flags must agree.
+        let escape_set = crate::ownership::region::compute_escape_set(
+            f,
+            &dmir_module.cyclic_classes,
+            &dmir_module
+                .globals
+                .keys()
+                .cloned()
+                .collect::<std::collections::HashSet<String>>(),
+            true,
+            true,
+        );
+
         for b in &f.blocks {
             let current_clif_block = *block_map.get(&b.id).ok_or_else(|| {
                 format!(
@@ -315,20 +338,44 @@ pub fn compile_all_functions<M: ClifModule>(
                             let flags = cranelift_codegen::ir::MachMemFlags::new();
                             builder.ins().store(flags, v, addr, 0);
                         }
+                        // Re-assignment RETYPES the variable: the kind sets
+                        // are per-current-value, not monotone. Without the
+                        // removals a name that ever held a string stayed in
+                        // string_vars forever, so a later Int re-assignment
+                        // (generic-callback inline dispatch reusing `acc`)
+                        // lowered `+` as string concatenation on an integer
+                        // (silent pointer garbage).
+                        // Re-assignment RETYPES the variable: the kind sets
+                        // are per-current-value, not monotone. Without the
+                        // removals a name that ever held a string stayed in
+                        // string_vars forever, so a later Int re-assignment
+                        // (generic-callback inline dispatch reusing `acc`)
+                        // lowered `+` as string concatenation on an integer
+                        // (silent pointer garbage).
                         if string_vids.contains(value) {
                             string_vars.insert(name.clone());
+                        } else {
+                            string_vars.remove(name.as_str());
                         }
                         if bool_vids.contains(value) {
                             bool_vars.insert(name.clone());
+                        } else {
+                            bool_vars.remove(name.as_str());
                         }
                         if list_vids.contains(value) {
                             list_vars.insert(name.clone());
+                        } else {
+                            list_vars.remove(name.as_str());
                         }
                         if map_vids.contains(value) {
                             map_vars.insert(name.clone());
+                        } else {
+                            map_vars.remove(name.as_str());
                         }
                         if let Some(c) = val_to_class.get(value) {
                             var_to_class.insert(name.clone(), c.clone());
+                        } else {
+                            var_to_class.remove(name.as_str());
                         }
                         if !decls.global_data_map.contains_key(name) {
                             if let Some(&var) = var_map.get(name) {
@@ -561,30 +608,36 @@ pub fn compile_all_functions<M: ClifModule>(
                         class_name,
                         fields,
                     } => {
-                        // Conservative escape analysis: if the struct's
-                        // pointer can outlive this frame — returned,
+                        // Escape analysis shared with the LLVM emitter
+                        // (ownership::region). Historical rule: if the
+                        // struct's pointer can outlive this frame — returned,
                         // stored into another object or variable, passed
                         // to a call/method, or inserted into a map/list
                         // (a runtime call) — it must live on the heap.
-                        let escapes = f.return_type == *class_name
-                            || f.blocks.iter().any(|b| {
-                                let returned = match &b.terminator {
-                                    Terminator::Return {
-                                        value: Some(ret_val),
-                                    } => ret_val == dest,
-                                    _ => false,
-                                };
-                                returned
-                                    || b.instructions.iter().any(|inst| match inst {
-                                        Inst::SetField { value, .. } => value == dest,
-                                        Inst::AssignVar { value, .. } => value == dest,
-                                        Inst::Call { args, .. } => args.contains(dest),
-                                        Inst::MethodCall { object, args, .. } => {
-                                            object == dest || args.contains(dest)
-                                        }
-                                        _ => false,
-                                    })
-                            });
+                        // M6 TMM Layer 1: the inserted last-use release
+                        // calls (datara_rt_arc_release / datara_rt_free)
+                        // MUST count as escapes — that is exactly what
+                        // keeps a released object on the heap, so its
+                        // release frees malloc memory instead of a stack
+                        // slot (freeing a stack address is heap corruption:
+                        // STATUS_HEAP_CORRUPTION, see the Layer 1 golden
+                        // regression). Heap-allocated + released at last
+                        // use is the intended M6.3 lifetime; nothing is
+                        // "kept alive forever" by counting the release.
+                        // M6.2 auto-region: for cyclic-structure classes
+                        // (ownership cycle inside the Layer-1 graph) the
+                        // region owns the lifetime instead — a store that
+                        // closes the cycle in-frame no longer forces the
+                        // heap, and cyclic objects get no Layer 1 release
+                        // at all, so nothing can free a region pointer.
+                        // Historical Cranelift seed: a function returning
+                        // a class value hands the object to its caller —
+                        // heap it. The alias-flow analysis already covers
+                        // explicit `return x` seeds via LoadVar unions;
+                        // this keeps the classification exact for return
+                        // paths that do not go through a named variable.
+                        let escapes = escape_set.contains(dest)
+                            || f.return_type == *class_name;
                         let is_packed = dmir_module.packed_classes.contains(class_name);
                         // M5 TMM Layer 2: @arc classes carry a 16-byte
                         // refcount header (strong, weak) BEFORE the object
@@ -892,6 +945,11 @@ pub fn compile_all_functions<M: ClifModule>(
                             // metadata routes the print through the fixed-point
                             // formatter (mantissa ÷ 10⁴).
                             let fn_ref = module.declare_func_in_func(rt_out_dec64_id, builder.func);
+                            builder.ins().call(fn_ref, &[v]);
+                        } else if ty == "Val" {
+                            // M7 TSU: dynamic (val) values print through the
+                            // NaN-box runtime printer (tag-dispatched).
+                            let fn_ref = module.declare_func_in_func(rt_out_val_id, builder.func);
                             builder.ins().call(fn_ref, &[v]);
                         } else if list_vids.contains(value) || map_vids.contains(value) {
                             return Err(format!(

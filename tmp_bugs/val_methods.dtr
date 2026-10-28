@@ -1,0 +1,13 @@
+fn main() {
+    val xs = [1, 2.5, "hi", true]
+    out xs[0].as_int() or -1
+    out xs[1].as_int() or -1
+    out xs[0].as_float() or -1.0
+    out xs[1].as_float() or -1.0
+    out xs[0].to_str()
+    out xs[1].to_str()
+    out xs[2].to_str()
+    out xs[3].to_str()
+    out xs[2] is Str
+    out xs[3] is Bool
+}

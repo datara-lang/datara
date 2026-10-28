@@ -433,6 +433,9 @@ fn scan_stmt(stmt: &Stmt, referenced: &mut HashSet<String>) {
 /// compilation here instead of silently regressing the analysis.
 fn scan_expr(expr: &Expr, referenced: &mut HashSet<String>) {
     match expr {
+        Expr::IsCheck { operand, .. } => {
+            scan_expr(operand, referenced);
+        }
         Expr::Literal(..) => {}
         Expr::Identifier(name, _) => {
             referenced.insert(name.clone());
@@ -1181,6 +1184,9 @@ impl VariableUsageTracker {
 
     fn analyze_expr(&mut self, expr: &Expr) {
         match expr {
+            Expr::IsCheck { operand, .. } => {
+                self.analyze_expr(operand);
+            }
             Expr::Identifier(name, _) => {
                 self.read.insert(name.clone());
             }

@@ -1,0 +1,14 @@
+use stdlib.result.result
+
+@arc
+struct Node {
+    v: Int
+    next: Weak<Node>
+}
+
+fn main() {
+    val head = Node { v: 1 }
+    val w = weak_create(head)
+    val up = w.upgrade()
+    out up.is_ok()
+}

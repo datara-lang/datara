@@ -1,0 +1,13 @@
+@arc
+struct A {
+    b: B
+}
+
+@arc
+struct B {
+    a: A
+}
+
+fn main() -> Int {
+    return 0
+}

@@ -1,0 +1,9 @@
+fn w(x: Int) {}
+fn main() {
+    fiber_yield()
+    fiber_spawn(w, 1)
+    fiber_run_until_done()
+    out int_to_str(fiber_join(999))
+    val ch = fiber_chan_create()
+    out int_to_str(ch)
+}

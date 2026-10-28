@@ -1,0 +1,18 @@
+mut log = "init"
+fn step(tag: Int) {
+    if tag == 1 {
+        log = log + "a1"
+        fiber_yield()
+        log = log + "a2"
+    } else {
+        log = log + "b1"
+        fiber_yield()
+        log = log + "b2"
+    }
+}
+fn main() {
+    fiber_spawn(step, 1)
+    fiber_spawn(step, 2)
+    fiber_run_until_done()
+    out log
+}

@@ -1,0 +1,21 @@
+struct Pt {
+    x: Int
+    y: Int
+}
+
+fn make(n: Int) -> List<Pt> {
+    mut acc: List<Pt> = []
+    mut i = 0
+    while i < n {
+        acc = acc.push(Pt { x: i, y: i * 2 })
+        i = i + 1
+    }
+    return acc
+}
+
+fn main() {
+    val ps = make(3)
+    val p: Pt = ps.get(1)
+    out p.x
+    out p.y
+}

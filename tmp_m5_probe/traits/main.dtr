@@ -1,0 +1,25 @@
+trait Worker {
+    fn work(&self) -> Int;
+}
+
+struct Alpha { v: Int }
+struct Beta { v: Int }
+struct Gamma { v: Int }
+struct Delta { v: Int }
+
+impl Worker for Alpha { fn work(&self) -> Int { self.v * 1 } }
+impl Worker for Beta { fn work(&self) -> Int { self.v * 2 } }
+impl Worker for Gamma { fn work(&self) -> Int { self.v * 3 } }
+impl Worker for Delta { fn work(&self) -> Int { self.v * 4 } }
+
+fn main() {
+    let a = Alpha { v: 10 }
+    let b = Beta { v: 20 }
+    let g = Gamma { v: 30 }
+    let d = Delta { v: 40 }
+
+    out a.work()
+    out b.work()
+    out g.work()
+    out d.work()
+}

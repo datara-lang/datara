@@ -1,0 +1,8 @@
+fn main() {
+    val t = [42, 3.5, "text", false]
+    out t[1]
+    val b = [9, 1.25, "raw", false]
+    out b[1]
+    out b[0]
+    out b[3]
+}

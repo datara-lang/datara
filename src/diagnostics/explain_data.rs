@@ -176,6 +176,16 @@ pub static CATEGORIES: &[(&str, CategoryExample)] = &[
             rationale: "Deterministic destruction without a GC requires the ownership graph to stay acyclic or explicitly weak on back-edges.",
         },
     ),
+(
+        "any",
+        CategoryExample {
+            explanation: "A dynamic value (val/any) leaked into a context that expects a static type. Dynamic values carry a runtime tag; a static context would reinterpret the bits. Narrow with `is` (the value is unboxed in the branch) or convert explicitly with .as_int()/.as_float() (Outcome), .to_int()/.to_float() (fail-loud), .to_str().",
+            bad: "val xs = [42, \"hi\"]\nfn takes_int(v: Int) -> Int { return v }\ntakes_int(xs[0])   // which tag does xs[0] carry?",
+            good: "val xs = [42, \"hi\"]
+fn takes_int(v: Int) -> Int { return v }\nval x = xs[0]\nif x is Int {\n    takes_int(x)                   // narrowed: a real Int in this branch\n}\ntakes_int(xs[0].as_int() or 0)     // or convert explicitly",
+            rationale: "The static/dynamic boundary must be explicit — that is what keeps the static path zero-checked and the dynamic path zero-boxed.",
+        },
+    ),
 ];
 
 pub static CODE_CATEGORY: &[(&str, &str)] = &[
@@ -277,11 +287,39 @@ pub static CODE_CATEGORY: &[(&str, &str)] = &[
     ("E-LINK-001", "link"),
     ("E-TMM-001", "tmm"),
     ("E-TMM-002", "tmm"),
+    ("E-ANY-001", "any"),
+];
+
+/// M2 audit: up to 2 actionable hints per category, surfaced in every
+/// explanation of a code in that category (PLAN_V150 M2: "каждому коду —
+/// код, сообщение, span, до 2 подсказок"). The test gate in
+/// tests/test_explain_coverage.rs enforces 1..=2 non-empty hints per
+/// category and full category coverage of the ErrorCode set.
+pub static CATEGORY_HINTS: &[(&str, &[&str])] = &[
+    ("syntax", &["Read the caret span: it points at the exact token the parser rejected.", "Check brackets/quotes are balanced before the reported line."]),
+    ("resolve", &["Declare the symbol or import it with 'use'.", "Check the spelling — the compiler suggests near matches."]),
+    ("type", &["Make the conversion explicit ('as', .to_int(), parse_int(...)).", "Match the literal form to the expected type (10.0 for Float)."]),
+    ("borrow", &["Reorder uses so the move happens after the last read.", "Declare the binding with 'mut' if in-place mutation is intended."]),
+    ("effects", &["Add the matching capability annotation ([Net]/[FS]/[Env]) to the signature.", "Wrap the call in unsafe(justification: \"...\") only for genuine escalations."]),
+    ("toolchain", &["Run 'forgen doctor' to check the backend toolchain.", "Install the missing backend ('forgen install llvm') or pick another target."]),
+    ("cimport", &["Use plain C declarations (functions, structs, enums, typedefs) in the header.", "Pass the header path relative to the source file and the library via link(...)."]),
+    ("match", &["Add arms for every missing variant (the error lists them) or a wildcard arm.", "Remove duplicate/unreachable arms — they are reported too."]),
+    ("control", &["Move 'break'/'continue' inside a while/for/loop body.", "Use 'return' to leave a function instead of break."]),
+    ("contracts", &["Narrow the value domain (require b != 0, NonZeroInt) so the proof can succeed.", "Adjust the contract honestly if the property genuinely does not hold."]),
+    ("oop", &["Move methods into a 'behavior'/impl block for the struct.", "Use 'using Component' for flat composition instead of inheritance."]),
+    ("output", &["Derive Display: @derive(Display) on the struct.", "Format collections element-wise instead of printing the whole container."]),
+    ("comptime", &["Use only compile-time constants and const expressions as arguments.", "Replace runtime calls with literal/const computation inside the block."]),
+    ("asm", &["Wrap the block in unsafe(justification: \"...\") with a concrete reason.", "Keep structured asm in the safe subset (mov/add/sub over GP registers and Int variables)."]),
+    ("arena", &["Return a Copy type (Int/Float/Bool/Char) from the region function.", "Copy the needed value out of the region before returning."]),
+    ("canonical", &["Switch to the canonical spelling (val instead of let, Str instead of String).", "Run 'forgen fix --suggestions' to apply mechanical renames."]),
+    ("link", &["Rename one of the colliding symbols (the error names both definitions).", "Qualify top-level helpers into modules so generated mangled names stay unique."]),
+    ("tmm", &["Break the ownership cycle with @weak on the back-edge field.", "Mark FFI parameters owned/borrowed explicitly so lifetime checks can prove the boundary."]),
+    ("any", &["Narrow with `if x is Int { ... }` — the value is unboxed in the branch.", "Convert explicitly: .as_int()/.as_float() (Outcome) or .to_int()/.to_float() (fail-loud)."]),
 ];
 
 /// Full explanation text for an ErrorCode: summary from description("en")
-/// plus the category's [INVALID]/[VALID] examples. Returns None for codes
-/// outside the enum.
+/// plus the category's [INVALID]/[VALID] examples and its audit hints.
+/// Returns None for codes outside the enum.
 pub fn explain_for_code(code: &str) -> Option<String> {
     let variant = all_codes().into_iter().find(|c| c.as_str() == code)?;
     let key = CODE_CATEGORY.iter().find(|(c, _)| *c == code)?.1;
@@ -299,6 +337,13 @@ pub fn explain_for_code(code: &str) -> Option<String> {
     s.push_str(cat.good);
     s.push_str("\n\nRationale: ");
     s.push_str(cat.rationale);
+    if let Some((_, hints)) = CATEGORY_HINTS.iter().find(|(k, _)| *k == key) {
+        s.push_str("\n\nHints:");
+        for h in *hints {
+            s.push_str("\n  - ");
+            s.push_str(h);
+        }
+    }
     s.push('\n');
     Some(s)
 }

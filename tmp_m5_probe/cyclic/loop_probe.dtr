@@ -1,0 +1,29 @@
+// M6.2 probe: cyclic structures created and discarded in a loop.
+// Before auto-region: every iteration heap-promotes both objects
+// (AssignVar + SetField counted as escapes) and nothing frees them —
+// the heap grows by ~2 objects per iteration. After auto-region: the
+// cycle closes in-frame, objects are region/stack-resident, the heap
+// stays flat. Values must stay exact.
+struct A {
+    v: Int
+    peer: B
+}
+
+struct B {
+    v: Int
+    peer: A
+}
+
+fn main() {
+    mut acc = 0
+    mut i = 0
+    while i < 200000 {
+        mut a = A { v: i }
+        mut b = B { v: i * 2 }
+        a.peer = b
+        b.peer = a
+        acc = acc + a.peer.v + b.peer.v
+        i = i + 1
+    }
+    out acc
+}

@@ -1,0 +1,9 @@
+fn main() {
+    let m1 = x => { "a": x, "b": x * 2 }
+    let r = m1(5)
+    println(int_to_str(r.len()))
+    println(int_to_str(r["a"]))
+    println(int_to_str(r["b"]))
+    let m2 = x => { "a": 42 }
+    println(int_to_str(m2(1).len()))
+}

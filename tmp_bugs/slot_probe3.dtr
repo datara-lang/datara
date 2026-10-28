@@ -1,0 +1,28 @@
+struct Store { xs: List<Float> }
+struct World2 { count: Int, store: Store }
+fn make(n: Int) -> World2 {
+    val xs: List<Float> = []
+    mut i = 0
+    while i < n {
+        xs.append(str_to_float(int_to_str(i)))
+        i = i + 1
+    }
+    return World2 { count: n, store: Store { xs: xs } }
+}
+fn bump(w: World2) -> World2 {
+    val nxs: List<Float> = []
+    mut i = 0
+    while i < w.count {
+        nxs.append(w.store.xs[i] + 0.5)
+        i = i + 1
+    }
+    return World2 { count: w.count, store: Store { xs: nxs } }
+}
+fn main() {
+    val w = make(4)
+    out float_to_str(w.store.xs[0])
+    val w2 = bump(w)
+    out float_to_str(w2.store.xs[0])
+    out int_to_str(w2.count)
+    out "ONE-CALL-OK"
+}

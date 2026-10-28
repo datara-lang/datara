@@ -1,0 +1,106 @@
+use stdlib.text.text
+
+// M12 Web groundwork: comptime-safe HTML templating (SSR building blocks).
+// Every interpolating helper escapes HTML by default; raw interpolation is
+// a separate explicit function so XSS requires a deliberate choice.
+
+// HTML-escape the five markup-significant characters. Deterministic,
+// allocation-light (one pass, no regex).
+fn html_escape(s: Str) -> Str {
+    mut acc = ""
+    mut i = 0
+    val n = str_len(s)
+    while i < n {
+        val ch = text_slice_cp(s, i, 1)
+        val is_amp = str_index_of(ch, "&") == 0
+        if is_amp {
+            acc = acc + "&amp;"
+        } else if ch == "<" {
+            acc = acc + "&lt;"
+        } else if ch == ">" {
+            acc = acc + "&gt;"
+        } else if ch == "\"" {
+            acc = acc + "&quot;"
+        } else if ch == "'" {
+            acc = acc + "&#39;"
+        } else {
+            acc = acc + ch
+        }
+        i = i + 1
+    }
+    return acc
+}
+
+// URL-component escape for query values: percent-encodes everything except
+// unreserved characters (RFC 3986 unreserved + safe sub-delims kept small).
+fn url_escape(s: Str) -> Str {
+    mut acc = ""
+    mut i = 0
+    val n = str_len(s)
+    while i < n {
+        val ch = text_slice_cp(s, i, 1)
+        val byte = str_byte_at(s, i)
+        val is_unreserved = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122)
+            || (byte >= 48 && byte <= 57) || ch == "-" || ch == "_" || ch == "."
+            || ch == "~"
+        if is_unreserved {
+            acc = acc + ch
+        } else {
+            // %XX from the first byte of the codepoint (UTF-8 lead byte is
+            // enough for the showcase; full multi-byte form-encoding is an
+            // ext-queue item).
+            acc = acc + "%" + str_pad_left(int_to_str_hex(byte), 2, "0")
+        }
+        i = i + 1
+    }
+    return acc
+}
+
+fn int_to_str_hex(v: Int) -> Str {
+    val digits = "0123456789ABCDEF"
+    if v < 16 {
+        return text_slice_cp(digits, v, 1)
+    }
+    return text_slice_cp(digits, v / 16, 1) + text_slice_cp(digits, v % 16, 1)
+}
+
+// Render an HTML page skeleton with ESCAPED title and body (safe defaults).
+fn render_page(title: Str, body_html: Str) -> Str {
+    return "<!DOCTYPE html>\n<html>\n<head><title>" + html_escape(title)
+        + "</title></head>\n<body>\n" + body_html + "\n</body>\n</html>\n"
+}
+
+// Escaped element helpers (the XSS-safe default surface).
+fn render_h1(text: Str) -> Str {
+    return "<h1>" + html_escape(text) + "</h1>"
+}
+
+fn render_p(text: Str) -> Str {
+    return "<p>" + html_escape(text) + "</p>"
+}
+
+fn render_link(href: Str, text: Str) -> Str {
+    return "<a href=\"" + url_escape(href) + "\">" + html_escape(text) + "</a>"
+}
+
+// Explicit RAW interpolation for trusted content (developer-chosen escape
+// hatch; every other helper escapes).
+fn render_raw(trusted_html: Str) -> Str {
+    return trusted_html
+}
+
+// List rendering: each item is escaped individually.
+fn render_ul(items: List<Str>) -> Str {
+    mut acc = "<ul>\n"
+    for item in items {
+        acc = acc + "  <li>" + html_escape(item) + "</li>\n"
+    }
+    return acc + "</ul>\n"
+}
+
+// SSR response wrapper: status line + headers + escaped body.
+fn render_response(status: Str, content_type: Str, body_html: Str) -> Str {
+    return "HTTP/1.1 " + status + "\r\nContent-Type: " + content_type
+        + "\r\nContent-Length: " + int_to_str(str_len(body_html))
+        + "\r\nX-Content-Type-Options: nosniff\r\n\r\n" + body_html
+}

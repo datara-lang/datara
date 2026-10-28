@@ -24,6 +24,8 @@ struct NearMemory {
     position: usize,
 }
 
+// SAFETY: NearMemory владеет своими аллокациями эксклюзивно; указатели
+// не разделяются между потоками (аллокатор живёт на выделенном воркере).
 unsafe impl Send for NearMemory {}
 
 impl NearMemory {
@@ -76,6 +78,8 @@ impl NearMemory {
         Ok(ptr)
     }
 
+    /// SAFETY: вызывается один раз в Drop; блок был получен из
+    /// allocate_near_block с известным layout.
     unsafe fn free_memory(&mut self) {
         self.finish_current();
         for alloc in &self.allocations {
@@ -125,6 +129,8 @@ impl JITMemoryProvider for NearMemoryProvider {
         }
     }
 
+    /// SAFETY: вызывается один раз в Drop; блок был получен из
+    /// allocate_near_block с известным layout.
     unsafe fn free_memory(&mut self) {
         unsafe {
             self.code.free_memory();

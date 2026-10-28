@@ -1,0 +1,12 @@
+struct Node {
+    val: Int
+    next: Node?
+}
+
+fn main() {
+    mut h: Node? = None
+    out h.has_value()
+    val n = Node { val: 7, next: None }
+    h = n
+    out h.has_value()
+}

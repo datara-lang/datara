@@ -1,0 +1,10 @@
+mut counter: Int = 0
+fn step_a(x: Int) {
+    counter = counter + 1
+    counter = counter + 2
+}
+fn main() {
+    fiber_spawn(step_a, 0)
+    fiber_run_until_done()
+    out int_to_str(counter)
+}

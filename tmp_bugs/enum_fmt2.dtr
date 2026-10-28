@@ -1,0 +1,11 @@
+enum Shape { Circle(Float), Rect(Float, Float) }
+fn area(s: Shape) -> Str {
+    match s {
+        Shape.Circle(r) => { return fmt"circle {r}" }
+        Shape.Rect(w, h) => { return fmt"rect {w}x{h}" }
+    }
+}
+fn main() {
+    out area(Shape.Circle(2.5))
+    out area(Shape.Rect(3.0, 4.0))
+}

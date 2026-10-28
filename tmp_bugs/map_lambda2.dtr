@@ -1,0 +1,14 @@
+fn main() {
+    let m1 = x => { "a": x }
+    println("m1 map literal body")
+    let v = m1(5)
+    println("called")
+    let m2 = { "a": 7 }
+    println(int_to_str(m2["a"]))
+    let m3 = x => [x, x + 1]
+    println(int_to_str(m3(5)[1]))
+    let m4 = x => { mut y = x
+        y = y + 1
+        return y }
+    println(int_to_str(m4(5)))
+}

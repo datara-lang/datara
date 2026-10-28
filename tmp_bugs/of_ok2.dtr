@@ -1,0 +1,6 @@
+use stdlib.text.text
+
+fn main() {
+    val r = parse_float("3.14")
+    out r.is_ok()
+}

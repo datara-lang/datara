@@ -1,0 +1,14 @@
+{
+  "name": "jsonx",
+  "version": "0.1.0",
+  "description": "Safe JSON stream tokenizer and validator for Datara",
+  "author": "Datara Core Team",
+  "license": "MIT OR Apache-2.0",
+  "digest": "merkle:sha256:0f83d7ee0b6eb380c799c4e130f4fbdd9170bfdc953bac22e2c142c5faff4c9d",
+  "capabilities": [],
+  "dependencies": [],
+  "entry": "src/lib.dtr",
+  "files": {
+    "lib.dtr": "// Sparks Seed Package: jsonx\n// Lightweight JSON validation and inspection.\n\nfn count_tokens(json_src: Str) -> Int {\n    let len = str_len(json_src)\n    mut idx = 0\n    mut count = 0\n    while idx < len {\n        let ch = str_char_at(json_src, idx)\n        if ch == \"{\" || ch == \"}\" || ch == \"[\" || ch == \"]\" || ch == \":\" || ch == \",\" {\n            count = count + 1\n        }\n        idx = idx + 1\n    }\n    return count\n}\n\nfn validate_brackets(json_src: Str) -> Bool {\n    let len = str_len(json_src)\n    mut idx = 0\n    mut curly_depth = 0\n    mut square_depth = 0\n    while idx < len {\n        let ch = str_char_at(json_src, idx)\n        if ch == \"{\" {\n            curly_depth = curly_depth + 1\n        } else if ch == \"}\" {\n            curly_depth = curly_depth - 1\n            if curly_depth < 0 {\n                return false\n            }\n        } else if ch == \"[\" {\n            square_depth = square_depth + 1\n        } else if ch == \"]\" {\n            square_depth = square_depth - 1\n            if square_depth < 0 {\n                return false\n            }\n        }\n        idx = idx + 1\n    }\n    return curly_depth == 0 && square_depth == 0\n}\n"
+  }
+}

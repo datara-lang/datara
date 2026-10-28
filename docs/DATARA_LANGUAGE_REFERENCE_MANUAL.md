@@ -15,16 +15,17 @@
 4. [Type System & Primitive Representations](#4-type-system--primitive-representations)
 5. [Data-Oriented Programming (DOP): Classes & Behaviors](#5-data-oriented-programming-dop-classes--behaviors)
 6. [Universal Function Call Syntax (UFCS) & Pipeline Operators](#6-universal-function-call-syntax-ufcs--pipeline-operators)
-7. [Affine Ownership, Borrowing & Lifetimes](#7-affine-ownership-borrowing--lifetimes)
-8. [The Algebraic Effect Lattice](#8-the-algebraic-effect-lattice)
-9. [Pattern Matching, Deciders & Guards](#9-pattern-matching-deciders--guards)
-10. [Deterministic Error Handling: Outcome & Question Mark](#10-deterministic-error-handling-outcome--question-mark)
-11. [High-Performance Multithreading & Parallelism](#11-high-performance-multithreading--parallelism)
-12. [Standard Library Specification](#12-standard-library-specification)
-13. [Foreign Function Interface (FFI) & C ABI](#13-foreign-function-interface-ffi--c-abi)
-14. [Compiler Internals & The Evidence Gate Optimizer](#14-compiler-internals--the-evidence-gate-optimizer)
-15. [The `forgen` Toolchain Command Line Manual](#15-the-forgen-toolchain-command-line-manual)
-16. [Diagnostics & Error Index](#16-diagnostics--error-index)
+7. [Control Flow: Branching & Iteration](#7-control-flow-branching--iteration)
+8. [Affine Ownership, Borrowing & Lifetimes](#8-affine-ownership-borrowing--lifetimes)
+9. [The Algebraic Effect Lattice](#9-the-algebraic-effect-lattice)
+10. [Pattern Matching, Deciders & Guards](#10-pattern-matching-deciders--guards)
+11. [Deterministic Error Handling: Outcome & Question Mark](#11-deterministic-error-handling-outcome--question-mark)
+12. [High-Performance Multithreading & Parallelism](#12-high-performance-multithreading--parallelism)
+13. [Standard Library Specification](#13-standard-library-specification)
+14. [Foreign Function Interface (FFI) & C ABI](#14-foreign-function-interface-ffi--c-abi)
+15. [Compiler Internals & The Evidence Gate Optimizer](#15-compiler-internals--the-evidence-gate-optimizer)
+16. [The `forgen` Toolchain Command Line Manual](#16-the-forgen-toolchain-command-line-manual)
+17. [Diagnostics & Error Index](#17-diagnostics--error-index)
 
 ---
 
@@ -225,11 +226,85 @@ fn main() {
 
 ---
 
-## 7. Affine Ownership, Borrowing & Lifetimes
+## 7. Control Flow: Branching & Iteration
+
+Datara provides three iteration constructs (`for..in`, `while`, `loop`)
+plus `if`/`else` branching and `break`/`continue`. Every loop body is a
+statically enforced context: `break` and `continue` are rejected outside
+of any loop.
+
+### 7.1 The `for..in` Loop
+
+`for..in` iterates over anything iterable: integer ranges (`a..b`,
+exclusive upper bound) and `List` values. The loop variable is scoped to
+the body and its element type is inferred from the iterable — no casts,
+no `any`, and bounds are checked like any other list access.
+
+```datara
+fn main() {
+    // Range: 1, 2, ..., 9 (upper bound is exclusive)
+    mut sum = 0
+    for i in 1..10 {
+        sum = sum + i
+    }
+
+    // List<T> iterates as T
+    val items: List<Str> = ["alpha", "beta", "gamma"]
+    for item in items {
+        out item
+    }
+}
+```
+
+Notes:
+
+- `for i in 0..n` runs exactly `n` iterations (`0, 1, ..., n-1`),
+  matching zero-based indexing.
+- `break`/`continue` work inside `for` bodies exactly as in `while`
+  and `loop`.
+- `for` composes with the SIMD loop-bound proof system: inside a
+  `requires len % 4 == 0` function, `for i in 0..len` is proven instead
+  of falling back to runtime guards.
+
+### 7.2 `while` and `loop`
+
+`while cond { }` repeats while the boolean condition holds. `loop { }`
+repeats forever and exits only via `return` or `break`:
+
+```datara
+fn main() {
+    mut n = 100
+    while n > 0 {
+        n = n - 7
+    }
+
+    loop {
+        n = n + 1
+        if n > 50 { break }
+    }
+}
+```
+
+### 7.3 Branching: `if` / `else`
+
+`if` is an expression: the last expression of each arm is the arm's
+value, and both arms must produce the same type.
+
+```datara
+fn main() {
+    let x = 7
+    let label = if x > 0 { "positive" } else { "non-positive" }
+    out label
+}
+```
+
+---
+
+## 8. Affine Ownership, Borrowing & Lifetimes
 
 Datara achieves deterministic memory management without garbage collection through an affine ownership system.
 
-### 7.1 Move Semantics
+### 8.1 Move Semantics
 Every heap-backed resource has a single owner. Passing an owned resource transfers ownership:
 
 ```datara
@@ -238,7 +313,7 @@ let consumer = consume_file(f)
 // out f.read() // COMPILE ERROR: E-OWN-001 (Use of moved resource 'f')
 ```
 
-### 7.2 Borrowing & Views
+### 8.2 Borrowing & Views
 Temporary, zero-copy access to data is performed via borrows (`view` or `mut_view`):
 
 ```datara
@@ -247,7 +322,7 @@ fn inspect_buffer(view buf: Buffer) {
 }
 ```
 
-### 7.3 Active Borrow Conflict Detection
+### 8.3 Active Borrow Conflict Detection
 The compiler tracks all live borrow scopes. Mutating, re-binding, or moving a variable while an active view is open is rejected at compile-time:
 
 ```datara
@@ -258,7 +333,7 @@ let v = view orig
 
 ---
 
-## 8. The Algebraic Effect Lattice
+## 9. The Algebraic Effect Lattice
 
 Every Datara function is analyzed by the compiler's Effect Lattice Engine. Effects form a bounded semi-lattice:
 
@@ -276,18 +351,18 @@ $$\text{Pure} \subset \{\text{State}\} \subset \{\text{IO}\} \subset \{\text{Net
                          Pure
 ```
 
-### 8.1 Effect Inference
+### 9.1 Effect Inference
 The developer does not need to annotate effects manually. The compiler automatically infers effects:
 - Pure arithmetic, string concatenation, and local variable transformations are inferred as `Pure`.
 - Console printing (`out`, `err`, `print`), file system access (`file_read`, `file_write`) propagate `IO`.
 - Sockets and HTTP calls propagate `Network`.
 
-### 8.2 Effect-Guided Inlining
+### 9.2 Effect-Guided Inlining
 The `forgen` optimizer prioritizes inlining for `Pure` functions, unrolling loops and performing constant folding without risk of reordering observable side effects.
 
 ---
 
-## 9. Pattern Matching, Deciders & Guards
+## 10. Pattern Matching, Deciders & Guards
 
 Datara replaces error-prone nested `if/else` ladders with expressive `match` and `decide` constructs:
 
@@ -304,7 +379,7 @@ fn classify(status_code: Int) -> Str {
 }
 ```
 
-### 9.1 The `decide` Statement
+### 10.1 The `decide` Statement
 
 For multi-branch state evaluation:
 
@@ -319,7 +394,7 @@ decide {
 
 ---
 
-## 10. Deterministic Error Handling: Outcome & Question Mark
+## 11. Deterministic Error Handling: Outcome & Question Mark
 
 Datara rejects unchecked runtime exceptions (`try / catch / throw`). Instead, all fallible operations return the algebraic `Outcome<T, E>` (or `Result<T, E>`) type:
 
@@ -331,7 +406,7 @@ class Outcome<T> {
 }
 ```
 
-### 10.1 The `?` (Try/Propagate) Operator
+### 11.1 The `?` (Try/Propagate) Operator
 Appending `?` to an `Outcome` or `Option` expression checks for failure:
 - If the result is successful, it unwraps the inner `value`.
 - If the result is an error, it immediately returns the error from the enclosing function.
@@ -343,7 +418,7 @@ fn load_config(path: Str) -> Outcome<Str> {
 }
 ```
 
-### 10.2 The `or` Fallback Operator
+### 11.2 The `or` Fallback Operator
 Provide safe default fallbacks without branching:
 
 ```datara
@@ -352,11 +427,11 @@ let port = parse_port(env_var) or 8080
 
 ---
 
-## 11. High-Performance Multithreading & Parallelism
+## 12. High-Performance Multithreading & Parallelism
 
 Datara features a native work-stealing thread pool built directly into the runtime (`datara_runtime.c`), enabling fork-join parallelism:
 
-### 11.1 `parallel for` Loop
+### 12.1 `parallel for` Loop
 Executes loop iterations concurrently across available CPU cores:
 
 ```datara
@@ -369,7 +444,7 @@ fn main() {
 }
 ```
 
-### 11.2 `parallel_invoke`
+### 12.2 `parallel_invoke`
 Executes multiple closures concurrently:
 
 ```datara
@@ -381,11 +456,11 @@ parallel_invoke(
 
 ---
 
-## 12. Standard Library Specification
+## 13. Standard Library Specification
 
 Datara provides a comprehensive, production-grade standard library in `stdlib/`:
 
-### 12.1 High-Performance Fast Math (`stdlib.math.math`)
+### 13.1 High-Performance Fast Math (`stdlib.math.math`)
 Native CPU-accelerated mathematical intrinsics:
 
 | Function | Signature | Description |
@@ -406,7 +481,7 @@ Native CPU-accelerated mathematical intrinsics:
 | `math_max_int(a, b)` | `(Int, Int) -> Int` | Maximum of two integers |
 | `math_abs_int(x)` | `Int -> Int` | Integer absolute value |
 
-### 12.2 String Primitives (`stdlib.text.string`)
+### 13.2 String Primitives (`stdlib.text.string`)
 - `str_len(s: Str) -> Int`: String byte length.
 - `str_trim(s: Str) -> Str`: Strip leading and trailing whitespace.
 - `str_contains(s: Str, sub: Str) -> Bool`: Substring check.
@@ -417,18 +492,18 @@ Native CPU-accelerated mathematical intrinsics:
 - `str_to_int(s: Str) -> Int`: Parse integer from string.
 - `str_to_float(s: Str) -> Float`: Parse float from string.
 
-### 12.3 File System & I/O (`stdlib.io.fs`)
+### 13.3 File System & I/O (`stdlib.io.fs`)
 - `file_read(path: Str) -> Str`: Read entire file into string.
 - `file_write(path: Str, content: Str) -> Int`: Write content (overwrites).
 - `file_append(path: Str, content: Str) -> Int`: Append content to file.
 - `file_exists(path: Str) -> Bool`: Returns `true` if file exists on disk.
 
-### 12.4 JSON Parser (`stdlib.json.parser`)
+### 13.4 JSON Parser (`stdlib.json.parser`)
 - `jp.get_string(raw_json: Str, key: Str) -> Str`: Extract string field.
 - `jp.get_int(raw_json: Str, key: Str) -> Int`: Extract integer field.
 - `jp.get_bool(raw_json: Str, key: Str) -> Bool`: Extract boolean field.
 
-### 12.5 Networking & Sockets (`stdlib.net.socket`)
+### 13.5 Networking & Sockets (`stdlib.net.socket`)
 - `socket_create(is_tcp: Int) -> Int`: Create TCP (`1`) or UDP (`0`) socket.
 - `socket_bind(sock: Int, host: Str, port: Int) -> Int`: Bind socket to address.
 - `socket_listen(sock: Int, backlog: Int) -> Int`: Listen for incoming connections.
@@ -438,12 +513,12 @@ Native CPU-accelerated mathematical intrinsics:
 - `socket_recv(sock: Int, max_bytes: Int) -> Str`: Receive incoming data.
 - `socket_close(sock: Int)`: Release socket descriptor.
 
-### 12.6 Cryptography (`stdlib.crypto.hash`)
+### 13.6 Cryptography (`stdlib.crypto.hash`)
 - `sha256(input: Str) -> Str`: Standard SHA-256 hex digest.
 - `base64_encode(input: Str) -> Str`: Standard Base64 encoding.
 - `base64_decode(input: Str) -> Str`: Decode Base64 string.
 
-### 12.7 Time & System (`stdlib.time.clock`, `stdlib.sys.process`)
+### 13.7 Time & System (`stdlib.time.clock`, `stdlib.sys.process`)
 - `now_ms() -> Int`: UNIX epoch timestamp in milliseconds.
 - `sleep(ms: Int)`: Sleep current thread for `ms` milliseconds.
 - `system(cmd: Str) -> Int`: Execute shell command, returns exit code.
@@ -451,7 +526,7 @@ Native CPU-accelerated mathematical intrinsics:
 
 ---
 
-## 13. Foreign Function Interface (FFI) & C ABI
+## 14. Foreign Function Interface (FFI) & C ABI
 
 Datara provides zero-cost C ABI interoperability using the `extern "C"` declaration syntax:
 
@@ -470,7 +545,7 @@ Functions link directly against system dynamic libraries and object files withou
 
 ---
 
-## 14. Compiler Internals & The Evidence Gate Optimizer
+## 15. Compiler Internals & The Evidence Gate Optimizer
 
 The `forgen` compiler compiles Datara source code through a strictly verified pipeline:
 
@@ -507,7 +582,7 @@ Every optimization pass records a cryptographic structural hash of IR before and
 
 ---
 
-## 15. The `forgen` Toolchain Command Line Manual
+## 16. The `forgen` Toolchain Command Line Manual
 
 `forgen` is the unified compiler, package manager, test runner, and language server CLI:
 
@@ -536,7 +611,7 @@ Usage: forgen <command> [arguments] [options]
 
 ---
 
-## 16. Diagnostics & Error Index
+## 17. Diagnostics & Error Index
 
 Datara errors are categorized by phase with unambiguous diagnostic codes:
 

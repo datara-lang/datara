@@ -1,0 +1,12 @@
+enum Color { Red, Blue }
+fn name(c: Color) -> Str {
+    val n = 2
+    match c {
+        Color.Red => "red",
+        Color.Blue => fmt"blue {n}"
+    }
+}
+fn main() {
+    out name(Color.Red)
+    out name(Color.Blue)
+}

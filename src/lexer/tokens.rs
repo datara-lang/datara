@@ -21,6 +21,7 @@ pub enum TokenType {
     Export,
     Import,
     As,
+    Is,
     If,
     Else,
     For,

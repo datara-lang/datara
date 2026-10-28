@@ -110,6 +110,8 @@ pub struct Optimizer {
     pub module_mutable_globals: HashSet<String>,
 }
 
+
+
 impl Optimizer {
     pub fn new(mode: &str) -> Self {
         let cost_model = CostModel::new(mode);
@@ -406,6 +408,18 @@ impl Optimizer {
         }
 
         if std::env::var("DATARA_DUMP_IR").is_ok() {
+            if std::env::var("DATARA_DUMP_IR_ALL").ok().as_deref() == Some("1") {
+                for (fname, ffn) in module.functions.iter() {
+                    eprintln!("=== FN {} ===", fname);
+                    for b in &ffn.blocks {
+                        eprintln!("BLOCK {} (params {:?}):", b.id.0, b.params);
+                        for inst in &b.instructions {
+                            eprintln!("  {:?}", inst);
+                        }
+                        eprintln!("  terminator: {:?}", b.terminator);
+                    }
+                }
+            }
             if let Some(main_fn) = module.functions.get("main") {
                 for b in &main_fn.blocks {
                     eprintln!("BLOCK {} (params {:?}):", b.id.0, b.params);
@@ -503,7 +517,6 @@ impl Optimizer {
         while changed && iterations < max_iterations {
             changed = false;
             iterations += 1;
-
             if LoopOptimizer::fold_loops(f, &self.cost_model, &mut self.trace) > 0 {
                 changed = true;
             }

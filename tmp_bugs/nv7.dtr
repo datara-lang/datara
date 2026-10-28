@@ -1,0 +1,9 @@
+mut log = "init"
+fn touch() {
+    log = log + "x"
+    log = log + "y"
+}
+fn main() {
+    touch()
+    out log
+}

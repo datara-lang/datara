@@ -15,9 +15,11 @@ pub mod expr_call_bridge;
 pub mod expr_composite;
 pub mod higher_order;
 pub mod infer;
+pub mod inline_body;
 pub mod match_arm;
 pub mod out;
 pub mod stmt;
+pub mod tsu;
 
 /// An inlineable function body for lambda-argument static dispatch: the
 /// declared parameters, the statements before the single trailing return,
@@ -46,6 +48,13 @@ pub struct Lowering<'a> {
     pub in_wrapping_mode: bool,
     pub in_saturating_mode: bool,
     pub local_lambdas: HashMap<String, (Vec<Param>, Expr)>,
+    /// Inferred return type of each named local lambda, recorded at the
+    /// binding site. Without it a call to a lambda returns an untyped value:
+    /// `let r = m1(5)` on a map-returning lambda left `r` untyped, so
+    /// `r["a"]` lowered to datara_rt_list_get (silent 0) and
+    /// `r2.get("a") or -1` skipped the Outcome interception (E0944 on
+    /// `.is_success`).
+    pub local_lambda_ret: HashMap<String, DataraType>,
     /// Lambda-argument static dispatch: functions whose bodies are a
     /// (possibly empty) statement sequence ending in a single
     /// `return <expr>`, or an `=> expr` shorthand, indexed as
@@ -74,6 +83,11 @@ pub struct Lowering<'a> {
     /// loops the continue target is the increment block so the induction
     /// variable still advances.
     pub loop_stack: Vec<(BasicBlockId, BasicBlockId)>,
+    /// Enum classes collected during the declaration pass for deferred
+    /// insertion into `module.class_fields` (after the resolver.classes pass,
+    /// which would otherwise overwrite the bare enum layout with an empty
+    /// structural field list). `(enum_name, [__tag, f0, f1, ...])`.
+    pub enum_class_field_names: Vec<(String, Vec<String>)>,
     pub global_vars: HashMap<String, (String, bool)>,
     pub program_globals: Vec<GlobalDecl>,
     pub comptime_functions: HashMap<String, FunctionDecl>,
@@ -83,6 +97,30 @@ pub struct Lowering<'a> {
     /// E-LINK-001 duplicate check (`check_module_link`). Mirrors the
     /// `module.functions`/`extern_functions`/`globals` inserts.
     pub symbol_table: SymbolTable,
+    /// Inline-return frames for lambda bodies lowered IN PLACE (named lambdas,
+    /// lambda-argument static dispatch, higher-order builtins). A `return e`
+    /// inside such a body must become "exit the inlined body with value e",
+    /// not "return from the enclosing function". The frame names a synthetic
+    /// slot that every return site writes, and a join block all exits (plus the
+    /// fall-through) merge at; the call site loads the slot from the join
+    /// block as the lambda-call result. Stack discipline mirrors shadowing:
+    /// innermost frame wins, nested lambdas each push their own.
+    pub inline_ret_frames: Vec<InlineRetFrame>,
+    /// Uniqueness counter for `@lam_ret_N` slots (never collides with user
+    /// identifiers; not a global data slot name, and `assert`-free naming).
+    pub inline_ret_counter: usize,
+}
+
+/// One open inline body being lowered (see `inline_ret_frames`).
+pub struct InlineRetFrame {
+    /// Synthetic slot every `return e` in the body stores its value to.
+    pub ret_slot: String,
+    /// Join block, created lazily on the first actual `return`. All return
+    /// sites branch to it, and the fall-through joins there too. `None` until
+    /// the first `return` is lowered.
+    pub join: Option<BasicBlockId>,
+    /// Whether at least one inline `return` was lowered through this frame.
+    pub used: bool,
 }
 
 impl<'a> Lowering<'a> {
@@ -571,6 +609,10 @@ impl<'a> Lowering<'a> {
             in_wrapping_mode: false,
             in_saturating_mode: false,
             local_lambdas: HashMap::with_capacity(16),
+            local_lambda_ret: HashMap::with_capacity(16),
+            inline_ret_frames: Vec::with_capacity(2),
+            inline_ret_counter: 0,
+            enum_class_field_names: Vec::with_capacity(8),
             inlineable_fns: HashMap::with_capacity(16),
             class_decl_fields: HashMap::with_capacity(16),
             packed_classes_lower: HashSet::with_capacity(8),
@@ -642,34 +684,6 @@ impl<'a> Lowering<'a> {
 
     /// True when `id` still has the placeholder terminator, i.e. control really
     /// reaches the end of the block.
-    pub fn block_falls_through(&self, id: BasicBlockId) -> bool {
-        if id.0 < self.current_blocks.len() && self.current_blocks[id.0].id == id {
-            return matches!(
-                self.current_blocks[id.0].terminator,
-                Terminator::Unreachable
-            );
-        }
-        self.current_blocks
-            .iter()
-            .find(|b| b.id == id)
-            .map(|b| matches!(b.terminator, Terminator::Unreachable))
-            .unwrap_or(false)
-    }
-
-    /// Wires a loop back-edge from `from` to `target`.
-    ///
-    /// The edge is only installed when the block still falls through. A body
-    /// that ends in `return` already has `Terminator::Return`; overwriting it
-    /// would silently discard the early return and produce an infinite loop.
-    pub fn set_back_edge(&mut self, from: BasicBlockId, target: BasicBlockId) {
-        if self.block_falls_through(from) {
-            self.get_block_mut(from).terminator = Terminator::Branch {
-                target,
-                args: Vec::new(),
-            };
-        }
-    }
-
     /// Runtime representation string of a declared type.
     ///
     /// The abstract Result/Option spellings map to their concrete stdlib
@@ -850,6 +864,13 @@ impl<'a> Lowering<'a> {
                 }
             } else if let Decl::Enum(e) = decl {
                 let max_fields = e.variants.iter().map(|v| v.fields.len()).max().unwrap_or(0);
+                // Slot registry is PER-VARIANT: variants of the same enum can
+                // carry payloads of different types at the same slot index
+                // (Color.Red(Int) vs Color.Blue(Str) both use slot f0). The
+                // previous positional max_fields table let the LAST variant
+                // overwrite earlier ones, so a match arm bound to Red's Int
+                // payload loaded it through a Str-typed field (fmt formatter
+                // then dereferenced the integer as a char* -> exit 139).
                 let mut slot_types: Vec<String> = vec!["Int".to_string(); max_fields];
                 for v in &e.variants {
                     for (idx, fty) in v.fields.iter().enumerate() {
@@ -858,24 +879,42 @@ impl<'a> Lowering<'a> {
                 }
                 for (v_idx, v) in e.variants.iter().enumerate() {
                     let full_vname = format!("{}_{}", e.name, v.name);
+                    let v_slots: Vec<String> = v
+                        .fields
+                        .iter()
+                        .map(|fty| fty.full_type_name())
+                        .collect();
                     self.enum_variant_tags
                         .insert(format!("{}.{}", e.name, v.name), v_idx as i64);
                     self.enum_variant_tags.insert(v.name.clone(), v_idx as i64);
                     self.enum_variant_names
                         .insert(v_idx as i64, full_vname.clone());
                     self.enum_slots
-                        .insert(format!("{}.{}", e.name, v.name), slot_types.clone());
-                    self.enum_slots.insert(v.name.clone(), slot_types.clone());
+                        .insert(format!("{}.{}", e.name, v.name), v_slots.clone());
+                    self.enum_slots.insert(v.name.clone(), v_slots.clone());
                     self.class_field_types
                         .insert(format!("{}.__tag", full_vname), "Int".into());
                     self.class_field_types.insert("__tag".into(), "Int".into());
-                    for (s_idx, s_ty) in slot_types.iter().enumerate() {
+                    for (s_idx, s_ty) in v_slots.iter().enumerate() {
                         self.class_field_types
                             .insert(format!("{}.f{}", full_vname, s_idx), s_ty.clone());
                         self.class_field_types
                             .insert(format!("f{}", s_idx), s_ty.clone());
                     }
                 }
+                // Layout for the bare enum class (match-pattern receivers):
+                // collected here, inserted after the resolver.classes pass so
+                // that pass cannot overwrite the enum layout with the (empty)
+                // structural field list. See the insertion below.
+                let enum_field_names: Vec<String> = {
+                    let mut names: Vec<String> = vec!["__tag".to_string()];
+                    for slot_idx in 0..slot_types.len() {
+                        names.push(format!("f{}", slot_idx));
+                    }
+                    names
+                };
+                self.enum_class_field_names
+                    .push((e.name.clone(), enum_field_names));
             } else if let Decl::Function(f) | Decl::Flow(f) | Decl::Task(f) = decl {
                 let ret = f
                     .return_type
@@ -1072,12 +1111,41 @@ impl<'a> Lowering<'a> {
         let mut sorted_classes: Vec<_> = self.resolver.classes.iter().collect();
         sorted_classes.sort_by_key(|(name, _)| (*name).clone());
         for (cls_name, cls_sym) in sorted_classes {
+            // Enum declarations register into resolver.classes with the
+            // VARIANT NAMES as a structural field list (Blue/Green/Red). That
+            // layout is wrong for codegen: match-pattern receivers read
+            // __tag/fN, and overwriting produces E0944 on fmt"..."-arms where
+            // the struct-shaped value survives the optimizer. Enum layouts
+            // come from the deferred enum insertion below.
+            if self
+                .enum_class_field_names
+                .iter()
+                .any(|(n, _)| n == cls_name)
+            {
+                continue;
+            }
             let f_names = decl_field_order.get(cls_name).cloned().unwrap_or_else(|| {
                 let mut names: Vec<String> = cls_sym.fields.keys().cloned().collect();
                 names.sort();
                 names
             });
             module.class_fields.insert(cls_name.clone(), f_names);
+        }
+
+        // Enum classes participate in field-offset resolution: a match-pattern
+        // arm reads `__tag`/`fN` from a receiver whose class is the bare enum
+        // name (params, locals). Without the layout, an arm body containing
+        // fmt"..."/FormatStr (the one case where the receiver object survives
+        // as a struct-shaped value at codegen time) failed codegen with E0944
+        // "field '__tag' does not exist in the layout of class 'Color'".
+        // Layout order mirrors the StructInit emission (__tag first, then
+        // f0..fN-1) so offsets agree on both tiers. or_insert: a class with
+        // the same name declared structurally keeps its own field list.
+        for (enum_name, field_names) in self.enum_class_field_names.clone() {
+            module
+                .class_fields
+                .entry(enum_name)
+                .or_insert(field_names);
         }
 
         // Pre-register generic specialization return types so earlier functions (like main)
@@ -1115,6 +1183,13 @@ impl<'a> Lowering<'a> {
                 }
             }
         }
+
+        // M6.2 auto-region: detect Layer-1 ownership cycles (A↔B field
+        // edges, container self-loops) once, up front, so the dataflow pass
+        // and both backends see the same set for the whole module.
+        module.cyclic_classes = crate::ownership::tmm::cyclic_dataflow_classes(
+            &crate::ownership::tmm::TmmPlan::build(program),
+        );
 
         for decl in &program.declarations {
             match decl {
@@ -1230,6 +1305,12 @@ impl<'a> Lowering<'a> {
         }
 
         module.class_field_types = self.class_field_types.clone();
+        // M6 TMM Layer 1: after every body (functions, methods,
+        // specializations) is final, the dataflow pass decides and inserts
+        // the deterministic last-use releases. It runs on ALL modules —
+        // check and compile — so the decision surface is identical; the
+        // escape predicate in the backends ignores these exact call names.
+        crate::ownership::dataflow::insert_releases(&mut module);
         module
     }
 }

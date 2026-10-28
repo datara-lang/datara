@@ -4,6 +4,52 @@ use std::collections::HashMap;
 
 use super::Lowering;
 
+/// Full recursive TypeNode → DataraType for parameter records. The flat
+/// name-match used before collapsed nested generics: a
+/// `List<Outcome<Int>>` parameter was recorded as `List(Int)`, so `l[0]`
+/// lowered to a list_get with ty "Int" and the `?`-unwrap GetField
+/// `is_success` failed codegen with E0944 (refusing to guess the field
+/// offset on a non-class value).
+pub(crate) fn type_node_datara(tn: &TypeNode) -> crate::types::DataraType {
+    use crate::types::DataraType;
+    match tn.name.as_str() {
+        "Int" | "Int64" | "i64" | "int" | "isize" => DataraType::Int,
+        "Float" | "Float64" | "f64" | "float" => DataraType::Float,
+        "Float32" | "f32" => DataraType::Float32,
+        "Bool" | "bool" => DataraType::Bool,
+        "Str" | "String" | "str" => DataraType::String,
+        "List" => DataraType::List(Box::new(match tn.generic_args.first() {
+            Some(arg) => type_node_datara(arg),
+            None => DataraType::Int,
+        })),
+        "Map" => DataraType::Map(
+            Box::new(match tn.generic_args.first() {
+                Some(arg) => type_node_datara(arg),
+                None => DataraType::String,
+            }),
+            Box::new(match tn.generic_args.get(1) {
+                Some(arg) => type_node_datara(arg),
+                None => DataraType::Int,
+            }),
+        ),
+        other => {
+            if other == "Val" || other == "any" {
+                // M7 TSU: the dynamic type itself — a List<Val> parameter
+                // must record DataraType::Val (not Class("Val")) so `is`
+                // checks and val methods route to the NaN-box path.
+                DataraType::Val
+            } else if tn.generic_args.is_empty() {
+                DataraType::Class(other.to_string())
+            } else {
+                DataraType::GenericInstance {
+                    name: other.to_string(),
+                    args: tn.generic_args.iter().map(type_node_datara).collect(),
+                }
+            }
+        }
+    }
+}
+
 impl<'a> Lowering<'a> {
     pub(crate) fn lower_function(&mut self, f: &FunctionDecl) -> Function {
         self.val_counter = 0;
@@ -27,13 +73,7 @@ impl<'a> Lowering<'a> {
                 .unwrap_or_else(|| "Int".into());
             if let Some(ref tn) = p.type_node {
                 if tn.name == "List" && !tn.generic_args.is_empty() {
-                    let elem = match tn.generic_args[0].name.as_str() {
-                        "Float" | "Float64" => crate::types::DataraType::Float,
-                        "Float32" => crate::types::DataraType::Float32,
-                        "String" | "Str" => crate::types::DataraType::String,
-                        "Bool" => crate::types::DataraType::Bool,
-                        _ => crate::types::DataraType::Int,
-                    };
+                    let elem = type_node_datara(&tn.generic_args[0]);
                     self.local_var_types.insert(
                         p.name.clone(),
                         crate::types::DataraType::List(Box::new(elem)),
@@ -57,6 +97,31 @@ impl<'a> Lowering<'a> {
                 } else if tn.name == "Bool" {
                     self.local_var_types
                         .insert(p.name.clone(), crate::types::DataraType::Bool);
+                } else if tn.name == "Map" {
+                    // Typed map parameters keep BOTH arguments. The old
+                    // fallback below only ran for parameters WITHOUT a type
+                    // node, so `fn f(m: Map<Int, Int>)` was recorded as
+                    // Map<Str, Int> and every `m.get(int)` dispatched to the
+                    // string ABI (miss -> `or` fallback, or worse).
+                    let parse = |t: Option<&crate::ast::TypeNode>| match t {
+                        Some(tn) => match tn.name.as_str() {
+                            "Int" | "Int64" | "Int32" | "Int16" | "Int8" => {
+                                crate::types::DataraType::Int
+                            }
+                            "Float" | "Float64" | "f64" | "Float32" | "f32" => {
+                                crate::types::DataraType::Float
+                            }
+                            "Bool" => crate::types::DataraType::Bool,
+                            _ => crate::types::DataraType::String,
+                        },
+                        None => crate::types::DataraType::Int,
+                    };
+                    let k_ty = parse(tn.generic_args.first());
+                    let v_ty = parse(tn.generic_args.get(1));
+                    self.local_var_types.insert(
+                        p.name.clone(),
+                        crate::types::DataraType::Map(Box::new(k_ty), Box::new(v_ty)),
+                    );
                 }
             } else if ty_str == "Float" {
                 self.class_field_types
@@ -94,6 +159,18 @@ impl<'a> Lowering<'a> {
                 // off the receiver's value type, and without this entry
                 // the repr fell back to Int (raw pointer printed as a
                 // number, E0944-class silent wrong data).
+                let key_repr = inner
+                    .split(',')
+                    .next()
+                    .unwrap_or("Str")
+                    .trim()
+                    .to_string();
+                let key_ty = match key_repr.as_str() {
+                    "Int" | "Int64" | "Int32" | "Int16" | "Int8" => {
+                        crate::types::DataraType::Int
+                    }
+                    _ => crate::types::DataraType::String,
+                };
                 let val_repr = inner
                     .rsplit(',')
                     .next()
@@ -111,10 +188,7 @@ impl<'a> Lowering<'a> {
                 };
                 self.local_var_types.insert(
                     p.name.clone(),
-                    crate::types::DataraType::Map(
-                        Box::new(crate::types::DataraType::String),
-                        Box::new(val_ty),
-                    ),
+                    crate::types::DataraType::Map(Box::new(key_ty), Box::new(val_ty)),
                 );
             }
             params.push((p.name.clone(), ty_str, p_val));

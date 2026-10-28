@@ -1,0 +1,202 @@
+{
+  "seed": 42,
+  "forgen": "D:\\DATARA\\datara + forgen\\target\\release\\forgen.exe",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "processor": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+  "python": "3.14.3",
+  "fns_per_module": 20,
+  "results": [
+    {
+      "source_lines": 10000,
+      "modules": 57,
+      "functions": 1140,
+      "check_seconds": 2.27,
+      "phases": {
+        "pipeline_total_ms": 175,
+        "parse_ms": 19,
+        "resolve_ms": 7,
+        "typecheck_ms": 7,
+        "merged_lint_elapsed_ms": 22
+      },
+      "debug_trace": [
+        "[phases] so-far total=175ms parse=19ms resolve=7ms typecheck=7ms",
+        "[phases2] effects done at 178ms",
+        "[phases2] ownership done at 301ms",
+        "[phases2] security done at 306ms",
+        "[phases2] lowering done at 343ms",
+        "[phases2] dmir ownership analyze done at 1830ms",
+        "[phases2] optimizer done at 2214ms",
+        "[phases2] dmir ownership + optimize + backend verify done at 2232ms",
+        "[phases2] format_all done at 2232ms (0 diagnostics)",
+        "[phases2] check_files returned at 2234ms",
+        "[phases2] merged lint done at 22ms"
+      ],
+      "phase_timeline": [
+        {
+          "phase": "effects",
+          "elapsed_ms": 178,
+          "duration_ms": 178
+        },
+        {
+          "phase": "ownership",
+          "elapsed_ms": 301,
+          "duration_ms": 123
+        },
+        {
+          "phase": "security",
+          "elapsed_ms": 306,
+          "duration_ms": 5
+        },
+        {
+          "phase": "lowering",
+          "elapsed_ms": 343,
+          "duration_ms": 37
+        },
+        {
+          "phase": "dmir ownership analyze",
+          "elapsed_ms": 1830,
+          "duration_ms": 1487
+        },
+        {
+          "phase": "optimizer",
+          "elapsed_ms": 2214,
+          "duration_ms": 384
+        },
+        {
+          "phase": "dmir ownership + optimize + backend verify",
+          "elapsed_ms": 2232,
+          "duration_ms": 18
+        },
+        {
+          "phase": "format_all",
+          "elapsed_ms": 2232,
+          "duration_ms": 0
+        },
+        {
+          "phase": "merged lint",
+          "elapsed_ms": 22,
+          "duration_ms": 0
+        }
+      ],
+      "ownership_hotspots": [
+        {
+          "function": "fn_0055_003 (blocks=4)",
+          "elapsed_us": 6998
+        },
+        {
+          "function": "fn_0053_003 (blocks=4)",
+          "elapsed_us": 6836
+        },
+        {
+          "function": "fn_0055_000 (blocks=4)",
+          "elapsed_us": 6501
+        },
+        {
+          "function": "fn_0056_018 (blocks=4)",
+          "elapsed_us": 6351
+        },
+        {
+          "function": "fn_0054_009 (blocks=4)",
+          "elapsed_us": 6288
+        }
+      ],
+      "check_summary": "[Forgen check] Verified 100% OK in 2234ms (58 modules, 0 errors, 0 warnings, valid ownership & effects)"
+    },
+    {
+      "source_lines": 50000,
+      "modules": 287,
+      "functions": 5740,
+      "check_seconds": 66.407,
+      "phases": {
+        "pipeline_total_ms": 903,
+        "parse_ms": 92,
+        "resolve_ms": 28,
+        "typecheck_ms": 41,
+        "merged_lint_elapsed_ms": 140
+      },
+      "debug_trace": [
+        "[phases] so-far total=903ms parse=92ms resolve=28ms typecheck=41ms",
+        "[phases2] effects done at 923ms",
+        "[phases2] ownership done at 4120ms",
+        "[phases2] security done at 4146ms",
+        "[phases2] lowering done at 4347ms",
+        "[phases2] dmir ownership analyze done at 59747ms",
+        "[phases2] optimizer done at 66109ms",
+        "[phases2] dmir ownership + optimize + backend verify done at 66216ms",
+        "[phases2] format_all done at 66216ms (0 diagnostics)",
+        "[phases2] check_files returned at 66230ms",
+        "[phases2] merged lint done at 140ms"
+      ],
+      "phase_timeline": [
+        {
+          "phase": "effects",
+          "elapsed_ms": 923,
+          "duration_ms": 923
+        },
+        {
+          "phase": "ownership",
+          "elapsed_ms": 4120,
+          "duration_ms": 3197
+        },
+        {
+          "phase": "security",
+          "elapsed_ms": 4146,
+          "duration_ms": 26
+        },
+        {
+          "phase": "lowering",
+          "elapsed_ms": 4347,
+          "duration_ms": 201
+        },
+        {
+          "phase": "dmir ownership analyze",
+          "elapsed_ms": 59747,
+          "duration_ms": 55400
+        },
+        {
+          "phase": "optimizer",
+          "elapsed_ms": 66109,
+          "duration_ms": 6362
+        },
+        {
+          "phase": "dmir ownership + optimize + backend verify",
+          "elapsed_ms": 66216,
+          "duration_ms": 107
+        },
+        {
+          "phase": "format_all",
+          "elapsed_ms": 66216,
+          "duration_ms": 0
+        },
+        {
+          "phase": "merged lint",
+          "elapsed_ms": 140,
+          "duration_ms": 0
+        }
+      ],
+      "ownership_hotspots": [
+        {
+          "function": "fn_0286_018 (blocks=4)",
+          "elapsed_us": 39221
+        },
+        {
+          "function": "fn_0261_012 (blocks=4)",
+          "elapsed_us": 37973
+        },
+        {
+          "function": "fn_0275_003 (blocks=4)",
+          "elapsed_us": 37407
+        },
+        {
+          "function": "fn_0269_018 (blocks=4)",
+          "elapsed_us": 36421
+        },
+        {
+          "function": "fn_0265_015 (blocks=4)",
+          "elapsed_us": 36114
+        }
+      ],
+      "check_summary": "[Forgen check] Verified 100% OK in 66230ms (288 modules, 0 errors, 0 warnings, valid ownership & effects)"
+    }
+  ]
+}

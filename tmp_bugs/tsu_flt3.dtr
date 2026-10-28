@@ -1,0 +1,9 @@
+fn main() {
+    val a = [9, 1.25]
+    out a[1].to_str()
+    val b = [9, 1.25, "raw", false]
+    out b[1].to_str()
+    val c = [1.25, 9]
+    out c[0].to_str()
+    out b[1]
+}

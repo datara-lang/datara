@@ -1,0 +1,9 @@
+fn f() -> Outcome<Int> {
+    val lists: List<Outcome<Int>> = [Outcome.ok(7), Outcome.ok(8)]
+    val first = lists[0]?
+    return Outcome.ok(first + 1)
+}
+fn main() {
+    val r = f() or -1
+    out r
+}

@@ -1,0 +1,10 @@
+use stdlib.web.ssr
+
+fn main() {
+    val page = render_page("T & T <script>", render_h1("Hello <b>x</b>") + render_ul(["<img>", "ok"]))
+    out str_contains(page, "&lt;script&gt;")
+    out str_contains(page, "&lt;img&gt;")
+    out str_contains(page, "<h1>Hello &lt;b&gt;x&lt;/b&gt;</h1>")
+    val resp = render_response("200 OK", "text/html", render_p("a<b"))
+    out str_contains(resp, "Content-Length: 32")
+}

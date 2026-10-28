@@ -1,5 +1,8 @@
 pub mod r#abstract;
+pub mod dataflow;
 pub mod domain;
+pub mod fresh;
+pub mod region;
 pub(crate) mod transfer;
 pub mod tmm;
 
@@ -7,7 +10,11 @@ pub use r#abstract::{
     AbstractVarState, DmirOwnershipAnalyzer, FunctionDataflowState, OwnershipFunctionReport,
     VarBaseState,
 };
+pub use fresh::{lifetime_cache_reset, lifetime_cache_stats, LIFETIME_CACHE_VERSION};
 pub use tmm::{check_ffi_boundaries, detect_arc_cycles, memory_report, TmmLayer, TmmPlan};
+pub use dataflow::{
+    analyze_module, insert_releases, layer1_report, LifetimePlan,
+};
 
 use crate::ast::*;
 use crate::diagnostics::{DiagnosticEngine, ErrorCode, SourceSpan};
@@ -261,7 +268,13 @@ impl<'a> OwnershipTracker<'a> {
 
                 if let Expr::Identifier(name, _target_span) = target {
                     if !self.local_bindings.contains(name) {
-                        self.handle_binding(name, value, false, span, diag);
+                        // Module-level global: the assignment mutates the
+                        // global slot, it does NOT re-bind a local. Record
+                        // the global as mutable in this function scope — a
+                        // second assignment inside the same function must
+                        // not flip the binding to immutable (E-BORROW-002
+                        // false positive on `g = g + x; g = g + y`).
+                        self.handle_binding(name, value, true, span, diag);
                     } else {
                         // 1. Check if variable has active immutable views
                         if let Some(borrows) = self.active_borrows.get(name)

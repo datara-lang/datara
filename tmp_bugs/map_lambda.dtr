@@ -1,0 +1,4 @@
+fn main() {
+    let m = x => { "a": x }
+    println((m(5))["a"])
+}

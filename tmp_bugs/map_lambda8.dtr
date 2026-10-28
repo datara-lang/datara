@@ -1,0 +1,7 @@
+fn main() {
+    let m1 = x => { let q = { "a": x }
+        println(int_to_str(q["a"]))
+        return q }
+    let r = m1(5)
+    println(int_to_str(r["a"]))
+}

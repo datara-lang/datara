@@ -1,0 +1,17 @@
+fn main() {
+    let fixed_dt: Float = 16.666667
+    let fixed_dt_sec: Float = 0.016666667
+    mut accumulator: Float = 0.0
+    mut ticks_simulated: Int = 0
+    mut frame: Int = 0
+    while frame < 60 {
+        let frame_ms = 16.0 + str_to_float(int_to_str(frame % 5)) * 3.5
+        accumulator = accumulator + frame_ms
+        while accumulator >= fixed_dt {
+            accumulator = accumulator - fixed_dt
+            ticks_simulated = ticks_simulated + 1
+        }
+        frame = frame + 1
+    }
+    out int_to_str(ticks_simulated)
+}

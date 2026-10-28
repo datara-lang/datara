@@ -1,0 +1,9 @@
+@arc
+struct P { n: Int }
+
+fn main() {
+    val a = P { n: 1 }
+    mut slot = P { n: 2 }
+    slot = a
+    out a.arc_count()
+}

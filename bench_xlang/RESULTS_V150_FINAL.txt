@@ -1,0 +1,17 @@
+=== FINAL vs rustc/gcc (Windows 11 x64, Ryzen 5 7600, warm cache, n=15, cmd /c wall-time) ===
+Commands: forgen build X.dtr --llvm --opt=speed; gcc -O3 X.c; rustc -O X.rs; contract: print result (verified per-run)
+
+100M loop acc += i & 255 (expect 12750000000)
+  Datara LLVM speed    median    12.91 ms  min   12.02  max   14.99  bin   212 KB  x 1.00  out=12750000000
+  C gcc -O3            median    22.39 ms  min   20.71  max   24.32  bin    85 KB  x 1.73  out=12750000000
+  Rust rustc -O        median    21.20 ms  min   20.77  max   22.37  bin   128 KB  x 1.64  out=12750000000
+
+fib(30) x10 (expect 8320400)
+  Datara LLVM speed    median    10.79 ms  min   10.18  max   11.23  bin   152 KB  x 1.00  out=8320400
+  C gcc -O3            median    20.51 ms  min   19.55  max   25.27  bin    87 KB  x 1.90  out=8320400
+  Rust rustc -O        median    12.49 ms  min   11.97  max   13.27  bin   128 KB  x 1.16  out=8320400
+
+matmul 256x256 i64 (expect 423070)
+  Datara LLVM speed    median    31.08 ms  min   29.70  max   32.74  bin   282 KB  x 1.00  out=423070
+  C gcc -O3            median    31.27 ms  min   30.45  max   34.02  bin    85 KB  x 1.01  out=423070
+  Rust rustc -O        median    36.64 ms  min   35.00  max   38.34  bin   128 KB  x 1.18  out=423070

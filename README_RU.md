@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://github.com/datara-lang/datara"><img src="https://img.shields.io/badge/language-Datara-%23E3B341.svg" alt="Язык" /></a>
   <a href="LICENSE-APACHE"><img src="https://img.shields.io/badge/License-Apache_2.0_OR_MIT-blue.svg" alt="Лицензия" /></a>
-  <img src="https://img.shields.io/badge/версия-1.4.5-blue.svg" alt="Версия" />
+  <img src="https://img.shields.io/badge/версия-1.5.0-blue.svg" alt="Версия" />
   <a href="https://github.com/datara-lang/datara/actions/workflows/ci.yml"><img src="https://github.com/datara-lang/datara/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <img src="https://img.shields.io/badge/тесты-285%20набора%20%7C%201332%20пройдено-brightgreen.svg" alt="Тесты" />
   <a href="https://datara-lang.github.io/datara/ru/"><img src="https://img.shields.io/badge/документация-GitHub_Pages-blue.svg" alt="Документация" /></a>
@@ -41,7 +41,7 @@ Datara полностью исключает паузы сборки мусор�
 > [!NOTE]
 > **English Documentation**: [Official Datara Technical Documentation (English)](README.md) — complete reference guide covering all language mechanics, compiler passes, architecture diagrams, and release matrices.
 
-### Главные нововведения v1.4.5
+### Главные нововведения v1.5.0
 - **Спецификаторы fmt-строк**: `fmt"{x:.2}"` — фиксированная точность, `fmt"{x:x}"` / `X` / `o` / `b` — системы счисления для целых, `fmt"{d:.N}"` для `Dec64` — типизированные вызовы рантайма после резолва, без изменений в typechecker, идентичное поведение на Cranelift JIT/AOT, LLVM и WASM.
 - **Печать Dec64**: значения `Dec64` естественно интерполируются (`fmt"{19.99d}"` → `19.99`, а не сырая мантисса), с диагностикой переполнения для выходящих за диапазон литералов.
 - **Паритет WASM-рантайма**: слитный вывод `out fmt"…"` / `err fmt"…"` и все конвертеры спецификаторов поставляются как импорты `datara:rt` с JS-реализациями — форматированный вывод больше не падает в `0` в браузере.
@@ -222,7 +222,7 @@ Datara поставляется через проверенные официал
 Официальные нативные пакеты, собираемые в CI для Debian/Ubuntu и Fedora/RHEL:
 ```bash
 # Debian / Ubuntu / Pop!_OS / Linux Mint (загрузить из GitHub Releases):
-sudo dpkg -i datara_1.4.5_amd64.deb
+sudo dpkg -i datara_1.5.0_amd64.deb
 
 # Fedora / RHEL / CentOS / openSUSE:
 sudo rpm -ivh datara-1.4.5-1.x86_64.rpm

@@ -146,6 +146,29 @@ impl SraOptimizer {
                         }
                     }
 
+                    Inst::Call {
+                        ref func,
+                        ref args,
+                        ..
+                    } => {
+                        // M6 TMM Layer 1: when this pass decomposes the
+                        // released object, its release call must go away with
+                        // it — kept, it would reference the removed StructInit
+                        // value and survive as a dangling consumer.
+                        let scalarized_release = (func == "datara_rt_free"
+                            || func == "datara_rt_arc_release")
+                            && args.len() == 1
+                            && args.first().is_some_and(|&a| {
+                                non_escaping_vids.contains_key(&a)
+                                    || vid_to_root.contains_key(&a)
+                            });
+                        if scalarized_release {
+                            eliminated_allocs += 1;
+                            continue;
+                        }
+                        new_instructions.push(inst);
+                    }
+
                     Inst::AssignVar { value, .. } => {
                         if non_escaping_vids.contains_key(&value)
                             || vid_to_root.contains_key(&value)

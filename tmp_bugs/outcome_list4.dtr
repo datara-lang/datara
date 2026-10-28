@@ -1,0 +1,12 @@
+fn first_or_fail(l: List<Outcome<Int>>) -> Outcome<Int> {
+    return l[0]?
+}
+fn main() {
+    val l = [Outcome.ok(1), Outcome.ok(2)]
+    out int_to_str(first_or_fail(l).unwrap())
+    val bad = [Outcome.err("nope")] as List<Outcome<Int>>
+    match first_or_fail(bad) {
+        Outcome.ok(v) => { out int_to_str(v) }
+        Outcome.err(msg) => { out fmt"err: {msg}" }
+    }
+}

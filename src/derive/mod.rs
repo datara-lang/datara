@@ -891,6 +891,9 @@ pub fn substitute_self_in_expr(expr: &mut Expr, target: &str) {
                 *name = target.to_string();
             }
         }
+        Expr::IsCheck { operand, .. } => {
+            substitute_self_in_expr(operand, target);
+        }
         Expr::ObjectInit {
             class_name,
             generic_args,

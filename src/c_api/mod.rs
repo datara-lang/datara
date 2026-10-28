@@ -38,6 +38,9 @@ struct LoadedModule {
     functions: HashMap<String, *const u8>,
 }
 
+// SAFETY: LoadedModule — ось-держатель HANDLE Windows (LoadLibrary);
+// API Windows потокобезопасен для загрузки/выгрузки, поля после создания
+// иммутабельны.
 unsafe impl Send for LoadedModule {}
 unsafe impl Sync for LoadedModule {}
 
@@ -71,6 +74,8 @@ pub extern "C" fn forgen_init() -> i32 {
 ///
 /// Returns 0 on success, or -1 on failure (inspect via `forgen_last_error`).
 #[unsafe(no_mangle)]
+/// SAFETY: `module_path` — валидный NUL-терминированный C-строка;
+/// читается через CStr::from_ptr без изменения.
 pub unsafe extern "C" fn forgen_load_module(module_path: *const c_char) -> i32 {
     if module_path.is_null() {
         set_error("forgen_load_module: module_path cannot be NULL");

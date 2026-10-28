@@ -1,0 +1,12 @@
+fn main() {
+    val l = [Outcome.ok(1), Outcome.ok(2)]
+    mut sum = 0
+    for x in l {
+        if x.is_ok() {
+            sum = sum + x.unwrap()
+        }
+    }
+    out int_to_str(sum)
+    val y = l[0]?
+    out int_to_str(y)
+}

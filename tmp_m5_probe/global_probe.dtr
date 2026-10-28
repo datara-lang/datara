@@ -1,0 +1,10 @@
+struct P { v: Int }
+
+mut g: P? = None
+
+fn main() {
+    val t = P { v: 1 }
+    g = t
+    out g.v
+    return
+}

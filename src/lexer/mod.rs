@@ -915,6 +915,7 @@ impl Lexer {
                         "export" => TokenType::Export,
                         "import" => TokenType::Import,
                         "as" => TokenType::As,
+                        "is" => TokenType::Is,
                         "if" => TokenType::If,
                         "else" => TokenType::Else,
                         "for" => TokenType::For,

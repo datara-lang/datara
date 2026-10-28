@@ -154,6 +154,69 @@ impl TmmPlan {
     }
 }
 
+/// M6.2 auto-region (PLAN_V150): classes that participate in a strong
+/// ownership cycle WITHIN the Layer-1 (dataflow) graph — mutual field edges
+/// (`A.peer: B` + `B.peer: A`) or a self-loop (`next: List<Node>` — the
+/// container edge resolves to the element type). A cyclic dataflow
+/// structure has no sound release order: every member is simultaneously a
+/// container (its own fields must outlive it) and a captive (another
+/// member's field points back), so per-object last-use release cannot fire
+/// and the members would leak as a heap cluster. The compiler translates
+/// the whole cluster to region semantics instead: no per-object release,
+/// in-frame allocation reclaims with the frame (auto-arena), and an
+/// escaping cluster falls back to the heap exactly as before.
+///
+/// Only `TmmLayer::Dataflow` classes participate: `@arc` cycles are the
+/// E-TMM-001 detector's domain (Layer 2 owns its refcount discipline),
+/// `@weak` back-edges break cycles by definition, and `@derive(AutoFree)`
+/// classes keep their Layer 3 scope frees — a region-routed object must
+/// never also receive a `datara_rt_free` from either layer.
+pub fn cyclic_dataflow_classes(plan: &TmmPlan) -> HashSet<String> {
+    let dataflow: HashSet<String> = plan
+        .classes
+        .values()
+        .filter(|c| c.layer == TmmLayer::Dataflow)
+        .map(|c| c.name.clone())
+        .collect();
+    // Reachability over strong edges between dataflow classes: a class is
+    // cyclic iff a non-empty path leads back to it (self-loop or longer
+    // cycle). Edges into @arc/@autofree/unknown types are dead ends for
+    // this graph — those layers manage their own lifetimes.
+    let neighbors = |name: &str| -> Vec<String> {
+        plan.classes
+            .get(name)
+            .map(|c| {
+                c.fields
+                    .iter()
+                    .filter(|f| !f.is_weak && dataflow.contains(&f.target))
+                    .map(|f| f.target.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let mut cyclic = HashSet::new();
+    for start in &dataflow {
+        let mut stack = neighbors(start);
+        let mut visited: HashSet<String> = HashSet::new();
+        let mut found = false;
+        'outer: while let Some(cur) = stack.pop() {
+            for nb in neighbors(&cur) {
+                if &nb == start {
+                    found = true;
+                    break 'outer;
+                }
+                if visited.insert(nb.clone()) {
+                    stack.push(nb);
+                }
+            }
+        }
+        if found {
+            cyclic.insert(start.clone());
+        }
+    }
+    cyclic
+}
+
 /// Static cycle detector (M5): a strong-reference cycle through `@arc`
 /// fields leaks deterministically (refcount never reaches zero). Report the
 /// cycle path and the exact fix placement. `@weak` fields break cycles and
@@ -295,10 +358,19 @@ pub fn check_ffi_boundaries(program: &Program, diag: &mut DiagnosticEngine) {
             borrowed_locals: HashSet::new(),
             diag,
         };
-        // Seed: parameters declared `view`/`borrowed` in THIS function that
-        // alias extern pointers cannot be stored either — conservative seed
-        // is empty; only extern-derived locals are tracked.
-        let _ = params;
+        // Seed: parameters declared `view`/`borrowed`/`mut-view` in THIS
+        // function are borrows and must not escape — they cannot be stored,
+        // returned, or transferred into an `owned` slot (E-TMM-002).
+        // `shared` carries @arc ownership and may escape; `own`/`owned`
+        // transfer ownership and are not borrows.
+        for p in params {
+            if matches!(
+                p.ownership_mode.as_str(),
+                "view" | "borrowed" | "mut-view" | "mut_view"
+            ) {
+                ctx.borrowed_locals.insert(p.name.clone());
+            }
+        }
         ctx.walk(body);
     }
 }
@@ -606,5 +678,88 @@ mod tests {
         let report = memory_report(&program);
         assert!(report.contains("Node"));
         assert!(report.contains("L2 @arc"));
+    }
+
+    // -----------------------------------------------------------------
+    // M6.2 auto-region: cyclic dataflow classes.
+    // -----------------------------------------------------------------
+
+    fn mk_dataflow(name: &str, field: Option<(&str, &str, bool)>) -> ClassPlan {
+        let mut c = ClassPlan {
+            name: name.to_string(),
+            layer: TmmLayer::Dataflow,
+            is_arc: false,
+            has_autofree: false,
+            fields: Vec::new(),
+            span: SourceSpan::point(1, 1, "t.dtr".into()),
+        };
+        if let Some((fname, target, weak)) = field {
+            c.fields.push(FieldEdge {
+                field_name: fname.into(),
+                target: target.into(),
+                is_weak: weak,
+                span: SourceSpan::point(2, 5, "t.dtr".into()),
+            });
+        }
+        c
+    }
+
+    #[test]
+    fn cyclic_detector_finds_mutual_cycle_and_self_loop() {
+        let mut plan = TmmPlan::default();
+        plan.classes.insert("A".into(), mk_dataflow("A", Some(("peer", "B", false))));
+        plan.classes.insert("B".into(), mk_dataflow("B", Some(("peer", "A", false))));
+        // Self-loop through a container edge (List<Node> resolves to Node).
+        plan.classes.insert("Node".into(), mk_dataflow("Node", Some(("next", "Node", false))));
+        // An acyclic chain is NOT cyclic.
+        plan.classes.insert("Leaf".into(), mk_dataflow("Leaf", Some(("a", "A", false))));
+        plan.classes.insert("Lonely".into(), mk_dataflow("Lonely", None));
+        let cyclic = cyclic_dataflow_classes(&plan);
+        assert!(cyclic.contains("A"), "A is in the A→B→A cycle");
+        assert!(cyclic.contains("B"), "B is in the A→B→A cycle");
+        assert!(cyclic.contains("Node"), "Node self-loop via container edge");
+        assert!(!cyclic.contains("Leaf"), "acyclic chain member stays Layer 1");
+        assert!(!cyclic.contains("Lonely"));
+        assert_eq!(cyclic.len(), 3);
+    }
+
+    #[test]
+    fn cyclic_detector_skips_weak_arc_and_autofree() {
+        let mut plan = TmmPlan::default();
+        // @weak back-edge breaks the cycle: neither class is cyclic.
+        plan.classes.insert("A".into(), mk_dataflow("A", Some(("peer", "B", false))));
+        plan.classes.insert("B".into(), mk_dataflow("B", Some(("peer", "A", true))));
+        // @arc classes never participate (Layer 2 owns their lifetime).
+        let mut arc_a = mk_dataflow("ArcA", Some(("peer", "ArcB", false)));
+        arc_a.layer = TmmLayer::Arc;
+        arc_a.is_arc = true;
+        let mut arc_b = mk_dataflow("ArcB", Some(("peer", "ArcA", false)));
+        arc_b.layer = TmmLayer::Arc;
+        arc_b.is_arc = true;
+        plan.classes.insert("ArcA".into(), arc_a);
+        plan.classes.insert("ArcB".into(), arc_b);
+        // Edge INTO an @arc class is a dead end, not a cycle.
+        plan.classes.insert("P".into(), mk_dataflow("P", Some(("a", "ArcA", false))));
+        // @derive(AutoFree) classes keep their Layer 3 scope frees — a
+        // region-routed object must never also get a datara_rt_free.
+        let mut af = mk_dataflow("AF", Some(("back", "AFBack", false)));
+        af.layer = TmmLayer::AutoFree;
+        af.has_autofree = true;
+        plan.classes.insert("AF".into(), af);
+        plan.classes.insert("AFBack".into(), mk_dataflow("AFBack", Some(("peer", "AF", false))));
+        let cyclic = cyclic_dataflow_classes(&plan);
+        assert!(cyclic.is_empty(), "expected no cyclic classes, got {cyclic:?}");
+    }
+
+    #[test]
+    fn cyclic_detector_parses_real_source_graph() {
+        let program = parse(
+            "struct A { v: Int, peer: B }\n\nstruct B { v: Int, peer: A }\n\nstruct Tree { child: List<Tree> }\n\nfn main() -> Int {\n    return 0\n}\n",
+        );
+        let plan = TmmPlan::build(&program);
+        let cyclic = cyclic_dataflow_classes(&plan);
+        assert!(cyclic.contains("A") && cyclic.contains("B"));
+        assert!(cyclic.contains("Tree"), "List<Tree> field = self-edge");
+        assert_eq!(cyclic.len(), 3);
     }
 }

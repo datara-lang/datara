@@ -1,0 +1,10 @@
+fn fold3<A, F>(init: A, f: F) -> A {
+    mut acc = init
+    acc = f(acc, 1)
+    acc = f(acc, 2)
+    return acc
+}
+fn main() {
+    val t = fold3(0, (acc, x) => acc + x)
+    out int_to_str(t)
+}

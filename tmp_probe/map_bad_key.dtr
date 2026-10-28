@@ -1,0 +1,4 @@
+fn main() {
+    val m: Map<Float, Int> = {1.5: 1}
+    out m.len()
+}

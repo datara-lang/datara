@@ -1,0 +1,7 @@
+fn lookup(m: Map<Int, Int>) -> Int {
+    return m.get(2) or -1
+}
+fn main() {
+    val m: Map<Int, Int> = {1: 10, 2: 20}
+    out lookup(m)
+}

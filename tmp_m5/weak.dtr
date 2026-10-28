@@ -1,0 +1,17 @@
+use stdlib.result.result
+
+@arc
+struct Counter {
+    value: Int
+}
+
+fn main() {
+    val c = Counter { value: 41 }
+    val w = weak_create(c)
+    val up = weak_upgrade(w)
+    if up.is_ok() {
+        out 1
+    } else {
+        out 0
+    }
+}

@@ -1577,6 +1577,7 @@ impl<'a> TypeChecker<'a> {
                 ),
             );
         }
+        crate::types::prelude_natvar::insert_fiber_signatures(&mut function_signatures);
 
         for (name, sym) in &resolver.functions {
             let mut p_types = Vec::new();
@@ -1715,6 +1716,7 @@ impl<'a> TypeChecker<'a> {
             in_unsafe: false,
             allowed_devices: HashSet::new(),
             current_assign_target: None,
+            source_text: None,
         }
     }
 }

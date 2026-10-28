@@ -246,3 +246,22 @@ jobs:
 
 
 
+
+  security-audit:
+    name: M9 Security (cargo-audit + fuzz invariants + supply chain)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Run cargo-audit (fail on vulnerabilities)
+        run: cargo audit --deny warnings
+      - name: Fuzz invariants (parser/checker/manifest never panic)
+        run: cargo test --release --test test_fuzz_invariants
+      - name: Capability bypass audit matrix
+        run: cargo test --release --test test_capability_bypass_audit --test test_capability_security --test test_capabilities2
+      - name: Supply chain (lock sha256/merkle, tamper detect, reproducible lock)
+        run: cargo test --release --test test_supply_chain --test test_dpm_publish_registry --test test_dpm_cli

@@ -1,0 +1,6 @@
+fn main() {
+    val mx = (a,b) => { if b > a { return b }
+    return a }
+    println(int_to_str(mx(3,5)))
+    println("after")
+}

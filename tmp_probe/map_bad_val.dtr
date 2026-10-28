@@ -1,0 +1,5 @@
+fn main() {
+    val m: Map<Int, Int> = {1: 1}
+    m.insert(2, "two")
+    out m.len()
+}

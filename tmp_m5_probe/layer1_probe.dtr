@@ -1,0 +1,12 @@
+@derive(AutoFree)
+struct Temp { size: Int }
+
+struct Plain { a: Int, b: Int }
+
+fn main() -> Int {
+    val t = Temp { size: 8 }
+    val s = t.size + 1
+    val dead = Plain { a: 3, b: 4 }
+    out s
+    return 0
+}

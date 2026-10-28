@@ -114,6 +114,33 @@ void*       datara_rt_handle_get(uint32_t handle_id);
 const char* datara_rt_handle_tag(uint32_t handle_id);
 int32_t     datara_rt_handle_free(uint32_t handle_id);
 void        datara_rt_handle_shutdown(void);
+
+// ============================================================================
+// M10 NatVar: native fiber runtime (stackful, one scheduler thread; the
+// multi-threaded work-stealing foundation lives in the Rust chase_lev deque)
+// ============================================================================
+int64_t datara_rt_fiber_spawn(int64_t fn_addr, int64_t arg, int64_t stack_kb);
+void    datara_rt_fiber_yield(void);
+void    datara_rt_fiber_sleep_ms(int64_t ms);
+int64_t datara_rt_fiber_join(int64_t handle);
+int64_t datara_rt_fiber_run_until_done(void);
+int64_t datara_rt_fiber_count(void);
+int64_t datara_rt_fiber_done_count(void);
+void    datara_rt_fiber_reset(void);
+int64_t datara_rt_fiber_chan_create(void);
+void    datara_rt_fiber_chan_send(int64_t chan_id, int64_t value);
+int64_t datara_rt_fiber_chan_recv(int64_t chan_id);
+int64_t datara_rt_fiber_now_ms(void);
+
+// M7 TSU: checked/typed val conversions (bits forms for the all-I64
+// codegen ABI — a double rides in a GP register as its IEEE bits)
+DataraValue datara_rt_val_from_f64_bits(int64_t bits);
+int64_t     datara_rt_val_to_f64_bits_checked(DataraValue v);
+void*       datara_rt_val_as_int_outcome(DataraValue v);
+void*       datara_rt_val_as_float_outcome(DataraValue v);
+int64_t     datara_rt_val_to_int_checked(DataraValue v);
+double      datara_rt_val_to_float_checked(DataraValue v);
+const char* datara_rt_val_to_str_tagged(DataraValue v);
 size_t      datara_rt_handle_count(void);
 
 // ============================================================================
@@ -349,8 +376,11 @@ int64_t*    datara_rt_slice(int64_t* list, int64_t start, int64_t end);
 int64_t*    datara_rt_list_create_repeat(int64_t elem, int64_t count);
 void*       datara_rt_map_create(void);
 int64_t*    datara_rt_map_insert(int64_t* map, const char* key, int64_t val);
+int64_t*    datara_rt_map_insert_i64(int64_t* map, int64_t key, int64_t val);
 int64_t     datara_rt_map_get(int64_t* map, const char* key);
+int64_t     datara_rt_map_get_i64(int64_t* map, int64_t key);
 void*       datara_rt_map_get_outcome(int64_t* map, const char* key);
+void*       datara_rt_map_get_outcome_i64(int64_t* map, int64_t key);
 void*       datara_rt_map_create_1(const char* k0, int64_t v0);
 int64_t*    datara_rt_map_create_2(const char* k0, int64_t v0, const char* k1, int64_t v1);
 int64_t*    datara_rt_map_create_3(const char* k0, int64_t v0, const char* k1, int64_t v1,
@@ -360,7 +390,17 @@ int64_t*    datara_rt_map_create_4(const char* k0, int64_t v0, const char* k1, i
 int64_t*    datara_rt_map_create_5(const char* k0, int64_t v0, const char* k1, int64_t v1,
                                    const char* k2, int64_t v2, const char* k3, int64_t v3,
                                    const char* k4, int64_t v4);
+int64_t*    datara_rt_map_create_i64_1(int64_t k0, int64_t v0);
+int64_t*    datara_rt_map_create_i64_2(int64_t k0, int64_t v0, int64_t k1, int64_t v1);
+int64_t*    datara_rt_map_create_i64_3(int64_t k0, int64_t v0, int64_t k1, int64_t v1,
+                                     int64_t k2, int64_t v2);
+int64_t*    datara_rt_map_create_i64_4(int64_t k0, int64_t v0, int64_t k1, int64_t v1,
+                                     int64_t k2, int64_t v2, int64_t k3, int64_t v3);
+int64_t*    datara_rt_map_create_i64_5(int64_t k0, int64_t v0, int64_t k1, int64_t v1,
+                                     int64_t k2, int64_t v2, int64_t k3, int64_t v3,
+                                     int64_t k4, int64_t v4);
 int64_t     datara_rt_map_contains(int64_t* map, const char* key);
+int64_t     datara_rt_map_contains_i64(int64_t* map, int64_t key);
 int64_t     datara_rt_map_len(int64_t* map);
 void        datara_rt_map_free(void* map);
 

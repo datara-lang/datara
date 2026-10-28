@@ -1,0 +1,7 @@
+fn main() {
+    let m1 = x => { "a": x, "b": x * 2 }
+    let r = m1(5)
+    println(int_to_str(r.len()))
+    println(r.get("a") or -1)
+    println(r.get("b") or -1)
+}

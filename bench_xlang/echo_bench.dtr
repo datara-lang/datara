@@ -1,0 +1,14 @@
+fn main() {
+    mut i = 0
+    mut switches = 0
+    mut total = 0
+    while i < 100000 {
+        fiber_spawn(tick, i)
+        i = i + 1
+    }
+    fiber_run_until_done()
+}
+fn tick(x: Int) {
+    switches = switches + 1
+}
+mut switches = 0

@@ -1,0 +1,12 @@
+struct A { v: Int }
+
+fn echo(a: A) -> A {
+    return a
+}
+
+fn main() {
+    mut a = A { v: 1 }
+    val b = echo(a)
+    out b.v
+    return
+}

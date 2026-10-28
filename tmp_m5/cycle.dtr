@@ -1,0 +1,10 @@
+@arc
+struct Node {
+    value: Int
+    next: Node
+}
+
+fn main() {
+    let n = Node { value: 1, next: 0 as RawPtr }
+    out n.value
+}

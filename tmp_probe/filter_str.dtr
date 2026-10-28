@@ -1,0 +1,8 @@
+fn main() {
+    val words: List<Str> = ["a", "bb", "ccc", "d"]
+    val kept = words.filter(w => w.len() >= 2)
+    out kept.len()
+    out kept[0]
+    out kept[1]
+    out "done"
+}

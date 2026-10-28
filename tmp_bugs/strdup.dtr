@@ -1,0 +1,7 @@
+fn main() {
+    out "hello"
+    out "hello"
+    val s = "hello"
+    out s
+    out "world"
+}

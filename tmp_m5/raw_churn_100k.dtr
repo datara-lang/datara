@@ -1,0 +1,16 @@
+struct Box { v: Int }
+
+fn churn(n: Int) -> Int {
+    mut acc = 0
+    mut i = 0
+    while i < n {
+        val b = Box { v: i }
+        acc = acc + b.v
+        i = i + 1
+    }
+    return acc
+}
+
+fn main() -> Int {
+    return churn(100000)
+}

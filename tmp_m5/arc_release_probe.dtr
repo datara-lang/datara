@@ -1,0 +1,9 @@
+@arc
+struct Node { v: Int }
+
+fn main() {
+    val n = Node { v: 7 }
+    out n.arc_count()
+    n.arc_release()
+    out n.arc_count()
+}

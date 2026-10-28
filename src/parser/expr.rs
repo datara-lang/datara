@@ -431,6 +431,24 @@ impl<'a> Parser<'a> {
                     kind,
                     span,
                 };
+            } else if self.match_token(&TokenType::Is) {
+                // M7 TSU: `expr is Type` — runtime type test on a dynamic
+                // (val) value. The right side is a TYPE spelling (identifier,
+                // optionally generic — the generic args are ignored by the
+                // tag check; `List` matches any list).
+                let type_node = self.parse_type()?;
+                let span = SourceSpan::new(
+                    expr.span().start_line,
+                    expr.span().start_col,
+                    self.previous().span.end_line,
+                    self.previous().span.end_col,
+                    self.file.clone(),
+                );
+                expr = Expr::IsCheck {
+                    operand: Box::new(expr),
+                    ty_name: type_node.name,
+                    span,
+                };
             } else {
                 break;
             }

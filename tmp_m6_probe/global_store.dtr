@@ -1,0 +1,9 @@
+struct A { v: Int }
+
+mut g: A = A { v: 0 }
+
+fn main() {
+    g = A { v: 7 }
+    out g.v
+    return
+}

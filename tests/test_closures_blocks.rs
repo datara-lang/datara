@@ -201,3 +201,34 @@ fn test_map_literal_lambda_body_still_parses_as_map() {
     assert_eq!(stdout.trim(), "5");
     cleanup(&path);
 }
+
+/// v1.5.0: a lambda returning a map/list literal (direct body, or through a
+/// block body with `return q`) keeps its container type: the result records
+/// in local_var_types, so `r["a"]` dispatches to the map ABI and
+/// `r.get("a") or -1` intercepts the checked Outcome path. Before the
+/// lambda-return-type record the call result was untyped: `r["a"]` lowered
+/// to datara_rt_list_get (silent 0).
+#[test]
+fn test_lambda_returning_container_keeps_type() {
+    ensure_msvc_env();
+    let src = r#"fn main() {
+    let m1 = x => { "a": x }
+    let r = m1(5)
+    println(int_to_str(r["a"]))
+    let r2 = m1(6)
+    println(int_to_str(r2.get("a") or -1))
+    let m2 = x => { let q = { "a": x }
+        return q }
+    let r3 = m2(7)
+    println(int_to_str(r3["a"]))
+    let l1 = x => [x, x + 1]
+    println(int_to_str(l1(5)[1]))
+}
+"#;
+    let path = write_source(&std::env::temp_dir(), "closure_container_ret.dtr", src);
+    let (stdout, code) = run_stdout(&path);
+    assert_eq!(code, 0);
+    let lines: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+    assert_eq!(lines, vec!["5", "6", "7", "6"], "map/list results keep their container types");
+    cleanup(&path);
+}

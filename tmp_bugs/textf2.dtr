@@ -1,0 +1,5 @@
+use stdlib.text.text
+
+fn main() {
+    out text_is_float("3.14")
+}

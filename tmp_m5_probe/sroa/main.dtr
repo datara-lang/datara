@@ -1,0 +1,21 @@
+struct Point {
+    x: Int
+    y: Int
+}
+
+behavior Point {
+    dist_sq() -> Int {
+        return this.x * this.x + this.y * this.y
+    }
+}
+
+fn main() {
+    mut total = 0
+    mut i = 0
+    while i < 1000 {
+        mut p = Point { x: i, y: 2 }
+        total = total + p.dist_sq()
+        i = i + 1
+    }
+    out total
+}

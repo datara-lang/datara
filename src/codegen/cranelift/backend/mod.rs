@@ -203,6 +203,7 @@ impl RealCraneliftBackend {
             rt_out_flt_id: core_ids.rt_out_flt_id,
             rt_out_f32_id: core_ids.rt_out_f32_id,
             rt_out_dec64_id: core_ids.rt_out_dec64_id,
+            rt_out_val_id: core_ids.rt_out_val_id,
             rt_out_str_id: core_ids.rt_out_str_id,
             rt_err_id: core_ids.rt_err_id,
             rt_concat_id: core_ids.rt_concat_id,

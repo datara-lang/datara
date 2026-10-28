@@ -1,0 +1,19 @@
+// M4: top-level function collides with the mangled name of a class method.
+fn Foo_bar(x: Int) -> Int {
+    return x + 1
+}
+
+struct Foo {
+    value: Int
+}
+
+behavior Foo {
+    fn bar(x: Int) -> Int {
+        return x + 1
+    }
+}
+
+fn main() -> Int {
+    val f = Foo { value: 5 }
+    return Foo_bar(1) + f.bar(2)
+}

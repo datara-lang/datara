@@ -1,0 +1,16 @@
+@arc
+struct Node {
+    value: Int
+    next: Weak<Node>
+}
+
+@derive(AutoFree)
+struct Buffer {
+    size: Int
+}
+
+fn main() -> Int {
+    val b = Buffer { size: 64 }
+    out b.size
+    return 0
+}

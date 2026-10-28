@@ -1,0 +1,16 @@
+fn iter_map<T, U>(items: List<T>, f: U) -> List<U> {
+    mut res: List<U> = []
+    for x in items {
+        res.push(f(x))
+    }
+    return res
+}
+fn main() {
+    val doubled = iter_map([1, 2, 3], x => x * 2)
+    out int_to_str(doubled[0])
+    out int_to_str(doubled[2])
+    val words = ["a", "bb"]
+    val lened = iter_map(words, w => w.len())
+    out int_to_str(lened[0])
+    out int_to_str(lened[1])
+}

@@ -1121,6 +1121,47 @@ pub fn declare_runtime_ext<M: ClifModule>(
         (rt_par_invoke_id, rt_par_invoke_sig),
     );
 
+    // M10 NatVar: native fiber runtime (all-I64 ABI; fn_addr is a code
+    // pointer obtained via GetFuncAddr, like the parallel-invoke contract).
+    let natvar_fns: [(&str, usize, usize); 11] = [
+        ("datara_rt_fiber_spawn", 3, 1),
+        ("datara_rt_fiber_yield", 0, 0),
+        ("datara_rt_fiber_sleep_ms", 1, 0),
+        ("datara_rt_fiber_join", 1, 1),
+        ("datara_rt_fiber_run_until_done", 0, 1),
+        ("datara_rt_fiber_count", 0, 1),
+        ("datara_rt_fiber_done_count", 0, 1),
+        ("datara_rt_fiber_reset", 0, 0),
+        ("datara_rt_fiber_chan_create", 0, 1),
+        ("datara_rt_fiber_chan_send", 2, 0),
+        ("datara_rt_fiber_now_ms", 0, 1),
+    ];
+    for (name, nparams, nrets) in natvar_fns {
+        let mut sig = Signature::new(call_conv);
+        for _ in 0..nparams {
+            sig.params.push(AbiParam::new(clif_types::I64));
+        }
+        for _ in 0..nrets {
+            sig.returns.push(AbiParam::new(clif_types::I64));
+        }
+        let fid = module
+            .declare_function(name, Linkage::Import, &sig)
+            .map_err(|e| e.to_string())?;
+        func_ids.insert(name.into(), (fid, sig));
+    }
+    // chan_recv returns i64.
+    let mut rt_chan_recv_sig = Signature::new(call_conv);
+    rt_chan_recv_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_chan_recv_sig.returns.push(AbiParam::new(clif_types::I64));
+    let rt_chan_recv_id = module
+        .declare_function("datara_rt_fiber_chan_recv", Linkage::Import, &rt_chan_recv_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_fiber_chan_recv".into(),
+        (rt_chan_recv_id, rt_chan_recv_sig),
+    );
+
+
     let mut rt_num_workers_sig = Signature::new(call_conv);
     rt_num_workers_sig
         .returns

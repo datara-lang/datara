@@ -4,7 +4,8 @@ use crate::types::{DataraType, TypeChecker};
 use std::collections::{HashMap, HashSet};
 
 use super::call_helpers::{
-    bind_type_params, check_list_combinator_args, is_comptime_constant, subst_type_params,
+    apply_callback_binding_overrides, bind_type_params, check_generic_trait_bounds,
+    check_list_combinator_args, check_map_key_arg, is_comptime_constant, subst_type_params,
 };
 
 impl<'a> TypeChecker<'a> {
@@ -289,7 +290,50 @@ impl<'a> TypeChecker<'a> {
                     bind_type_params(p_ty, a_ty, &mut type_bindings);
                 }
 
+                // Bare-generic callback binding (helper in call_helpers):
+                // U binds to the lambda's RETURN type when U appears bare in
+                // the generic fn's return type.
+                let callback_bound = apply_callback_binding_overrides(
+                    param_types.iter().zip(arg_types.iter()),
+                    &ret_type,
+                    &mut type_bindings,
+                );
+
                 for (idx, (p_ty, a_ty)) in param_types.iter().zip(arg_types.iter()).enumerate() {
+                    if let DataraType::TypeParam(p) = p_ty
+                        && callback_bound.iter().any(|b| b == p)
+                    {
+                        // The lambda argument intentionally binds its RESULT
+                        // type, not its Function type — compatibility holds
+                        // by construction (the result type came from the
+                        // argument itself).
+                        continue;
+                    }
+                    // M7 TSU E-ANY-001: a dynamic (val) value flowing into a
+                    // statically-typed parameter would reinterpret the NaN-box
+                    // bits as the static type (silent garbage). The dynamic
+                    // boundary must be explicit: narrow with `is` or convert.
+                    if *a_ty == DataraType::Val
+                        && !matches!(
+                            p_ty,
+                            DataraType::Val
+                                | DataraType::TypeParam(_)
+                                | DataraType::Unit
+                        )
+                        && !matches!(p_ty, DataraType::Class(c) if c == "Val")
+                    {
+                        diag.error_with_help(
+                            ErrorCode::AnyTypeLeak,
+                            format!(
+                                "Dynamic value passed to parameter {} of type '{}'; a static context would reinterpret the dynamic value's bits",
+                                idx + 1,
+                                p_ty
+                            ),
+                            Some(span.clone()),
+                            Some("narrow with `if x is T { ... }` or convert: .as_int()/.as_float() (Outcome), .to_int()/.to_float() (fail-loud), .to_str()".to_string()),
+                        );
+                        continue;
+                    }
                     let expected_ty = subst_type_params(p_ty, &type_bindings);
                     if !a_ty.is_compatible_with_refined_with_args(&expected_ty, Some(self.resolver))
                     {
@@ -319,92 +363,27 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
 
-                for (param_name, concrete_ty) in &type_bindings {
-                    let bounds = self
-                        .trait_bounds
-                        .get(&format!("{}:{}", fn_name, param_name))
-                        .or_else(|| self.trait_bounds.get(param_name));
-                    if let Some(trait_names) = bounds {
-                        for tr_name in trait_names {
-                            let type_str = match concrete_ty {
-                                DataraType::Class(c) => c.clone(),
-                                DataraType::Int => "Int".to_string(),
-                                DataraType::Float => "Float".to_string(),
-                                DataraType::String => "String".to_string(),
-                                DataraType::Bool => "Bool".to_string(),
-                                DataraType::Unit => "Unit".to_string(),
-                                DataraType::GenericInstance { name, .. } => name.clone(),
-                                other => other.to_string(),
-                            };
-                            let mut satisfied = self
-                                .impls
-                                .contains_key(&(tr_name.clone(), type_str.clone()));
-                            if !satisfied {
-                                if let DataraType::TypeParam(p) = concrete_ty {
-                                    let caller_bounds = self
-                                        .current_fn_name
-                                        .as_ref()
-                                        .and_then(|fn_n| {
-                                            self.trait_bounds.get(&format!("{}:{}", fn_n, p))
-                                        })
-                                        .or_else(|| self.trait_bounds.get(p));
-                                    if let Some(tb) = caller_bounds {
-                                        if tb.contains(tr_name) {
-                                            satisfied = true;
-                                        }
-                                    }
-                                }
-                            }
-                            if !satisfied {
-                                let mut queue = vec![type_str.clone()];
-                                let mut visited = HashSet::new();
-                                while let Some(cls_name) = queue.pop() {
-                                    if !visited.insert(cls_name.clone()) {
-                                        continue;
-                                    }
-                                    if self
-                                        .impls
-                                        .contains_key(&(tr_name.clone(), cls_name.clone()))
-                                    {
-                                        satisfied = true;
-                                        break;
-                                    }
-                                    if let Some(cls_sym) = self.resolver.classes.get(&cls_name) {
-                                        if cls_sym.compositions.iter().any(|comp| comp == tr_name) {
-                                            satisfied = true;
-                                            break;
-                                        }
-                                        for comp in &cls_sym.compositions {
-                                            queue.push(comp.clone());
-                                        }
-                                        if let Some(base) = &cls_sym.base_type {
-                                            queue.push(base.clone());
-                                        }
-                                    }
-                                }
-                            }
-                            if !satisfied {
-                                diag.error(
-                                            ErrorCode::TypeMismatch,
-                                            format!(
-                                                "Type '{}' does not satisfy trait bound '{}' for parameter '{}' in function '{}'",
-                                                concrete_ty, tr_name, param_name, fn_name
-                                            ),
-                                            Some(span.clone()),
-                                        );
-                            }
-                        }
-                    }
-                }
+                check_generic_trait_bounds(
+                    self,
+                    fn_name,
+                    &type_bindings,
+                    span,
+                    diag,
+                );
 
                 if !type_bindings.is_empty() {
                     // A generic parameter bound to a Function type means a
                     // lambda argument (lambda-argument static dispatch): the
                     // call site is inline-lowered by the compiler, so no
-                    // monomorphized instance is recorded for it.
-                    let binds_function = type_bindings
-                        .values()
-                        .any(|t| matches!(t, DataraType::Function { .. }));
+                    // monomorphized instance is recorded for it. The same
+                    // holds when the callback-binding override below replaced
+                    // the Function binding with the lambda's return type —
+                    // the call site still inlines, and a recorded spec would
+                    // monomorphize a body that calls a non-function value.
+                    let binds_function = !callback_bound.is_empty()
+                        || type_bindings
+                            .values()
+                            .any(|t| matches!(t, DataraType::Function { .. }));
                     if !binds_function {
                         let mut spec_args = Vec::new();
                         for gp in &gen_params {
@@ -513,14 +492,30 @@ impl<'a> TypeChecker<'a> {
                     );
                     return DataraType::Unit;
                 }
+                // The enclosing expected type is the return type while
+                // checking a `return`, or the binding's annotation while
+                // checking a declaration initializer (Stmt::Let/Mut/Val
+                // publish it through current_assign_target).
                 let (k_ty, v_ty) = match self
-                    .current_return_type
+                    .current_assign_target
                     .as_ref()
                     .and_then(|r| r.map_like())
+                    .or_else(|| self.current_return_type.as_ref().and_then(|r| r.map_like()))
                 {
                     Some((k, v)) => (k, v),
                     None => (DataraType::String, DataraType::Int),
                 };
+                if !matches!(k_ty, DataraType::String | DataraType::Int) {
+                    diag.error_with_help(
+                        ErrorCode::TypeMismatch,
+                        format!("unsupported map key type '{}'", k_ty),
+                        Some(span.clone()),
+                        Some(
+                            "map keys must be 'Str' or 'Int' (convert with int_to_str/str_to_int)"
+                                .to_string(),
+                        ),
+                    );
+                }
                 return DataraType::Map(Box::new(k_ty), Box::new(v_ty));
             }
             // Maybe.some(v) / Maybe.none() static constructors: same shape as
@@ -770,18 +765,37 @@ impl<'a> TypeChecker<'a> {
                     // return the same Result(T, Str) shape — a raw value here
                     // desynced the two stages and broke `?`/`or` composition
                     // (E-TYPE-001 on a lowered-Outcome operand).
-                    "get" => {
-                        let _ = &key;
+                    "get" | "contains" | "has_key" => {
+                        check_map_key_arg(diag, member, key.as_ref(), &arg_types, span, self.resolver);
+                        if member != "get" {
+                            return DataraType::Bool;
+                        }
                         return DataraType::Result(
                             Box::new((**val).clone()),
                             Box::new(DataraType::String),
                         );
                     }
                     "insert" => {
+                        check_map_key_arg(diag, member, key.as_ref(), &arg_types, span, self.resolver);
+                        if let Some(v) = arg_types.get(1)
+                            && !v.is_compatible_with_args(val.as_ref(), Some(self.resolver))
+                        {
+                            diag.error_with_help(
+                                ErrorCode::TypeMismatch,
+                                format!(
+                                    "map.insert value type mismatch: expected '{}', got '{}'",
+                                    val, v
+                                ),
+                                Some(span.clone()),
+                                Some(format!(
+                                    "this map stores '{}' values",
+                                    val
+                                )),
+                            );
+                        }
                         return DataraType::Map(key.clone(), val.clone());
                     }
                     "length" | "count" | "len" => return DataraType::Int,
-                    "contains" | "has_key" => return DataraType::Bool,
                     _ => {}
                 },
                 DataraType::Result(ok, err) => match member.as_str() {
@@ -857,6 +871,39 @@ impl<'a> TypeChecker<'a> {
                     DataraType::Float
                 } else {
                     DataraType::Int
+                };
+            }
+            // M7 TSU: val methods on dynamic receivers. `as_int`/`as_float`
+            // are NEGOMKO (Outcome, err on tag mismatch); `to_int`/`to_float`
+            // are fail-loud (panic on tag mismatch — same compile-time type
+            // as the intrinsic conversions); `to_str` renders the dynamic
+            // value; the `is_*` predicates mirror the `is` operator.
+            if obj_type == DataraType::Val
+                && matches!(
+                    member.as_str(),
+                    "as_int" | "as_float" | "to_int" | "to_float" | "to_str" | "is_int"
+                        | "is_float" | "is_bool" | "is_str"
+                )
+            {
+                if !arg_types.is_empty() {
+                    diag.error(
+                        ErrorCode::TypeMismatch,
+                        format!("val method '{}' takes no arguments", member),
+                        Some(span.clone()),
+                    );
+                    return DataraType::Unit;
+                }
+                return match member.as_str() {
+                    "as_int" | "to_int" => DataraType::Result(
+                        Box::new(DataraType::Int),
+                        Box::new(DataraType::String),
+                    ),
+                    "as_float" | "to_float" => DataraType::Result(
+                        Box::new(DataraType::Float),
+                        Box::new(DataraType::String),
+                    ),
+                    "to_str" => DataraType::String,
+                    _ => DataraType::Bool,
                 };
             }
             let (cls_opt, gen_args_opt) = match &obj_type {

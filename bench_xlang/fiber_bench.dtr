@@ -1,0 +1,13 @@
+mut total = 0
+fn work(x: Int) {
+    total = total + 1
+}
+fn main() {
+    mut i = 0
+    while i < 10000 {
+        fiber_spawn(work, i)
+        i = i + 1
+    }
+    fiber_run_until_done()
+    out int_to_str(total)
+}

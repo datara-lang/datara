@@ -337,3 +337,55 @@ fn main() {
         res.diagnostics
     );
 }
+
+/// v1.5.0: `return expr?` on a Result/Option-returning function. The
+/// propagate-lowering's error path returns the failed object unchanged and
+/// the success path re-wraps the payload in the enclosing constructor
+/// (semantics: `let v = x?; return Outcome.ok(v)`). Both paths verified on
+/// the native and JIT tiers, plus the Outcome<Int> payload carried through a
+/// `List<Outcome<Int>>` parameter (nested-generic param records).
+#[test]
+fn test_question_return_position_outcome() {
+    let source = r#"
+use stdlib.result.result.Outcome
+use stdlib.result.option.Maybe
+
+fn parse_bad(s: Str) -> Outcome<Int> {
+    return Outcome.err(fmt"bad: {s}")
+}
+
+fn fail_path(s: Str) -> Outcome<Int> {
+    return parse_bad(s)?
+}
+
+fn look_up(s: Str) -> Maybe<Int> {
+    if s == "a" {
+        return Maybe.some(1)
+    }
+    return Maybe.none()
+}
+
+fn lvl(name: Str) -> Maybe<Int> {
+    return look_up(name)?
+}
+
+fn pick(l: List<Outcome<Int>>) -> Outcome<Int> {
+    return l[0]?
+}
+
+fn main() {
+    val a = lvl("a")
+    out fmt"a: found={a.is_some} v={a.value}"
+    val b = lvl("b")
+    out fmt"b: found={b.is_some}"
+    val e = fail_path("x")
+    out fmt"e: ok={e.is_success} msg={e.error_msg}"
+    val good = [Outcome.ok(42)]
+    val g = pick(good)
+    out fmt"g: ok={g.is_success} v={g.value}"
+}
+"#;
+    let expected = "a: found=true v=1\nb: found=false\ne: ok=false msg=bad: x\ng: ok=true v=42";
+    assert_eq!(run_datara(source, "q_return_position.dtr"), expected);
+    assert_eq!(run_jit(source, "q_return_position_jit.dtr"), expected);
+}

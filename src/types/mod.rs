@@ -8,6 +8,7 @@ mod check;
 mod match_check;
 mod prelude;
 mod prelude_concurrency;
+mod prelude_natvar;
 mod prelude_strbuf;
 mod prelude_systems;
 mod refine;
@@ -717,6 +718,79 @@ pub struct TypeChecker<'a> {
     /// variable being assigned, so the checked-API init pattern
     /// `mut r = Outcome.err("init"); ... r = proc_spawn(..)` typechecks.
     pub current_assign_target: Option<DataraType>,
+    /// M2 machine fixes (fix 4/5): root source text, so a type-mismatch
+    /// diagnostic can source-slice the offending expression and emit a
+    /// wrap-in-`str_to_int`/`str_to_float` edit. `None` when the driver has
+    /// no root text (inspect/LSP paths keep working without fixes).
+    pub source_text: Option<String>,
+}
+
+impl<'a> TypeChecker<'a> {
+    /// M2 machine fixes: reconstruct the source text covered by a span.
+    /// Lexer columns are 1-based CHAR indices (the lexer scans `Vec<char>`),
+    /// so slicing is char-based. Returns `None` when no source text is
+    /// attached or the span is out of range.
+    pub fn source_slice(&self, span: &crate::diagnostics::SourceSpan) -> Option<String> {
+        let src = self.source_text.as_ref()?;
+        let lines: Vec<&str> = src.split('\n').collect();
+        let sl = span.start_line.checked_sub(1)?;
+        let el = span.end_line.checked_sub(1)?;
+        if sl >= lines.len() || el >= lines.len() || sl > el {
+            return None;
+        }
+        if span.start_line == span.end_line {
+            let chars: Vec<char> = lines[sl].chars().collect();
+            let s = span.start_col.checked_sub(1)?;
+            let e = span.end_col.min(chars.len());
+            if s > e {
+                return None;
+            }
+            return Some(chars[s..e].iter().collect());
+        }
+        let start_chars: Vec<char> = lines[sl].chars().collect();
+        let s = span.start_col.checked_sub(1)?;
+        if s > start_chars.len() {
+            return None;
+        }
+        let mut out: String = start_chars[s..].iter().collect();
+        for line in &lines[(sl + 1)..el] {
+            out.push('\n');
+            out.push_str(line);
+        }
+        let end_chars: Vec<char> = lines[el].chars().collect();
+        let e = span.end_col.min(end_chars.len());
+        out.push('\n');
+        out.extend(end_chars[..e].iter());
+        Some(out)
+    }
+
+    /// M2 fix 4/5: machine-applicable wrap for `Str` found where `Int` or
+    /// `Float` is expected — replace the offending expression with
+    /// `str_to_int(expr)` / `str_to_float(expr)`. Single-line expressions
+    /// only (a multi-line slice would produce an unreadable fix).
+    pub fn str_parse_machine_fix(
+        &self,
+        expected: &DataraType,
+        found: &DataraType,
+        expr: &Expr,
+    ) -> Option<crate::diagnostics::MachineFix> {
+        if !matches!(found, DataraType::String) {
+            return None;
+        }
+        let f = match expected {
+            DataraType::Int => "str_to_int",
+            DataraType::Float => "str_to_float",
+            _ => return None,
+        };
+        let text = self.source_slice(&expr.span())?;
+        if text.trim().is_empty() || text.contains('\n') {
+            return None;
+        }
+        Some(crate::diagnostics::MachineFix {
+            span: expr.span().clone(),
+            replacement: format!("{}({})", f, text),
+        })
+    }
 }
 
 /// Maximum nesting depth for expression type-checking. Expressions nested

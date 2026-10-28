@@ -1,0 +1,15 @@
+mut gtotal = 0
+fn deep(x: Int) {
+    mut acc = x
+    mut i = 0
+    while i < 100 {
+        acc = acc + 1
+        i = i + 1
+    }
+    gtotal = gtotal + acc
+}
+fn main() {
+    fiber_spawn(deep, 1, 64)
+    fiber_run_until_done()
+    out int_to_str(gtotal)
+}

@@ -1,0 +1,8 @@
+fn main() {
+    val s: Map<Int, Float> = Map.new()
+    s.insert(1, 1.5)
+    s.insert(2, 2.25)
+    out s.get(1) or 0.0
+    out s[2]
+    out s.len()
+}

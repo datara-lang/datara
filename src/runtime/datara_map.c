@@ -79,6 +79,46 @@ typedef struct {
     int64_t index_slots;
 } DataraMapHeader;
 
+#define DATARA_MAP_MAGIC       0x4441544D41503130ULL
+#define DATARA_MAP_MAGIC_MASK  0xFFFFFFFFFFFFFFF0ULL
+#define DATARA_MAP_FLAG_HEAP   0x0ULL
+#define DATARA_MAP_FLAG_POOL   0x1ULL
+#define DATARA_MAP_FLAG_INTKEY 0x2ULL
+#define DATARA_MAP_FLAG_MASK   0xFULL
+
+static const char* rt_map_own_key(const char* key);
+static uint64_t rt_map_hash(const char* key);
+static uint64_t rt_map_hash_i64(int64_t key);
+
+// Key kind lives in the header's flag bits (bit 1): a map is either
+// Str-keyed (the historical default) or Int-keyed. The flag is set by the
+// first insert (or the int-key literal constructor) and preserved across
+// growth/free. `Map.new()` starts neutral; the first insert decides.
+static int rt_map_is_intkey(const DataraMapHeader* hdr) {
+    return hdr && (hdr->magic & DATARA_MAP_FLAG_INTKEY) != 0;
+}
+
+static int rt_map_is_pool(const DataraMapHeader* hdr) {
+    return hdr && (hdr->magic & DATARA_MAP_FLAG_POOL) != 0;
+}
+
+static uint64_t rt_map_hash_key(const DataraMapHeader* hdr, int64_t key) {
+    if (rt_map_is_intkey(hdr)) return rt_map_hash_i64(key);
+    return rt_map_hash((const char*)key);
+}
+
+static int rt_map_key_eq(const DataraMapHeader* hdr, int64_t stored, int64_t key) {
+    if (rt_map_is_intkey(hdr)) return stored == key;
+    const char* a = (const char*)stored;
+    const char* b = (const char*)key;
+    return a && b && strcmp(a, b) == 0;
+}
+
+static int64_t rt_map_own_key_value(int64_t key, int is_int) {
+    if (is_int) return key;
+    return (int64_t)rt_map_own_key((const char*)key);
+}
+
 #define DATARA_MAP_INDEX_MIN 16
 
 // M1 growth-soundness: map keys are OWNED COPIES. Callers routinely pass
@@ -103,6 +143,18 @@ static uint64_t rt_map_hash(const char* key) {
     return h;
 }
 
+// Int keys hash with a 64-bit finalizer (splitmix-style avalanche) so
+// sequential keys still spread across the robin-hood index.
+static uint64_t rt_map_hash_i64(int64_t key) {
+    uint64_t x = (uint64_t)key;
+    x ^= x >> 33;
+    x *= 0xff51afd7ed558ccdULL;
+    x ^= x >> 33;
+    x *= 0xc4ceb9fe1a85ec53ULL;
+    x ^= x >> 33;
+    return x;
+}
+
 static void rt_map_index_free(DataraMapHeader* hdr) {
     if (hdr->index) {
         free(hdr->index);
@@ -114,8 +166,8 @@ static void rt_map_index_free(DataraMapHeader* hdr) {
 static void rt_map_index_put(int64_t* map, DataraMapHeader* hdr, int64_t entry_idx) {
     int64_t mask = hdr->index_slots - 1;
     int64_t* idx = hdr->index;
-    const char* k = (const char*)map[1 + entry_idx * 2];
-    int64_t home = (int64_t)(rt_map_hash(k) & (uint64_t)mask);
+    int64_t key = map[1 + entry_idx * 2];
+    int64_t home = (int64_t)(rt_map_hash_key(hdr, key) & (uint64_t)mask);
     int64_t slot = home;
     int64_t pend_e = entry_idx;
     int64_t pend_dist = 0;
@@ -126,8 +178,7 @@ static void rt_map_index_put(int64_t* map, DataraMapHeader* hdr, int64_t entry_i
             return;
         }
         int64_t cur_e = cur - 1;
-        const char* ck = (const char*)map[1 + cur_e * 2];
-        int64_t cur_home = (int64_t)(rt_map_hash(ck) & (uint64_t)mask);
+        int64_t cur_home = (int64_t)(rt_map_hash_key(hdr, map[1 + cur_e * 2]) & (uint64_t)mask);
         int64_t cur_dist = slot - cur_home;
         if (cur_dist < 0) cur_dist += hdr->index_slots;
         // Robin hood: a richer element (larger probe distance) takes the
@@ -156,23 +207,17 @@ static void rt_map_index_build(int64_t* map, DataraMapHeader* hdr) {
     }
 }
 
-static int64_t rt_map_index_find(int64_t* map, DataraMapHeader* hdr, const char* key) {
+static int64_t rt_map_index_find(int64_t* map, DataraMapHeader* hdr, int64_t key) {
     int64_t mask = hdr->index_slots - 1;
-    int64_t slot = (int64_t)(rt_map_hash(key) & (uint64_t)mask);
+    int64_t slot = (int64_t)(rt_map_hash_key(hdr, key) & (uint64_t)mask);
     for (;;) {
         int64_t cur = hdr->index[slot];
         if (cur == 0) return -1;
         int64_t e = cur - 1;
-        const char* ck = (const char*)map[1 + e * 2];
-        if (ck && strcmp(ck, key) == 0) return e;
+        if (rt_map_key_eq(hdr, map[1 + e * 2], key)) return e;
         slot = (slot + 1) & mask;
     }
 }
-
-#define DATARA_MAP_MAGIC      0x4441544D41503130ULL
-#define DATARA_MAP_MAGIC_MASK 0xFFFFFFFFFFFFFFF0ULL
-#define DATARA_MAP_FLAG_HEAP  0x0ULL
-#define DATARA_MAP_FLAG_POOL  0x1ULL
 
 void* datara_rt_map_create(void) {
     size_t init_cap = 8;
@@ -262,22 +307,111 @@ int64_t* datara_rt_map_create_5(const char* k0, int64_t v0, const char* k1, int6
 }
 
 static DataraMapHeader* datara_rt_map_get_header_fwd(int64_t* map);
+static int64_t* datara_rt_map_insert_impl(int64_t* map, int64_t key, int64_t val, int is_int);
 
-int64_t datara_rt_map_get(int64_t* map, const char* key) {
-    if (!map || !key) return 0;
+// Int-keyed literal constructors. They build the map through the same
+// insert path as runtime inserts, so the header flag, owned keys and the
+// robin-hood index are all established exactly once.
+int64_t* datara_rt_map_create_i64_1(int64_t k0, int64_t v0) {
+    int64_t* m = (int64_t*)datara_rt_map_create();
+    return datara_rt_map_insert_impl(m, k0, v0, 1);
+}
+
+int64_t* datara_rt_map_create_i64_2(int64_t k0, int64_t v0, int64_t k1, int64_t v1) {
+    int64_t* m = datara_rt_map_create_i64_1(k0, v0);
+    return datara_rt_map_insert_impl(m, k1, v1, 1);
+}
+
+int64_t* datara_rt_map_create_i64_3(int64_t k0, int64_t v0, int64_t k1, int64_t v1,
+                                    int64_t k2, int64_t v2) {
+    int64_t* m = datara_rt_map_create_i64_2(k0, v0, k1, v1);
+    return datara_rt_map_insert_impl(m, k2, v2, 1);
+}
+
+int64_t* datara_rt_map_create_i64_4(int64_t k0, int64_t v0, int64_t k1, int64_t v1,
+                                    int64_t k2, int64_t v2, int64_t k3, int64_t v3) {
+    int64_t* m = datara_rt_map_create_i64_3(k0, v0, k1, v1, k2, v2);
+    return datara_rt_map_insert_impl(m, k3, v3, 1);
+}
+
+int64_t* datara_rt_map_create_i64_5(int64_t k0, int64_t v0, int64_t k1, int64_t v1,
+                                    int64_t k2, int64_t v2, int64_t k3, int64_t v3,
+                                    int64_t k4, int64_t v4) {
+    int64_t* m = datara_rt_map_create_i64_4(k0, v0, k1, v1, k2, v2, k3, v3);
+    return datara_rt_map_insert_impl(m, k4, v4, 1);
+}
+
+// Shared lookup core. `found` reports a hit; a key-kind mismatch (an Int
+// lookup against a Str map, or vice versa) is a miss, never a wild read.
+static int64_t rt_map_find_entry(int64_t* map, int64_t key, int is_int, int* found) {
+    *found = 0;
+    if (!map) return -1;
     int64_t count = map[0];
+    if (count <= 0) return -1;
     DataraMapHeader* hdr = datara_rt_map_get_header_fwd(map);
+    if (hdr && rt_map_is_intkey(hdr) != is_int) return -1;
     if (hdr && hdr->index && hdr->index_slots && count >= DATARA_MAP_INDEX_MIN) {
         int64_t e = rt_map_index_find(map, hdr, key);
-        return e >= 0 ? map[2 + e * 2] : 0;
+        if (e >= 0) *found = 1;
+        return e;
     }
     for (int64_t i = 0; i < count; i++) {
-        const char* k = (const char*)map[1 + i * 2];
-        if (k && strcmp(k, key) == 0) {
-            return map[2 + i * 2];
+        if (rt_map_key_eq(hdr, map[1 + i * 2], key)) {
+            *found = 1;
+            return i;
         }
     }
-    return 0;
+    return -1;
+}
+
+static int64_t rt_map_get_impl(int64_t* map, int64_t key, int is_int) {
+    if (!map) return 0;
+    int found = 0;
+    int64_t e = rt_map_find_entry(map, key, is_int, &found);
+    return found ? map[2 + e * 2] : 0;
+}
+
+static void* rt_map_get_outcome_impl(int64_t* map, int64_t key, int is_int) {
+    extern void* datara_rt_outcome_build_raw(int64_t, int64_t, const char*);
+    if (!map) {
+        return datara_rt_outcome_build_raw(0, 0, "map lookup: null map or key");
+    }
+    DataraMapHeader* hdr = datara_rt_map_get_header_fwd(map);
+    if (hdr && rt_map_is_intkey(hdr) != is_int) {
+        return datara_rt_outcome_build_raw(0, 0, "map lookup: key type mismatch");
+    }
+    int found = 0;
+    int64_t e = rt_map_find_entry(map, key, is_int, &found);
+    if (found) {
+        return datara_rt_outcome_build_raw(1, map[2 + e * 2], "");
+    }
+    return datara_rt_outcome_build_raw(0, 0, "map lookup: key not found");
+}
+
+static int64_t rt_map_contains_impl(int64_t* map, int64_t key, int is_int) {
+    if (!map) return 0;
+    int found = 0;
+    rt_map_find_entry(map, key, is_int, &found);
+    return found ? 1 : 0;
+}
+
+// Switches a still-empty map to the requested key kind. Maps become
+// typed on their first insert; `Map.new()` itself is neutral.
+static void rt_map_adopt_key_kind(DataraMapHeader* hdr, int is_int) {
+    if (!hdr) return;
+    if (is_int) {
+        hdr->magic |= DATARA_MAP_FLAG_INTKEY;
+    } else {
+        hdr->magic &= ~DATARA_MAP_FLAG_INTKEY;
+    }
+}
+
+int64_t datara_rt_map_get(int64_t* map, const char* key) {
+    return rt_map_get_impl(map, (int64_t)key, 0);
+}
+
+int64_t datara_rt_map_get_i64(int64_t* map, int64_t key) {
+    return rt_map_get_impl(map, key, 1);
 }
 
 static inline DataraMapHeader* datara_rt_map_get_header(int64_t* map) {
@@ -298,56 +432,48 @@ static DataraMapHeader* datara_rt_map_get_header_fwd(int64_t* map) {
 // patterns, Str/class pointers ride in the i64 slot verbatim). The legacy
 // raw datara_rt_map_get stays for the unchecked indexing path.
 void* datara_rt_map_get_outcome(int64_t* map, const char* key) {
-    extern void* datara_rt_outcome_build_raw(int64_t, int64_t, const char*);
-    if (!map || !key) {
-        return datara_rt_outcome_build_raw(0, 0, "map lookup: null map or key");
-    }
-    int64_t count = map[0];
-    DataraMapHeader* hdr = datara_rt_map_get_header_fwd(map);
-    if (hdr && hdr->index && hdr->index_slots && count >= DATARA_MAP_INDEX_MIN) {
-        int64_t e = rt_map_index_find(map, hdr, key);
-        if (e >= 0) {
-            return datara_rt_outcome_build_raw(1, map[2 + e * 2], "");
-        }
-        return datara_rt_outcome_build_raw(0, 0, "map lookup: key not found");
-    }
-    for (int64_t i = 0; i < count; i++) {
-        const char* k = (const char*)map[1 + i * 2];
-        if (k && strcmp(k, key) == 0) {
-            return datara_rt_outcome_build_raw(1, map[2 + i * 2], "");
-        }
-    }
-    return datara_rt_outcome_build_raw(0, 0, "map lookup: key not found");
+    return rt_map_get_outcome_impl(map, (int64_t)key, 0);
 }
 
-int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
+void* datara_rt_map_get_outcome_i64(int64_t* map, int64_t key) {
+    return rt_map_get_outcome_impl(map, key, 1);
+}
+
+static int64_t* datara_rt_map_insert_impl(int64_t* map, int64_t key, int64_t val, int is_int) {
     if (!map) {
         size_t init_cap = 8;
         size_t total_bytes = sizeof(DataraMapHeader) + (1 + init_cap * 2) * sizeof(int64_t);
         DataraMapHeader* hdr = (DataraMapHeader*)malloc(total_bytes);
         if (!hdr) return NULL;
         hdr->capacity = init_cap;
-        hdr->magic = DATARA_MAP_MAGIC;
+        hdr->magic = DATARA_MAP_MAGIC | (is_int ? DATARA_MAP_FLAG_INTKEY : DATARA_MAP_FLAG_HEAP);
         hdr->index = NULL;
         hdr->index_slots = 0;
         int64_t* m = (int64_t*)(hdr + 1);
         m[0] = 1;
-        m[1] = (int64_t)rt_map_own_key(key);
+        m[1] = rt_map_own_key_value(key, is_int);
         m[2] = val;
         return m;
     }
     int64_t count = map[0];
+    DataraMapHeader* hdr = datara_rt_map_get_header(map);
+    if (hdr && count > 0 && rt_map_is_intkey(hdr) != is_int) {
+        // The map was already established with the other key kind. Never
+        // reinterpret/corrupt stored keys; leave the map untouched.
+        return map;
+    }
+    if (hdr && count == 0) {
+        rt_map_adopt_key_kind(hdr, is_int);
+    }
     for (int64_t i = 0; i < count; i++) {
-        const char* k = (const char*)map[1 + i * 2];
-        if (k && key && strcmp(k, key) == 0) {
+        if (rt_map_key_eq(hdr, map[1 + i * 2], key)) {
             map[2 + i * 2] = val;
             return map;
         }
     }
-    DataraMapHeader* hdr = datara_rt_map_get_header(map);
     if (hdr) {
         if (count < hdr->capacity) {
-            map[1 + count * 2] = (int64_t)rt_map_own_key(key);
+            map[1 + count * 2] = rt_map_own_key_value(key, is_int);
             map[2 + count * 2] = val;
             map[0] = count + 1;
             // Keep the index in sync; drop it when the load factor would
@@ -370,7 +496,7 @@ int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
         int64_t new_cap = hdr->capacity * 2;
         size_t total_bytes = sizeof(DataraMapHeader) + (1 + new_cap * 2) * sizeof(int64_t);
         DataraMapHeader* new_hdr = NULL;
-        if ((hdr->magic & 0xFULL) == DATARA_MAP_FLAG_POOL) {
+        if (rt_map_is_pool(hdr)) {
             int64_t flag = DATARA_MAP_FLAG_HEAP;
             if (total_bytes <= 1024) {
                 new_hdr = (DataraMapHeader*)datara_rt_pool_alloc(total_bytes);
@@ -382,8 +508,9 @@ int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
             if (!new_hdr) return map;
             memcpy(new_hdr, hdr, sizeof(DataraMapHeader) + (1 + (size_t)count * 2) * sizeof(int64_t));
             size_t old_total_bytes = sizeof(DataraMapHeader) + (1 + (size_t)hdr->capacity * 2) * sizeof(int64_t);
+            int64_t key_flag = hdr->magic & DATARA_MAP_FLAG_INTKEY;
             datara_rt_pool_free(hdr, old_total_bytes);
-            new_hdr->magic = DATARA_MAP_MAGIC | flag;
+            new_hdr->magic = DATARA_MAP_MAGIC | flag | key_flag;
             new_hdr->capacity = new_cap;
         } else {
             // M4 growth-soundness: realloc may extend IN PLACE and hand
@@ -397,7 +524,7 @@ int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
             new_hdr->capacity = new_cap;
         }
         int64_t* new_map = (int64_t*)(new_hdr + 1);
-        new_map[1 + count * 2] = (int64_t)rt_map_own_key(key);
+        new_map[1 + count * 2] = rt_map_own_key_value(key, is_int);
         new_map[2 + count * 2] = val;
         new_map[0] = count + 1;
         return new_map;
@@ -407,7 +534,7 @@ int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
         DataraMapHeader* new_hdr = (DataraMapHeader*)malloc(total_bytes);
         if (!new_hdr) return map;
         new_hdr->capacity = init_cap;
-        new_hdr->magic = DATARA_MAP_MAGIC;
+        new_hdr->magic = DATARA_MAP_MAGIC | (is_int ? DATARA_MAP_FLAG_INTKEY : DATARA_MAP_FLAG_HEAP);
         new_hdr->index = NULL;
         new_hdr->index_slots = 0;
         int64_t* new_map = (int64_t*)(new_hdr + 1);
@@ -416,11 +543,19 @@ int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
             new_map[1 + i * 2] = map[1 + i * 2];
             new_map[2 + i * 2] = map[2 + i * 2];
         }
-        new_map[1 + count * 2] = (int64_t)rt_map_own_key(key);
+        new_map[1 + count * 2] = rt_map_own_key_value(key, is_int);
         new_map[2 + count * 2] = val;
         free(map);
         return new_map;
     }
+}
+
+int64_t* datara_rt_map_insert(int64_t* map, const char* key, int64_t val) {
+    return datara_rt_map_insert_impl(map, (int64_t)key, val, 0);
+}
+
+int64_t* datara_rt_map_insert_i64(int64_t* map, int64_t key, int64_t val) {
+    return datara_rt_map_insert_impl(map, key, val, 1);
 }
 
 void datara_rt_map_free(void* map) {
@@ -428,7 +563,7 @@ void datara_rt_map_free(void* map) {
     DataraMapHeader* hdr = datara_rt_map_get_header((int64_t*)map);
     if (hdr) {
         rt_map_index_free(hdr);
-        if ((hdr->magic & 0xFULL) == DATARA_MAP_FLAG_POOL) {
+        if (rt_map_is_pool(hdr)) {
             size_t total_bytes = sizeof(DataraMapHeader) + (1 + (size_t)hdr->capacity * 2) * sizeof(int64_t);
             datara_rt_pool_free(hdr, total_bytes);
         } else {
@@ -440,19 +575,11 @@ void datara_rt_map_free(void* map) {
 }
 
 int64_t datara_rt_map_contains(int64_t* map, const char* key) {
-    if (!map || !key) return 0;
-    int64_t count = map[0];
-    DataraMapHeader* hdr = datara_rt_map_get_header_fwd(map);
-    if (hdr && hdr->index && hdr->index_slots && count >= DATARA_MAP_INDEX_MIN) {
-        return rt_map_index_find(map, hdr, key) >= 0 ? 1 : 0;
-    }
-    for (int64_t i = 0; i < count; i++) {
-        const char* k = (const char*)map[1 + i * 2];
-        if (k && strcmp(k, key) == 0) {
-            return 1;
-        }
-    }
-    return 0;
+    return rt_map_contains_impl(map, (int64_t)key, 0);
+}
+
+int64_t datara_rt_map_contains_i64(int64_t* map, int64_t key) {
+    return rt_map_contains_impl(map, key, 1);
 }
 
 int64_t datara_rt_map_len(int64_t* map) {

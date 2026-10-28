@@ -5,6 +5,87 @@ use crate::types::DataraType;
 use super::Lowering;
 
 impl<'a> Lowering<'a> {
+    /// Statically inferred return type of a named lambda body, recorded at
+    /// the binding site (`let f = <lambda>`). Only container spellings the
+    /// downstream dispatch actually keys on are recovered: a map/list
+    /// literal body, a string body, or whatever `infer_expr_datara_type`
+    /// can see through a direct expression. Scalars stay None — call
+    /// results default to Int as before, and an explicit annotation wins
+    /// where the programmer wrote one.
+    pub(crate) fn infer_lambda_ret_type(&self, body: &Expr) -> Option<DataraType> {
+        match body {
+            Expr::MapLiteral(entries, _) => {
+                let (key, val) = entries.first()?;
+                let key_ty = if self.is_expr_int(key) {
+                    DataraType::Int
+                } else {
+                    // Non-Int keys take the historical Str-keyed default
+                    // (mirrors Map.new()); the checker has already validated
+                    // the literal is homogeneous.
+                    DataraType::String
+                };
+                let val_ty = if self.is_expr_str(val) {
+                    DataraType::String
+                } else if self.is_expr_float(val) {
+                    DataraType::Float
+                } else {
+                    DataraType::Int
+                };
+                Some(DataraType::Map(Box::new(key_ty), Box::new(val_ty)))
+            }
+            Expr::ListLiteral(elements, _) => {
+                let first = elements.first()?;
+                let elem = if self.is_expr_str(first) {
+                    DataraType::String
+                } else if self.is_expr_float(first) {
+                    DataraType::Float
+                } else {
+                    DataraType::Int
+                };
+                Some(DataraType::List(Box::new(elem)))
+            }
+            other => {
+                // A block-bodied lambda (`x => { let q = {...}; return q }`)
+                // infers from its tail expression or its last `return e`.
+                // Locals declared inside the body are scanned first: their
+                // inits are the only source for a return of a plain name
+                // (the lowering environment does not contain lambda-body
+                // locals at registration time).
+                if let Expr::Block(stmts, tail, _) = other {
+                    let mut body_locals: std::collections::HashMap<String, DataraType> =
+                        std::collections::HashMap::new();
+                    for s in stmts {
+                        if let Some((n, init)) = stmt_binding_init(s) {
+                            if let Some(ty) = self.infer_lambda_ret_type(init) {
+                                body_locals.insert(n.to_string(), ty);
+                            }
+                        }
+                    }
+                    let ret_ref: Option<&Expr> = if let Some(t) = tail {
+                        Some(t)
+                    } else if let Some(Stmt::Return(Some(e), _)) = stmts.last() {
+                        Some(e)
+                    } else {
+                        None
+                    };
+                    if let Some(ret) = ret_ref {
+                        if let Expr::Identifier(n, _) = ret
+                            && let Some(ty) = body_locals.get(n)
+                        {
+                            return Some(ty.clone());
+                        }
+                        return self.infer_lambda_ret_type(ret);
+                    }                    return None;
+                }
+                let ty = self.infer_expr_datara_type(other)?;
+                match ty {
+                    DataraType::Map(..) | DataraType::List(..) | DataraType::String => Some(ty),
+                    _ => None,
+                }
+            }
+        }
+    }
+
     pub(crate) fn infer_expr_datara_type(&self, expr: &Expr) -> Option<DataraType> {
         match expr {
             Expr::Literal(lit, _) => match lit {
@@ -168,6 +249,15 @@ impl<'a> Lowering<'a> {
             }
             Expr::Call { callee, args, .. } => match &**callee {
                 Expr::Identifier(fn_name, _) => {
+                    // A call to a named local lambda carries the return type
+                    // recorded at its binding site (map/list literal bodies,
+                    // string bodies). Without it the call result is untyped:
+                    // indexing a map returned from a lambda lowered to
+                    // datara_rt_list_get (silent 0) and `m.get(k) or X`
+                    // skipped the Outcome interception.
+                    if let Some(ret) = self.local_lambda_ret.get(fn_name) {
+                        return Some(ret.clone());
+                    }
                     if fn_name == "join"
                         || fn_name == "thread_join"
                         || fn_name == "ThreadHandle_join"
@@ -263,6 +353,16 @@ impl<'a> Lowering<'a> {
                     // lookup, list_elem_repr fell back to "Int", and
                     // `s.get(0)` returned the raw char* pointer instead of
                     // the string (silent wrong data, E0944-class).
+                    // Element reads keep the source element type. Without
+                    // this, `items.get(i)` passed to an inlined generic
+                    // callback carried no type: `acc + w` on Str values was
+                    // lowered as integer pointer addition (silent dangling
+                    // addresses instead of concatenation).
+                    if self.is_expr_list(object)
+                        && matches!(member.as_str(), "get" | "at")
+                    {
+                        return Some(self.infer_list_elem_type(object));
+                    }
                     if self.is_expr_list(object)
                         && matches!(
                             member.as_str(),
@@ -318,6 +418,24 @@ impl<'a> Lowering<'a> {
                 }
             }
             Expr::ListLiteral(elements, _) => {
+                // Mixed-kinding literals are List(Val): the per-element
+                // reprs differ and only the dynamic path is sound.
+                let mut saw_int = false;
+                let mut saw_flt = false;
+                let mut saw_str = false;
+                for e in elements {
+                    if self.is_expr_str(e) {
+                        saw_str = true;
+                    } else if self.is_expr_float(e) {
+                        saw_flt = true;
+                    } else if self.is_expr_int(e) {
+                        saw_int = true;
+                    }
+                }
+                let kinds = saw_int as u32 + saw_flt as u32 + saw_str as u32;
+                if kinds > 1 {
+                    return DataraType::Val;
+                }
                 if let Some(e) = elements.first() {
                     return self.infer_expr_datara_type(e).unwrap_or(DataraType::Int);
                 }
@@ -792,6 +910,49 @@ impl<'a> Lowering<'a> {
         false
     }
 
+    /// Key type of a map-typed expression, if it is statically known.
+    /// Erased `Class("Map")` has no key information and returns None (the
+    /// historical Str-keyed default).
+    pub(crate) fn map_key_type(&self, expr: &Expr) -> Option<crate::types::DataraType> {
+        let ty = self.infer_expr_datara_type(expr).or_else(|| {
+            if let Expr::Identifier(name, _) = expr {
+                self.lookup_var_type(name)
+            } else {
+                None
+            }
+        })?;
+        match ty {
+            crate::types::DataraType::Map(key, _) => Some(*key),
+            crate::types::DataraType::GenericInstance { name, args }
+                if name == "Map" && args.len() >= 2 =>
+            {
+                Some(args[0].clone())
+            }
+            _ => None,
+        }
+    }
+
+    /// True when the map's key type is `Int` (the int-key runtime path).
+    pub(crate) fn is_int_keyed_map(&self, expr: &Expr) -> bool {
+        matches!(self.map_key_type(expr), Some(crate::types::DataraType::Int))
+    }
+
+    /// True when an expression is statically an `Int` (used to pick the
+    /// int-key map literal constructor when the receiver type is not yet
+    /// recorded in the lowering environment).
+    pub(crate) fn is_expr_int(&self, expr: &Expr) -> bool {
+        if let Some(crate::types::DataraType::Int) = self.infer_expr_datara_type(expr) {
+            return true;
+        }
+        match expr {
+            Expr::Literal(LiteralValue::Int(_), _) => true,
+            Expr::Unary { op, expr: inner, .. } if op == "-" => {
+                matches!(inner.as_ref(), Expr::Literal(LiteralValue::Int(_), _))
+            }
+            _ => false,
+        }
+    }
+
     pub(crate) fn is_callable_expr(&self, expr: &Expr) -> bool {
         match expr {
             Expr::Lambda { .. } => true,
@@ -885,22 +1046,23 @@ impl<'a> Lowering<'a> {
                 });
         }
 
-        let res = self.lower_expr(&body, cur_block);
-
-        // Restore in reverse push order so a name shadowed twice (a lambda
-        // parameter named like a captured variable) unwinds correctly.
-        for (name, old_val) in shadowed_symbols.into_iter().rev() {
-            if let Some(ov) = old_val {
-                self.symbol_values.insert(name.clone(), ov);
-                self.get_block_mut(*cur_block)
-                    .instructions
-                    .push(Inst::AssignVar { name, value: ov });
-            } else {
-                self.symbol_values.remove(&name);
+        self.lower_inline_body_with_returns(&body, cur_block, |s, b| {
+            // Restore in reverse push order so a name shadowed twice (a lambda
+            // parameter named like a captured variable) unwinds correctly.
+            for (name, old_val) in shadowed_symbols.iter().rev() {
+                if let Some(ov) = old_val {
+                    s.symbol_values.insert(name.clone(), *ov);
+                    s.get_block_mut(b)
+                        .instructions
+                        .push(Inst::AssignVar {
+                            name: name.clone(),
+                            value: *ov,
+                        });
+                } else {
+                    s.symbol_values.remove(name);
+                }
             }
-        }
-
-        res
+        })
     }
 
     /// v1.4.5 W1: the integer width an expression carries. Returns the
@@ -956,5 +1118,18 @@ impl<'a> Lowering<'a> {
             _ => return None,
         };
         Some(("datara_rt_int_to_str_radix", vec![radix, upper], "Str"))
+    }
+}
+
+/// The `(name, init)` of a let/mut/val/const/compact binding statement, for
+/// the lambda-body local scan in `infer_lambda_ret_type`.
+fn stmt_binding_init(s: &Stmt) -> Option<(&str, &Expr)> {
+    match s {
+        Stmt::Let { name, init, .. }
+        | Stmt::Mut { name, init, .. }
+        | Stmt::Const { name, init, .. }
+        | Stmt::Val { name, init, .. }
+        | Stmt::CompactBind { name, init, .. } => Some((name.as_str(), init)),
+        _ => None,
     }
 }

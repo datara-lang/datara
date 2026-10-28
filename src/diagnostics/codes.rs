@@ -154,6 +154,7 @@ pub enum ErrorCode {
     // TMM Errors (E-TMM-*, v1.5.0 M5)
     TmmArcCycle,
     TmmBorrowEscapesCall,
+    AnyTypeLeak,
 }
 
 impl ErrorCode {
@@ -263,6 +264,7 @@ impl ErrorCode {
             ErrorCode::TargetRequiresLlvm => "E-TARGET-001",
 
             ErrorCode::LinkDuplicateSymbol => "E-LINK-001",
+            ErrorCode::AnyTypeLeak => "E-ANY-001",
             ErrorCode::TmmArcCycle => "E-TMM-001",
             ErrorCode::TmmBorrowEscapesCall => "E-TMM-002",
         }
@@ -288,6 +290,7 @@ impl ErrorCode {
             ErrorCode::ResolveUndefinedSymbol => "Undefined symbol reference",
             ErrorCode::ResolveDuplicateSymbol => "Duplicate symbol declaration",
             ErrorCode::ResolveUnknownType => "Unknown type identifier",
+            ErrorCode::AnyTypeLeak => "A dynamic (val) value leaked into a statically-typed context",
             ErrorCode::ResolveCircularDependency => "Circular module dependency detected",
             ErrorCode::ResolveUnreachableModule => "Unreachable module detected",
             ErrorCode::PrivateItemAccess => {
@@ -602,5 +605,6 @@ pub fn all_codes() -> Vec<ErrorCode> {
         LinkDuplicateSymbol,
         TmmArcCycle,
         TmmBorrowEscapesCall,
+        AnyTypeLeak,
     ]
 }

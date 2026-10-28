@@ -93,11 +93,17 @@ impl MemoryOptimizer {
                         escaping_structs.insert(orig);
                     }
                 }
-                Inst::Call { args, .. } => {
-                    for a in args {
-                        escaping_structs.insert(*a);
-                        if let Some(&orig) = val_alias.get(a) {
-                            escaping_structs.insert(orig);
+                Inst::Call { func, args, .. } => {
+                    // M6 TMM Layer 1: the inserted last-use release calls
+                    // (datara_rt_free / datara_rt_arc_release) are the
+                    // object's FINAL consumer, not an escape. Counting them
+                    // would block SROA for every released object.
+                    if func != "datara_rt_free" && func != "datara_rt_arc_release" {
+                        for a in args {
+                            escaping_structs.insert(*a);
+                            if let Some(&orig) = val_alias.get(a) {
+                                escaping_structs.insert(orig);
+                            }
                         }
                     }
                 }
@@ -319,6 +325,34 @@ impl MemoryOptimizer {
                             operand: field_val,
                             ty: ty.clone(),
                         });
+                        eliminated += 1;
+                        continue;
+                    }
+                    new_instructions.push(inst.clone());
+                }
+                Inst::Call { dest: _, func, args, .. } => {
+                    // M6 TMM Layer 1: when this pass scalarizes the released
+                    // object, its release call must go away with it — kept,
+                    // it would survive as the StructInit's only user (DCE
+                    // could then never remove the allocation) or free a
+                    // promoted storage slot. Deleted only under the SAME
+                    // condition the pass forwards the object's fields
+                    // (non-escaping alias root with a known struct def).
+                    let scalarized_release = (func == "datara_rt_free"
+                        || func == "datara_rt_arc_release")
+                        && args.len() == 1
+                        && args.first().is_some_and(|&root_val| {
+                            let mut root = root_val;
+                            for _ in 0..16 {
+                                match val_alias.get(&root) {
+                                    Some(&next) if next != root => root = next,
+                                    _ => break,
+                                }
+                            }
+                            !escaping_structs.contains(&root)
+                                && struct_defs.contains_key(&root)
+                        });
+                    if scalarized_release {
                         eliminated += 1;
                         continue;
                     }

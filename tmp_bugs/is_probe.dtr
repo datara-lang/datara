@@ -1,0 +1,5 @@
+fn main() {
+    val xs = [1, "two", 3.5]
+    out xs[0] is Int
+    out xs[1] is Str
+}

@@ -1,0 +1,31 @@
+struct TStore { xs: List<Float>, ys: List<Float> }
+struct VStore { vxs: List<Float>, vys: List<Float> }
+struct World4 { count: Int, t: TStore, v: VStore }
+fn make(n: Int) -> World4 {
+    val xs: List<Float> = []
+    val ys: List<Float> = []
+    val vxs: List<Float> = []
+    val vys: List<Float> = []
+    mut i = 0
+    while i < n {
+        val fi = str_to_float(int_to_str(i))
+        xs.append(fi * 2.0)
+        ys.append(fi * -1.5)
+        vxs.append(0.5 + (fi * 0.01))
+        vys.append(-0.25 + (fi * 0.005))
+        i = i + 1
+    }
+    val t = TStore { xs: xs, ys: ys }
+    val v = VStore { vxs: vxs, vys: vys }
+    return World4 { count: n, t: t, v: v }
+}
+fn main() {
+    mut n = 4
+    val w = make(n)
+    out int_to_str(w.count)
+    out float_to_str(w.t.xs[0])
+    out float_to_str(w.t.ys[1])
+    out float_to_str(w.v.vxs[2])
+    out float_to_str(w.v.vys[3])
+    out "WORLD4-OK"
+}

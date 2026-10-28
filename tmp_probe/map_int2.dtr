@@ -1,0 +1,6 @@
+fn main() {
+    val m: Map<Int, Int> = Map.new()
+    m.insert(1, 10)
+    out m.len()
+    out m.get(1) or -1
+}

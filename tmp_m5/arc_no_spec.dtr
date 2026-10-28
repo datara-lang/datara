@@ -1,0 +1,13 @@
+@arc
+struct Box { v: Int }
+
+fn main() -> Int {
+    mut acc = 0
+    mut i = 0
+    while i < 10 {
+        val b = Box { v: i }
+        acc = acc + b.v
+        i = i + 1
+    }
+    return acc
+}

@@ -1,0 +1,18 @@
+@arc
+struct Node { v: Int }
+
+fn sum_nodes(n: Int) -> Int {
+    mut acc = 0
+    mut i = 0
+    while i < n {
+        val node = Node { v: i }
+        acc = acc + node.v
+        node.arc_release()
+        i = i + 1
+    }
+    return acc
+}
+
+fn main() {
+    out sum_nodes(100000)
+}

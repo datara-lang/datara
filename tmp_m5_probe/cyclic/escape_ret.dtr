@@ -1,0 +1,28 @@
+// M6.2 probe: cyclic structure ESCAPING its creating function.
+// The return seeds the heap promotion and the escape propagates
+// transitively into the peer — the caller must see exact values
+// (no dangling region pointers).
+struct A {
+    v: Int
+    peer: B
+}
+
+struct B {
+    v: Int
+    peer: A
+}
+
+fn mk() -> A {
+    mut a = A { v: 1 }
+    mut b = B { v: 2 }
+    a.peer = b
+    b.peer = a
+    return a
+}
+
+fn main() {
+    val a = mk()
+    out a.v
+    out a.peer.v
+    out a.peer.peer.v
+}

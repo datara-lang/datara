@@ -1,0 +1,9 @@
+fn main() {
+    let m2 = x => { "a": 42 }
+    println(int_to_str(m2(1)["a"]))
+    let m3 = x => { "a": x + 0 }
+    println(int_to_str(m3(7)["a"]))
+    let m4 = x => { "a": x, "a2": 5 }
+    println(int_to_str(m4(3)["a"]))
+    println(int_to_str(m4(3)["a2"]))
+}

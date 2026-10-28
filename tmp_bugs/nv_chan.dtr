@@ -1,0 +1,11 @@
+mut got = 0
+fn sender(ch: Int) {
+    fiber_chan_send(ch, 4242)
+}
+fn main() {
+    val ch = fiber_chan_create()
+    fiber_spawn(sender, ch)
+    got = fiber_chan_recv(ch)
+    fiber_run_until_done()
+    out int_to_str(got)
+}

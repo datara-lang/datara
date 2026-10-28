@@ -1,0 +1,12 @@
+enum Color { Red, Green, Blue }
+fn name_of(c: Color) -> Str {
+    match c {
+        Color.Red => { return "red" }
+        Color.Green => { return fmt"gr{1}n-const" }
+        Color.Blue => { return fmt"blue-const" }
+    }
+}
+fn main() {
+    out name_of(Color.Green)
+    out name_of(Color.Blue)
+}
