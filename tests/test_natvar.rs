@@ -131,8 +131,26 @@ fn main() {
     out order
 }
 "#;
-    // Q runs while the sleeper is parked; "E" lands after the wake.
-    assert_both_tiers(src, "natvar_sleep", "SQE");
+    // Guaranteed invariant: within the sleeper fiber, "S" (pre-sleep) precedes
+    // "E" (post-wake); "Q" runs while the sleeper is parked or after — the
+    // exact interleaving across two independent fibers is scheduler/timing
+    // dependent and NOT specified (loaded CI runners reorder it).
+    let order = run_native(src, "natvar_sleep");
+    let s_pos = order.find('S').expect("S must be recorded");
+    let e_pos = order.find('E').expect("E must be recorded");
+    assert!(
+        s_pos < e_pos,
+        "pre-sleep S must precede post-wake E: {}",
+        order
+    );
+    assert!(order.contains('Q'), "quick fiber must have run: {}", order);
+    let order_j = run_jit(src, "natvar_sleep_jit");
+    assert!(
+        order_j.find('S').unwrap() < order_j.find('E').unwrap(),
+        "jit tier invariant: {}",
+        order_j
+    );
+    assert!(order_j.contains('Q'), "jit tier: quick fiber must run");
 }
 
 /// 4. Sleep ordering: later deadline wakes later (timer wheel monotonicity).
