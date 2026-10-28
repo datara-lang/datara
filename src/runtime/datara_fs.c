@@ -1047,6 +1047,17 @@ const char* datara_rt_str_next_scalar(const char* s, int64_t* inout_offset) {
     return buf;
 }
 
+// Codepoint-indexed variant of str_scalar_at (PLAN_V151 N1): the historical
+// str_scalar_at takes a BYTE offset, which silently sliced mid-codepoint on
+// non-ASCII input ("χαίρετε"[1] -> truncated byte instead of "α"). stdlib.text
+// now routes text_char_at_cp through this function.
+const char* datara_rt_str_scalar_at_cp(const char* s, int64_t cp_index) {
+    if (!s || cp_index < 0) return "";
+    int64_t byte_off = datara_rt_str_cp_to_byte(s, cp_index);
+    if (byte_off < 0) return "";
+    return datara_rt_str_scalar_at(s, byte_off);
+}
+
 const char* datara_rt_str_scalar_at(const char* s, int64_t offset) {
     if (!s || offset < 0) return "";
     size_t slen = strlen(s);

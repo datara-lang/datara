@@ -1,0 +1,11 @@
+// PLAN_V151 N1: str_scalar_at_cp — codepoint indexing fixes the byte-offset
+// bug (str_scalar_at("χαίρετε", 1) sliced mid-codepoint).
+use stdlib.text.text
+
+fn main() {
+    val greek = "χαίρετε"
+    out text_char_at_cp(greek, 1)
+    out text_char_at_cp(greek, 0)
+    out text_char_at_cp("abc", 1)
+    out text_char_at_cp("привет", 4)
+}

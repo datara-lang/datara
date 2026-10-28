@@ -173,6 +173,8 @@ impl Resolver {
             "validate_utf8",
             "str_sanitize_utf8",
             "str_scalar_at",
+            "str_scalar_at_cp",
+            "datara_rt_str_scalar_at_cp",
             "str_next_offset",
             "str_substring",
             "str_substr",

@@ -124,6 +124,7 @@ unsafe extern "C" {
     pub fn datara_rt_str_sanitize_utf8(s: *const c_char) -> *const c_char;
     pub fn datara_rt_str_next_scalar(s: *const c_char, inout_offset: *mut i64) -> *const c_char;
     pub fn datara_rt_str_scalar_at(s: *const c_char, offset: i64) -> *const c_char;
+    pub fn datara_rt_str_scalar_at_cp(s: *const c_char, cp_index: i64) -> *const c_char;
     pub fn datara_rt_str_byte_at(s: *const c_char, idx: i64) -> i64;
     pub fn datara_rt_str_next_offset(s: *const c_char, current_offset: i64) -> i64;
     pub fn datara_rt_str_contains(s: *const c_char, sub: *const c_char) -> i64;

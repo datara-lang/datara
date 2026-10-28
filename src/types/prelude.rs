@@ -606,7 +606,7 @@ impl<'a> TypeChecker<'a> {
                 (vec![DataraType::String], DataraType::Bool, Vec::new()),
             );
         }
-        for f in &["str_scalar_at", "datara_rt_str_scalar_at"] {
+        for f in &["str_scalar_at", "datara_rt_str_scalar_at", "str_scalar_at_cp", "datara_rt_str_scalar_at_cp"] {
             function_signatures.insert(
                 f.to_string(),
                 (

@@ -231,6 +231,7 @@ int32_t     datara_rt_validate_utf8(const char* s);
 const char* datara_rt_str_sanitize_utf8(const char* s);
 const char* datara_rt_str_next_scalar(const char* s, int64_t* inout_offset);
 const char* datara_rt_str_scalar_at(const char* s, int64_t offset);
+const char* datara_rt_str_scalar_at_cp(const char* s, int64_t cp_index);
 int64_t     datara_rt_str_byte_at(const char* s, int64_t idx);
 int64_t     datara_rt_str_next_offset(const char* s, int64_t current_offset);
 int64_t     datara_rt_str_contains(const char* s, const char* sub);

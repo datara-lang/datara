@@ -179,6 +179,7 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("str_sanitize_utf8", datara_rt_str_sanitize_utf8);
     reg!("datara_rt_str_next_scalar", datara_rt_str_next_scalar);
     reg!("datara_rt_str_scalar_at", datara_rt_str_scalar_at);
+    reg!("datara_rt_str_scalar_at_cp", datara_rt_str_scalar_at_cp);
     reg!("str_scalar_at", datara_rt_str_scalar_at);
     reg!("datara_rt_str_byte_at", datara_rt_str_byte_at);
     reg!("str_byte_at", datara_rt_str_byte_at);
