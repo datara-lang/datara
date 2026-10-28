@@ -323,7 +323,8 @@ impl Resolver {
                                 && (member == "ok" || member == "err"))
                             || (n == "Maybe"
                                 && (member == "some" || member == "none"))
-                            || (n == "Map" && member == "new"))
+                            || (n == "Map" && member == "new")
+                            || (n == "List" && member == "new"))
                 );
                 if !is_static_ctor {
                     self.resolve_expr(callee, diag);

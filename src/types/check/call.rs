@@ -467,6 +467,32 @@ impl<'a> TypeChecker<'a> {
                     args: vec![payload_ty],
                 };
             }
+            // List.new(n) static constructor (PLAN_V151 N1): pre-allocate a
+            // list of n zero-initialized elements. Element type binds from the
+            // enclosing expected type (annotation/return), else Int.
+            if let Expr::Identifier(cls_name, _) = &**object
+                && cls_name == "List"
+                && member == "new"
+            {
+                if args.len() != 1 {
+                    diag.error(
+                        ErrorCode::TypeMismatch,
+                        format!("List.new() takes exactly 1 argument (size), got {}", args.len()),
+                        Some(span.clone()),
+                    );
+                    return DataraType::Unit;
+                }
+                let elem_ty = match self
+                    .current_assign_target
+                    .as_ref()
+                    .and_then(|r| r.list_like())
+                    .or_else(|| self.current_return_type.as_ref().and_then(|r| r.list_like()))
+                {
+                    Some(e) => e,
+                    None => DataraType::Int,
+                };
+                return DataraType::List(Box::new(elem_ty));
+            }
             // Map.new() static constructor on the prelude generic class: the
             // receiver is the class name itself, never a value. Binds K/V from
             // the enclosing expected type (annotation/return type) when that

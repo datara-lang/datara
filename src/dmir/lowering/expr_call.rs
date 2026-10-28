@@ -79,6 +79,30 @@ impl<'a> Lowering<'a> {
             }
             return self.lower_expr(body, cur_block);
         }
+        // PLAN_V151 N1: List.new(n) — MemberAccess callee (object = class
+        // name "List"), intercepted before method dispatch (which would emit
+        // a MethodCall with a wrong ABI — Cranelift sig assert).
+        if let Expr::MemberAccess { object, member, .. } = callee
+            && matches!(&**object, Expr::Identifier(n, _) if n == "List")
+            && member == "new"
+            && args.len() == 1
+        {
+            let n_val = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
+            let zero = self.next_val();
+            self.get_block_mut(*cur_block)
+                .instructions
+                .push(Inst::ConstInt { dest: zero, value: 0 });
+            let dest = self.next_val();
+            self.get_block_mut(*cur_block)
+                .instructions
+                .push(Inst::Call {
+                    dest,
+                    func: "datara_rt_list_create_repeat".into(),
+                    args: vec![zero, n_val],
+                    ty: "List".into(),
+                });
+            return Some(dest);
+        }
         // M10 NatVar: fiber runtime builtins — must run BEFORE the generic
         // builtin dispatch (which would emit a raw 2-arg call by name).
         if let Expr::Identifier(fn_name, _) = callee {
@@ -206,6 +230,25 @@ impl<'a> Lowering<'a> {
                             ty: "Unit".into(),
                         });
                     return Some(dummy);
+                }
+                "list_new" | "datara_rt_list_new" if args.len() == 1 => {
+                    // PLAN_V151 N1: List.new(n) — pre-allocated list of n
+                    // zero elements (runtime: list_create_repeat(0, n)).
+                    let n = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
+                    let zero = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::ConstInt { dest: zero, value: 0 });
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::Call {
+                            dest,
+                            func: "datara_rt_list_create_repeat".into(),
+                            args: vec![zero, n],
+                            ty: "List".into(),
+                        });
+                    return Some(dest);
                 }
                 "fiber_chan_recv" | "datara_rt_fiber_chan_recv" if args.len() == 1 => {
                     let c = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));

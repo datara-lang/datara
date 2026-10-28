@@ -1,0 +1,8 @@
+// PLAN_V151 N1: List.new(n) — pre-allocated zeroed list.
+fn main() {
+    val xs = List.new(5)
+    out int_to_str(xs.len())
+    out int_to_str(xs[0] + xs[4])
+    xs[2] = 7
+    out int_to_str(xs[2])
+}

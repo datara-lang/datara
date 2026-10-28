@@ -540,6 +540,15 @@ impl DataraType {
             _ => None,
         }
     }
+
+    /// The inner element type when this type is a List (PLAN_V151 N1:
+    /// `List.new(n)` binds its element from the expected type).
+    pub fn list_like(&self) -> Option<DataraType> {
+        match self {
+            DataraType::List(inner) => Some((**inner).clone()),
+            _ => None,
+        }
+    }
 }
 
 impl std::fmt::Display for DataraType {

@@ -388,6 +388,8 @@ impl Resolver {
             "datara_rt_fiber_chan_send",
             "fiber_chan_recv",
             "datara_rt_fiber_chan_recv",
+            "list_new",
+            "datara_rt_list_new",
             "fiber_count",
             "datara_rt_fiber_count",
             "fiber_done_count",
