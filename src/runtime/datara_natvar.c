@@ -170,22 +170,42 @@ static void timer_add(Fiber* f) {
 }
 
 static Fiber* timer_pop_due(int64_t now, int64_t* next_wake) {
+    // Wake the EARLIEST-due fiber (minimum wake_ms), not the first scanned
+    // one: two fibers with different sleep deadlines must wake in deadline
+    // order even when both are already due during one scan (loaded CI
+    // runners oversleep both).
     Fiber* due = NULL;
+    int64_t due_idx = -1;
     *next_wake = -1;
     for (int64_t i = 0; i < g_sleeping_count; i++) {
         Fiber* f = g_sleeping[i];
         if (f->state != FIB_SLEEPING) continue;
         if (f->wake_ms <= now) {
-            due = f;
-            // remove by swap
-            g_sleeping[i] = g_sleeping[g_sleeping_count - 1];
-            g_sleeping_count--;
-            i--;
-            break;
+            if (!due || f->wake_ms < due->wake_ms) {
+                due = f;
+                due_idx = i;
+            }
+        } else if (*next_wake < 0 || f->wake_ms < *next_wake) {
+            *next_wake = f->wake_ms;
         }
-        if (*next_wake < 0 || f->wake_ms < *next_wake) *next_wake = f->wake_ms;
+    }
+    if (due) {
+        g_sleeping[due_idx] = g_sleeping[g_sleeping_count - 1];
+        g_sleeping_count--;
     }
     return due;
+}
+
+// Scan-only: the earliest future wake time among sleeping fibers (never
+// extracts). Used by the drain loop to decide whether waiting would help.
+static int64_t timer_peek_next_wake(void) {
+    int64_t next_wake = -1;
+    for (int64_t i = 0; i < g_sleeping_count; i++) {
+        Fiber* f = g_sleeping[i];
+        if (f->state != FIB_SLEEPING) continue;
+        if (next_wake < 0 || f->wake_ms < next_wake) next_wake = f->wake_ms;
+    }
+    return next_wake;
 }
 
 static Fiber* g_waiting_join[TIMER_MAX];
@@ -405,8 +425,12 @@ int64_t datara_rt_fiber_run_until_done(void) {
             if (g_done_count >= g_fiber_count) break;
             // Nothing ready: if timers exist, sleep to the nearest wake;
             // otherwise a join-deadlock — break with an error code.
-            int64_t next_wake = -1;
-            (void)timer_pop_due(now_ms_real(), &next_wake);
+            // CRITICAL: peek WITHOUT extraction — the previous
+            // (void)timer_pop_due(...) call here EXTRACTED a fiber that had
+            // become due during the Sleep and discarded it (the fiber was
+            // removed from the timer wheel but never scheduled — a loaded
+            // CI runner lost ticks: 3-sleep loop printed "2").
+            int64_t next_wake = timer_peek_next_wake();
             if (next_wake >= 0) {
 #ifdef _WIN32
                 Sleep((DWORD)(next_wake > last_now ? next_wake - last_now : 0));
