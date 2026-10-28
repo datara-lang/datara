@@ -1,9 +1,0 @@
-use mathx
-use strx
-use jsonx
-
-fn main() {
-    out int_to_str(clamp(15, 0, 10))
-    out pad_left("42", 5, "0")
-    out int_to_str(count_tokens("{\"a\": 1, \"b\": 2}"))
-}

@@ -121,3 +121,17 @@ times.txt
 /probe_proc.dtr
 /val_bug_tmp.dtr
 /stdlib_tests/tests/probe_proc.dtr
+
+# v1.5.1: рабочие пробники живут в evidence/ (коммитятся), свежий мусор — нет
+/tmp_bugs/
+/tmp_m5/
+/tmp_m5_probe/
+/tmp_m6_probe/
+/tmp_probe/
+/tmp_elink/
+/m4_*.json
+/evidence/**/*.exe
+/evidence/**/*.obj
+/evidence/**/*.pdb
+/evidence/**/*.lib
+/evidence/**/*.ilk

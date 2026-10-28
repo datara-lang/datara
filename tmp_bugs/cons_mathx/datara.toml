@@ -1,9 +1,0 @@
-[package]
-name = "consumer"
-version = "0.1.0"
-entry = "main.dtr"
-
-[dependencies]
-jsonx = "0.1.0"
-strx = "0.1.0"
-mathx = "0.1.0"
