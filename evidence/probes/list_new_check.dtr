@@ -1,8 +1,9 @@
-// PLAN_V151 N1: List.new(n) — pre-allocated zeroed list.
+// PLAN_V151 N1: List.new(n) — pre-allocated zeroed list, typed by annotation.
 fn main() {
-    val xs = List.new(5)
+    val xs: List<Int> = List.new(5)
     out int_to_str(xs.len())
     out int_to_str(xs[0] + xs[4])
-    xs[2] = 7
-    out int_to_str(xs[2])
+    mut ys: List<Float> = List.new(3)
+    ys[1] = 2.5
+    out float_to_str(ys[1])
 }

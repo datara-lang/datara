@@ -91,7 +91,10 @@ impl<'a> Lowering<'a> {
             let zero = self.next_val();
             self.get_block_mut(*cur_block)
                 .instructions
-                .push(Inst::ConstInt { dest: zero, value: 0 });
+                .push(Inst::ConstInt {
+                    dest: zero,
+                    value: 0,
+                });
             let dest = self.next_val();
             self.get_block_mut(*cur_block)
                 .instructions
@@ -103,168 +106,10 @@ impl<'a> Lowering<'a> {
                 });
             return Some(dest);
         }
-        // M10 NatVar: fiber runtime builtins — must run BEFORE the generic
-        // builtin dispatch (which would emit a raw 2-arg call by name).
-        if let Expr::Identifier(fn_name, _) = callee {
-            match fn_name.as_str() {
-                "fiber_spawn" | "datara_rt_fiber_spawn" if args.len() >= 2 => {
-                    let fn_addr = match &args[0] {
-                        Expr::Identifier(f, _) => {
-                            let v = self.next_val();
-                            self.get_block_mut(*cur_block)
-                                .instructions
-                                .push(Inst::GetFuncAddr {
-                                    dest: v,
-                                    func_name: f.clone(),
-                                });
-                            Some(v)
-                        }
-                        _ => None,
-                    };
-                    let fn_addr = fn_addr?;
-                    let arg = self.lower_expr(&args[1], cur_block).unwrap_or_else(|| {
-                        let z = self.next_val();
-                        self.get_block_mut(*cur_block)
-                            .instructions
-                            .push(Inst::ConstInt { dest: z, value: 0 });
-                        z
-                    });
-                    let stack_kb = if args.len() >= 3 {
-                        self.lower_expr(&args[2], cur_block).unwrap_or_else(|| {
-                            let z = self.next_val();
-                            self.get_block_mut(*cur_block)
-                                .instructions
-                                .push(Inst::ConstInt { dest: z, value: 8 });
-                            z
-                        })
-                    } else {
-                        let z = self.next_val();
-                        self.get_block_mut(*cur_block)
-                            .instructions
-                            .push(Inst::ConstInt { dest: z, value: 8 });
-                        z
-                    };
-                    let dest = self.next_val();
-                    self.get_block_mut(*cur_block)
-                        .instructions
-                        .push(Inst::Call {
-                            dest,
-                            func: "datara_rt_fiber_spawn".into(),
-                            args: vec![fn_addr, arg, stack_kb],
-                            ty: "Int".into(),
-                        });
-                    return Some(dest);
-                }
-                "fiber_yield" | "datara_rt_fiber_yield" if args.is_empty() => {
-                    let dummy = self.next_val();
-                    self.get_block_mut(*cur_block)
-                        .instructions
-                        .push(Inst::Call {
-                            dest: dummy,
-                            func: "datara_rt_fiber_yield".into(),
-                            args: vec![],
-                            ty: "Unit".into(),
-                        });
-                    return Some(dummy);
-                }
-                "fiber_sleep_ms" | "datara_rt_fiber_sleep_ms" if args.len() == 1 => {
-                    let ms = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
-                    let dummy = self.next_val();
-                    self.get_block_mut(*cur_block)
-                        .instructions
-                        .push(Inst::Call {
-                            dest: dummy,
-                            func: "datara_rt_fiber_sleep_ms".into(),
-                            args: vec![ms],
-                            ty: "Unit".into(),
-                        });
-                    return Some(dummy);
-                }
-                "fiber_run_until_done" | "datara_rt_fiber_run_until_done" if args.is_empty() => {
-                    let dest = self.next_val();
-                    self.get_block_mut(*cur_block)
-                        .instructions
-                        .push(Inst::Call {
-                            dest,
-                            func: "datara_rt_fiber_run_until_done".into(),
-                            args: vec![],
-                            ty: "Int".into(),
-                        });
-                    return Some(dest);
-                }
-                "fiber_join" | "datara_rt_fiber_join" if args.len() == 1 => {
-                    let h = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
-                    let dest = self.next_val();
-                    self.get_block_mut(*cur_block)
-                        .instructions
-                        .push(Inst::Call {
-                            dest,
-                            func: "datara_rt_fiber_join".into(),
-                            args: vec![h],
-                            ty: "Int".into(),
-                        });
-                    return Some(dest);
-                }
-                "fiber_chan_create" | "datara_rt_fiber_chan_create" if args.is_empty() => {
-                    let dest = self.next_val();
-                    self.get_block_mut(*cur_block)
-                        .instructions
-                        .push(Inst::Call {
-                            dest,
-                            func: "datara_rt_fiber_chan_create".into(),
-                            args: vec![],
-                            ty: "Int".into(),
-                        });
-                    return Some(dest);
-                }
-                "fiber_chan_send" | "datara_rt_fiber_chan_send" if args.len() == 2 => {
-                    let c = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
-                    let v = self.lower_expr(&args[1], cur_block).unwrap_or(ValueId(0));
-                    let dummy = self.next_val();
-                    self.get_block_mut(*cur_block)
-                        .instructions
-                        .push(Inst::Call {
-                            dest: dummy,
-                            func: "datara_rt_fiber_chan_send".into(),
-                            args: vec![c, v],
-                            ty: "Unit".into(),
-                        });
-                    return Some(dummy);
-                }
-                "list_new" | "datara_rt_list_new" if args.len() == 1 => {
-                    // PLAN_V151 N1: List.new(n) — pre-allocated list of n
-                    // zero elements (runtime: list_create_repeat(0, n)).
-                    let n = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
-                    let zero = self.next_val();
-                    self.get_block_mut(*cur_block)
-                        .instructions
-                        .push(Inst::ConstInt { dest: zero, value: 0 });
-                    let dest = self.next_val();
-                    self.get_block_mut(*cur_block)
-                        .instructions
-                        .push(Inst::Call {
-                            dest,
-                            func: "datara_rt_list_create_repeat".into(),
-                            args: vec![zero, n],
-                            ty: "List".into(),
-                        });
-                    return Some(dest);
-                }
-                "fiber_chan_recv" | "datara_rt_fiber_chan_recv" if args.len() == 1 => {
-                    let c = self.lower_expr(&args[0], cur_block).unwrap_or(ValueId(0));
-                    let dest = self.next_val();
-                    self.get_block_mut(*cur_block)
-                        .instructions
-                        .push(Inst::Call {
-                            dest,
-                            func: "datara_rt_fiber_chan_recv".into(),
-                            args: vec![c],
-                            ty: "Int".into(),
-                        });
-                    return Some(dest);
-                }
-                _ => {}
-            }
+        // M10/N1 intercepts (fiber runtime, List.new) — moved to
+        // natvar_call.rs for the size gate; still run first.
+        if let Some(v) = self.lower_natvar_call(callee, args, cur_block) {
+            return Some(v);
         }
         if let Expr::Identifier(fn_name, fn_span) = callee {
             if let Some(f) = self.comptime_functions.get(fn_name).cloned() {

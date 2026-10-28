@@ -744,6 +744,13 @@ impl<'a> LlvmEmitter<'a> {
             } => {
                 let f_ty = self.dmir_type_to_llvm(ty);
                 value_types.insert(*dest, f_ty);
+                // Declared-bool fields ride in i64 slots — track the dest so
+                // Out/FormatStr print 'true'/'false' instead of the raw 0/1
+                // word (backend parity with Cranelift: parity_matrix caught
+                // 'Result: status=1' vs 'status=true' on examples/09).
+                if ty == "Bool" {
+                    bool_vids.insert(*dest);
+                }
 
                 let offset = self.find_field_offset(
                     module,

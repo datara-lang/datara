@@ -1,5 +1,22 @@
 {
   "probes": {
+    "09_error_propagation_question.dtr": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "==================================================\n  Demonstrating the `?` operator and error handling   \n==================================================\n--- Test 1: Successful Result propagation (?) ---\n  [OK] Network socket initialized on port: 8080\nResult: status=true, value=8080\n--- Test 2: Error and early exit via Result (?) ---\nResult: status=false, error text='invalid port number'\n--- Test 3: Working with Maybe / Option (?) ---\nUser 'admin': found=true, level=2002\nUser 'guest': found=false\n--- Test 4: The fallback value operator 'or' ---\nPort with fallback value (or 3000): 3000"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "==================================================\n  Demonstrating the `?` operator and error handling   \n==================================================\n--- Test 1: Successful Result propagation (?) ---\n  [OK] Network socket initialized on port: 8080\nResult: status=true, value=8080\n--- Test 2: Error and early exit via Result (?) ---\nResult: status=false, error text='invalid port number'\n--- Test 3: Working with Maybe / Option (?) ---\nUser 'admin': found=true, level=2002\nUser 'guest': found=false\n--- Test 4: The fallback value operator 'or' ---\nPort with fallback value (or 3000): 3000"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "==================================================\n  Demonstrating the `?` operator and error handling   \n==================================================\n--- Test 1: Successful Result propagation (?) ---\n  [OK] Network socket initialized on port: 8080\nResult: status=true, value=8080\n--- Test 2: Error and early exit via Result (?) ---\nResult: status=false, error text='invalid port number'\n--- Test 3: Working with Maybe / Option (?) ---\nUser 'admin': found=true, level=2002\nUser 'guest': found=false\n--- Test 4: The fallback value operator 'or' ---\nPort with fallback value (or 3000): 3000"
+        }
+      }
+    },
     "cyrillic_check.dtr": {
       "parity": true,
       "tiers": {
@@ -22,15 +39,15 @@
       "tiers": {
         "cranelift": {
           "exit": 0,
-          "stdout": "5\n0\n7"
+          "stdout": "5\n0\n2.5"
         },
         "jit": {
           "exit": 0,
-          "stdout": "5\n0\n7"
+          "stdout": "5\n0\n2.5"
         },
         "llvm": {
           "exit": 0,
-          "stdout": "5\n0\n7"
+          "stdout": "5\n0\n2.5"
         }
       }
     },

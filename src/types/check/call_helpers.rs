@@ -2,7 +2,7 @@
 //! keep that file under the release size gate (60 KB, test_release_file_size_limits).
 use crate::ast::*;
 use crate::diagnostics::{DiagnosticEngine, ErrorCode, SourceSpan};
-use crate::types::DataraType;
+use crate::types::{DataraType, TypeChecker};
 use std::collections::{HashMap, HashSet};
 
 /// v1.4.1 E-TYPE-008 gate for the List combinators: a wrong arity or a
@@ -318,4 +318,44 @@ pub(crate) fn check_generic_trait_bounds(
             }
         }
     }
+}
+
+/// List.new(n) static constructor (PLAN_V151 N1): pre-allocate a list of n
+/// zero-initialized elements. Element type binds from the enclosing expected
+/// type (annotation/return), else Int.
+pub(crate) fn check_list_new_ctor(
+    tc: &TypeChecker,
+    object: &Expr,
+    member: &str,
+    args: &[Expr],
+    span: &SourceSpan,
+    diag: &mut DiagnosticEngine,
+) -> DataraType {
+    if let Expr::Identifier(cls_name, _) = object
+        && cls_name == "List"
+        && member == "new"
+    {
+        if args.len() != 1 {
+            diag.error(
+                ErrorCode::TypeMismatch,
+                format!(
+                    "List.new() takes exactly 1 argument (size), got {}",
+                    args.len()
+                ),
+                Some(span.clone()),
+            );
+            return DataraType::Unit;
+        }
+        let elem_ty = match tc
+            .current_assign_target
+            .as_ref()
+            .and_then(|r| r.list_like())
+            .or_else(|| tc.current_return_type.as_ref().and_then(|r| r.list_like()))
+        {
+            Some(e) => e,
+            None => DataraType::Int,
+        };
+        return DataraType::List(Box::new(elem_ty));
+    }
+    DataraType::Unit
 }

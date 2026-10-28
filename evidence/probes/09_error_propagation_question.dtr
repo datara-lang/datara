@@ -1,0 +1,61 @@
+use stdlib.result.result.Outcome
+use stdlib.result.option.Maybe
+
+// 1. A function returning the Result type Outcome<Int>
+fn parse_port(s: Str) -> Outcome<Int> {
+    if s == "8080" {
+        return Outcome.ok(8080)
+    }
+    if s == "443" {
+        return Outcome.ok(443)
+    }
+    return Outcome.err("invalid port number")
+}
+
+// 2. A function using the `?` operator for safe error propagation
+fn start_server(port_str: Str) -> Outcome<Int> {
+    // The ? operator unwraps the Int on success,
+    // or performs an IMMEDIATE early return of the error!
+    let port = parse_port(port_str)?
+
+    out fmt"  [OK] Network socket initialized on port: {port}"
+    return Outcome.ok(port)
+}
+
+// 3. Working with Option / Maybe through `?`
+fn find_user_id(username: Str) -> Maybe<Int> {
+    if username == "admin" {
+        return Maybe.some(1001)
+    }
+    return Maybe.none()
+}
+
+fn calculate_permission_level(username: Str) -> Maybe<Int> {
+    let uid = find_user_id(username)?
+    return Maybe.some(uid * 2)
+}
+
+fn main() {
+    out "=================================================="
+    out "  Demonstrating the `?` operator and error handling   "
+    out "=================================================="
+
+    out "--- Test 1: Successful Result propagation (?) ---"
+    let s1 = start_server("8080")
+    out fmt"Result: status={s1.is_success}, value={s1.value}"
+
+    out "--- Test 2: Error and early exit via Result (?) ---"
+    let s2 = start_server("not_a_port")
+    out fmt"Result: status={s2.is_success}, error text='{s2.error_msg}'"
+
+    out "--- Test 3: Working with Maybe / Option (?) ---"
+    let p1 = calculate_permission_level("admin")
+    out fmt"User 'admin': found={p1.is_some}, level={p1.value}"
+
+    let p2 = calculate_permission_level("guest")
+    out fmt"User 'guest': found={p2.is_some}"
+
+    out "--- Test 4: The fallback value operator 'or' ---"
+    let fallback_port = parse_port("invalid") or 3000
+    out fmt"Port with fallback value (or 3000): {fallback_port}"
+}

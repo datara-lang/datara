@@ -17,6 +17,7 @@ pub mod higher_order;
 pub mod infer;
 pub mod inline_body;
 pub mod match_arm;
+pub mod natvar_call;
 pub mod out;
 pub mod stmt;
 pub mod tsu;

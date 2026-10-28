@@ -641,7 +641,11 @@ pub fn declare_runtime_core<M: ClifModule>(
     str_offset_sig.params.push(AbiParam::new(clif_types::I64));
     str_offset_sig.returns.push(AbiParam::new(clif_types::I64));
     let str_scalar_at_id = module
-        .declare_function("datara_rt_str_scalar_at", Linkage::Import, &str_offset_sig.clone())
+        .declare_function(
+            "datara_rt_str_scalar_at",
+            Linkage::Import,
+            &str_offset_sig.clone(),
+        )
         .map_err(|e| e.to_string())?;
     func_ids.insert(
         "str_scalar_at".into(),
@@ -653,7 +657,11 @@ pub fn declare_runtime_core<M: ClifModule>(
     );
 
     let str_scalar_cp_id = module
-        .declare_function("datara_rt_str_scalar_at_cp", Linkage::Import, &str_offset_sig)
+        .declare_function(
+            "datara_rt_str_scalar_at_cp",
+            Linkage::Import,
+            &str_offset_sig,
+        )
         .map_err(|e| e.to_string())?;
     func_ids.insert(
         "str_scalar_at_cp".into(),

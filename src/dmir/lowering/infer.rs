@@ -819,6 +819,26 @@ impl<'a> Lowering<'a> {
                 }
                 false
             }
+            // Declared-bool struct fields (`s1.is_success` in fmt
+            // interpolation): the field's declared type lives in the class
+            // layout, and the containing class of the receiver expression is
+            // recoverable through infer_expr_datara_type. Without this arm
+            // fmt printed the raw 0/1 word on LLVM (print_int) while
+            // Cranelift printed true — parity_matrix caught it.
+            Expr::MemberAccess { object, member, .. } => {
+                if let Some(obj_ty) = self.infer_expr_datara_type(object) {
+                    if let DataraType::GenericInstance { name: cname, .. }
+                    | DataraType::Class(cname) = &obj_ty
+                    {
+                        if let Some(fields) = self.types.class_fields.get(cname)
+                            && let Some(ft) = fields.get(member)
+                        {
+                            return matches!(ft, DataraType::Bool);
+                        }
+                    }
+                }
+                false
+            }
             Expr::Binary { op, .. } => {
                 matches!(
                     op.as_str(),
