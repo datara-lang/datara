@@ -2,7 +2,6 @@ use forgen::driver::ForgenCompiler;
 #[path = "llvm_gate.rs"]
 mod llvm_gate;
 
-
 #[test]
 fn test_wave1_tail_call_optimization() {
     let source = r#"

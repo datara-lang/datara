@@ -14,7 +14,6 @@ use std::time::Instant;
 #[path = "llvm_gate.rs"]
 mod llvm_gate;
 
-
 #[test]
 fn test_llvm_ir_ownership_and_effects_attributes() {
     if !llvm_gate::llvm_toolchain_available() {

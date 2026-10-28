@@ -18,7 +18,6 @@ use std::path::{Path, PathBuf};
 #[path = "llvm_gate.rs"]
 mod llvm_gate;
 
-
 fn setup_test_dir(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("datara_test_v120_p7_{}", name));
     let _ = fs::remove_dir_all(&dir);
