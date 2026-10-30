@@ -763,6 +763,8 @@ Project Commands:
   test [target]           Auto-discover and run project integration tests in tests/
   bench [target]          Auto-discover and run benchmarks in benches/
   check [target]          Fast static verification (types, ownership, effects), 0 binaries
+  bridge check <file>     Static bridge audit: declarative bridges + C header
+                          existence/parse + call-site arity (E-BRIDGE-001/002)
   doctor [--bridges]      Toolchain diagnostics; --bridges audits C/Python/JS/Rust interop
   domain [target] [--llvm] Maximum whole-program specialization & SAE adaptation report (--llvm enables LLVM)
   sae [target]            Inspect Semantic Adaptation Engine decisions (WHAT -> HOW)

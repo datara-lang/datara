@@ -175,10 +175,18 @@ chase_lev.rs, 11 юнит-тестов), NUMA-топология, C-фиберы
   tests/test_dpm_signing.rs 3/3 (keypair-roundtrip, все ветки sig-status,
   эскалация в registry.verify). Онлайн-реестр/GitHub Pages — отдельно
   (нужен push, N6).
-- [ ] `forgen bridge check`: статическая сверка bridge-деклараций с
-  заголовками/стабами (аргументы/типы/арность; наследие плана B1). Тест:
-  корректный мост проходит, мост с несовпадающей сигнатурой даёт
-  E-BRIDGE-диагностику с точным местом.
+- [x] `forgen bridge check <file.dtr>` — ЗАКРЫТО 2026-10-31 (src/cli/
+  bridge_check.rs): статический аудит мостов поверх bridge_decl-реестра
+  (E-BRIDGE-003 язык / E-BRIDGE-002 типы — уже в pipeline) + НОВОЕ: (a)
+  C-заголовки — существование, чтение и полный CParser-прогон (ошибки →
+  E-BRIDGE-002 на span импорта); (b) обход AST (Stmt 23 × Expr 27 вариантов)
+  — каждый call-site сверяется по арности с bridge-декларацией и
+  заголовочными CFunction (variadic → >=): несовпадение → **E-BRIDGE-001
+  с точным местом вызова**; (c) surface-отчёт (bridge decl / C fn /
+  verified calls), exit-code 1 при проблемах (CI-гейт). Тесты
+  tests/test_bridge_check.rs 3/3 через CARGO_BIN_EXE: valid → [DONE] rc=0;
+  add2(1) при add2(int,int) → E-BRIDGE-001 bad.dtr:4; missing header →
+  E-BRIDGE-002. Help-текст в misc.rs.
 - [ ] Python-мост hot-path аудит: py.bind_buffer — замер 10 МБ List<Float>
   → numpy без копирования (до/после, `DATARA_BRIDGE_TRACE=1` счётчик
   копий). Если копия есть — устранить. Артефакт: bench_python/RESULTS.md.

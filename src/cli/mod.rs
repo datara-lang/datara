@@ -9,6 +9,7 @@
 //! - [`tools`]   — lsp, ui, fmt, lint/audit, doc, export
 //! - [`misc`]    — explain, watch, completions, setup-tools, help, write_zip
 
+mod bridge_check;
 mod build;
 mod doctor;
 mod inspect;
@@ -238,6 +239,8 @@ fn run_cli_inner(args: &[String]) {
 
         "lint" | "audit" | "clippy" => tools::cmd_lint(command, &args),
         "fix" => tools::cmd_fix(&args),
+
+        "bridge" => bridge_check::cmd_bridge_check(&args),
 
         "doctor" => doctor::cmd_doctor(&args),
 
