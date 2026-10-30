@@ -12,7 +12,8 @@ TIERS = [(), ("--jit",), ("--llvm",)]
 def run(path, extra):
     cmd = [FORGEN, "run", path, *extra]
     r = subprocess.run(cmd, capture_output=True, cwd=ROOT, timeout=120)
-    return r.returncode, r.stdout.decode("utf-8", errors="replace").replace("\r\n", "\n").strip()
+    return r.returncode, r.stdout.decode("utf-8", errors="replace").replace("\r\n", "\n").strip(), \
+        r.stderr.decode("utf-8", errors="replace")
 
 def main():
     results, fails = {}, 0
@@ -22,7 +23,13 @@ def main():
         for tier in TIERS:
             tier_name = tier[0].lstrip("-") if tier else "cranelift"
             try:
-                code, out = run(probe, list(tier))
+                code, out, err = run(probe, list(tier))
+                # A backend failure that silently falls back to Cranelift
+                # ("Falling back to native Cranelift backend") would make the
+                # matrix diff Cranelift against Cranelift — a false OK. Treat
+                # the fallback as a hard tier failure instead.
+                if "Falling back" in err or "Falling back" in out:
+                    code, out = -2, "<backend-fallback>"
                 outs[tier_name] = {"exit": code, "stdout": out}
             except subprocess.TimeoutExpired:
                 outs[tier_name] = {"exit": -1, "stdout": "<timeout>"}

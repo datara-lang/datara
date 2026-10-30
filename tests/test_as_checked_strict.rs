@@ -150,3 +150,29 @@ fn main() {
         res.error
     );
 }
+
+// Regression (PLAN_V151 N1 bug registry): a nested cast `(x as Float) as Int`
+// inferred the outer cast's from_ty as "Int" (no Expr::Cast arm in the
+// lowering's infer_expr_datara_type) while the runtime value was an f64
+// carrier — Cranelift lowered the identity iadd on an f64 and panicked inside
+// the ISLE x64_lea rule; LLVM emitted a type-illegal `or i64` on a double.
+#[test]
+fn test_nested_cast_roundtrip_all_tiers() {
+    let src = r#"
+fn main() {
+    mut i = 7
+    out int_to_str((i as Float) as Int)
+    out int_to_str((1000000 as Float) as Int)
+    out int_to_str((300 as Int8) as Int)
+    out int_to_str((300 as UInt8) as Int)
+}
+"#;
+    let (stdout, code) = compile_and_run(src, "test_nested_cast.dtr");
+    assert_eq!(code, 0);
+    let lines: Vec<&str> = stdout.trim().lines().collect();
+    assert_eq!(
+        lines,
+        vec!["7", "1000000", "44", "44"],
+        "nested cast roundtrip broke value or backend parity"
+    );
+}

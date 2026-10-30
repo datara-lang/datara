@@ -17,6 +17,23 @@
         }
       }
     },
+    "cast_bool_var.dtr": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "1\n1\n2\n7\n44"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "1\n1\n2\n7\n44"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "1\n1\n2\n7\n44"
+        }
+      }
+    },
     "cyrillic_check.dtr": {
       "parity": true,
       "tiers": {
@@ -48,6 +65,23 @@
         "llvm": {
           "exit": 0,
           "stdout": "5\n0\n2.5"
+        }
+      }
+    },
+    "mt_fiber_check.dtr": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "8\n10000\n10000"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "8\n10000\n10000"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "8\n10000\n10000"
         }
       }
     },

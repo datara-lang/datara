@@ -1,0 +1,25 @@
+// Probe (N1 bug registry #4): cast pipeline, three real bugs found while
+// verifying the resultx package consumer.
+//   1. DCE collect_used_values had no Inst::Cast arm — the operand of a
+//      surviving cast (Bool->Int is never const-folded) lost its definition
+//      (E0901 after intraproc).
+//   2. inline substitute_operands fixed dests but skipped Cast.value —
+//      stale pre-inline id (E0901 after inline).
+//   3. Nested cast `(x as Float) as Int` inferred the outer from_ty as
+//      "Int" on an f64 carrier: Cranelift ISLE x64_lea panic, LLVM
+//      type-illegal `or i64` on a double.
+// Expected stdout: 1 / 1 / 2 / 7 / 44.
+fn is_ready(n: Int) -> Bool {
+    return n > 0
+}
+
+fn main() {
+    mut b = true
+    out b as Int
+    mut r = is_ready(5)
+    out r as Int
+    out int_to_str(r as Int + 1)
+    mut i = 7
+    out int_to_str((i as Float) as Int)
+    out int_to_str((300 as Int8) as Int)
+}

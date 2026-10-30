@@ -613,6 +613,31 @@ impl<'a> LlvmEmitter<'a> {
                     }
                 }
             }
+            Inst::Cast {
+                dest,
+                value,
+                from_ty,
+                to_ty,
+            } => {
+                // Mirror of the Cranelift cast matrix (cranelift/backend/
+                // compile_func.rs Inst::Cast). Before this arm existed the
+                // LLVM emitter skipped Cast entirely: llc rejected the module
+                // with "use of undefined value" and `--llvm` silently fell
+                // back to Cranelift, so the parity matrix diffed Cranelift
+                // against Cranelift and reported a false OK. Every DMIR Cast
+                // must produce a defining .ll line. Body in emit_cast.rs
+                // (60 KB release size gate).
+                super::emit_cast::emit_cast(
+                    *dest,
+                    *value,
+                    from_ty,
+                    to_ty,
+                    value_types,
+                    bool_vids,
+                    f32_vids,
+                    out,
+                );
+            }
             Inst::UnOp {
                 dest,
                 op,

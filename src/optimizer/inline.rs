@@ -116,6 +116,11 @@ impl Optimizer {
                 fix(right);
             }
             Inst::UnOp { operand, .. } => fix(operand),
+            // Cast's operand must be substituted too: the first match only
+            // fixes dests. A stale pre-inline id here produced E0901 "use of
+            // undefined value" after the inline pass (main5 package-consumer
+            // repro, value 22).
+            Inst::Cast { value, .. } => fix(value),
             Inst::Select {
                 cond,
                 then_val,

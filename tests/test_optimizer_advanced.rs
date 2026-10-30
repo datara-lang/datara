@@ -137,3 +137,100 @@ fn main() {
     assert_eq!(lines[0].trim(), "12");
     assert_eq!(lines[1].trim(), "-24");
 }
+
+// Regression (PLAN_V151 N1 bug registry): DCE's collect_used_values had no
+// Inst::Cast arm, so the operand of a surviving cast was treated as unused
+// and its definition was deleted — E0901 "use of undefined value" after the
+// intraproc pass. Int->Float casts escaped because const-fold folded them
+// away; Bool->Int casts survive folding (bool constants live in a separate
+// map), which is why a Bool variable cast is the minimal repro.
+#[test]
+fn test_dce_bool_cast_operand_survives() {
+    let source = r#"
+fn main() {
+    mut b = true
+    out b as Int
+}
+"#;
+
+    let compiler = ForgenCompiler::new("domain");
+    let res = compiler.compile_source(source, "dce_cast_test.dtr", None);
+    assert!(res.success, "Compilation failed: {:?}", res.error);
+    let exe = res.exe_path.unwrap();
+    let (stdout, _, code, _) = compiler.codegen.run_executable(&exe, &[]).unwrap();
+    assert_eq!(code, 0);
+    assert_eq!(stdout.trim(), "1");
+}
+
+// Regression (PLAN_V151 N1 bug registry): inline's substitute_operands fixed
+// every inst's dest but skipped Inst::Cast's value operand, leaving a stale
+// pre-inline value id — E0901 "use of undefined value" after the inline pass
+// (caught by the resultx package consumer: a Bool helper result cast with
+// `as Int` at the call site).
+#[test]
+fn test_inline_cast_operand_substituted() {
+    let source = r#"
+fn is_ready(n: Int) -> Bool {
+    return n > 0
+}
+
+fn main() {
+    mut r = is_ready(5)
+    out r as Int
+    out int_to_str(r as Int + 1)
+}
+"#;
+
+    let compiler = ForgenCompiler::new("domain");
+    let res = compiler.compile_source(source, "inline_cast_test.dtr", None);
+    assert!(res.success, "Compilation failed: {:?}", res.error);
+    let exe = res.exe_path.unwrap();
+    let (stdout, _, code, _) = compiler.codegen.run_executable(&exe, &[]).unwrap();
+    assert_eq!(code, 0);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[0].trim(), "1");
+    assert_eq!(lines[1].trim(), "2");
+}
+
+// Regression (PLAN_V151 N1 bug registry): the LLVM backend mapped Int `abs`
+// to the DOUBLE runtime prototype `datara_rt_math_abs(double)` while
+// emitting `call i64 @datara_rt_math_abs(i64)` — a declare/call type
+// mismatch that opt/llc miscompiles at -mcpu=native (a package-consumer
+// gcd loop printed 4 instead of 12; bare llc -O0 printed 36). The call now
+// routes to `datara_rt_math_abs_int` when the argument carrier is i64.
+#[test]
+fn test_llvm_int_abs_loop_parity() {
+    // The pre-fix repro used a user-defined `fn abs(Int) -> Int` called
+    // from a loop — exactly the package shape (mathx consumer) whose plain
+    // "abs" name was hijacked to the double builtin in the LLVM name map.
+    let source = r#"
+fn abs(v: Int) -> Int {
+    if v < 0 {
+        return 0 - v
+    }
+    return v
+}
+
+fn main() {
+    mut x = 36
+    mut y = abs(-24)
+    while y != 0 {
+        val t = y
+        y = x % y
+        x = t
+    }
+    out int_to_str(x)
+    out int_to_str(abs(-36))
+}
+"#;
+
+    let compiler = ForgenCompiler::new("domain");
+    let res = compiler.compile_source(source, "llvm_int_abs.dtr", None);
+    assert!(res.success, "Compilation failed: {:?}", res.error);
+    let exe = res.exe_path.unwrap();
+    let (stdout, _, code, _) = compiler.codegen.run_executable(&exe, &[]).unwrap();
+    assert_eq!(code, 0);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[0].trim(), "12", "gcd loop miscompiled: {stdout:?}");
+    assert_eq!(lines[1].trim(), "36", "Int abs miscompiled: {stdout:?}");
+}

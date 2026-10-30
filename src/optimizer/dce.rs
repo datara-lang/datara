@@ -400,6 +400,26 @@ impl Optimizer {
             Inst::Return { value: Some(v) } => {
                 used_values.insert(*v);
             }
+            // Cast, Volatile*, InlineAsm carry value operands too. Missing
+            // Cast here let DCE delete the operand's definition while the
+            // cast survived (Bool->Int casts are not const-folded — the
+            // constant lives in bool_constants, not int_constants), which
+            // surfaced as E0901 "use of undefined value" after intraproc.
+            Inst::Cast { value, .. } => {
+                used_values.insert(*value);
+            }
+            Inst::VolatileLoad { addr, .. } => {
+                used_values.insert(*addr);
+            }
+            Inst::VolatileStore { addr, value, .. } => {
+                used_values.insert(*addr);
+                used_values.insert(*value);
+            }
+            Inst::InlineAsm { inputs, .. } => {
+                for (_, v) in inputs {
+                    used_values.insert(*v);
+                }
+            }
             _ => {}
         }
     }

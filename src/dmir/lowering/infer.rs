@@ -98,6 +98,13 @@ impl<'a> Lowering<'a> {
                 LiteralValue::Char(_) => Some(DataraType::Char),
                 LiteralValue::None => Some(DataraType::Unit),
             },
+            // A cast expression's type IS its target type. Without this arm a
+            // nested cast `(x as Float) as Int` inferred the outer cast's
+            // from_ty as "Int" while the runtime value was an f64 carrier —
+            // Cranelift then lowered the identity `iadd` on an f64 (ISLE
+            // x64_lea panic) and LLVM emitted `or i64` on a double (llc type
+            // error).
+            Expr::Cast { target_ty, .. } => Some(DataraType::Class(target_ty.clone())),
             Expr::Identifier(name, _) => {
                 if let Some(ty) = self.lookup_var_type(name) {
                     return Some(ty);
