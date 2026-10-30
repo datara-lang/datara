@@ -79,6 +79,38 @@ bridge check), стабильность (флейки, реестр багов �
   программ (generic + val + fiber + return-? + пакетные импорты) и прогнать
   дифф stdout Cranelift/JIT/LLVM — ноль расхождений. Скрипт
   tools/parity_matrix.py + отчёт evidence/parity_matrix.json.
+- [x] Каскад кастов (N1 #4, ЗАКРЫТО 2026-10-30): пакетный consumer resultx
+  вскрыл цепочку из 6 багов. (1) DCE collect_used_values не учитывал
+  операнды Cast/VolatileLoad/VolatileStore/InlineAsm — def каста удалялся
+  (E0901 после intraproc; Bool→Int не сворачивается const-fold'ом —
+  константы в bool_constants, а не int_constants). (2) inline
+  substitute_operands фиксил только dest — stale pre-inline id (E0901 после
+  inline). (3) infer_expr_datara_type не знал Expr::Cast → вложенный каст
+  `(x as Float) as Int` получал from_ty="Int" на f64-носителе: паника
+  Cranelift ISLE x64_lea + llc-ошибка `or i64` на double. (4) У LLVM-эмиттера
+  НЕ БЫЛО ветки Inst::Cast — llc падал на любом выжившем касте, а `--llvm`
+  молча откатывался на Cranelift. (5) lowering function_return_types не имел
+  str_scalar_at/_cp → DMIR Call ty="Int" → `ret i64` в ptr-функции. (6)
+  emit_call-маппинг без str_scalar_at_cp/str_substring_cp → undefined
+  symbol. Плюс (7) tools/parity_matrix.py считал fallback за OK — теперь
+  "Falling back" = провал тира. Регресс-тесты: test_dce_bool_cast_operand_
+  survives, test_inline_cast_operand_substituted, test_nested_cast_
+  roundtrip_all_tiers; probe evidence/probes/cast_bool_var.dtr. Гейт:
+  parity 6/6 (честная), main5 3 бекенда байт-в-байт.
+- [x] Каскад gcd/abs (N1 #5, ЗАКРЫТО 2026-10-31): честная parity-матрица
+  поймала LLVM-fallback на str_scalar probe, а consumer main_all — дивергенцию
+  gcd (LLVM 36/4 вместо 12). Два бага: (1) LLVM emit_call угонял ИМЯ
+  пользовательской функции в builtin — пакетный `fn abs(Int) -> Int`
+  становился `datara_rt_math_abs(double)` при `call i64 …(i64)`:
+  декларация/вызов не совпадали, opt -O3 -mcpu=native (znver4) miscompile;
+  llc -O0 давал 36, llc -O2 12, пайплайн 4 — классика UB. Фикс: guard
+  `module.functions.contains_key(func)` — user-fn всегда побеждает builtin-
+  мапу; плюс type-aware Int-abs → datara_rt_math_abs_int (i64-носитель).
+  (2) lowering function_return_types не знал str_scalar_at/_cp → DMIR Call
+  ty="Int" → `ret i64` в ptr-функции (подпункт каскада кастов, закрыт там же).
+  Методика: FORGEN_KEEP_LLVM=1 + ручной opt/llc/link -O0 vs -O2 + симуляция
+  SSA на бумаге. Регресс: test_llvm_int_abs_loop_parity. Гейт: main_all
+  (5 пакетов, 13 строк) байт-в-байт на Cranelift/JIT/LLVM.
 
 ## N2. NatVar срез 2: многопоточный планировщик + IO-поллер `[ ]`
 
@@ -117,11 +149,16 @@ chase_lev.rs, 11 юнит-тестов), NUMA-топология, C-фиберы
 
 ## N3. Экосистема: пакеты, подпись, bridges `[ ]`
 
-- [ ] Два новых пакета в реестр: **resultx** (Outcome/Maybe-хелперы: map/
-  and_then/or_else/transpose наDatara) и **timex** (длительности, форматирование
-  интервалов, monotonic-замеры). Путь: fixtures → `dpm publish` → consumer
-  `use resultx`/`use timex` → run на 3 бэкендах. Критерий: 5/5 пакетов в
-  реестре, verify 5/5.
+- [x] Два новых пакета в реестр: **resultx** (Outcome/Maybe-хелперы —
+  typed-Int-вариант: ограничение чекера на поля generic-параметров в bare-
+  generic телах задокументировано в lib.dtr) и **timex** (format_ms/
+  format_count/elapsed_since) — ЗАКРЫТО 2026-10-30. Путь: fixtures →
+  `dpm publish` → consumer `use resultx`/`use timex` → run на 3 бэкендах.
+  Consumer-верификация: main5 (6 проверок) + main_all (все 5 пакетов
+  реестра в одной программе, 13 строк вывода) — байт-в-байт на
+  Cranelift/JIT/LLVM; реестр 5/5 (mathx/strx/jsonx/resultx/timex).
+  Побочно: контекст-адопшн v1.5.0 (`mut r: Outcome<Int> = Outcome.err("…")`)
+  верифицирован в consumer; найден каскад багов N1 #4/#5.
 - [ ] Локальная Ed25519-подпись при publish: ключ datara-core-2026-v2
   (D:\DATARA\sparks) — подпись bundle.json (detached signature file
   bundle.sig), `dpm verify` проверяет подпись при наличии ключа в trust-store.

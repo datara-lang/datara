@@ -1,0 +1,36 @@
+use stdlib.result.result.Outcome
+use stdlib.result.option.Maybe
+
+// Sparks Seed Package: resultx
+// Outcome/Maybe helpers. NOTE: bare-generic bodies cannot access class
+// fields yet (checker limitation, see PLAN_V151 N3) — these helpers are
+// typed for the Int payload.
+
+fn or_else(r: Outcome<Int>, fallback: Int) -> Int {
+    if r.is_success {
+        return r.value
+    }
+    return fallback
+}
+
+fn unwrap_or(m: Maybe<Int>, d: Int) -> Int {
+    if m.is_some {
+        return m.value
+    }
+    return d
+}
+
+fn is_ok(r: Outcome<Int>) -> Bool {
+    return r.is_success
+}
+
+fn is_some(m: Maybe<Int>) -> Bool {
+    return m.is_some
+}
+
+fn error_of(r: Outcome<Int>) -> Str {
+    if r.is_success {
+        return ""
+    }
+    return r.error_msg
+}

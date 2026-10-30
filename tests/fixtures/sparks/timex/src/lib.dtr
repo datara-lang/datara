@@ -1,0 +1,30 @@
+// Sparks Seed Package: timex
+// Duration formatting and interval helpers over the time runtime.
+
+fn format_ms(ms: Int) -> Str {
+    if ms < 1000 {
+        return int_to_str(ms) + "ms"
+    }
+    if ms < 60000 {
+        val sec = ms / 1000
+        val rest = (ms % 1000) / 100
+        return int_to_str(sec) + "." + int_to_str(rest) + "s"
+    }
+    val minutes = ms / 60000
+    val sec = (ms % 60000) / 1000
+    return int_to_str(minutes) + "m " + int_to_str(sec) + "s"
+}
+
+fn format_count(n: Int, unit: Str) -> Str {
+    if n == 1 {
+        return "1 " + unit
+    }
+    return int_to_str(n) + " " + unit + "s"
+}
+
+fn elapsed_since(start_ms: Int, end_ms: Int) -> Int {
+    if end_ms >= start_ms {
+        return end_ms - start_ms
+    }
+    return 0
+}

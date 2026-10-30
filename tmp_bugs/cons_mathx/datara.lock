@@ -15,8 +15,20 @@ digest = "merkle:sha256:f4492f0de94987f9c8f1db2d96416b3b1923cecdd58bbbd3c3463059
 source = "registry"
 dependencies = []
 
+[packages.resultx]
+version = "0.1.0"
+digest = "merkle:sha256:3ce5f5cbcc3c7fdf6403fca4f955f849a3ce822dd521c6b25eb7a02642226baa"
+source = "registry"
+dependencies = []
+
 [packages.strx]
 version = "0.1.0"
 digest = "merkle:sha256:70695f372084a612dac4938c95a7d9a6a134249701e367997c26bb3a2f5d13aa"
+source = "registry"
+dependencies = []
+
+[packages.timex]
+version = "0.1.0"
+digest = "merkle:sha256:bcf212bed7f80c4094996f709f4f642b4d19cbe1eb24f07af70d6374a9f1584b"
 source = "registry"
 dependencies = []

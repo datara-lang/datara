@@ -1,0 +1,11 @@
+manifest_schema = 1
+
+[package]
+name = "resultx"
+version = "0.1.0"
+description = "Outcome/Maybe helper combinators for Datara"
+authors = ["Datara Core Team"]
+license = "MIT OR Apache-2.0"
+entry = "src/lib.dtr"
+
+[capabilities]
