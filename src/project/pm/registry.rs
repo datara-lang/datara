@@ -1109,11 +1109,45 @@ behavior Matrix2x2 {
             // check silently approved any package whose lock entry carried
             // that magic prefix — a built-in verification bypass.
             if current_digest == locked.digest {
+                // Detached Ed25519 check (PLAN_V151 N3): a signed bundle is
+                // verified against the trust-store; an invalid signature
+                // escalates the whole package to Mismatch even when the
+                // digest still matches (the .sig is part of the artifact).
+                let bundle_path = self
+                    .store_path
+                    .join("bundles")
+                    .join(format!("{}-{}.dtr-pkg", pkg_name, locked.version));
+                let sig_status = if bundle_path.exists() {
+                    Self::verify_bundle_signature(&bundle_path, &self.trust_store_dir())
+                } else {
+                    SignatureStatus::Unsigned
+                };
+                let (status, sig_note) = match sig_status {
+                    SignatureStatus::Unsigned => (VerificationStatus::Valid, String::new()),
+                    SignatureStatus::Valid(pk) => (
+                        VerificationStatus::Valid,
+                        format!(
+                            "; ed25519 signature verified (pk {}…)",
+                            &pk[..16.min(pk.len())]
+                        ),
+                    ),
+                    SignatureStatus::Untrusted(pk) => (
+                        VerificationStatus::Valid,
+                        format!(
+                            "; WARNING: signed but key {}… not in trust-store",
+                            &pk[..16.min(pk.len())]
+                        ),
+                    ),
+                    SignatureStatus::Invalid(why) => (
+                        VerificationStatus::Mismatch,
+                        format!("; SIGNATURE INVALID: {}", why),
+                    ),
+                };
                 results.push(VerificationResult {
                     name: pkg_name.clone(),
                     version: locked.version.clone(),
-                    status: VerificationStatus::Valid,
-                    message: format!("Digest verified ({})", locked.digest),
+                    status,
+                    message: format!("Digest verified ({}){}", locked.digest, sig_note),
                 });
             } else {
                 results.push(VerificationResult {
@@ -1495,18 +1529,32 @@ entry = "src/main.dtr"
             // 1. Write to local dist/ folder
             let dist_dir = project_root.join("dist");
             let _ = fs::create_dir_all(&dist_dir);
-            let _ = fs::write(
-                dist_dir.join(format!("{}-{}.dtr-pkg", name, version)),
-                &bundle_json,
-            );
+            let dist_bundle = dist_dir.join(format!("{}-{}.dtr-pkg", name, version));
+            let _ = fs::write(&dist_bundle, &bundle_json);
 
             // 2. Write to CAS bundles/ directory
             let cas_bundles = self.store_path.join("bundles");
             let _ = fs::create_dir_all(&cas_bundles);
-            let _ = fs::write(
-                cas_bundles.join(format!("{}-{}.dtr-pkg", name, version)),
-                &bundle_json,
-            );
+            let cas_bundle = cas_bundles.join(format!("{}-{}.dtr-pkg", name, version));
+            let _ = fs::write(&cas_bundle, &bundle_json);
+
+            // 3. Detached Ed25519 signature (PLAN_V151 N3): when a signing
+            // key is configured (DATARA_SIGN_KEY env or
+            // $DATARA_HOME/keys/*.sk), both bundle copies get a
+            // `<bundle>.sig` file. Unsigned publishes stay legal — the
+            // trust decision happens at verify time.
+            if let Some((key_id, sk_hex)) = Self::resolve_signing_key() {
+                match Self::sign_bundle_file(&dist_bundle, &sk_hex)
+                    .and_then(|pk| Self::sign_bundle_file(&cas_bundle, &sk_hex).map(|_| pk))
+                {
+                    Ok(pk_hex) => println!(
+                        ":: [DPM] Package signed with ed25519 key '{}' (pk {}…)",
+                        key_id,
+                        &pk_hex[..16.min(pk_hex.len())]
+                    ),
+                    Err(e) => eprintln!("[WARN] Bundle signing failed: {}", e),
+                }
+            }
         }
 
         // 3. Update Git-backed index.json in store_path
@@ -1514,6 +1562,103 @@ entry = "src/main.dtr"
 
         self.packages.insert(name, pkg.clone());
         Ok(pkg)
+    }
+
+    /// Signing key resolution (PLAN_V151 N3), in order:
+    /// 1. `DATARA_SIGN_KEY` env (hex secret key), `DATARA_SIGN_KEY_ID` names it;
+    /// 2. the first `*.sk` hex file in `$DATARA_HOME/keys/` (its stem is the
+    ///    key id, e.g. `datara-core-2026-v2.sk`).
+    ///
+    /// None → unsigned publish (legal, verify reports Unsigned).
+    pub fn resolve_signing_key() -> Option<(String, String)> {
+        if let Ok(sk) = std::env::var("DATARA_SIGN_KEY")
+            && !sk.trim().is_empty()
+        {
+            let key_id = std::env::var("DATARA_SIGN_KEY_ID").unwrap_or_else(|_| "env".to_string());
+            return Some((key_id, sk.trim().to_string()));
+        }
+        let home = std::env::var("DATARA_HOME").ok()?;
+        let keys_dir = std::path::PathBuf::from(home).join("keys");
+        let mut candidates: Vec<PathBuf> = fs::read_dir(&keys_dir)
+            .ok()?
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("sk"))
+            .collect();
+        candidates.sort();
+        let first = candidates.into_iter().next()?;
+        let key_id = first
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("key")
+            .to_string();
+        let sk = fs::read_to_string(&first).ok()?;
+        let sk = sk.trim().to_string();
+        if sk.is_empty() {
+            return None;
+        }
+        Some((key_id, sk))
+    }
+
+    /// Sign a bundle file in place: writes `<path>.sig` with the detached,
+    /// self-describing signature line `ed25519:<pk-hex>:<sig-hex>`. Returns
+    /// the signing public key hex.
+    pub fn sign_bundle_file(bundle_path: &Path, sk_hex: &str) -> Result<String, String> {
+        let bundle = fs::read(bundle_path)
+            .map_err(|e| format!("cannot read bundle {}: {}", bundle_path.display(), e))?;
+        let pk_hex = pubkey_from_sk(sk_hex)?;
+        let sig_hex = sign_ed25519_message(&bundle, sk_hex)?;
+        let sig_path = bundle_path.with_extension("dtr-pkg.sig");
+        fs::write(&sig_path, format!("ed25519:{}:{}\n", pk_hex, sig_hex))
+            .map_err(|e| format!("cannot write signature {}: {}", sig_path.display(), e))?;
+        Ok(pk_hex)
+    }
+
+    /// Verify the detached signature of a bundle against the trust-store
+    /// (`$DATARA_HOME/trust/<pk>.pk` presence = trust anchor).
+    pub fn verify_bundle_signature(bundle_path: &Path, trust_dir: &Path) -> SignatureStatus {
+        let sig_path = bundle_path.with_extension("dtr-pkg.sig");
+        if !sig_path.exists() {
+            return SignatureStatus::Unsigned;
+        }
+        let sig_line = match fs::read_to_string(&sig_path) {
+            Ok(l) => l,
+            Err(e) => {
+                return SignatureStatus::Invalid(format!(
+                    "unreadable signature {}: {}",
+                    sig_path.display(),
+                    e
+                ));
+            }
+        };
+        let parts: Vec<&str> = sig_line.trim().split(':').collect();
+        if parts.len() != 3 || parts[0] != "ed25519" {
+            return SignatureStatus::Invalid("malformed signature line".into());
+        }
+        let (pk_hex, sig_hex) = (parts[1], parts[2]);
+        if !trust_dir.join(format!("{}.pk", pk_hex)).exists() {
+            return SignatureStatus::Untrusted(pk_hex.to_string());
+        }
+        let bundle = match fs::read(bundle_path) {
+            Ok(b) => b,
+            Err(e) => {
+                return SignatureStatus::Invalid(format!("unreadable bundle: {}", e));
+            }
+        };
+        match verify_ed25519_signature(&bundle, sig_hex, pk_hex) {
+            Ok(()) => SignatureStatus::Valid(pk_hex.to_string()),
+            Err(e) => SignatureStatus::Invalid(e),
+        }
+    }
+
+    /// The trust-store directory: derived from the store layout —
+    /// `<home>/store` → `<home>/trust` — so an explicitly overridden
+    /// store_path (tests, portable installs) keeps its own trust anchors.
+    fn trust_store_dir(&self) -> PathBuf {
+        self.store_path
+            .parent()
+            .map(|p| p.join("trust"))
+            .unwrap_or_else(|| PathBuf::from("trust"))
     }
 
     fn collect_files_recursive(

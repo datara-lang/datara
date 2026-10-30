@@ -182,3 +182,12 @@ pub fn sign_ed25519_message(message: &[u8], sk_hex: &str) -> Result<String, Stri
     let sig = sk.sign(message, None);
     Ok(bytes_to_hex(sig.as_ref()))
 }
+
+/// The hex public key for a hex secret key — the signing key identity used
+/// in detached signatures (`ed25519:<pk>:<sig>`) and the trust-store.
+pub fn pubkey_from_sk(sk_hex: &str) -> Result<String, String> {
+    let sk_bytes = hex_to_bytes(sk_hex)?;
+    let sk = ed25519_compact::SecretKey::from_slice(&sk_bytes)
+        .map_err(|e| format!("Invalid ed25519 secret key: {}", e))?;
+    Ok(bytes_to_hex(sk.public_key().as_ref()))
+}

@@ -159,10 +159,22 @@ chase_lev.rs, 11 юнит-тестов), NUMA-топология, C-фиберы
   Cranelift/JIT/LLVM; реестр 5/5 (mathx/strx/jsonx/resultx/timex).
   Побочно: контекст-адопшн v1.5.0 (`mut r: Outcome<Int> = Outcome.err("…")`)
   верифицирован в consumer; найден каскад багов N1 #4/#5.
-- [ ] Локальная Ed25519-подпись при publish: ключ datara-core-2026-v2
-  (D:\DATARA\sparks) — подпись bundle.json (detached signature file
-  bundle.sig), `dpm verify` проверяет подпись при наличии ключа в trust-store.
-  Онлайн-реестр/GitHub Pages — отдельно (нужен push, N6).
+- [x] Локальная Ed25519-подпись при publish — ЗАКРЫТО 2026-10-31: ключ
+  datara-core-2026-v2 сгенерирован (`dpm keygen datara-core-2026-v2`,
+  sk в $DATARA_HOME/keys + бэкап D:\DATARA\sparks), pk доверен
+  (`dpm trust <pk>` → $DATARA_HOME/trust/<pk>.pk). Publish подписывает
+  bundle detached-файлом `<bundle>.sig` (формат `ed25519:<pk>:<sig>`,
+  сам-описывающий) в dist/ и CAS; подпись опциональна (unsigned-publish
+  легален). `dpm verify` для каждого залоченного пакета: Unsigned → как
+  раньше; Valid → «ed25519 signature verified (pk …)»; ключ вне
+  trust-store → WARNING; доверенный ключ + битая подпись → **Mismatch**
+  (эскалация при совпадающем дайджесте). Trust-dir деривация:
+  <store>/../trust (портативные инсталляции и тесты). Живая верификация:
+  5/5 пакетов подписаны и verified; тампер pk-замена → WARNING, битая sig
+  при доверенном pk → FAIL; restore → 5/5 verified. Тесты
+  tests/test_dpm_signing.rs 3/3 (keypair-roundtrip, все ветки sig-status,
+  эскалация в registry.verify). Онлайн-реестр/GitHub Pages — отдельно
+  (нужен push, N6).
 - [ ] `forgen bridge check`: статическая сверка bridge-деклараций с
   заголовками/стабами (аргументы/типы/арность; наследие плана B1). Тест:
   корректный мост проходит, мост с несовпадающей сигнатурой даёт

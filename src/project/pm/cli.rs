@@ -1,3 +1,4 @@
+use super::crypto::*;
 use super::manifest::*;
 use super::registry::*;
 use super::verify::*;
@@ -607,6 +608,82 @@ pub fn run_dpm_cli_args(args: &[String]) {
             }
         }
 
+        "keygen" => {
+            // PLAN_V151 N3: generate an Ed25519 signing keypair. The secret
+            // key file ($DATARA_HOME/keys/<name>.sk) drives detached
+            // signatures at publish; the printed public key goes into the
+            // trust-store (`dpm trust <pk>`).
+            let name = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| "datara-core-2026-v2".to_string());
+            let home = std::env::var("DATARA_HOME").unwrap_or_else(|_| ".datara".to_string());
+            let keys_dir = std::path::PathBuf::from(&home).join("keys");
+            if let Err(e) = std::fs::create_dir_all(&keys_dir) {
+                eprintln!(
+                    "[FAIL] Cannot create keys dir {}: {}",
+                    keys_dir.display(),
+                    e
+                );
+                std::process::exit(1);
+            }
+            let sk_path = keys_dir.join(format!("{}.sk", name));
+            if sk_path.exists() {
+                eprintln!(
+                    "[FAIL] Key '{}' already exists: {}",
+                    name,
+                    sk_path.display()
+                );
+                std::process::exit(1);
+            }
+            let (pk_hex, sk_hex) = create_ed25519_keypair();
+            if let Err(e) = std::fs::write(&sk_path, format!("{}\n", sk_hex)) {
+                eprintln!("[FAIL] Cannot write {}: {}", sk_path.display(), e);
+                std::process::exit(1);
+            }
+            println!(":: [DPM] Generated ed25519 signing key '{}'", name);
+            println!("  secret key: {} (keep private)", sk_path.display());
+            println!("  public key: {}", pk_hex);
+            println!(
+                "  next: dpm trust {}  (adds the key to the trust-store)",
+                pk_hex
+            );
+        }
+        "trust" => {
+            // PLAN_V151 N3: add a public key to the trust-store. Presence
+            // of $DATARA_HOME/trust/<pk>.pk is the trust anchor used by
+            // `dpm verify` for detached bundle signatures.
+            let pk_hex = match args.get(2) {
+                Some(pk) => pk.trim().to_string(),
+                None => {
+                    eprintln!("[FAIL] Usage: dpm trust <public-key-hex>");
+                    std::process::exit(1);
+                }
+            };
+            if pk_hex.len() != 64 || !pk_hex.chars().all(|c| c.is_ascii_hexdigit()) {
+                eprintln!(
+                    "[FAIL] Public key must be 64 hex chars (32 bytes), got {}",
+                    pk_hex.len()
+                );
+                std::process::exit(1);
+            }
+            let home = std::env::var("DATARA_HOME").unwrap_or_else(|_| ".datara".to_string());
+            let trust_dir = std::path::PathBuf::from(&home).join("trust");
+            if let Err(e) = std::fs::create_dir_all(&trust_dir) {
+                eprintln!(
+                    "[FAIL] Cannot create trust dir {}: {}",
+                    trust_dir.display(),
+                    e
+                );
+                std::process::exit(1);
+            }
+            let pk_path = trust_dir.join(format!("{}.pk", pk_hex));
+            if let Err(e) = std::fs::write(&pk_path, format!("{}\n", pk_hex)) {
+                eprintln!("[FAIL] Cannot write {}: {}", pk_path.display(), e);
+                std::process::exit(1);
+            }
+            println!(":: [DPM] Public key trusted: {}", pk_path.display());
+        }
         "verify" | "verify-pkg" => {
             println!(":: [DPM] Verifying package integrity against datara.lock...");
             match registry.verify(current_dir) {
