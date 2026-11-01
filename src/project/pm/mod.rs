@@ -3,6 +3,7 @@ pub mod crypto;
 pub mod http;
 pub mod manifest;
 pub mod registry;
+pub mod signing;
 pub mod tar;
 pub mod verify;
 
