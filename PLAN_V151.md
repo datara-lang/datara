@@ -276,6 +276,7 @@ chase_lev.rs, 11 юнит-тестов), NUMA-топология, C-фиберы
 collections 16/16), N7 (flagship pipeline_demo golden 3 тира,
 levels-верификация 4/4, LLVM polyglot-мост). Версия 1.5.1, CHANGELOG_V151.md.
 
+ПЕРЕНЕСЕНО В PLAN_V152.md «Multiplier» (создан 2026-11-01).
 ОСТАЛОСЬ (перенос в 1.5.2 / N4-хвост): `forgen migrate 1.4→1.5`; секции
 мануала × 1.5-фичи (TSU/Fibers/E-ANY/inspect — grep-гейт
 test_docs_coverage); watch SLA-тест; fmt-гейт идемпотентности;
