@@ -147,6 +147,54 @@ Datara is statically typed with local type inference.
 
 ---
 
+## 4.bis Dynamic Values & Type-Set Unboxing (TSU)
+
+Beyond the static triad, Datara exposes dynamic values built on **NaN-boxing**
+(`TSU`): an `Any`-style value is a single 8-byte machine word that carries its
+own type tag, so dynamic checks compile to a tag test, not a heap dispatch.
+
+### 4.bis.1 The `is` Operator & Branch Narrowing
+
+Dynamic values arise from heterogeneous lists (a mixed `val xs = [42, "hi"]`
+yields tag-carrying elements). `x is T` tests the runtime tag and NARROWS
+the type inside the branch — no casts, no unions, no allocations:
+
+```datara
+fn describe(v: Int) -> Str {
+    return fmt"int {v}"
+}
+
+fn main() {
+    val xs = [42, "hi"]
+    val x = xs[0]
+    if x is Int {
+        out describe(x)
+    }
+    val s = xs[1]
+    if s is Str {
+        out s
+    }
+}
+```
+
+Accessing a narrowed value as the wrong type is a compile error inside the
+branch and a fail-loud runtime trap outside it.
+
+### 4.bis.2 E-ANY-001
+
+Using a dynamic value without narrowing produces the diagnostic **E-ANY-001**
+with a fix-it hint (`narrow with `if x is T { ... }``). The language never
+performs silent dynamic-to-static coercion.
+
+### 4.bis.3 Boxing Rules
+
+- Int/Float/Bool fit in the box itself (zero heap).
+- Strings/lists point into the existing GC-free runtime allocations.
+- Tag checks are branch-predictable compares; there is no hidden
+  dictionary of methods.
+
+---
+
 ## 5. Data-Oriented Programming (DOP): Classes & Behaviors
 
 Datara explicitly decouples state structures (`class`, `packet`) from executable operations (`behavior`).
@@ -456,6 +504,58 @@ parallel_invoke(
 
 ---
 
+## 12.bis Fibers & NatVar: Stackful Concurrency
+
+`NatVar` is Datara's stackful fiber runtime. Fibers are cooperatively
+scheduled, cheap (microsecond spawn), and integrate with the timer wheel.
+
+### 12.bis.1 Spawning & Joining
+
+```datara
+fn worker(id: Int) -> Int {
+    fiber_sleep_ms(10)
+    return id * 2
+}
+
+fn main() {
+    val h = fiber_spawn(worker, 21, 64)
+    fiber_run_until_done()
+    out int_to_str(fiber_join(h))
+}
+```
+
+- `fiber_spawn(fn, arg, stack_kb)` → fiber handle (`Int`).
+- `fiber_join(handle)` → the worker's return value.
+- `fiber_yield()`, `fiber_sleep_ms(ms)` — cooperative points.
+- `fiber_run_until_done()` — drive the scheduler until all fibers finish.
+
+### 12.bis.2 Channels
+
+`recv` blocks the calling fiber, so a producer runs in its own fiber:
+
+```datara
+fn producer(ch: Int) {
+    fiber_chan_send(ch, 5)
+}
+
+fn main() {
+    val ch = fiber_chan_create()
+    fiber_spawn(producer, ch)
+    val v = fiber_chan_recv(ch)
+    fiber_run_until_done()
+    out int_to_str(v)
+}
+
+### 12.bis.3 Multi-Threaded Scheduler (Slice 2)
+
+`fiber_mt_start(n)` starts `n` OS workers with per-worker queues and work
+stealing; `fiber_mt_spawn`/`fiber_mt_join`/`fiber_mt_wait_idle` drive them.
+A fiber is a one-shot task: it runs on whichever worker picks it up. The
+MT scheduler schedules 100,000 fibers in ~76 ms (evidence/natvar/).
+Blocking syscalls inside a fiber body are slice-3 work (IO poller).
+
+---
+
 ## 13. Standard Library Specification
 
 Datara provides a comprehensive, production-grade standard library in `stdlib/`:
@@ -608,6 +708,21 @@ Usage: forgen <command> [arguments] [options]
 
 > [!TIP]
 > **Dual Backend Strategy**: Cranelift is the default backend, prioritizing sub-second compilation speed (0.1s) for daily development. The `--llvm` flag is designed for production releases, leveraging LLVM's advanced auto-vectorizer (AVX2/AVX-512) and LTO while maintaining compact binary sizes (~50–90 KB).
+
+---
+
+### 16.bis Modernization & Introspection (1.5)
+
+- `forgen migrate 1.4 1.5 [path] [--dry-run]` — mechanical modernization of
+  1.4-era sources (`let` → `val`/`mut`, `String` → `Str`, single-argument
+  `println` → `out`), with a per-file change report. `--dry-run` prints the
+  diff without writing.
+- `forgen inspect <symbol|dmir|clif|codegen> <file>` — semantic/IR/x-ray
+  introspection used by the evidence gate.
+- `forgen profile [target]` — PGO run producing profile data consumed by
+  `forgen build`.
+- `forgen dpm` — the package manager (publish/verify/sign with Ed25519,
+  trust-store, `bridge check`).
 
 ---
 

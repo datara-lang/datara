@@ -13,6 +13,7 @@ mod bridge_check;
 mod build;
 mod doctor;
 mod inspect;
+mod migrate;
 mod misc;
 mod mobile;
 mod pkg;
@@ -241,6 +242,8 @@ fn run_cli_inner(args: &[String]) {
         "fix" => tools::cmd_fix(&args),
 
         "bridge" => bridge_check::cmd_bridge_check(&args),
+
+        "migrate" => migrate::cmd_migrate(&args),
 
         "doctor" => doctor::cmd_doctor(&args),
 

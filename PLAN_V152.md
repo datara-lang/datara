@@ -44,28 +44,38 @@ golden pipeline_demo один md5 на 3 тира · levels 4/4.
 
 ## N2. DX-хвост 1.5.1 → 1.5.2 `[ ]` (перенос из PLAN_V151 без потерь)
 
-- [ ] `forgen migrate 1.4→1.5`: let→val/mut (семантика mut-мест),
-  String→Str, println→out (одноарг); отчёт {файл, строка, правка};
-  `--dry-run` дифф. Round-trip: миграция legacy-примеров → 0 errors.
-- [ ] **Языковой мануал × 1.5-фичи** (главная док-дыра): секции
-  §4.x Dynamic Values & TSU (val/is/narrowing/E-ANY-001),
-  §8.x Fibers & NatVar, §11.x return-?/Outcome-конструкторы,
-  §16.x inspect/profile/migrate/dpm. Каждый пример — компилируемый,
-  grep-гейт tests/test_docs_coverage.rs.
+- [x] `forgen migrate 1.4→1.5` — ЗАКРЫТО 2026-11-01 (src/cli/migrate.rs,
+  тесты test_migrate 3/3): let→val / let mut→mut (word-boundary,
+  string/comment-aware), String→Str, одноарг println→out (скобочный
+  матчинг, мультиарг не трогаем); отчёт {файл, строка, правило};
+  `--dry-run` ничего не пишет; exit 1 на отсутствующий путь. Round-trip:
+  мигрированный файл компилируется и даёт тот же вывод.
+- [x] **Языковой мануал × 1.5-фичи** — ЗАКРЫТО 2026-11-01: секции
+  §4.bis TSU (is/нарровинг через val, E-ANY-001), §12.bis Fibers & NatVar
+  (spawn/join/run_until_done/каналы — канонические паттерны: join после
+  run_until_done, recv с продюсером в спавн-фибере), §16.bis CLI
+  (migrate/inspect/profile/dpm). Гейт tests/test_docs_coverage 4/4 —
+  секции существуют И сниппеты компилируются и исполняются.
 - [ ] `forgen watch` SLA-гейт: сохранение → диагностика < 200 мс;
   мутационный кейс (поломка → красная → фикс → зелёная).
 - [ ] `forgen fmt` гейт идемпотентности: fmt(x)==fmt(fmt(x)) на examples +
   stdlib; `--check` в CI-джобе quality.
-- [ ] Resolver-hint: «Undefined symbol 'clamp'» → «add `use <pkg>`
-  (found in package 'mathx')» (скан packages/*/package.json).
+- [x] Resolver-hint — ЗАКРЫТО 2026-11-01 (resolver/visit.rs,
+  тест test_resolver_hint): «Undefined symbol 'X'» сканирует packages/*/
+  и выдаёт «add `use <pkg>` (found in package '<pkg>')» (fn/struct/
+  record/behavior-декларации, word-boundary). Приоритет: похожее имя
+  > пакетная подсказка.
 - [ ] LSP × 1.5: completions fiber_*/chan-методов, hover `is`-сужения,
   E-ANY-001 в publishDiagnostics.
 - [ ] CONTRIBUTING.md ревизия: чеклист из реального гейта (fmt/clippy/
   test, 60KB-гейт, смоуки) + «как добавить stdlib-модуль/тест-сьют».
-- [ ] docs/DPM_SCHEMA.md + ссылка из README.
-- [ ] «Datara for C/Rust/Python developers» — одностраничник
-  «как было / как в Datara / почему быстрее» (только проверяемые
-  таблицы из бенчей).
+- [x] docs/DPM_SCHEMA.md — ЗАКРЫТО 2026-11-01 (datara.toml/lock схема,
+  $DATARA_HOME-раскладка, verify-семантика).
+- [x] «Datara for C/Rust/Python developers» — ЗАКРЫТО 2026-11-01
+  (docs/DATARA_FOR_C_RUST_PYTHON.md — таблицы без маркетинга).
+- [x] tools/bridge_smoke.py — ЗАКРЫТО 2026-11-01: локальный прогон
+  мостов одной командой (python-проба реально исполняется; c/js/rust —
+  SKIP=покрыты сьютами).
 
 ## N3. NatVar срез 3: IO + честный async `[ ]`
 

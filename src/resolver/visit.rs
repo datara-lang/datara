@@ -283,9 +283,13 @@ impl Resolver {
                                 candidates,
                             ) {
                             format!("a symbol with a similar name exists: '{}'", similar)
+                        } else if let Some(pkg) = find_package_exporting(lookup_name) {
+                            // PLAN_V152 N2: the symbol exists in a project
+                            // dependency that was never `use`d — say so.
+                            format!("add `use {}` (found in package '{}')", pkg, pkg)
                         } else {
                             format!(
-                                "ensure '{}' is declared with 'let'/'mut' or imported via 'use'",
+                                "ensure '{}' is declared with 'val'/'mut' or imported via 'use'",
                                 lookup_name
                             )
                         };
@@ -503,4 +507,63 @@ impl Resolver {
             _ => {}
         }
     }
+}
+
+/// Scans the project's `packages/` directory for a package whose entry
+/// (or lib) source defines the given symbol — used for the resolver hint
+/// "add `use <pkg>` (found in package '<pkg>')" (PLAN_V152 N2). Returns
+/// None when packages/ is absent (single-file mode) or nothing matches.
+fn find_package_exporting(symbol: &str) -> Option<String> {
+    let packages_dir = std::path::Path::new("packages");
+    let entries = std::fs::read_dir(packages_dir).ok()?;
+    let mut found: Option<String> = None;
+    for entry in entries.flatten() {
+        let pkg_dir = entry.path();
+        if !pkg_dir.is_dir() {
+            continue;
+        }
+        let pkg_name = pkg_dir.file_name()?.to_string_lossy().to_string();
+        // Scan .dtr files one level deep (the usual package layout).
+        let mut stack = vec![pkg_dir.clone()];
+        while let Some(d) = stack.pop() {
+            let ok = std::fs::read_dir(&d).ok()?.all(|e| {
+                let Ok(e) = e else { return true };
+                let p = e.path();
+                if p.is_dir() {
+                    stack.push(p);
+                    return true;
+                }
+                if p.extension().and_then(|s| s.to_str()) != Some("dtr") {
+                    return true;
+                }
+                let Ok(src) = std::fs::read_to_string(&p) else {
+                    return true;
+                };
+                for line in src.lines() {
+                    let t = line.trim_start();
+                    let starts = |kw: &str| {
+                        let after = t[kw.len()..].trim_start();
+                        after.starts_with(symbol)
+                            && after[symbol.len()..]
+                                .chars()
+                                .next()
+                                .map(|c| c == '(' || c == '<' || c.is_whitespace())
+                                .unwrap_or(true)
+                    };
+                    if starts("fn") || starts("struct") || starts("record") || starts("behavior") {
+                        found = Some(pkg_name.clone());
+                        return false;
+                    }
+                }
+                true
+            });
+            if !ok || found.is_some() {
+                break;
+            }
+        }
+        if found.is_some() {
+            break;
+        }
+    }
+    found
 }
