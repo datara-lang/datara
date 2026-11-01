@@ -1483,6 +1483,25 @@ impl<'a> TypeChecker<'a> {
             "datara_rt_float_to_str".to_string(),
             (vec![DataraType::Float], DataraType::String, Vec::new()),
         );
+        // v1.4.5 W4 fmt precision converters — the runtime + all three
+        // backends have them; only the prelude signature was missing
+        // (found by the N7 pipeline_demo flagship: float_to_str_prec(x, n)).
+        function_signatures.insert(
+            "float_to_str_prec".to_string(),
+            (
+                vec![DataraType::Float, DataraType::Int],
+                DataraType::String,
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "datara_rt_float_to_str_prec".to_string(),
+            (
+                vec![DataraType::Float, DataraType::Int],
+                DataraType::String,
+                Vec::new(),
+            ),
+        );
         function_signatures.insert(
             "bool_to_str".to_string(),
             (vec![DataraType::Bool], DataraType::String, Vec::new()),

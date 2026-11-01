@@ -140,6 +140,34 @@ impl<'a> LlvmEmitter<'a> {
             func
         } else {
             match func {
+                // Polyglot bridge aliases (PLAN_V151 N7): DMIR carries either
+                // the short name (py_exec) or the datara_* name; LLVM declared
+                // neither — any bridge call fell back to Cranelift silently.
+                // Checked parsers (parse_int/parse_float → Outcome objects).
+                "parse_int" => "datara_rt_str_to_int_checked",
+                "parse_float" => "datara_rt_str_to_float_checked",
+                "py_exec" | "datara_py_exec" => "datara_py_exec",
+                "py_eval_int" | "datara_py_eval_int" => "datara_py_eval_int",
+                "py_eval_float" | "datara_py_eval_float" => "datara_py_eval_float",
+                "py_import" | "datara_py_import" => "datara_py_import",
+                "py_call" | "datara_py_call" => "datara_py_call",
+                "py_call_1_str" | "datara_py_call_1_str" => "datara_py_call_1_str",
+                "py_call_1_float" | "datara_py_call_1_float" => "datara_py_call_1_float",
+                "py_call_2_float" | "datara_py_call_2_float" => "datara_py_call_2_float",
+                "py_call_1_int" | "datara_py_call_1_int" => "datara_py_call_1_int",
+                "py_call_2_int" | "datara_py_call_2_int" => "datara_py_call_2_int",
+                "py_call_list_f64" | "datara_py_call_list_f64" => "datara_py_call_list_f64",
+                "py_eval_batch" | "datara_py_eval_batch" => "datara_py_eval_batch",
+                "py_last_error" | "datara_py_last_error" => "datara_py_last_error",
+                "py_clear_error" | "datara_py_clear_error" => "datara_py_clear_error",
+                "py_is_available" | "datara_py_is_available" => "datara_py_is_available",
+                "py_bind_buffer" | "datara_py_export_list_f64" => "datara_py_export_list_f64",
+                "datara_py_assert_same_ptr" => "datara_py_assert_same_ptr",
+                "lua_eval_int" | "datara_lua_eval_int" => "datara_lua_eval_int",
+                "lua_eval_float" | "datara_py_lua_eval_float" | "datara_lua_eval_float" => {
+                    "datara_lua_eval_float"
+                }
+                "lua_exec" | "datara_lua_exec" => "datara_lua_exec",
                 "math_sqrt" | "sqrt" => "datara_rt_math_sqrt",
                 "math_pow" | "pow" => "datara_rt_math_pow",
                 // Type-aware abs: the C runtime splits abs into the double
@@ -178,6 +206,8 @@ impl<'a> LlvmEmitter<'a> {
                 "now_precise_ms" => "datara_rt_now_precise_ms",
                 "path_join" => "datara_rt_path_join",
                 "file_write" => "datara_rt_file_write",
+                "write_file" => "datara_rt_file_write",
+                "read_file" => "datara_rt_file_read",
                 "file_read" => "datara_rt_file_read",
                 "file_read_bytes" => "datara_rt_file_read_bytes",
                 "file_write_bytes" => "datara_rt_file_write_bytes",

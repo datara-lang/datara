@@ -512,6 +512,10 @@ DataraMemoryView datara_memview_from_list_f64(int64_t* list) {
     if (!list) {
         return datara_memview_1d(NULL, 0, DATARA_DTYPE_FLOAT64);
     }
+    if (getenv("DATARA_BRIDGE_TRACE")) {
+        fprintf(stderr, "[bridge-trace] list=%p list[0]=%lld list[1]=%lld\n",
+                (void*)list, (long long)list[0], (long long)list[1]);
+    }
     int64_t count = list[0];
     if (count < 0) count = 0;
     void* data_ptr = (void*)(&list[1]);

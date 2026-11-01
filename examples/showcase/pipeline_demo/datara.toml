@@ -1,0 +1,14 @@
+# pipeline_demo — flagship "hub in one file" (PLAN_V151 N7).
+# Level-3 project: the manifest GRANTS capabilities explicitly — the
+# Enterprise tier in action (no capability, no escalated op).
+[package]
+name = "pipeline_demo"
+version = "1.5.1"
+description = "Datara hub showcase: fs -> collect -> SIMD -> numpy -> SSR"
+authors = ["Datara Core Team"]
+license = "MIT OR Apache-2.0"
+entry = "main.dtr"
+
+[capabilities]
+fs-read = ["./**"]
+fs-write = ["./pipeline_demo.csv"]

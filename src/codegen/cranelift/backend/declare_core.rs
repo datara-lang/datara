@@ -1366,6 +1366,13 @@ pub fn declare_runtime_core<M: ClifModule>(
         "file_write".into(),
         (rt_file_write_id, rt_file_write_sig.clone()),
     );
+    // Alias used by user code and the capability checker (write_file vs
+    // file_write). Level-1 resolved it through a different path; Level-3
+    // projects hit "unresolved function call 'write_file'" without this.
+    func_ids.insert(
+        "write_file".into(),
+        (rt_file_write_id, rt_file_write_sig.clone()),
+    );
     func_ids.insert("write".into(), (rt_file_write_id, rt_file_write_sig));
 
     // File I/O: append
@@ -1410,6 +1417,11 @@ pub fn declare_runtime_core<M: ClifModule>(
     );
     func_ids.insert(
         "file_read".into(),
+        (rt_file_read_id, rt_file_read_sig.clone()),
+    );
+    // Alias: read_file (Level-3 project resolution — see write_file above).
+    func_ids.insert(
+        "read_file".into(),
         (rt_file_read_id, rt_file_read_sig.clone()),
     );
     func_ids.insert("read".into(), (rt_file_read_id, rt_file_read_sig));

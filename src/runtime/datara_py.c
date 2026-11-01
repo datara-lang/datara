@@ -973,6 +973,12 @@ const char* datara_py_eval_batch(const char* json_exprs) {
 // ============================================================================
 
 int32_t datara_py_export_memview(const char* var_name, const DataraMemoryView* view) {
+    if (getenv("DATARA_BRIDGE_TRACE")) {
+        fprintf(stderr, "[bridge-trace] export_memview var=%s shape0=%lld bytes=%lld\n",
+                var_name ? var_name : "(null)",
+                view ? (long long)view->shape[0] : -1,
+                view ? (long long)view->total_bytes : -1);
+    }
     if (!datara_py_is_available()) return -1;
     if (!var_name || !view || !view->data || view->total_bytes <= 0) return -1;
 

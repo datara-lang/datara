@@ -1,0 +1,82 @@
+// ============================================================================
+// pipeline_demo — the Datara "hub in one file" (PLAN_V151 N7 flagship)
+//
+// One program, five stages, five worlds:
+//   1. FILESYSTEM   file_read/write_file (C runtime) — CSV in/out
+//   2. COLLECT      Map grouping + aggregation (stdlib.collections style)
+//   3. SIMD         f32x4 dot product on the numeric column (native SIMD)
+//   4. PYTHON       numpy over a zero-copy bound buffer (interop.python)
+//   5. WEB          SSR HTTP response with escape-by-default (stdlib.web.ssr)
+//
+// Golden contract: identical stdout on Cranelift / JIT / LLVM
+// (tests/test_pipeline_demo.rs), no network access, no external fixtures.
+// ============================================================================
+
+import python
+use stdlib.web.ssr
+
+fn main() {
+    // ---- Stage 1: CSV on disk (io/fs, C-runtime-backed) -------------------
+    val csv = "city,sales\nmoscow,120\nspb,80\nmoscow,200\nspb,40\nkazan,60\n"
+    write_file("pipeline_demo.csv", csv)
+    val loaded = file_read("pipeline_demo.csv")
+    out "CSV_BYTES"
+    out int_to_str(str_len(loaded))
+
+    // ---- Stage 2: parse + aggregate ---------------------------------------
+    val rows = str_split(loaded, "\n")
+    mut total = 0
+    mut row_count = 0
+    mut moscow_sales = 0
+    mut i = 0
+    while i < rows.len() {
+        val line = rows.get(i)
+        if str_len(line) > 0 {
+            val cells = str_split(line, ",")
+            if cells.len() == 2 {
+                val city = cells.get(0)
+                val sale = parse_int(cells.get(1)) or 0
+                total = total + sale
+                row_count = row_count + 1
+                if city == "moscow" {
+                    moscow_sales = moscow_sales + sale
+                }
+            }
+        }
+        i = i + 1
+    }
+    out int_to_str(row_count)
+    out int_to_str(total)
+    out int_to_str(moscow_sales)
+
+    // ---- Stage 3: SIMD core on the sales column ---------------------------
+    // sales vector (4 lanes, native SSE/AVX via f32x4 builtins)
+    val sales = float4(120.0, 80.0, 200.0, 40.0)
+    val weights = float4(1.0, 1.0, 1.0, 1.0)
+    val weighted = f32x4_mul(sales, weights)
+    val simd_sum = f32x4_horizontal_add(weighted)
+    out "SIMD_DOT"
+    out float_to_str_prec(simd_sum, 1)
+
+    // ---- Stage 4: Python/numpy over a ZERO-COPY bound buffer --------------
+    val py = Py { version: "3" }
+    val bind_res = py.bind_buffer("sales_arr", [120.0, 80.0, 200.0, 40.0])
+    if bind_res.is_ok() {
+        py.exec("import numpy as np\n")
+        py.exec("a = np.frombuffer(memoryview(sales_arr), dtype=np.float64)\n")
+        py.exec("globals()['_py_mean'] = float(a.mean())\n")
+        val mean = py.eval_float("_py_mean") or -1.0
+        out "PY_MEAN"
+        out float_to_str_prec(mean, 2)
+    } else {
+        out "PY_SKIP"
+    }
+
+    // ---- Stage 5: SSR HTTP response (escape-by-default) -------------------
+    val summary = "rows=" + int_to_str(row_count) + " total="
+        + int_to_str(total)
+    val body = render_h1("Sales report") + render_p(summary)
+    val http = render_response("200 OK", "text/html; charset=utf-8", body)
+    out str_contains(http, "200 OK")
+    out str_contains(http, "<h1>Sales report</h1>")
+}

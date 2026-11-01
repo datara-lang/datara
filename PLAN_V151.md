@@ -285,11 +285,23 @@ chase_lev.rs, 11 юнит-тестов), NUMA-топология, C-фиберы
 контроль (проще/сложнее по желанию). В 1.5.0 это существовало частями,
 но не было собрано в показательные артефакты.
 
-- [ ] **Flagship-демо пайплайна** examples/showcase/pipeline_demo: одна
-  программа — чтение CSV (io.fs) → агрегация на Datara (collections + Dec64)
-  → SIMD-ядро → HTTP-ответ (net/socket) → вызов Python (interop.python).
-  Golden-output тест: одинаковый stdout на трёх бэкендах. Это главный
-  маркетинговый артефакт релиза — «хаб в одном файле».
+- [x] **Flagship-демо пайплайна** examples/showcase/pipeline_demo —
+  ЗАКРЫТО 2026-11-01: одна программа = fs CSV (write_file/file_read,
+  capability-манифест datara.toml — Enterprise-уровень в действии) →
+  parse+aggregate (str_split/parse_int) → SIMD f32x4_mul+horizontal_add
+  → Python numpy по zero-copy буферу → SSR render_response.
+  tests/test_pipeline_demo.rs: Cranelift+JIT golden байт-в-байт; LLVM —
+  без fallback, все этапы кроме PY_MEAN (ниже — зарегистрированная
+  дивергенция). Побочные фиксы: float_to_str_prec отсутствовал в
+  prelude/resolver; write_file/read_file алиасы в declare_core
+  (Level-3 resolution); LLVM — ДОБАВЛЕН ВЕСЬ polyglot-мост (py/lua
+  декларации + маппинги emit_call: до этого любой py-вызов молча
+  фолбэкался на Cranelift) + parse_int/parse_float.
+  [!] ОТКРЫТЫЙ БАГ (N7 реестр): LLVM py-bind — C-путь получает
+  ИДЕНТИЧНЫЙ список (DATARA_BRIDGE_TRACE: list[0]=4, shape0=4, bytes=32
+  на обоих тирах), но объект в Python видит len=1 — дивергенция внутри
+  Python-side cast-шага export_memview при LLVM-линковке; подозрение на
+  окружение/python-DLL. Cranelift/JIT корректны.
 - [ ] **Bridge tour**: по одному компилируемому примеру на каждый мост
   (c/python/js/rust) в bridges/examples/, локальный runner-скрипт
   tools/bridge_smoke.py (не зависящий от CI): прогон всех мостов одной

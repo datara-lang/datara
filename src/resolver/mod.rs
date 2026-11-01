@@ -319,6 +319,9 @@ impl Resolver {
             "datara_rt_int_to_str",
             "float_to_str",
             "datara_rt_float_to_str",
+            // v1.4.5 W4 precision converters (N7 pipeline_demo hit this).
+            "float_to_str_prec",
+            "datara_rt_float_to_str_prec",
             "datara_rt_str_len",
             "datara_rt_byte_len",
             "datara_rt_str_chars",
