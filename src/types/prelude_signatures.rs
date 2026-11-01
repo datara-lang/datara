@@ -1458,6 +1458,23 @@ impl<'a> TypeChecker<'a> {
                 Vec::new(),
             ),
         );
+        // fiber_net_recv -> Outcome<Str> (ptr carrier, Int-typed at the DMIR level)
+        function_signatures.insert(
+            "fiber_net_recv".to_string(),
+            (
+                vec![DataraType::Int, DataraType::Int, DataraType::Int],
+                DataraType::Result(Box::new(DataraType::String), Box::new(DataraType::String)),
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "datara_rt_fiber_net_recv".to_string(),
+            (
+                vec![DataraType::Int, DataraType::Int, DataraType::Int],
+                DataraType::Result(Box::new(DataraType::String), Box::new(DataraType::String)),
+                Vec::new(),
+            ),
+        );
         // v1.4.5 W4 fmt precision converters — the runtime + all three
         // backends have them; only the prelude signature was missing
         // (found by the N7 pipeline_demo flagship: float_to_str_prec(x, n)).

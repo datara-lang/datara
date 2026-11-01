@@ -60,5 +60,18 @@ pub(crate) fn declare_atomics<M: ClifModule>(
         "datara_rt_atomic_cas".into(),
         (atomic_cas_id, atomic_cas_sig),
     );
+    // fiber_net_recv(sock, max_bytes, timeout_ms) -> Outcome<Str> (ptr)
+    let mut net_recv_sig = Signature::new(call_conv);
+    for _ in 0..3 {
+        net_recv_sig.params.push(AbiParam::new(clif_types::I64));
+    }
+    net_recv_sig.returns.push(AbiParam::new(clif_types::I64)); // ptr carrier
+    let net_recv_id = module
+        .declare_function("datara_rt_fiber_net_recv", Linkage::Import, &net_recv_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_fiber_net_recv".into(),
+        (net_recv_id, net_recv_sig),
+    );
     Ok(())
 }

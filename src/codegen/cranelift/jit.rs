@@ -591,6 +591,7 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_atomic_store", datara_rt_atomic_store);
     reg!("datara_rt_atomic_fetch_add", datara_rt_atomic_fetch_add);
     reg!("datara_rt_atomic_cas", datara_rt_atomic_cas);
+    reg!("datara_rt_fiber_net_recv", datara_rt_fiber_net_recv);
     reg!("math_abs_int", datara_rt_math_abs_int);
     reg!("datara_rt_math_ctz", datara_rt_math_ctz);
     reg!("math_ctz", datara_rt_math_ctz);

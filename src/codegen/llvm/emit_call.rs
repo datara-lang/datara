@@ -152,6 +152,7 @@ impl<'a> LlvmEmitter<'a> {
                 "atomic_store" | "datara_rt_atomic_store" => "datara_rt_atomic_store",
                 "atomic_fetch_add" | "datara_rt_atomic_fetch_add" => "datara_rt_atomic_fetch_add",
                 "atomic_cas" | "datara_rt_atomic_cas" => "datara_rt_atomic_cas",
+                "fiber_net_recv" | "datara_rt_fiber_net_recv" => "datara_rt_fiber_net_recv",
                 "py_exec" | "datara_py_exec" => "datara_py_exec",
                 "py_eval_int" | "datara_py_eval_int" => "datara_py_eval_int",
                 "py_eval_float" | "datara_py_eval_float" => "datara_py_eval_float",

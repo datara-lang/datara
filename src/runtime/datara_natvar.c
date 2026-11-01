@@ -20,6 +20,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#ifdef _WIN32
+  #include <winsock2.h>
+  #include <ws2tcpip.h>
+#else
+  #include <sys/socket.h>
+  #include <sys/select.h>
+  #include <unistd.h>
+  #include <errno.h>
+  #include <sys/time.h>
+#endif
 
 // macOS: ucontext routines are deprecated XSI extensions — without
 // _XOPEN_SOURCE the SDK header emits #error and makecontext/swapcontext
@@ -51,6 +61,7 @@ typedef enum {
     FIB_SLEEPING,
     FIB_WAITING_JOIN,
     FIB_WAITING_CHAN,
+    FIB_WAITING_IO,
 } FiberState;
 
 typedef struct Fiber {
@@ -61,6 +72,8 @@ typedef struct Fiber {
     FiberState state;
     int64_t wake_ms;        // valid when SLEEPING
     int64_t wait_on;        // fiber handle or channel id when WAITING_*
+    int64_t wait_fd;        // socket fd when WAITING_IO
+    int64_t wait_deadline;  // absolute ms deadline when WAITING_IO (0 = inf)
     int64_t exit_code;
     struct Fiber* next_ready;
 #ifdef __linux__
@@ -354,6 +367,81 @@ static void fiber_switch_to(Fiber* f) {
     g_running = NULL;
 }
 
+
+// ---- IO wait list (PLAN_V152 N1.1): fibers parked on socket readability.
+#define NATVAR_IO_MAX 256
+static Fiber* g_io_waiters[NATVAR_IO_MAX];
+static int64_t g_io_waiter_count = 0;
+
+static void io_wait_add(Fiber* f) {
+    if (g_io_waiter_count < NATVAR_IO_MAX) {
+        g_io_waiters[g_io_waiter_count++] = f;
+    }
+}
+
+static int io_wait_poll_and_wake(void) {
+    // Poll all parked fds via select(); wake readable ones (push to ready).
+    // Returns the number woken.
+    if (g_io_waiter_count == 0) return 0;
+#ifdef _WIN32
+    fd_set rfds;
+    FD_ZERO(&rfds);
+    SOCKET maxfd = 0;
+    for (int64_t i = 0; i < g_io_waiter_count; i++) {
+        SOCKET fd = (SOCKET)g_io_waiters[i]->wait_fd;
+        FD_SET(fd, &rfds);
+        if (fd > maxfd) maxfd = fd;
+    }
+    struct timeval tv = { 0, 2000 }; // 2 ms slice
+    int nready = select((int)maxfd + 1, &rfds, NULL, NULL, &tv);
+    if (nready <= 0) return 0;
+    int64_t woken = 0;
+    int64_t w = 0;
+    for (int64_t i = 0; i < g_io_waiter_count; i++) {
+        Fiber* f = g_io_waiters[i];
+        SOCKET fd = (SOCKET)f->wait_fd;
+        int64_t expired = f->wait_deadline > 0 && now_ms_real() >= f->wait_deadline;
+        if (FD_ISSET(fd, &rfds) || expired) {
+            f->state = FIB_READY;
+            ready_push(f);
+            woken++;
+        } else {
+            g_io_waiters[w++] = f;
+        }
+    }
+    g_io_waiter_count = w;
+    return (int)woken;
+#else
+    int maxfd = 0;
+    fd_set rfds;
+    FD_ZERO(&rfds);
+    for (int64_t i = 0; i < g_io_waiter_count; i++) {
+        int fd = (int)g_io_waiters[i]->wait_fd;
+        FD_SET(fd, &rfds);
+        if (fd > maxfd) maxfd = fd;
+    }
+    struct timeval tv = { 0, 2000 };
+    int nready = select(maxfd + 1, &rfds, NULL, NULL, &tv);
+    if (nready <= 0) return 0;
+    int64_t woken = 0;
+    int64_t w = 0;
+    for (int64_t i = 0; i < g_io_waiter_count; i++) {
+        Fiber* f = g_io_waiters[i];
+        int fd = (int)f->wait_fd;
+        int64_t expired = f->wait_deadline > 0 && now_ms_real() >= f->wait_deadline;
+        if (FD_ISSET(fd, &rfds) || expired) {
+            f->state = FIB_READY;
+            ready_push(f);
+            woken++;
+        } else {
+            g_io_waiters[w++] = f;
+        }
+    }
+    g_io_waiter_count = w;
+    return (int)woken;
+#endif
+}
+
 void datara_rt_fiber_yield(void) {
     Fiber* self = g_running;
     if (!self) return; // called outside a fiber — no-op
@@ -430,6 +518,12 @@ int64_t datara_rt_fiber_run_until_done(void) {
             // become due during the Sleep and discarded it (the fiber was
             // removed from the timer wheel but never scheduled — a loaded
             // CI runner lost ticks: 3-sleep loop printed "2").
+            // IO waiters: poll their fds; wake readable ones.
+            if (g_io_waiter_count > 0) {
+                io_wait_poll_and_wake();
+                last_now = now_ms_real();
+                continue;
+            }
             int64_t next_wake = timer_peek_next_wake();
             if (next_wake >= 0) {
 #ifdef _WIN32
@@ -467,6 +561,7 @@ void datara_rt_fiber_reset(void) {
     g_next_handle = 1;
     g_ready_head = g_ready_tail = NULL;
     g_running = NULL;
+    g_io_waiter_count = 0;
     g_done_count = 0;
     g_sleeping_count = 0;
     g_waiting_join_count = 0;
@@ -581,4 +676,71 @@ int64_t datara_rt_fiber_chan_recv(int64_t chan_id) {
 // Fiber-friendly monotonic clock for benchmarks.
 int64_t datara_rt_fiber_now_ms(void) {
     return now_ms_real();
+}
+
+// ============================================================================
+// Fiber-aware non-blocking socket recv (PLAN_V152 N1.1). Try immediately;
+// on would-block park the calling fiber in the IO-wait list — the
+// scheduler's select() slice (io_wait_poll_and_wake) wakes it when the fd
+// is readable or the deadline expires. Returns an Outcome<Str> object in
+// the datara_rt_outcome_build layout ([0]=is_success,[1]=value,[2]=error).
+// ============================================================================
+
+extern void* datara_rt_outcome_build(int64_t is_success, const char* value, const char* msg);
+
+void* datara_rt_fiber_net_recv(int64_t sock, int64_t max_bytes, int64_t timeout_ms) {
+    if (sock < 0) return datara_rt_outcome_build(0, "", "invalid socket handle");
+    Fiber* self = g_running;
+    char buf[8192];
+    int cap = max_bytes > 0 && max_bytes < 8192 ? (int)max_bytes : 8192;
+    for (;;) {
+#ifdef _WIN32
+        int n = recv((SOCKET)sock, buf, cap, 0);
+        if (n == SOCKET_ERROR) {
+            int err = WSAGetLastError();
+            if (err != WSAEWOULDBLOCK && err != WSAEINPROGRESS) {
+                return datara_rt_outcome_build(0, "", "socket recv error");
+            }
+        } else {
+            buf[n <= cap ? n : cap] = 0;
+            return datara_rt_outcome_build(n > 0 ? 1 : 0, buf, n > 0 ? "" : "closed");
+        }
+#else
+        ssize_t n = recv((int)sock, buf, (size_t)cap, 0);
+        if (n < 0) {
+            int err = errno;
+            if (err != EWOULDBLOCK && err != EAGAIN && err != EINPROGRESS) {
+                return datara_rt_outcome_build(0, "", "socket recv error");
+            }
+        } else {
+            buf[n] = 0;
+            return datara_rt_outcome_build(n > 0 ? 1 : 0, buf, n > 0 ? "" : "closed");
+        }
+#endif
+        // Would-block: park until readable / deadline.
+        if (!self) {
+            // Outside a fiber: fall back to a blocking recv with a short
+            // timeout via select (main-thread compat).
+#ifdef _WIN32
+            fd_set rfds; FD_ZERO(&rfds); FD_SET((SOCKET)sock, &rfds);
+            struct timeval tv = { (long)(timeout_ms / 1000), (long)((timeout_ms % 1000) * 1000) };
+            select((int)sock + 1, &rfds, NULL, NULL, &tv);
+#else
+            fd_set rfds; FD_ZERO(&rfds); FD_SET((int)sock, &rfds);
+            struct timeval tv = { timeout_ms / 1000, (timeout_ms % 1000) * 1000 };
+            select((int)sock + 1, &rfds, NULL, NULL, &tv);
+#endif
+            continue;
+        }
+        self->state = FIB_WAITING_IO;
+        self->wait_fd = sock;
+        self->wait_deadline = timeout_ms > 0 ? now_ms_real() + timeout_ms : 0;
+        io_wait_add(self);
+#ifdef _WIN32
+        SwitchToFiber(g_scheduler_fiber);
+#else
+        swapcontext((ucontext_t*)self->os_fiber, g_scheduler_ctx);
+#endif
+        // Woken: loop back and retry recv.
+    }
 }

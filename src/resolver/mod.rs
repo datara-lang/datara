@@ -463,6 +463,8 @@ impl Resolver {
             "atomic_store",
             "atomic_fetch_add",
             "atomic_cas",
+            "fiber_net_recv",
+            "datara_rt_fiber_net_recv",
             "math_ctz",
             "ctz",
             "math_shr",
