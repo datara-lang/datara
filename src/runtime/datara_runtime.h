@@ -314,6 +314,13 @@ void        datara_rt_arena_clear(void);
 void*       datara_rt_mem_alloc(int64_t bytes);
 void        datara_rt_mem_free(void* ptr);
 void        datara_rt_mem_copy(void* dst, const void* src, int64_t bytes);
+/* AtomicInt — MT fiber shared counters (PLAN_V152 N1.2). */
+int64_t*    datara_rt_atomic_new(int64_t init);
+int64_t     datara_rt_atomic_load(int64_t* cell);
+int64_t     datara_rt_atomic_store(int64_t* cell, int64_t v);
+int64_t     datara_rt_atomic_fetch_add(int64_t* cell, int64_t v);
+int64_t     datara_rt_atomic_cas(int64_t* cell, int64_t expected, int64_t newv);
+void        datara_rt_atomic_free(int64_t* cell);
 int64_t     datara_rt_ptr_read_i64(const void* ptr, int64_t offset);
 void        datara_rt_ptr_write_i64(void* ptr, int64_t offset, int64_t val);
 double      datara_rt_ptr_read_f64(const void* ptr, int64_t offset);

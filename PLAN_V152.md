@@ -43,8 +43,12 @@ golden pipeline_demo один md5 на 3 тира · levels 4/4 · docs-гейт
 - [ ] sockets → stdlib.net: TcpListener.accept() на фибере.
 
 ### 1.2 Атомики и синхронизация
-- [ ] `AtomicInt` builtin: load/store/fetch_add/cas (Cranelift: атомики
-  CLIF; LLVM: atomic RMW; WASM: threads proposal за флагом).
+- [x] `AtomicInt` builtin — ЗАКРЫТО 2026-11-01: atomic_new/load/store/
+  fetch_add/cas (C: Interlocked на Windows, __sync на POSIX; слот —
+  heap-ячейка 8 байт). Проведено во ВСЕ тиры (declare_ext, jit_externs,
+  jit, llvm decls+map, resolver, prelude_signatures, builtin_returns).
+  Тест test_atomics: 8 MT-воркеров × 1250 fetch_add = РОВНО 10000 +
+  CAS-семантика (старое значение) — 10000/5/5/500.
 - [ ] `rt_mutex_lock -> Outcome` (err="timeout") — неблокирующая обёртка.
 - [ ] `--detect-deadlock` (OFF по умолчанию): граф ожидания фиберов,
   цикл → диагностика с путём. Тест: AB-BA ловится < 1 с.

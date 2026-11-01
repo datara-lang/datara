@@ -400,6 +400,11 @@ unsafe extern "C" {
     pub fn datara_rt_math_max_int(a: i64, b: i64) -> i64;
     pub fn datara_rt_math_clamp_int(val: i64, min_val: i64, max_val: i64) -> i64;
     pub fn datara_rt_math_abs_int(x: i64) -> i64;
+    pub fn datara_rt_atomic_new(init: i64) -> i64;
+    pub fn datara_rt_atomic_load(cell: i64) -> i64;
+    pub fn datara_rt_atomic_store(cell: i64, v: i64) -> i64;
+    pub fn datara_rt_atomic_fetch_add(cell: i64, v: i64) -> i64;
+    pub fn datara_rt_atomic_cas(cell: i64, expected: i64, newv: i64) -> i64;
     pub fn datara_rt_math_ctz(x: i64) -> i64;
     pub fn datara_rt_math_shr(v: i64, s: i64) -> i64;
     pub fn datara_rt_math_shl(v: i64, s: i64) -> i64;

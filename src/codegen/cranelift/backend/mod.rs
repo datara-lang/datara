@@ -1,5 +1,6 @@
 mod alloc_tier;
 pub mod compile_func;
+pub mod declare_atomics;
 pub mod declare_concurrency;
 pub mod declare_core;
 pub mod declare_ext;

@@ -586,6 +586,11 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("datara_rt_math_clamp_int", datara_rt_math_clamp_int);
     reg!("math_clamp_int", datara_rt_math_clamp_int);
     reg!("datara_rt_math_abs_int", datara_rt_math_abs_int);
+    reg!("datara_rt_atomic_new", datara_rt_atomic_new);
+    reg!("datara_rt_atomic_load", datara_rt_atomic_load);
+    reg!("datara_rt_atomic_store", datara_rt_atomic_store);
+    reg!("datara_rt_atomic_fetch_add", datara_rt_atomic_fetch_add);
+    reg!("datara_rt_atomic_cas", datara_rt_atomic_cas);
     reg!("math_abs_int", datara_rt_math_abs_int);
     reg!("datara_rt_math_ctz", datara_rt_math_ctz);
     reg!("math_ctz", datara_rt_math_ctz);

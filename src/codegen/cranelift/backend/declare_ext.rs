@@ -1384,41 +1384,56 @@ pub fn declare_runtime_ext<M: ClifModule>(
     );
     func_ids.insert("math_abs_int".into(), (rt_abs_int_id, i64_1_sig.clone()));
 
-    let rt_ctz_id = module
-        .declare_function("datara_rt_math_ctz", Linkage::Import, &i64_1_sig)
-        .map_err(|e| e.to_string())?;
-    func_ids.insert("datara_rt_math_ctz".into(), (rt_ctz_id, i64_1_sig.clone()));
-    func_ids.insert("math_ctz".into(), (rt_ctz_id, i64_1_sig.clone()));
-    func_ids.insert("ctz".into(), (rt_ctz_id, i64_1_sig));
+    crate::codegen::cranelift::backend::declare_atomics::declare_atomics(
+        module, func_ids, call_conv, &i64_1_sig, &i64_2_sig,
+    )?;
 
-    let rt_xor_id = module
-        .declare_function("datara_rt_math_xor", Linkage::Import, &i64_2_sig)
-        .map_err(|e| e.to_string())?;
-    func_ids.insert("datara_rt_math_xor".into(), (rt_xor_id, i64_2_sig.clone()));
-    func_ids.insert("math_xor".into(), (rt_xor_id, i64_2_sig.clone()));
-    func_ids.insert("xor".into(), (rt_xor_id, i64_2_sig.clone()));
+    // ctz/shr/shl (1-arg) and xor/and/or (2-arg) — one loop, two sigs.
+    for (rt_name, aliases, two_arg) in [
+        (
+            "datara_rt_math_ctz",
+            ["datara_rt_math_ctz", "math_ctz", "ctz"],
+            false,
+        ),
+        (
+            "datara_rt_math_shr",
+            ["datara_rt_math_shr", "math_shr", "shr"],
+            true,
+        ),
+        (
+            "datara_rt_math_shl",
+            ["datara_rt_math_shl", "math_shl", "shl"],
+            true,
+        ),
+        (
+            "datara_rt_math_xor",
+            ["datara_rt_math_xor", "math_xor", "xor"],
+            true,
+        ),
+        (
+            "datara_rt_math_and",
+            ["datara_rt_math_and", "math_and", "and"],
+            true,
+        ),
+        (
+            "datara_rt_math_or",
+            ["datara_rt_math_or", "math_or", "or"],
+            true,
+        ),
+    ] {
+        let sig = if two_arg { &i64_2_sig } else { &i64_1_sig };
+        let id = module
+            .declare_function(rt_name, Linkage::Import, sig)
+            .map_err(|e| e.to_string())?;
+        for a in aliases {
+            func_ids.insert(a.into(), (id, sig.clone()));
+        }
+    }
 
-    let rt_and_id = module
-        .declare_function("datara_rt_math_and", Linkage::Import, &i64_2_sig)
-        .map_err(|e| e.to_string())?;
-    func_ids.insert("datara_rt_math_and".into(), (rt_and_id, i64_2_sig.clone()));
-    func_ids.insert("math_and".into(), (rt_and_id, i64_2_sig.clone()));
-    func_ids.insert("and".into(), (rt_and_id, i64_2_sig.clone()));
+    // SIMD builtins: 16-byte struct ABI has no scalar Cranelift lowering
+    // (rejected in the Call lowering; fully supported by `--llvm`).
 
-    let rt_or_id = module
-        .declare_function("datara_rt_math_or", Linkage::Import, &i64_2_sig)
-        .map_err(|e| e.to_string())?;
-    func_ids.insert("datara_rt_math_or".into(), (rt_or_id, i64_2_sig.clone()));
-    func_ids.insert("math_or".into(), (rt_or_id, i64_2_sig.clone()));
-    func_ids.insert("or".into(), (rt_or_id, i64_2_sig));
-
-    // SIMD vector builtins (float4/int4/dot/min4/max4) have no scalar
-    // Cranelift lowering: the C runtime returns/accepts 16-byte structs
-    // whose ABI cannot be expressed with scalar signatures. They are
-    // rejected with a clear diagnostic in the Call lowering below and
-    // fully supported by the LLVM backend (`--llvm`).
-
-    // Memory deallocation runtime: free, str_free, list_free
+    // Memory deallocation runtime: free, str_free, list_free, map_free
     let mut rt_free_sig = Signature::new(call_conv);
     rt_free_sig.params.push(AbiParam::new(clif_types::I64));
     let rt_free_id = module
@@ -1427,26 +1442,16 @@ pub fn declare_runtime_ext<M: ClifModule>(
     func_ids.insert("datara_rt_free".into(), (rt_free_id, rt_free_sig.clone()));
     func_ids.insert("free".into(), (rt_free_id, rt_free_sig.clone()));
 
-    let rt_str_free_id = module
-        .declare_function("datara_rt_str_free", Linkage::Import, &rt_free_sig)
-        .map_err(|e| e.to_string())?;
-    func_ids.insert(
-        "datara_rt_str_free".into(),
-        (rt_str_free_id, rt_free_sig.clone()),
-    );
-
-    let rt_list_free_id = module
-        .declare_function("datara_rt_list_free", Linkage::Import, &rt_free_sig)
-        .map_err(|e| e.to_string())?;
-    func_ids.insert(
-        "datara_rt_list_free".into(),
-        (rt_list_free_id, rt_free_sig.clone()),
-    );
-
-    let rt_map_free_id = module
-        .declare_function("datara_rt_map_free", Linkage::Import, &rt_free_sig)
-        .map_err(|e| e.to_string())?;
-    func_ids.insert("datara_rt_map_free".into(), (rt_map_free_id, rt_free_sig));
+    for free_name in [
+        "datara_rt_str_free",
+        "datara_rt_list_free",
+        "datara_rt_map_free",
+    ] {
+        let id = module
+            .declare_function(free_name, Linkage::Import, &rt_free_sig)
+            .map_err(|e| e.to_string())?;
+        func_ids.insert(free_name.into(), (id, rt_free_sig.clone()));
+    }
 
     let mut own_acq_sig = Signature::new(call_conv);
     own_acq_sig.params.push(AbiParam::new(clif_types::I64));

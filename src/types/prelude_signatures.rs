@@ -1393,6 +1393,71 @@ impl<'a> TypeChecker<'a> {
             "datara_rt_float_to_str".to_string(),
             (vec![DataraType::Float], DataraType::String, Vec::new()),
         );
+        // AtomicInt (PLAN_V152 N1.2)
+        function_signatures.insert(
+            "atomic_new".to_string(),
+            (vec![DataraType::Int], DataraType::Int, Vec::new()),
+        );
+        function_signatures.insert(
+            "datara_rt_atomic_new".to_string(),
+            (vec![DataraType::Int], DataraType::Int, Vec::new()),
+        );
+        function_signatures.insert(
+            "atomic_load".to_string(),
+            (vec![DataraType::Int], DataraType::Int, Vec::new()),
+        );
+        function_signatures.insert(
+            "datara_rt_atomic_load".to_string(),
+            (vec![DataraType::Int], DataraType::Int, Vec::new()),
+        );
+        function_signatures.insert(
+            "atomic_store".to_string(),
+            (
+                vec![DataraType::Int, DataraType::Int],
+                DataraType::Int,
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "datara_rt_atomic_store".to_string(),
+            (
+                vec![DataraType::Int, DataraType::Int],
+                DataraType::Int,
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "atomic_fetch_add".to_string(),
+            (
+                vec![DataraType::Int, DataraType::Int],
+                DataraType::Int,
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "datara_rt_atomic_fetch_add".to_string(),
+            (
+                vec![DataraType::Int, DataraType::Int],
+                DataraType::Int,
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "atomic_cas".to_string(),
+            (
+                vec![DataraType::Int, DataraType::Int, DataraType::Int],
+                DataraType::Int,
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "datara_rt_atomic_cas".to_string(),
+            (
+                vec![DataraType::Int, DataraType::Int, DataraType::Int],
+                DataraType::Int,
+                Vec::new(),
+            ),
+        );
         // v1.4.5 W4 fmt precision converters — the runtime + all three
         // backends have them; only the prelude signature was missing
         // (found by the N7 pipeline_demo flagship: float_to_str_prec(x, n)).

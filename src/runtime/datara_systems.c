@@ -332,3 +332,57 @@ DATARA_SYS_API void* datara_hw_typed_zero_init(int64_t size) {
     if (size <= 0) size = 8;
     return calloc(1, (size_t)size);
 }
+
+// ============================================================================
+// AtomicInt — shared-counter primitives for the MT fiber scheduler
+// (PLAN_V152 N1.2). A slot is a heap-allocated 8-byte cell; all ops are
+// full-barrier RMW on the cell. MT test: 8 workers x 1250 fetch_add = 10000
+// exactly — the whole point is that plain ++ loses updates, these don't.
+// ============================================================================
+
+DATARA_SYS_API int64_t* datara_rt_atomic_new(int64_t init) {
+    int64_t* cell = (int64_t*)malloc(sizeof(int64_t));
+    if (!cell) return NULL;
+    *cell = init;
+    return cell;
+}
+
+DATARA_SYS_API int64_t datara_rt_atomic_load(int64_t* cell) {
+    if (!cell) return 0;
+#ifdef _WIN32
+    return InterlockedCompareExchange64((LONG64 volatile*)cell, 0, 0);
+#else
+    return __sync_fetch_and_or(cell, 0);
+#endif
+}
+
+DATARA_SYS_API int64_t datara_rt_atomic_store(int64_t* cell, int64_t v) {
+    if (!cell) return 0;
+#ifdef _WIN32
+    return InterlockedExchange64((LONG64 volatile*)cell, (LONG64)v);
+#else
+    return __sync_lock_test_and_set(cell, v);
+#endif
+}
+
+DATARA_SYS_API int64_t datara_rt_atomic_fetch_add(int64_t* cell, int64_t v) {
+    if (!cell) return 0;
+#ifdef _WIN32
+    return InterlockedExchangeAdd64((LONG64 volatile*)cell, (LONG64)v);
+#else
+    return __sync_fetch_and_add(cell, v);
+#endif
+}
+
+DATARA_SYS_API int64_t datara_rt_atomic_cas(int64_t* cell, int64_t expected, int64_t newv) {
+    if (!cell) return 0;
+#ifdef _WIN32
+    return InterlockedCompareExchange64((LONG64 volatile*)cell, (LONG64)newv, (LONG64)expected);
+#else
+    return __sync_val_compare_and_swap(cell, expected, newv);
+#endif
+}
+
+DATARA_SYS_API void datara_rt_atomic_free(int64_t* cell) {
+    free(cell);
+}

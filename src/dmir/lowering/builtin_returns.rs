@@ -138,6 +138,20 @@ pub(crate) fn register(map: &mut HashMap<String, String>) {
     map.insert("datara_rt_int_to_str".into(), "String".into());
     map.insert("float_to_str".into(), "String".into());
     map.insert("datara_rt_float_to_str".into(), "String".into());
+    for f in [
+        "atomic_new",
+        "datara_rt_atomic_new",
+        "atomic_load",
+        "datara_rt_atomic_load",
+        "atomic_store",
+        "datara_rt_atomic_store",
+        "atomic_fetch_add",
+        "datara_rt_atomic_fetch_add",
+        "atomic_cas",
+        "datara_rt_atomic_cas",
+    ] {
+        map.insert(f.into(), "Int".into());
+    }
     map.insert("float_to_str_prec".into(), "String".into());
     map.insert("datara_rt_float_to_str_prec".into(), "String".into());
     for f in &["split", "str_split", "datara_rt_str_split"] {

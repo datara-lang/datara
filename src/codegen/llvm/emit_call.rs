@@ -146,6 +146,12 @@ impl<'a> LlvmEmitter<'a> {
                 // Checked parsers (parse_int/parse_float → Outcome objects).
                 "parse_int" => "datara_rt_str_to_int_checked",
                 "parse_float" => "datara_rt_str_to_float_checked",
+                // AtomicInt (PLAN_V152 N1.2)
+                "atomic_new" | "datara_rt_atomic_new" => "datara_rt_atomic_new",
+                "atomic_load" | "datara_rt_atomic_load" => "datara_rt_atomic_load",
+                "atomic_store" | "datara_rt_atomic_store" => "datara_rt_atomic_store",
+                "atomic_fetch_add" | "datara_rt_atomic_fetch_add" => "datara_rt_atomic_fetch_add",
+                "atomic_cas" | "datara_rt_atomic_cas" => "datara_rt_atomic_cas",
                 "py_exec" | "datara_py_exec" => "datara_py_exec",
                 "py_eval_int" | "datara_py_eval_int" => "datara_py_eval_int",
                 "py_eval_float" | "datara_py_eval_float" => "datara_py_eval_float",
