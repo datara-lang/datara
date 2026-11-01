@@ -316,12 +316,15 @@ chase_lev.rs, 11 юнит-тестов), NUMA-топология, C-фиберы
   tools/bridge_smoke.py (не зависящий от CI): прогон всех мостов одной
   командой, таблица статусов. Критерий: скрипт зелёный на dev-машине;
   CI-интеграция — N6 при наличии раннеров.
-- [ ] **Levels-верификация** (градуируемый контроль): README заявляет 4
-  уровня (Scripting/Enterprise/Systems/Kernel) — построить conformance-сьют
-  tests/test_levels.rs: Scripting (out/val/match/пакеты), Enterprise
-  (Outcome/capabilities/behavior), Systems (unsafe/FFI/SoA/Layer-1),
-  Kernel (asm/inline_hint/pool) — каждая фича уровня реально исполняется в
-  тесте. Критерий: 4/4 уровня зелёные = «уровни» перестают быть декларацией.
+- [x] **Levels-верификация** — ЗАКРЫТО 2026-11-01 (tests/test_levels.rs
+  4/4): Level 1 Scripting (fmt-интерполяция, List/Map+get-or, match) ✓;
+  Level 2 Enterprise (behavior-метод, Outcome<Int> init, `or`-unwrap,
+  `?`-пропагация через chain_withdraw — 70/-2/40) ✓; Level 3 Systems
+  (slice_alloc/ptr_write/read_i64, hton16/ntoh16 — 987/258) ✓; Level 4
+  Kernel (typed_zero_init, atomic_fence_seq_cst — 0/FENCED) ✓. Каждый
+  уровень реально исполняет фичи своего яруса. `record`-классы: canonical
+  layout = class_fields (sorted-fallback), lowering зеркалит (else-sort в
+  expr_composite) — SoA-nbody regression закрыт.
 - [ ] **WASM playground**: wasm-бэкенд уже генерит .wasm/.js/.html
   (01_vertical_slice) — собрать docs/playground/ статическую страницу с 3–5
   готовыми демо (компилируются `forgen build --target wasm`, страница

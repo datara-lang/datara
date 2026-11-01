@@ -341,14 +341,23 @@ impl<'a> Lowering<'a> {
                 // `or`-unwrap and the C runtime read value@8 — method-return
                 // Outcomes on the LLVM tier yielded is_success(1) as the
                 // value (the py-bridge "len=1" bug).
-                if let Some(order) = self
+                match self
                     .decl_field_order
                     .get(&specialized_name)
                     .or_else(|| self.decl_field_order.get(class_name))
                 {
-                    field_vals.sort_by_key(|(name, _)| {
-                        order.iter().position(|f| f == name).unwrap_or(usize::MAX)
-                    });
+                    Some(order) => {
+                        field_vals.sort_by_key(|(name, _)| {
+                            order.iter().position(|f| f == name).unwrap_or(usize::MAX)
+                        });
+                    }
+                    // No declared order (e.g. `record` classes): the module's
+                    // class_fields fallback stores the ALPHABETICALLY sorted
+                    // field set (lowering/mod.rs) — mirror it exactly or the
+                    // GetField reader desyncs (SoA nbody AoS regression).
+                    None => {
+                        field_vals.sort_by(|a, b| a.0.cmp(&b.0));
+                    }
                 }
                 let raw_dest = self.next_val();
                 self.get_block_mut(*cur_block)
