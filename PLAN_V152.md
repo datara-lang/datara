@@ -1,132 +1,164 @@
-# PLAN_V152 — Datara/Forgen 1.5.2 «Multiplier»
+# PLAN_V152 — Datara/Forgen 1.5.2 «Multiplier» — ДО ИДЕАЛА
 
 База: 1.5.1 «Consolidator» (fdc2f28, tag v1.5.1). Статус-гейт 1.5.1:
-311 сьютов 0 failed · fmt 0 · clippy 0 · parity 6/6 честная · size-gate ok ·
-golden pipeline_demo один md5 на 3 тира · levels 4/4.
+311+ сьютов 0 failed · fmt 0 · clippy 0 · parity 6/6 честная · size-gate ok ·
+golden pipeline_demo один md5 на 3 тира · levels 4/4 · docs-гейт 4/4.
 
-Позиционирование прежнее (язык-хаб: лучшее из Python/C/Rust/Fortran,
-градуируемый контроль — НЕ Mojo-конкурент). Тема 1.5.2 — «умножение»:
-дожать перенесённый DX-хвост 1.5.1, довести дистрибуцию до нулевого
-порога входа и закрыть NatVar срез 3 (IO-поллер + честный async).
+## Определение цели: что значит «8/10»
 
-## N0. Гигиена релиза 1.5.1 `[ ]`
+8/10 = **всё техническое закрыто, остаётся только community**:
 
-- [ ] CI на main: починить выпадающий сьют (наблюдение 2026-11-01:
-  CI main/failure при зелёном теге — прогнать флейк-лист, зафиксировать
-  повтор-правила как в bce).
-- [ ] check/expr.rs (61.5KB, allow-list 1.5.1) — экстракция Cast-checker в
+| Слой | Сейчас | Цель 1.5.2 |
+|---|---|---|
+| Компилятор/корректность | 6/10 (дыры чекера известны) | 9/10 — ноль известных дыр |
+| Конкурентность | 5/10 (нет IO, нет атомиков) | 8/10 — echo-сервер на фиберах работает |
+| Стандартная библиотека | 5/10 (фрагменты) | 8/10 — net/testing/math укомплектованы, каждый модуль с тестами |
+| Тулинг | 6/10 (LSP/fmt/watch есть, отладчик нет) | 8/10 — debug-профиль + LSP × 1.5 |
+| Дистрибуция | 6/10 (winget PR, 17 артефактов) | 9/10 — все реестры, «релиз одной командой» |
+| Доки | 5/10 (мануал × 1.5 готов) | 8/10 — docs-гейт на ВСЕ секции, тур обновлён |
+| Экосистема | 2/10 | 6/10 — 3 demo-проекта + playground + Pages-реестр |
+| Community | 1/10 | 2/10 — НЕ ЦЕЛЬ 1.5.2 (единственное, что останется) |
+
+---
+
+## N0. Гигиена `[ ]` (1 сессия)
+
+- [ ] CI-флейк на main: прогнать флейк-лист (test_v120_soa, bce-подобные),
+  зафиксировать повтор-правила; зелёный main — обязательное условие релиза.
+- [ ] check/expr.rs (61.5KB) — экстракция Cast-checker в
   `types/check/cast.rs`; снять allow-list запись.
-- [ ] Ротация GitHub-токена (плановая, после серии пушей 1.5.1).
+- [ ] Убрать отладочные хвосты: `DATARA_BRIDGE_TRACE` оставить (env-gated,
+  документирован), лишние eprintln — вычистить.
+- [ ] Ротация GitHub-токена (владелец).
 
-## N1. Дистрибуция: нулевой порог входа `[!]` (главная тема)
+## N1. Конкурентность до конца: NatVar срез 3 `[!]` (2–3 сессии, САМОЕ ВАЖНОЕ)
 
-- [x] winget: PR microsoft/winget-pkgs#467946 (Datara.Datara 1.5.1,
-  zip/portable x64, алиасы forgen/datara/dpm) — ДОБАВЛЕНО 2026-11-01;
-  слежение за ревью-ботом (yaml-validation / pipeline-bot) до merge.
-- [x] GitHub Release v1.5.1 — CI «Release & Packages» success, 17
-  артефактов (zip, Setup.exe, deb, rpm, macOS×2, VSIX, npm-tgz, crate,
-  whl, SHA256SUMS).
-- [ ] crates.io: `cargo publish -p forgen` (нужен crates.io токен от
-  владельца; dry-run уже зелёный в CI).
-- [ ] npm: `npm publish` для datara-lang-datara tgz (нужен npm-токен).
-- [ ] PyPI: `twine upload` whl (нужен PyPI-токен).
-- [ ] Homebrew tap: репо datara-lang/homebrew-tap + формула из
-  darwin/linux tar + SHA256SUMS (автогенерация формулы скриптом
-  tools/gen_brew.rb).
-- [ ] Scoop bucket: datara-lang/scoop-bucket + JSON-манифест (тот же zip).
-- [ ] Chocolatey: пакет из Setup.exe (нужен choco-ключ; после winget-merge
-  — перенос проверки целостности).
-- [ ] VS Code Marketplace: publisher-аккаунт + `vsce publish` для
-  datara-language-1.5.1.vsix.
-- [ ] tools/release_checklist.py: одна команда проверяет — все ассеты
-  релиза на месте, SHA256SUMS сходится, манифесты пакетных реестров
-  обновлены (winget/homebrew/scoop) — «релиз без ручных шагов».
+### 1.1 IO-поллер
+- [ ] Windows IOCP / Linux epoll в отдельном потоке; парковка фибера на
+  сокете: EWOULDBLOCK → park → wake (таймер-колесо уже умеет).
+- [ ] `fiber_net_recv(sock, buf, timeout_ms) -> Outcome<Int>`,
+  `fiber_net_send(...)` — реестры во всех трёх бекендах + resolver + prelude.
+- [ ] Тест: echo-сервер на фиберах — 100 соединений, 1000 сообщений,
+  ноль блокирующих зависаний (test_natvar_io.rs).
+- [ ] sockets → stdlib.net: TcpListener.accept() на фибере.
 
-## N2. DX-хвост 1.5.1 → 1.5.2 `[ ]` (перенос из PLAN_V151 без потерь)
+### 1.2 Атомики и синхронизация
+- [ ] `AtomicInt` builtin: load/store/fetch_add/cas (Cranelift: атомики
+  CLIF; LLVM: atomic RMW; WASM: threads proposal за флагом).
+- [ ] `rt_mutex_lock -> Outcome` (err="timeout") — неблокирующая обёртка.
+- [ ] `--detect-deadlock` (OFF по умолчанию): граф ожидания фиберов,
+  цикл → диагностика с путём. Тест: AB-BA ловится < 1 с.
 
-- [x] `forgen migrate 1.4→1.5` — ЗАКРЫТО 2026-11-01 (src/cli/migrate.rs,
-  тесты test_migrate 3/3): let→val / let mut→mut (word-boundary,
-  string/comment-aware), String→Str, одноарг println→out (скобочный
-  матчинг, мультиарг не трогаем); отчёт {файл, строка, правило};
-  `--dry-run` ничего не пишет; exit 1 на отсутствующий путь. Round-trip:
-  мигрированный файл компилируется и даёт тот же вывод.
-- [x] **Языковой мануал × 1.5-фичи** — ЗАКРЫТО 2026-11-01: секции
-  §4.bis TSU (is/нарровинг через val, E-ANY-001), §12.bis Fibers & NatVar
-  (spawn/join/run_until_done/каналы — канонические паттерны: join после
-  run_until_done, recv с продюсером в спавн-фибере), §16.bis CLI
-  (migrate/inspect/profile/dpm). Гейт tests/test_docs_coverage 4/4 —
-  секции существуют И сниппеты компилируются и исполняются.
-- [ ] `forgen watch` SLA-гейт: сохранение → диагностика < 200 мс;
-  мутационный кейс (поломка → красная → фикс → зелёная).
-- [ ] `forgen fmt` гейт идемпотентности: fmt(x)==fmt(fmt(x)) на examples +
-  stdlib; `--check` в CI-джобе quality.
-- [x] Resolver-hint — ЗАКРЫТО 2026-11-01 (resolver/visit.rs,
-  тест test_resolver_hint): «Undefined symbol 'X'» сканирует packages/*/
-  и выдаёт «add `use <pkg>` (found in package '<pkg>')» (fn/struct/
-  record/behavior-декларации, word-boundary). Приоритет: похожее имя
-  > пакетная подсказка.
-- [ ] LSP × 1.5: completions fiber_*/chan-методов, hover `is`-сужения,
-  E-ANY-001 в publishDiagnostics.
-- [ ] CONTRIBUTING.md ревизия: чеклист из реального гейта (fmt/clippy/
-  test, 60KB-гейт, смоуки) + «как добавить stdlib-модуль/тест-сьют».
-- [x] docs/DPM_SCHEMA.md — ЗАКРЫТО 2026-11-01 (datara.toml/lock схема,
-  $DATARA_HOME-раскладка, verify-семантика).
-- [x] «Datara for C/Rust/Python developers» — ЗАКРЫТО 2026-11-01
-  (docs/DATARA_FOR_C_RUST_PYTHON.md — таблицы без маркетинга).
-- [x] tools/bridge_smoke.py — ЗАКРЫТО 2026-11-01: локальный прогон
-  мостов одной командой (python-проба реально исполняется; c/js/rust —
-  SKIP=покрыты сьютами).
+### 1.3 stdlib.async — публичная поверхность
+- [ ] `FiberHandle`-обёртка: `join() -> Outcome<T>`, `is_done()`.
+- [ ] `async { }` sugar (низкий приоритет — поверх FiberHandle).
+- [ ] `async_sleep_ms`, `select` двух каналов (минимум).
 
-## N3. NatVar срез 3: IO + честный async `[ ]`
+### 1.4 Честный бенчмарк
+- [ ] vs tokio: echo 10k соединений (throughput, p99), 100k спящих
+  фиберов (память/время). Если tokio быстрее — задокументировать ЧТО и
+  ПОЧЕМУ (правило честности). Артефакт: bench_natvar/RESULTS.md.
 
-- [ ] IO-поллер: Windows IOCP / Linux epoll в отдельном потоке; парковка
-  фибера на сокете (EWOULDBLOCK → park → wake). API fiber_net_recv/send
-  с таймаутом → Outcome. Тест: echo-сервер на фиберах, 100 соединений,
-  1000 сообщений — ни одного блокирующего зависания.
-- [ ] `rt_mutex_lock -> Outcome` (err="timeout") + `--detect-deadlock`
-  (OFF по умолчанию): цикл в графе ожидания → диагностика с путём.
-  Тест: AB-BA deadlock ловится за < 1 с.
-- [ ] Честный бенчмарк vs tokio: echo 10k соединений (throughput, p99),
-  100k спящих фиберов (память). Если tokio быстрее — задокументировать
-  ЧТО и ПОЧЕМУ (правило честности). Артефакт bench_natvar/RESULTS.md.
-- [ ] stdlib.async: FiberHandle-обёртки, join -> Outcome<T>, sleep_ms.
+**Критерий N1**: echo-сервер на фиберах (100 conn / 1000 msg) зелёный на
+Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефактом.
 
-## N4. Экосистема-дожим `[ ]`
+## N2. Чекер: ноль известных дыр `[ ]` (1 сессия)
 
-- [ ] stdlib.json замер vs C (10 МБ JSON): Datara vs C-эталон; если
-  медленнее ×2 — C-ядро под капотом (артефакт bench_json/RESULTS.md).
-- [ ] dpm polish: `dpm init` интерактивный (имя/версия/шаблон hello);
-  сценарные ошибки «нет пакета/версии/подписи» с подсказками.
-- [ ] tools/bridge_smoke.py: локальный прогон всех мостов одной командой
-  (таблица статусов) — не зависящий от CI.
-- [ ] WASM playground: docs/playground/ статическая страница с 3–5 демо
-  (wasm-бекенд уже генерит .wasm/.js/.html); билд-скрипт одной командой.
-- [ ] Онлайн-реестр Spark-пакетов: GitHub Pages (pages.yml уже есть) —
-  index.json с подписанными пакетами + `dpm add` с URL.
+Каждая дыра — известный repro из сессии 1.5.1:
+- [ ] Bare-generic body field access: `m.is_some` на `Maybe<T>` внутри
+  generic-функции → разрешить ЧТЕНИЕ полей (запись — с проверкой).
+- [ ] Method-return `T`: подстановка параметра класса при вызове метода
+  (`pop_back()` на `Deque<Int>` → Int, не T).
+- [ ] Явные generic-аргументы на вызове: `deque_new<Int>()` — подстановить
+  в generic-таблицу на call-site.
+- [ ] Статический ctor в цепочке: `Outcome.ok(1).is_success` — MemberAccess
+  на GenericInstance-результат.
+- [ ] Регресс на каждый пункт + обновить «Ограничения» в мануале.
+- [ ] Optimizer-честность: PolyhedralVectorize не должен выдавать
+  «zero loop-carried deps» для циклов с зависимостями (gcd-кейс) —
+  проверка зависимостей перед emit метаданных; trace врёт = баг.
 
-## N5. Верификация и честность `[ ]`
+## N3. Стандартная библиотека до «идеальных библиотек» `[ ]` (2 сессии)
 
-- [ ] Паритет-матрица: расширить probes (формати-строки, дефолт-аргументы,
-  closures в generic-функциях, `?` в методах behavior'ов) — цель 12+
-  probe'ов на 3 тирах.
-- [ ] Сохранить честность-правило: каждый «быстрее X» — с прогоном и
-  артефактом; каждый fallback — FAIL тира в матрице.
-- [ ] golden pipeline_demo остаётся CI-гейтом (3 тира, один md5).
+Правило модуля: заголовок-дока + @test-сьют в stdlib_tests + parity на
+3 тирах. Ноль «каркасов».
 
-## Порядок работ (зависимости)
+- [ ] **stdlib.net**: TcpListener (accept на фибере, поверх 1.1) + мини-
+  HTTP-сервер (route, headers, body) + HTTP-клиент. Тест: server+client
+  на фиберах в одном процессе.
+- [ ] **stdlib.io**: CSV-парсер/писатель (выделить из pipeline_demo),
+  построчный reader, write_file_bytes.
+- [ ] **stdlib.math**: statistics (mean/median/stddev), random (xorshift,
+  seed), matrix 2D-операции.
+- [ ] **stdlib.testing**: assert_eq/assert_true, `forgen test` отчёты с
+  именами — фреймворк тестов как первоклассный.
+- [ ] **stdlib.text**: StrBuf-продолжение (append-производительность),
+  split_n, trim-семейство — добить и задокументировать.
+- [ ] **stdlib.collections**: hash-Map (O(1)) рядом с текущим; итерация +
+  удаление при итерации для deque/set.
+- [ ] **stdlib.json**: парсер-добивка + bench vs C (10 МБ, артефакт
+  bench_json/RESULTS.md — остаток M12).
+- [ ] Каждое: пример в docs/STDLIB.md.
 
-N0 (CI-флейк, токен) → N1 (дистрибуция: crates/npm/PyPI/tap/scoop —
-блокируется ТОЛЬКО токенами от владельца) → N2 (DX-хвост) → N3 (NatVar-3)
-→ N4 → N5. Релиз 1.5.2 — тег после N0+главного из N1–N3.
+## N4. Тулинг до 8/10 `[ ]` (1 сессия)
 
-## Критерии готовности 1.5.2 (DoD)
+- [ ] **Debug-профиль**: `forgen build --debug` — DWARF-инфа проверяется
+  тестом (test_dwarf_debug расширить: lldb/cdb подхватывает линии);
+  раздел «Отладка» в мануале.
+- [ ] LSP × 1.5: completions fiber_*/chan-методов, hover для `is`-нарровинга,
+  E-ANY-001 в publishDiagnostics (test_lsp_advanced).
+- [ ] watch SLA-тест: сохранение → диагностика < 200 мс; мутационный кейс.
+- [ ] fmt-идемпотентность: fmt(fmt(x))==fmt(x) на examples+stdlib — CI-джоба.
+- [ ] dpm init интерактивный (имя/версия/шаблон hello) + сценарные ошибки
+  с подсказками.
 
-1. Гейт: cargo test --release 0 failed (все сьюты), fmt 0, clippy 0,
-   size-gate ok, parity-матрица зелёная.
-2. `forgen migrate` + мануальные секции + docs-гейты — в репо и CI.
-3. Пакеты: crates.io/npm/PyPI — опубликованы (или явно задокументирован
-   блокер-токен); winget-PR смержен; homebrew/scoop tap'ы живые.
-4. NatVar-3: echo-сервер на фиберах 100 соединений без зависаний;
-   deadlock-детектор ловит AB-BA; tokio-сравнение с артефактом.
-5. Релиз v1.5.2: CI «Release & Packages» success, release_checklist.py —
-   зелёный, тег + CHANGELOG_V152.md.
+## N5. Экосистема-витрина `[ ]` (1–2 сессии)
+
+- [ ] **3 demo-проекта** (examples/showcase/, каждый с тестом):
+  1. `wordcount` — CLI: чтение файлов, Map-агрегация, сортировка (Level 1-2)
+  2. `minihttp` — веб-сервер на фиберах + SSR (Level 2, требует N1.1)
+  3. `snake` — консольная игра: цикл, ввод, рандом (Level 1)
+- [ ] **WASM playground**: docs/playground/ — 3–5 демо, билд-скрипт одной
+  командой, страница открывается без сервера.
+- [ ] **Онлайн-реестр Spark'ов**: GitHub Pages (pages.yml есть) —
+  index.json + подписанные пакеты + `dpm add <url>`.
+- [ ] bridge_smoke.py: расширить до c/js/rust реальных прогонов.
+
+## N6. Доки до 8/10 `[ ]` (1 сессия)
+
+- [ ] docs-гейт РАСШИРИТЬ: ВСЕ секции мануала — сниппеты компилируются
+  (сейчас только новые). Section-by-section verification.
+- [ ] Language Tour: переписать под 1.5 (fiber/is/?-примеры, свежие цифры).
+- [ ] README: упоминание winget/crates, свежий бенчмарк-блок, скриншот
+  playground.
+- [ ] CONTRIBUTING: чеклист из реального гейта + «как добавить
+  stdlib-модуль/тест» + good-first-issue процесс.
+- [ ] issue-шаблоны (bug/feature) + публичная roadmap (этот файл).
+
+## N7. Дистрибуция `[!]` (блокируется ТОЛЬКО токенами владельца)
+
+- [x] winget PR #467946 — ждёт CLA + ревью.
+- [x] Release v1.5.1 — 17 артефактов, CI success.
+- [ ] crates.io (cargo publish), npm, PyPI — токены от владельца.
+- [ ] Homebrew tap (datara-lang/homebrew-tap, форма из tar+SHA256SUMS).
+- [ ] Scoop bucket, Chocolatey, VS Code Marketplace.
+- [ ] tools/release_checklist.py — «релиз одной командой».
+
+## Порядок (сессии)
+
+1. N1.1–1.3 (IO-поллер + атомики + async) — САМОЕ ВАЖНОЕ
+2. N2 (чекер-дыры) + N0 (гигиена)
+3. N3 (stdlib: net/math/testing/json)
+4. N4 (тулинг) + N6 (docs-гейт × все секции)
+5. N5 (витрина: демо/playground/Pages)
+6. Релиз v1.5.2: bump + CHANGELOG_V152 + тег + release_checklist
+
+## DoD «8/10»
+
+1. Гейт: 0 failed, fmt/clippy 0, size-gate, parity, docs-гейт ВСЕ секции.
+2. Echo-сервер на фиберах 100/1000 на 3 тирах + deadlock-детектор.
+3. Ноль известных дыр чекера (список N2 закрыт с тестами).
+4. stdlib.net/math/testing — с сьютами; json bench vs C с артефактом.
+5. 3 demo-проекта + playground + Pages-реестр.
+6. Релиз v1.5.2 во всех доступных реестрах (остальное — токены).
+7. Единственное «не 10/10» = community — следующий этап после кода.
