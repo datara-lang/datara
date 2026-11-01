@@ -187,9 +187,20 @@ chase_lev.rs, 11 юнит-тестов), NUMA-топология, C-фиберы
   tests/test_bridge_check.rs 3/3 через CARGO_BIN_EXE: valid → [DONE] rc=0;
   add2(1) при add2(int,int) → E-BRIDGE-001 bad.dtr:4; missing header →
   E-BRIDGE-002. Help-текст в misc.rs.
-- [ ] Python-мост hot-path аудит: py.bind_buffer — замер 10 МБ List<Float>
-  → numpy без копирования (до/после, `DATARA_BRIDGE_TRACE=1` счётчик
-  копий). Если копия есть — устранить. Артефакт: bench_python/RESULTS.md.
+- [x] Python-мост hot-path аудит — ЗАКРЫТО 2026-10-31
+  (evidence/bench_python/{bind_bench.dtr,RESULTS.md}): 10 МБ List<Float>
+  (1.25M f64) → numpy. **Zero-copy доказан рантаймом**: ptr-identity
+  (datara_py_assert_same_ptr=1) + двусторонняя мутация (Datara→Py FWD_OK,
+  Py→Datara REV_OK) — буфер шарится, копий нет (путь bind —
+  PyMemoryView_FromMemory, memcpy-ветки отсутствуют в принципе, поэтому
+  счётчик копий не имеет смысла). numpy-sum по алиасному буферу 0.96 мс
+  (~10.4 ГБ/с). **Честно задокументировано**: (1) заявка «sub-500ns rebind»
+  в комментариях shadow-pin НЕ воспроизводится через публичный
+  py.bind_buffer — ~215 мкс (полный GIL→FromMemory→setattr каждый раз) —
+  профилировка кэша в follow-up; (2) datara_rt_now_precise_ms возвращает
+  МИКРОсекунды несмотря на имя (переименование — в окно ABI-freeze N5).
+  Побочно починен no-op Float→Float каст (ISLE x64_lea: identity-пути
+  Cast теперь сохраняют f64/f32-носитель, cranelift compile_func.rs).
 - [ ] dpm polish: `dpm init` интерактивный (имя/версия/шаблон hello), схема
   datara.toml — docs/DPM_SCHEMA.md; понятные ошибки на нет пакета/версии/
   подписи (сценарные тесты).

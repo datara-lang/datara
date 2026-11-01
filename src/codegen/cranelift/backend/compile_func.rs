@@ -518,8 +518,17 @@ pub fn compile_all_functions<M: ClifModule>(
                                 _ => clif_types::I64,
                             };
                             if narrow_ty == clif_types::I64 {
-                                let zero = builder.ins().iconst(clif_types::I64, 0);
-                                builder.ins().iadd(src, zero)
+                                let src_ty = builder.func.dfg.value_type(src);
+                                if src_ty == clif_types::F64 {
+                                    let zero = builder.ins().f64const(0.0);
+                                    builder.ins().fadd(src, zero)
+                                } else if src_ty == clif_types::F32 {
+                                    let zero = builder.ins().f32const(0.0);
+                                    builder.ins().fadd(src, zero)
+                                } else {
+                                    let zero = builder.ins().iconst(clif_types::I64, 0);
+                                    builder.ins().iadd(src, zero)
+                                }
                             } else {
                                 let reduced = builder.ins().ireduce(narrow_ty, src);
                                 if to_ty.starts_with('U') {
@@ -529,8 +538,23 @@ pub fn compile_all_functions<M: ClifModule>(
                                 }
                             }
                         } else {
-                            let zero = builder.ins().iconst(clif_types::I64, 0);
-                            builder.ins().iadd(src, zero)
+                            // Identity cast: preserve the OPERAND's actual
+                            // carrier. An f64/f32 value (no-op Float->Float
+                            // cast, or a checker-typed Float hitting the
+                            // fallback family) must stay floating — an iadd
+                            // on an f64 trips the ISLE x64_lea rule
+                            // (evidence/bench_python no-op-cast panic).
+                            let src_ty = builder.func.dfg.value_type(src);
+                            if src_ty == clif_types::F64 {
+                                let zero = builder.ins().f64const(0.0);
+                                builder.ins().fadd(src, zero)
+                            } else if src_ty == clif_types::F32 {
+                                let zero = builder.ins().f32const(0.0);
+                                builder.ins().fadd(src, zero)
+                            } else {
+                                let zero = builder.ins().iconst(clif_types::I64, 0);
+                                builder.ins().iadd(src, zero)
+                            }
                         };
                         val_map.insert(*dest, v);
                     }

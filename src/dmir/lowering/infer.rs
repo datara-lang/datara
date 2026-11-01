@@ -105,6 +105,11 @@ impl<'a> Lowering<'a> {
             // x64_lea panic) and LLVM emitted `or i64` on a double (llc type
             // error).
             Expr::Cast { target_ty, .. } => Some(DataraType::Class(target_ty.clone())),
+            // NOTE: Binary/Unary already have arms further down (v1.4.5 W2
+            // — Float32-before-Float ordering). A no-op `(f as Float) * k`
+            // panicking in Cranelift was the IDENTITY path in the Cast arm
+            // (compile_func.rs) emitting iadd on an f64 — fixed there, not
+            // here.
             Expr::Identifier(name, _) => {
                 if let Some(ty) = self.lookup_var_type(name) {
                     return Some(ty);
