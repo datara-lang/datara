@@ -60,7 +60,10 @@ fn main() {
 
     // ---- Stage 4: Python/numpy over a ZERO-COPY bound buffer --------------
     val py = Py { version: "3" }
-    val bind_res = py.bind_buffer("sales_arr", [120.0, 80.0, 200.0, 40.0])
+    // Bind a NAMED variable: the buffer must outlive the Python-side view
+    // (bind is zero-copy — the array aliases this allocation).
+    val sales_data = [120.0, 80.0, 200.0, 40.0]
+    val bind_res = py.bind_buffer("sales_arr", sales_data)
     if bind_res.is_ok() {
         py.exec("import numpy as np\n")
         py.exec("a = np.frombuffer(memoryview(sales_arr), dtype=np.float64)\n")

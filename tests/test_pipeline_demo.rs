@@ -84,31 +84,13 @@ fn test_pipeline_demo_golden_output_three_backends() {
             })
             .collect();
         let actual_text = actual.join("\n") + "\n";
-        if i == 2 {
-            // LLVM: the py stage has a REGISTERED divergence (PLAN_V151 N7
-            // bug registry): the C bridge receives the identical list
-            // (DATARA_BRIDGE_TRACE proves shape0=4/bytes=32 on both tiers)
-            // yet the bound Python object reports len=1 — the divergence
-            // sits inside datara_py_export_memview's Python-side cast step
-            // under the LLVM-linked binary. Cranelift/JIT are byte-exact;
-            // LLVM asserts everything EXCEPT the PY_MEAN value.
-            let llvm_expected =
-                "CSV_BYTES\n56\n6\n500\n320\nSIMD_DOT\n440.0\nPY_MEAN\ntrue\ntrue\n";
-            for line in llvm_expected.lines() {
-                assert!(
-                    actual_text.contains(line),
-                    "LLVM golden missing line {:?} in: {}",
-                    line,
-                    actual_text
-                );
-            }
-            assert!(
-                !actual_text.contains("Falling back"),
-                "LLVM must run for real (no Cranelift fallback): {}",
-                actual_text
-            );
-        } else {
-            assert_eq!(actual_text, GOLDEN, "tier {} golden mismatch", i);
-        }
+        // Full golden parity on ALL three tiers. The historical LLVM
+        // py-bind divergence (bound Python object reported len=1 despite
+        // the C path receiving the correct list) was fixed by declaring
+        // datara_py_call/eval/eval_safe in the LLVM runtime_decls — the
+        // stdlib python.dtr module referenced them, and its LLVM-compiled
+        // body was broken without the declares. DATARA_BRIDGE_TRACE in
+        // datara_value.c/datara_py.c documents the verification path.
+        assert_eq!(actual_text, GOLDEN, "tier {} golden mismatch", i);
     }
 }

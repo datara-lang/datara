@@ -9,6 +9,7 @@ mod match_check;
 mod prelude;
 mod prelude_concurrency;
 mod prelude_natvar;
+mod prelude_signatures;
 mod prelude_strbuf;
 mod prelude_systems;
 mod refine;

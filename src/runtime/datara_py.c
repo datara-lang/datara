@@ -1054,6 +1054,28 @@ int32_t datara_py_export_memview(const char* var_name, const DataraMemoryView* v
         g_py.Py_DecRef(builtins);
     }
 
+    if (getenv("DATARA_BRIDGE_TRACE")) {
+        PyObject* chk = g_py.PyDict_GetItemString(main_dict, var_name);
+        if (chk) {
+            Py_buffer_view probe;
+            memset(&probe, 0, sizeof(probe));
+            if (g_py.PyObject_GetBuffer(chk, &probe, 1) == 0) {
+                fprintf(stderr,
+                        "[bridge-trace] post-exec %s len=%lld itemsize=%lld fmt=%s\n",
+                        var_name, (long long)probe.len, (long long)probe.itemsize,
+                        probe.format ? probe.format : "(null)");
+                /* NOTE: format string is owned by the buffer view; do not
+                   free via the shim (no PyMem_Free binding) — leak is
+                   bounded by trace invocations. */
+            } else {
+                fprintf(stderr, "[bridge-trace] post-exec %s GetBuffer FAILED\n", var_name);
+                if (g_py.PyErr_Occurred()) g_py.PyErr_Clear();
+            }
+        } else {
+            fprintf(stderr, "[bridge-trace] post-exec %s NOT IN DICT\n", var_name);
+        }
+    }
+
     g_py.Py_DecRef(main_dict);
     g_py.Py_DecRef(main_mod);
     g_py.Py_DecRef(raw_mv);

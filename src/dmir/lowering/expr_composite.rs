@@ -332,11 +332,24 @@ impl<'a> Lowering<'a> {
                     class_name.clone()
                 };
 
-                // Canonical field order: the resolved class layout is the
-                // alphabetically sorted field set (see class_fields), so the
-                // init literal must be stored in that same order or GetField
-                // offsets and StructInit stores diverge for composed classes.
-                field_vals.sort_by(|a, b| a.0.cmp(&b.0));
+                // Canonical field order: the DECLARED class layout (the
+                // resolver's decl_field_order — identical to the C runtime's
+                // Outcome ABI). The former alphabetical sort desynced writer
+                // and reader for every class whose declared order is not
+                // alphabetical: Outcome<Int>{is_success, value, error_msg}
+                // was stored as [error_msg@0, is_success@8, value@16] while
+                // `or`-unwrap and the C runtime read value@8 — method-return
+                // Outcomes on the LLVM tier yielded is_success(1) as the
+                // value (the py-bridge "len=1" bug).
+                if let Some(order) = self
+                    .decl_field_order
+                    .get(&specialized_name)
+                    .or_else(|| self.decl_field_order.get(class_name))
+                {
+                    field_vals.sort_by_key(|(name, _)| {
+                        order.iter().position(|f| f == name).unwrap_or(usize::MAX)
+                    });
+                }
                 let raw_dest = self.next_val();
                 self.get_block_mut(*cur_block)
                     .instructions

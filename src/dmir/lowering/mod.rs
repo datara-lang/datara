@@ -36,6 +36,10 @@ pub struct Lowering<'a> {
     pub symbol_values: HashMap<String, ValueId>,
     pub current_blocks: Vec<BasicBlock>,
     pub class_field_types: HashMap<String, String>,
+    /// Declared field order per class (resolver-collected): the canonical
+    /// struct layout ALL backends must agree on — writer (StructInit),
+    /// reader (GetField/or-unwrap) and the C runtime's Outcome layout.
+    pub decl_field_order: HashMap<String, Vec<String>>,
     pub function_return_types: HashMap<String, String>,
     pub current_fn_name: String,
     pub local_var_types: HashMap<String, DataraType>,
@@ -138,6 +142,7 @@ impl<'a> Lowering<'a> {
             symbol_values: HashMap::with_capacity(64),
             current_blocks: Vec::with_capacity(16),
             class_field_types: HashMap::with_capacity(64),
+            decl_field_order: HashMap::new(),
             function_return_types,
             current_fn_name: String::new(),
             local_var_types: HashMap::with_capacity(64),
@@ -669,6 +674,8 @@ impl<'a> Lowering<'a> {
             });
             module.class_fields.insert(cls_name.clone(), f_names);
         }
+
+        self.decl_field_order = decl_field_order;
 
         // Enum classes participate in field-offset resolution: a match-pattern
         // arm reads `__tag`/`fN` from a receiver whose class is the bare enum

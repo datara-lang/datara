@@ -746,6 +746,12 @@ impl<'a> LlvmEmitter<'a> {
                         dest.0, alloc_fn, byte_size
                     ));
                 }
+                // Fields are stored in the DMIR vec order — the lowering now
+                // normalizes struct literals to the DECLARED class layout
+                // (decl_field_order), which is also the C runtime's Outcome
+                // ABI. Do not sort here: a previous alphabetical sort
+                // desynced writer and reader for Outcome<Int> (value read
+                // as is_success — the LLVM py-bridge "len=1" bug).
                 for (idx, (_, val_id)) in fields.iter().enumerate() {
                     let f_ty = value_types.get(val_id).copied().unwrap_or("i64");
                     let gep_reg = format!("%gep_{}_{}", dest.0, idx);

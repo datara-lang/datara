@@ -297,11 +297,20 @@ chase_lev.rs, 11 юнит-тестов), NUMA-топология, C-фиберы
   (Level-3 resolution); LLVM — ДОБАВЛЕН ВЕСЬ polyglot-мост (py/lua
   декларации + маппинги emit_call: до этого любой py-вызов молча
   фолбэкался на Cranelift) + parse_int/parse_float.
-  [!] ОТКРЫТЫЙ БАГ (N7 реестр): LLVM py-bind — C-путь получает
-  ИДЕНТИЧНЫЙ список (DATARA_BRIDGE_TRACE: list[0]=4, shape0=4, bytes=32
-  на обоих тирах), но объект в Python видит len=1 — дивергенция внутри
-  Python-side cast-шага export_memview при LLVM-линковке; подозрение на
-  окружение/python-DLL. Cranelift/JIT корректны.
+  [x] БАГ LLVM py-bind ПОБЕЖДЁН (2026-11-01): метод-trace-цепочка
+  (probe9–probe12) изолировала корень — НЕ Python-мост: LLVM StructInit
+  писал поля Outcome в алфавитном порядке ([error_msg@0, is_success@8,
+  value@16] — сортировка в lowering expr_composite), а or-unwrap и C-ABI
+  читают declared-порядок → value читался как is_success(1) для ЛЮБОГО
+  method-return Outcome на LLVM (eval_int → 1, len(arr) → 1). ФИКС:
+  канонический порядок полей = DECLARED (decl_field_order резолвера,
+  совпадает с C-ABI рантайма); lowering нормализует литералы к нему
+  (expr_composite.rs), writer/reader — declared (emit_inst.rs,
+  find_field_offset). Репродукторы probe10–12 → 42/4; pipeline_demo
+  golden — ОДИН md5 на Cranelift/JIT/LLVM, PY_MEAN=110.00 на LLVM.
+  Дополнительно: prelude.rs (62 КБ) → экстракция таблицы сигнатур в
+  types/prelude_signatures.rs (register_core_signatures, 1512 строк) —
+  size-gate снова зелёный.
 - [ ] **Bridge tour**: по одному компилируемому примеру на каждый мост
   (c/python/js/rust) в bridges/examples/, локальный runner-скрипт
   tools/bridge_smoke.py (не зависящий от CI): прогон всех мостов одной

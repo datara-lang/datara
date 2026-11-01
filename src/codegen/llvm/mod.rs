@@ -1233,6 +1233,12 @@ impl<'a> LlvmEmitter<'a> {
                         field, cls, fn_name
                     ));
                 }
+                // Layout = the DECLARED field order (decl_field_order — the
+                // lowering normalizes struct literals to it, and the C
+                // runtime's Outcome ABI uses the same order). A previous
+                // alphabetical sort here desynced reader vs writer for
+                // Outcome<Int>: `or`-unwrap read is_success(1) as the value
+                // (the LLVM py-bridge "len=1" bug).
                 return fields.iter().position(|f| f == field)
                     .map(|pos| pos.saturating_mul(8))
                     .ok_or_else(|| {
