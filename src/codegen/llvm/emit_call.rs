@@ -158,6 +158,8 @@ impl<'a> LlvmEmitter<'a> {
                 "py_call_2_int" | "datara_py_call_2_int" => "datara_py_call_2_int",
                 "py_call_list_f64" | "datara_py_call_list_f64" => "datara_py_call_list_f64",
                 "py_eval_batch" | "datara_py_eval_batch" => "datara_py_eval_batch",
+                "py_eval" | "datara_py_eval" => "datara_py_eval",
+                "py_eval_safe" | "datara_py_eval_safe" => "datara_py_eval_safe",
                 "py_last_error" | "datara_py_last_error" => "datara_py_last_error",
                 "py_clear_error" | "datara_py_clear_error" => "datara_py_clear_error",
                 "py_is_available" | "datara_py_is_available" => "datara_py_is_available",

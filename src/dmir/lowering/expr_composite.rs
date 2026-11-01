@@ -332,32 +332,27 @@ impl<'a> Lowering<'a> {
                     class_name.clone()
                 };
 
-                // Canonical field order: the DECLARED class layout (the
-                // resolver's decl_field_order — identical to the C runtime's
-                // Outcome ABI). The former alphabetical sort desynced writer
-                // and reader for every class whose declared order is not
-                // alphabetical: Outcome<Int>{is_success, value, error_msg}
-                // was stored as [error_msg@0, is_success@8, value@16] while
-                // `or`-unwrap and the C runtime read value@8 — method-return
-                // Outcomes on the LLVM tier yielded is_success(1) as the
-                // value (the py-bridge "len=1" bug).
-                match self
-                    .decl_field_order
-                    .get(&specialized_name)
-                    .or_else(|| self.decl_field_order.get(class_name))
-                {
-                    Some(order) => {
-                        field_vals.sort_by_key(|(name, _)| {
-                            order.iter().position(|f| f == name).unwrap_or(usize::MAX)
-                        });
-                    }
-                    // No declared order (e.g. `record` classes): the module's
-                    // class_fields fallback stores the ALPHABETICALLY sorted
-                    // field set (lowering/mod.rs) — mirror it exactly or the
-                    // GetField reader desyncs (SoA nbody AoS regression).
-                    None => {
-                        field_vals.sort_by(|a, b| a.0.cmp(&b.0));
-                    }
+                // Canonical field order: the DECLARED class layout (same
+                // as the C runtime's Outcome ABI). The former alphabetical
+                // sort desynced writer/reader for non-alphabetical classes
+                // — `or`-unwrap read is_success(1) as the value (the LLVM
+                // py-bridge "len=1" bug).
+                // Runtime-ABI classes (Outcome/Maybe) keep the literal
+                // order — it IS the declared order and the C runtime layout
+                // ([0]=is_success,[1]=value,[2]=error_msg). Every other
+                // class follows the historical sorted-class_fields
+                // convention; mismatching either desyncs the GetField
+                // reader (SoA nbody / the LLVM py-bridge "len=1" bug).
+                let is_runtime_abi = class_name == "Outcome"
+                    || class_name == "Maybe"
+                    || specialized_name.starts_with("Outcome")
+                    || specialized_name.starts_with("Maybe");
+                if !is_runtime_abi {
+                    // Historical convention: struct-literal fields are stored
+                    // ALPHABETICALLY (the SoA-transform and cranelift's
+                    // class_field_offsets build on this order). Only the
+                    // runtime-ABI classes above are exempt.
+                    field_vals.sort_by(|a, b| a.0.cmp(&b.0));
                 }
                 let raw_dest = self.next_val();
                 self.get_block_mut(*cur_block)

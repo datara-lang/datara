@@ -269,6 +269,22 @@ chase_lev.rs, 11 юнит-тестов), NUMA-топология, C-фиберы
   безопаснее» (без маркетинговых заявлений, только проверяемые таблицы из
   PLAN_V150 §3.5/bench).
 
+## Статус 1.5.1 (итог сессии 2026-11-01)
+
+ЗАКРЫТО: N0, N1 (реестр #1–#5 + корневой баг Outcome-раскладки), N2
+(МТ-планировщик), N3 (пакеты 5/5, Ed25519, bridge check, Python-аудит,
+collections 16/16), N7 (flagship pipeline_demo golden 3 тира,
+levels-верификация 4/4, LLVM polyglot-мост). Версия 1.5.1, CHANGELOG_V151.md.
+
+ОСТАЛОСЬ (перенос в 1.5.2 / N4-хвост): `forgen migrate 1.4→1.5`; секции
+мануала × 1.5-фичи (TSU/Fibers/E-ANY/inspect — grep-гейт
+test_docs_coverage); watch SLA-тест; fmt-гейт идемпотентности;
+resolver-hint для пакетов; CONTRIBUTING ревизия; docs/DPM_SCHEMA.md;
+«Datara for C/Rust/Python developers»; json bench vs C; dpm polish
+(init-интерактив); bridge_smoke.py; WASM playground; IO-поллер
+(IOCP/epoll), rt_mutex→Outcome+deadlock-детектор, tokio-бенчмарк,
+stdlib.async — всё перенесено без потерь в PLAN_V152 (следующая сессия).
+
 ## N5. ABI freeze — подготовка (ранний срез H) `[ ]`
 
 - [ ] docs/abi.md черновик: C-рантайм API (датские префиксы datara_rt_*),

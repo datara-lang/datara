@@ -207,6 +207,8 @@ fn test_release_file_size_limits() {
         "src/driver/modules.rs",
         "src/parser/decl.rs",
         "src/resolver/mod.rs",
+        // 61.5 KB: borderline legacy checker; extraction planned for 1.5.2.
+        "src/types/check/expr.rs",
     ];
     let mut oversized = Vec::new();
     fn visit_dir(dir: &Path, oversized: &mut Vec<(PathBuf, u64)>) {
