@@ -25,11 +25,17 @@ behavior PriorityQueue {
     }
 
     peek() -> T {
+        if this.items.len() == 0 {
+            panic("peek from empty priority_queue")
+        }
         return this.items.get(0)
     }
 
     pop() -> T {
         let n = this.items.len()
+        if n == 0 {
+            panic("pop from empty priority_queue")
+        }
         let top = this.items.get(0)
         if n <= 1 {
             this.items = []

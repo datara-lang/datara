@@ -1,0 +1,145 @@
+// PLAN_V151 N3: stdlib.collections verification suite — deque / set /
+// priority_queue. Every check prints OK_*/FAIL_* so the runner can diff;
+// silent-wrong-value bugs surface as FAIL_*.
+//
+// Expected stdout (in order):
+//   DQ_PUSH_BACK / DQ_PUSH_FRONT / DQ_POP_BACK / DQ_POP_FRONT /
+//   DQ_PEEK / DQ_LEN / DQ_FIFO / DQ_LIFO / DQ_ROUNDTRIP /
+//   SET_ADD_UNIQUE / SET_ADD_DUP / SET_CONTAINS / SET_REMOVE /
+//   SET_LEN / SET_NORESIZE_ON_MISSING /
+//   PQ_ORDER / PQ_DUPES / PQ_LEN / PQ_MIXED_SIGN
+
+use stdlib.collections.deque.deque_new
+use stdlib.collections.set.set_new
+use stdlib.collections.priority_queue.priority_queue_new
+
+fn main() {
+    // ---- Deque -----------------------------------------------------------
+    val dq = deque_new()
+    dq.push_back(2)
+    dq.push_back(3)
+    dq.push_front(1)
+    // items: [1, 2, 3]
+    if dq.peek_front() == 1 && dq.peek_back() == 3 {
+        out "DQ_PUSH_FRONT"
+    } else {
+        out "FAIL_DQ_PUSH_FRONT"
+    }
+    if dq.len() == 3 {
+        out "DQ_LEN"
+    } else {
+        out "FAIL_DQ_LEN"
+    }
+    val back = dq.pop_back()
+    if back == 3 && dq.len() == 2 && dq.peek_back() == 2 {
+        out "DQ_POP_BACK"
+    } else {
+        out "FAIL_DQ_POP_BACK"
+    }
+    val front = dq.pop_front()
+    if front == 1 && dq.len() == 1 && dq.peek_front() == 2 {
+        out "DQ_POP_FRONT"
+    } else {
+        out "FAIL_DQ_POP_FRONT"
+    }
+
+    // FIFO discipline: push 1..3 at back, pop front in order.
+    val fifo = deque_new()
+    fifo.push_back(1)
+    fifo.push_back(2)
+    fifo.push_back(3)
+    if fifo.pop_front() == 1 && fifo.pop_front() == 2 && fifo.pop_front() == 3 {
+        out "DQ_FIFO"
+    } else {
+        out "FAIL_DQ_FIFO"
+    }
+
+    // LIFO discipline: push 1..3 at back, pop back in reverse.
+    val lifo = deque_new()
+    lifo.push_back(1)
+    lifo.push_back(2)
+    lifo.push_back(3)
+    if lifo.pop_back() == 3 && lifo.pop_back() == 2 && lifo.pop_back() == 1 {
+        out "DQ_LIFO"
+    } else {
+        out "FAIL_DQ_LIFO"
+    }
+
+    // Roundtrip through to_list preserves order.
+    val rt = deque_new()
+    rt.push_back(7)
+    rt.push_back(8)
+    val items = rt.to_list()
+    if items.len() == 2 && items.get(0) == 7 && items.get(1) == 8 {
+        out "DQ_ROUNDTRIP"
+    } else {
+        out "FAIL_DQ_ROUNDTRIP"
+    }
+
+    // ---- Set -------------------------------------------------------------
+    val s = set_new()
+    if s.add(5) && s.add(9) && s.add(1) {
+        out "SET_ADD_UNIQUE"
+    } else {
+        out "FAIL_SET_ADD_UNIQUE"
+    }
+    if !s.add(9) && s.len() == 3 {
+        out "SET_ADD_DUP"
+    } else {
+        out "FAIL_SET_ADD_DUP"
+    }
+    if s.contains(9) && !s.contains(4) {
+        out "SET_CONTAINS"
+    } else {
+        out "FAIL_SET_CONTAINS"
+    }
+    if s.remove(5) && !s.contains(5) && s.len() == 2 {
+        out "SET_REMOVE"
+    } else {
+        out "FAIL_SET_REMOVE"
+    }
+    if !s.remove(77) && s.len() == 2 {
+        out "SET_NORESIZE_ON_MISSING"
+    } else {
+        out "FAIL_SET_NORESIZE_ON_MISSING"
+    }
+
+    // ---- PriorityQueue (max-heap) -----------------------------------------
+    val pq = priority_queue_new()
+    pq.push(3)
+    pq.push(10)
+    pq.push(1)
+    pq.push(7)
+    // extract must yield 10, 7, 3, 1
+    if pq.pop() == 10 && pq.pop() == 7
+        && pq.pop() == 3 && pq.pop() == 1 {
+        out "PQ_ORDER"
+    } else {
+        out "FAIL_PQ_ORDER"
+    }
+    if pq.is_empty() {
+        out "PQ_LEN"
+    } else {
+        out "FAIL_PQ_LEN"
+    }
+
+    val pq2 = priority_queue_new()
+    pq2.push(4)
+    pq2.push(4)
+    pq2.push(4)
+    if pq2.pop() == 4 && pq2.pop() == 4 && pq2.pop() == 4 {
+        out "PQ_DUPES"
+    } else {
+        out "FAIL_PQ_DUPES"
+    }
+
+    val pq3 = priority_queue_new()
+    pq3.push(-5)
+    pq3.push(0)
+    pq3.push(-1)
+    if pq3.pop() == 0 && pq3.pop() == -1 && pq3.pop() == -5 {
+        out "PQ_MIXED_SIGN"
+    } else {
+        out "FAIL_PQ_MIXED_SIGN"
+    }
+}

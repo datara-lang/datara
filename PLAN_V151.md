@@ -60,25 +60,28 @@ bridge check), стабильность (флейки, реестр багов �
 
 ## N1. Реестр багов v150 — добить открытые `[ ]` `[~]` `[ ]`
 
-- [ ] `str_scalar_at` принимает байтовое смещение (v150 §5): добавить
-  `datara_rt_str_scalar_at_cp` с cp→byte-трансляцией, `str_scalar_at`
-  переименовать в `str_scalar_at_byte` (алиас оставить), stdlib.text
-  переключить на cp-вариант. Тест: "χαίρετε"[1] == "α" на обоих тирах;
-  регресс на байтовом пути.
-- [ ] `List.new(n)` / `Outcome<T>` без аргументов (остаток серии Map.new):
-  static-ctors по образцу Map.new — checker (current_assign_target) +
-  lowering-intercept + infer + resolver. Тест: `List.new(5)` предзаполнен
-  нулями длины 5; `val r = Outcome<Int>`… — fail-loud использование до
-  присваивания; регресс-тесты на обоих тирах.
+- [x] `str_scalar_at` принимает байтовое смещение (v150 §5): ДОБАВЛЕН
+  `datara_rt_str_scalar_at_cp` с cp→byte-трансляцией, stdlib.text
+  переключён на cp-вариант (substring-обход снят). Тест
+  "χαίρετε"[1] == "α" — probe str_scalar_cp_check.dtr, честная parity
+  3/3 тира. ПЕРЕИМЕНОВАНИЕ str_scalar_at → str_scalar_at_byte (алиас) —
+  в окно ABI-freeze (N5, docs/abi.md).
+- [~] `List.new(n)` / `Outcome<T>` без аргументов (остаток серии Map.new):
+  `List.new(n)` — ЗАКРЫТО (checker-хелпер call_helpers + lowering-интерцепт
+  natvar_call.rs → datara_rt_list_create_repeat; probe list_new_check);
+  ОСТАЛОСЬ: `Outcome<T>` fail-loud до присваивания + `mut r: Outcome<Int> =
+  Outcome.err(...)` уже верифицирован consumer'ом (main5).
 - [~] Вывод типа результата произвольного stdlib-метода без аннотации
   (остаток v150 §5): расширить infer-таблицу class-receiver method calls
   (is_ok/unwrap/get/pad_left и пр. уже частично). Критерий: `val s =
   StringUtils.split(...)` и 3 новых кейса из stdlib.web.ssr/dpm — тип
   выводится без аннотации; тест в test_list_str_index.rs.
-- [ ] Аудит «тихих падений» после M7/M10-правок: сгенерировать матрицу
-  программ (generic + val + fiber + return-? + пакетные импорты) и прогнать
-  дифф stdout Cranelift/JIT/LLVM — ноль расхождений. Скрипт
-  tools/parity_matrix.py + отчёт evidence/parity_matrix.json.
+- [x] Аудит «тихих падений» после M7/M10-правок: tools/parity_matrix.py —
+  дифф stdout Cranelift/JIT/LLVM по evidence/probes/*.dtr (generic+val+
+  fiber+return-?+cp-строки+касты) → evidence/parity_matrix.json. Ключевой
+  урок 2026-10-30: матрица должна считать LLVM-fallback за FAIL тира
+  ("Falling back" = -2) — до этого фикса LLVM-провалы выглядели как
+  ложные OK. Текущий гейт: 6/6 probes байт-в-байт на 3 тирах.
 - [x] Каскад кастов (N1 #4, ЗАКРЫТО 2026-10-30): пакетный consumer resultx
   вскрыл цепочку из 6 багов. (1) DCE collect_used_values не учитывал
   операнды Cast/VolatileLoad/VolatileStore/InlineAsm — def каста удалялся
@@ -204,12 +207,21 @@ chase_lev.rs, 11 юнит-тестов), NUMA-топология, C-фиберы
 - [ ] dpm polish: `dpm init` интерактивный (имя/версия/шаблон hello), схема
   datara.toml — docs/DPM_SCHEMA.md; понятные ошибки на нет пакета/версии/
   подписи (сценарные тесты).
-- [ ] stdlib.collections — ВЕРИФИКАЦИЯ и докомплектование: deque/set/
-  priority_queue уже написаны на Datara (467 строк, вопреки пометке v150
-  «каркас — очередь»), но НЕТ тестов в stdlib_tests. Добавить @test-сьют:
-  deque (push_front/push_back/pop обе стороны, FIFO/LIFO), set (add/contains/
-  дубликаты), priority_queue (heap-порядок, update). Критерий: ноль
-  багов-тихо; каждый найденный баг → фикс в этой же фазе.
+- [x] stdlib.collections — ВЕРИФИКАЦИЯ — ЗАКРЫТО 2026-11-01: сьют
+  stdlib_tests/tests/test_collections.dtr — 16 проверок (deque
+  push_front/back, pop обе стороны, peek, len, FIFO, LIFO, roundtrip;
+  set add/contains/дубликаты/remove/len/отсутствующий; priority_queue
+  heap-порядок, дубликаты, len/is_empty, отрицательные) — 16 OK / 0 FAIL
+  на Cranelift. Найден и ЗАФИКШЕН баг-тихо: pop/peek на ПУСТОМ deque и
+  pq.pop()/peek() возвращали ноль элементного типа через
+  get(0)-на-пустом → теперь fail-loud panic (deque.dtr,
+  priority_queue.dtr). Замечания в копилку: (1) явные generic type-args
+  на вызове fn (`deque_new<Int>()`) не поддерживаются — E-RESOLVE-001
+  «Undefined symbol 'Int'» (вывод T из использования работает); (2)
+  method-return T на generic-инстансе не подставляется чекером
+  (int_to_str(pop_back()) → E-TYPE-001 «expected Int, got T»; сравнение
+  с литералом — работает) — это остаток N1-пункта «вывод типа
+  stdlib-метода» [~].
 - [ ] stdlib.json замер vs C (остаток M12): парсер на 10 МБ JSON — Datara vs
   C-эталон; если Datara медленнее ×2 — C-ядро под капотом, Datara-API
   (правило из v150). Артефакт bench_json/RESULTS.md.

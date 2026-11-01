@@ -21,8 +21,10 @@ behavior Deque {
     pop_back() -> T {
         let n = this.items.len()
         if n == 0 {
-            let last = this.items.get(0)
-            return last
+            // Fail-loud: the former get(0)-on-empty path silently returned
+            // the element type's zero — a silent-wrong-value bug (PLAN_V151
+            // N3 collections verification).
+            panic("pop_back from empty deque")
         }
         let last = this.items.get(n - 1)
         mut new_items = []
@@ -37,6 +39,9 @@ behavior Deque {
 
     pop_front() -> T {
         let n = this.items.len()
+        if n == 0 {
+            panic("pop_front from empty deque")
+        }
         let first = this.items.get(0)
         mut new_items = []
         mut i = 1
@@ -49,11 +54,17 @@ behavior Deque {
     }
 
     peek_front() -> T {
+        if this.items.len() == 0 {
+            panic("peek_front from empty deque")
+        }
         return this.items.get(0)
     }
 
     peek_back() -> T {
         let n = this.items.len()
+        if n == 0 {
+            panic("peek_back from empty deque")
+        }
         return this.items.get(n - 1)
     }
 
