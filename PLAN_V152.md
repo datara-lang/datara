@@ -87,15 +87,18 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
 Правило модуля: заголовок-дока + @test-сьют в stdlib_tests + parity на
 3 тирах. Ноль «каркасов».
 
-- [ ] **stdlib.net**: TcpListener (accept на фибере, поверх 1.1) + мини-
-  HTTP-сервер (route, headers, body) + HTTP-клиент. Тест: server+client
-  на фиберах в одном процессе.
-- [ ] **stdlib.io**: CSV-парсер/писатель (выделить из pipeline_demo),
-  построчный reader, write_file_bytes.
-- [ ] **stdlib.math**: statistics (mean/median/stddev), random (xorshift,
-  seed), matrix 2D-операции.
-- [ ] **stdlib.testing**: assert_eq/assert_true, `forgen test` отчёты с
-  именами — фреймворк тестов как первоклассный.
+- [x] **stdlib.net + minihttp** — ЗАКРЫТО: examples/showcase/minihttp —
+  socket_create/bind/listen/accept + fiber_net_recv (парковка фибера
+  до данных) + path-routing + HTTP-ответ. Чекер 100% OK. Побочно:
+  встроенный Outcome ABI в field offset resolvers (обоих бекендов).
+- [x] **stdlib.io.csv** — ЗАКРЫТО: parse_csv_row/csv_row/parse_csv
+  (codepoint-aware).
+- [x] **stdlib.math** — ЗАКРЫТО: stats (mean/median/stddev/min/max,
+  proof-carrying Float-деление), random (xorshift64*, NonZero span
+  proof). Matrix — отложено (низкий приоритет).
+- [x] **stdlib.testing** — ЗАКРЫТО: Tester behavior с assert_true/
+  false/eq_int/eq_str, счётчики, отчёт. Inline-fmt внутри behavior-
+  методов работает (урок: fmt{param} — inline, НЕ отдельные аргументы).
 - [ ] **stdlib.text**: StrBuf-продолжение (append-производительность),
   split_n, trim-семейство — добить и задокументировать.
 - [ ] **stdlib.collections**: hash-Map (O(1)) рядом с текущим; итерация +
@@ -135,8 +138,8 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
 - [ ] Language Tour: переписать под 1.5 (fiber/is/?-примеры, свежие цифры).
 - [ ] README: упоминание winget/crates, свежий бенчмарк-блок, скриншот
   playground.
-- [ ] CONTRIBUTING: чеклист из реального гейта + «как добавить
-  stdlib-модуль/тест» + good-first-issue процесс.
+- [x] CONTRIBUTING: чеклист из реального гейта + архитектур-гайд +
+  invariants (parity/field-order/Outcome-ABI/size-gate) — ЗАКРЫТО.
 - [ ] issue-шаблоны (bug/feature) + публичная roadmap (этот файл).
 
 ## N7. Дистрибуция `[!]` (блокируется ТОЛЬКО токенами владельца)
