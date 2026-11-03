@@ -1,4 +1,60 @@
-﻿# Contributing to Datara & Forgen
+# Contributing to Datara & Forgen
+
+## Quick Gate Checklist (every PR must pass)
+
+```bash
+cargo fmt --all -- --check     # 0 diffs
+cargo clippy --release --all-targets 2>&1 | grep -c "warning: .*generated"
+# → 0
+cargo test --release           # 0 failed (313+ suites, 1530+ tests)
+```
+
+Plus: no .rs file in src/ may exceed 60 KB (size-gate test enforces this).
+If you add a stdlib module, put it in `stdlib/<name>/<name>.dtr` with a
+doc header, add a @test suite in `stdlib_tests/tests/`, and document it
+in `docs/STDLIB.md`.
+
+## How to add a stdlib module
+
+1. Create `stdlib/<name>/<name>.dtr` — doc-comment header, then fns.
+2. Every escalated fn needs `/ IO` (or other effects) in the signature.
+3. Add test file `stdlib_tests/tests/test_<name>.dtr` with a main() that
+   exercises each fn and prints OK/FAIL lines.
+4. Register in the resolver (src/resolver/mod.rs) if new builtins are used.
+5. Update docs/STDLIB.md with a usage example.
+
+## How to add a test suite
+
+1. Integration: `tests/test_<topic>.rs` using `ForgenCompiler::new("release")`
+   + `compile_source_native` + `run_executable`.
+2. Datara-level: `stdlib_tests/tests/test_<name>.dtr` (auto-discovered).
+3. Both: the Rust test compiles and runs the .dtr; the .dtr tests the stdlib.
+
+## Architecture guide
+
+- `src/parser/` → AST (src/ast/mod.rs)
+- `src/resolver/` → symbol tables, name resolution
+- `src/types/check/` → type checker (expr.rs = expressions, stmt.rs = statements, call.rs = calls)
+- `src/dmir/lowering/` → AST → DMIR (IR)
+- `src/optimizer/` → passes (mod.rs = pipeline, const_fold.rs, dce.rs, inline.rs, ...)
+- `src/codegen/cranelift/` → CLIF + machine code (backend/compile_func.rs is the main)
+- `src/codegen/llvm/` → LLVM IR emission (emit_inst.rs, emit_call.rs)
+- `src/codegen/wasm/` → WASM
+- `src/runtime/` → C runtime (datara_*.c)
+- `src/driver/` → compilation pipeline orchestration
+
+## Key invariants
+
+- **3-backend parity**: Cranelift/JIT/LLVM must produce byte-identical stdout
+  (verify: `python tools/parity_matrix.py`).
+- **Field order**: struct literal fields are stored ALPHABETICALLY by the
+  lowering (expr_composite.rs); Outcome/Maybe are exempt (declared order,
+  matching the C ABI).
+- **Built-in Outcome ABI**: [0]=is_success, [1]=value, [2]=error_msg
+  (datara_runtime.h:290) — field offset resolvers know this.
+- **60 KB size gate**: no .rs in src/ may exceed 61,440 bytes.
+
+---
 
 Thank you for your interest in contributing to Datara! We welcome contributions to the compiler, standard library, documentation, and tooling.
 
