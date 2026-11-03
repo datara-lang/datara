@@ -130,8 +130,7 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
   1. `wordcount` — CLI: чтение файлов, Map-агрегация, сортировка (Level 1-2)
   2. `minihttp` — веб-сервер на фиберах + SSR (Level 2, требует N1.1)
   3. `snake` — консольная игра: цикл, ввод, рандом (Level 1)
-- [ ] **WASM playground**: docs/playground/ — 3–5 демо, билд-скрипт одной
-  командой, страница открывается без сервера.
+- [x] **WASM playground** — ЗАКРЫТО: docs/playground/ — index.html + 3 демо (fib/sieve/matmul) + build.sh.
 - [ ] **Онлайн-реестр Spark'ов**: GitHub Pages (pages.yml есть) —
   index.json + подписанные пакеты + `dpm add <url>`.
 - [ ] bridge_smoke.py: расширить до c/js/rust реальных прогонов.
@@ -140,12 +139,12 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
 
 - [ ] docs-гейт РАСШИРИТЬ: ВСЕ секции мануала — сниппеты компилируются
   (сейчас только новые). Section-by-section verification.
-- [ ] Language Tour: переписать под 1.5 (fiber/is/?-примеры, свежие цифры).
+- [x] Language Tour: docs/tour/language_tour_1_5.md — 1.5-фичи с верифицированными примерами (TSU/fibers/channels/MT/IO/atomics/Outcome/collections/testing/stats/toolchain).
 - [ ] README: упоминание winget/crates, свежий бенчмарк-блок, скриншот
   playground.
 - [x] CONTRIBUTING: чеклист из реального гейта + архитектур-гайд +
   invariants (parity/field-order/Outcome-ABI/size-gate) — ЗАКРЫТО.
-- [ ] issue-шаблоны (bug/feature) + публичная roadmap (этот файл).
+- [x] issue-шаблоны (bug/feature/stdlib_module) + публичная roadmap (PLAN_V152.md).
 
 ## N7. Дистрибуция `[!]` (блокируется ТОЛЬКО токенами владельца)
 
