@@ -1,0 +1,24 @@
+//! stdlib.async — non-blocking sleep and batch-wait wrappers (PLAN_V152 N3).
+//! The fiber_spawn/join builtins already provide the core async story;
+//! this module adds convenience wrappers that don't need fn-pointer args.
+//!
+//! Usage:
+//!   fn main() {
+//!       async_sleep_ms(100)  // parks this fiber, others run
+//!       val done = async_wait_all()  // wait for all spawned fibers
+//!   }
+
+// Sleep without blocking other fibers (non-blocking timer-wheel park).
+fn async_sleep_ms(ms: Int) {
+    fiber_sleep_ms(ms)
+}
+
+// Wait for ALL spawned fibers to finish, return the done count.
+fn async_wait_all() -> Int {
+    return fiber_run_until_done()
+}
+
+// Yield control to the scheduler (round-robin).
+fn async_yield() {
+    fiber_yield()
+}
