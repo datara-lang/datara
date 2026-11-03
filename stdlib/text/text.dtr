@@ -128,3 +128,98 @@ fn text_pad_right_cp(s: Str, width: Int, pad: Str) -> Str {
     val fill = str_repeat(pad, width - visible)
     return s + fill
 }
+
+//! text_split_n(s, sep, max_parts) -> List<Str>
+//! Split with a maximum number of parts (the last part contains the rest).
+fn text_split_n(s: Str, sep: Str, max_parts: Int) -> List<Str> {
+    val parts = str_split(s, sep)
+    val n = parts.len()
+    if n <= max_parts { return parts }
+    mut result = []
+    mut i = 0
+    while i < max_parts - 1 {
+        result = result.push(parts.get(i))
+        i = i + 1
+    }
+    mut rest = ""
+    while i < n {
+        if i > max_parts - 1 { rest = rest + sep }
+        rest = rest + parts.get(i)
+        i = i + 1
+    }
+    result = result.push(rest)
+    return result
+}
+
+//! text_trim_start(s) -> Str — strip leading whitespace
+fn text_trim_start(s: Str) -> Str {
+    val n = str_len(s)
+    mut start = 0
+    while start < n {
+        val ch = str_scalar_at_cp(s, start)
+        if ch != " " && ch != "\t" && ch != "\n" && ch != "\r" { break }
+        start = start + 1
+    }
+    return str_substring(s, start, n - start)
+}
+
+//! text_trim_end(s) -> Str — strip trailing whitespace
+fn text_trim_end(s: Str) -> Str {
+    val n = str_len(s)
+    mut end = n
+    while end > 0 {
+        val ch = str_scalar_at_cp(s, end - 1)
+        if ch != " " && ch != "\t" && ch != "\n" && ch != "\r" { break }
+        end = end - 1
+    }
+    return str_substring(s, 0, end)
+}
+
+//! text_lines(s) -> List<Str> — split by newlines, skipping empty lines
+fn text_lines(s: Str) -> List<Str> {
+    val all = str_split(s, "\n")
+    mut result = []
+    val n = all.len()
+    mut i = 0
+    while i < n {
+        val line = all.get(i)
+        if str_len(line) > 0 {
+            result = result.push(line)
+        }
+        i = i + 1
+    }
+    return result
+}
+
+//! text_repeat(s, count) -> Str — repeat a string count times
+fn text_repeat(s: Str, count: Int) -> Str {
+    mut acc = ""
+    mut i = 0
+    while i < count {
+        acc = acc + s
+        i = i + 1
+    }
+    return acc
+}
+
+//! text_replace_all(s, old, new) -> Str — replace all occurrences
+fn text_replace_all(s: Str, old: Str, new: Str) -> Str {
+    mut acc = ""
+    val s_len = str_len(s)
+    val old_len = str_len(old)
+    mut i = 0
+    while i < s_len {
+        if old_len > 0 && i + old_len <= s_len {
+            val sub = str_substring(s, i, old_len)
+            if sub == old {
+                acc = acc + new
+                i = i + old_len
+                continue
+            }
+        }
+        val ch = str_scalar_at_cp(s, i)
+        acc = acc + ch
+        i = i + 1
+    }
+    return acc
+}
