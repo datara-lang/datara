@@ -111,8 +111,9 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
 - [x] **stdlib.testing** — ЗАКРЫТО: Tester behavior с assert_true/
   false/eq_int/eq_str, счётчики, отчёт. Inline-fmt внутри behavior-
   методов работает (урок: fmt{param} — inline, НЕ отдельные аргументы).
-- [ ] **stdlib.text**: StrBuf-продолжение (append-производительность),
-  split_n, trim-семейство — добить и задокументировать.
+- [x] **stdlib.text** — ЗАКРЫТО 2026-11-03: text_split_n (max parts),
+  text_trim_start/end (codepoint-aware), text_lines (skip empties),
+  text_repeat, text_replace_all. Verified 100% OK.
 - [ ] **stdlib.collections**: hash-Map (O(1)) рядом с текущим; итерация +
   удаление при итерации для deque/set.
 - [ ] **stdlib.json**: парсер-добивка + bench vs C (10 МБ, артефакт
@@ -147,8 +148,7 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
 - [ ] docs-гейт РАСШИРИТЬ: ВСЕ секции мануала — сниппеты компилируются
   (сейчас только новые). Section-by-section verification.
 - [x] Language Tour: docs/tour/language_tour_1_5.md — 1.5-фичи с верифицированными примерами (TSU/fibers/channels/MT/IO/atomics/Outcome/collections/testing/stats/toolchain).
-- [ ] README: упоминание winget/crates, свежий бенчмарк-блок, скриншот
-  playground.
+- [x] README — ЗАКРЫТО 2026-11-03: stdlib features (testing/stats/random/csv/collections), winget PR status.
 - [x] CONTRIBUTING: чеклист из реального гейта + архитектур-гайд +
   invariants (parity/field-order/Outcome-ABI/size-gate) — ЗАКРЫТО.
 - [x] issue-шаблоны (bug/feature/stdlib_module) + публичная roadmap (PLAN_V152.md).
