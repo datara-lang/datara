@@ -306,6 +306,19 @@ impl<'a> TypeChecker<'a> {
                                 && let Some(idx) = params.iter().position(|param| param == p)
                                 && idx < args.len()
                             {
+                                // PLAN_V152 N2: if the GenericInstance arg is
+                                // still a TypeParam (unbound), check
+                                // var_element_types for a recorded binding
+                                // from a prior push_back/add call.
+                                if let DataraType::TypeParam(_) = args[idx] {
+                                    if let Expr::Identifier(var_name, _) = &**object {
+                                        if let Some(concrete) =
+                                            self.var_element_types.get(var_name)
+                                        {
+                                            return concrete.clone();
+                                        }
+                                    }
+                                }
                                 return args[idx].clone();
                             }
                             return field_type.clone();

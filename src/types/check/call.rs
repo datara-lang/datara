@@ -21,6 +21,29 @@ impl<'a> TypeChecker<'a> {
         for a in args {
             arg_types.push(self.check_expr(a, diag));
         }
+        // PLAN_V152 N2: generic type binding — when a method like
+        // push_back/push/add/insert is called on a variable whose type is
+        // a GenericInstance with TypeParam args, and the argument is
+        // concrete, record the binding so that a later pop_back/get
+        // returning T resolves to the concrete type.
+        if let Expr::MemberAccess { object, member, .. } = &callee {
+            if let Expr::Identifier(var_name, _) = object.as_ref() {
+                if matches!(member.as_str(), "push_back" | "push" | "add" | "insert" | "append") {
+                    if let Some(DataraType::GenericInstance { args, .. }) =
+                        self.symbol_types.get(var_name.as_str())
+                    {
+                        if args.iter().any(|a| matches!(a, DataraType::TypeParam(_))) {
+                            if let Some(concrete) = arg_types.first() {
+                                if !matches!(concrete, DataraType::TypeParam(_)) {
+                                    self.var_element_types
+                                        .insert(var_name.clone(), concrete.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         if let Expr::Identifier(fn_name, _) = callee {
             if fn_name == "view" || fn_name == "mut_view" || fn_name == "mutView" {
