@@ -491,6 +491,59 @@ int64_t datara_rt_fiber_join(int64_t handle) {
 
 // Main-loop scheduler: run until every spawned fiber is DONE. Returns the
 // number of fibers completed.
+
+// ---- Deadlock detector (PLAN_V152 N1): cycle detection in the fiber
+// wait graph. Called by run_until_done when it would otherwise break
+// with a deadlock. Returns the first cycle path or NULL.
+
+// Find the fiber a given fiber is waiting on (join or chan counterpart).
+static Fiber* dd_resolve_wait_target(Fiber* f) {
+    if (f->state == FIB_WAITING_JOIN) {
+        return fiber_by_handle(f->wait_on);
+    }
+    if (f->state == FIB_WAITING_CHAN) {
+        // Channel rendezvous: find the peer on the same channel.
+        for (int64_t i = 0; i < g_fiber_count; i++) {
+            Fiber* peer = g_fibers[i];
+            if (peer != f && peer->state == FIB_WAITING_CHAN && peer->wait_on == f->wait_on) {
+                return peer;
+            }
+        }
+    }
+    return NULL;
+}
+
+// Detect cycle: follow wait edges up to g_fiber_count steps.
+// If we revisit a fiber, there is a cycle. Returns 1 if cycle found,
+// prints the path to stderr.
+static int datara_deadlock_detect(void) {
+    for (int64_t start = 0; start < g_fiber_count; start++) {
+        Fiber* cur = g_fibers[start];
+        if (cur->state != FIB_WAITING_JOIN && cur->state != FIB_WAITING_CHAN) continue;
+        // Walk the chain
+        int64_t visited[256];
+        int64_t depth = 0;
+        Fiber* node = cur;
+        while (node && depth < 256) {
+            for (int64_t v = 0; v < depth; v++) {
+                if (visited[v] == node->handle) {
+                    // Cycle!
+                    fprintf(stderr, "[DEADLOCK] cycle detected:");
+                    for (int64_t p = v; p < depth; p++) {
+                        fprintf(stderr, " fib_%lld ->", (long long)visited[p]);
+                    }
+                    fprintf(stderr, " fib_%lld (back to fib_%lld)\n",
+                            (long long)node->handle, (long long)visited[v]);
+                    return 1;
+                }
+            }
+            visited[depth++] = node->handle;
+            node = dd_resolve_wait_target(node);
+        }
+    }
+    return 0;
+}
+
 int64_t datara_rt_fiber_run_until_done(void) {
     if (g_fiber_count == 0) return 0;
     ensure_scheduler_fiber();
@@ -534,7 +587,11 @@ int64_t datara_rt_fiber_run_until_done(void) {
                 last_now = now_ms_real();
                 continue;
             }
-            // True deadlock (join on a never-finishing fiber).
+            // True deadlock: report cycles if detected.
+            if (datara_deadlock_detect()) {
+                fprintf(stderr, "[DEADLOCK] scheduler halted: %lld of %lld fibers done\n",
+                        (long long)g_done_count, (long long)g_fiber_count);
+            }
             break;
         }
         fiber_switch_to(f);
