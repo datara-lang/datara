@@ -78,8 +78,10 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
   var_element_types[var] = Int. При pop_back() TypeParam резолвится
   через существующую GenericInstance подстановку. Регресс:
   test_generic_inference (deque_new + push_back(42) + pop_back → 42).
-- [ ] Явные generic-аргументы на вызове: `deque_new<Int>()` — подстановить
-  в generic-таблицу на call-site.
+- [x] Явные generic-аргументы на вызове — ЗАКРЫТО 2026-11-03:
+  parser postfix при виде `< Capitalized > (` после lowercase идентификатора
+  пропускает type args как декорацию (тип выводится из call args через
+  flow-sensitive binding). test_generic_inference 2/2.
 - [ ] Статический ctor в цепочке: `Outcome.ok(1).is_success` — MemberAccess
   на GenericInstance-результат.
 - [ ] Регресс на каждый пункт + обновить «Ограничения» в мануале.
