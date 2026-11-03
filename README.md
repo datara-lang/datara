@@ -54,6 +54,7 @@ Datara completely eliminates garbage collection pauses and reference-counting cy
   - **Level 4 (Kernel, MMIO & Direct Hardware Control)**: `VolatilePtr` hardware register manipulation, hardware memory ordering barriers (`atomic_fence_acquire/release/acq_rel/seq_cst`), zeroed memory buffer initialization (`typed_zero_init`), and bidirectional inline assembly (`asm { ... }`).
 - **Hardware Control Without Mandatory Assembly**: Kernel drivers, MMIO registers, and memory barriers compile directly to 1:1 hardware instructions without forcing developers into non-portable raw assembly strings. Inline assembly is strictly optional.
 - **Zero-Trust FFI Capability Sandboxing**: `unsafe(justification: "...")` blocks no longer bypass `[Net]`, `[FS]`, or `[Env]` capability requirements. Foreign C/POSIX functions are statically checked against caller capabilities with zero-bypass path verification.
+- **Standard Library**: testing framework (assert_eq/true/false), statistics (mean/median/stddev), deterministic PRNG (xorshift64*), CSV parser, Deque/Set/PriorityQueue collections, HTTP server building blocks
 - **Universal Multi-Language Package Orchestrator (`dpm.toml`)**: Single unified manifest coordinating dependencies across C (CMake/clang), C++, Rust (Cargo), Python (pip), Node.js (npm), Go, C# (.NET NativeAOT), Zig (`zig build-lib`), JVM (GraalVM `native-image --shared`), and Lua/Luau via `forgen install`.
 - **Bidirectional Inline Assembly Register Bridging**: Local Datara variables can be loaded into assembly registers (`mov rax, x`) and written back (`mov y, rax`), guaranteed by SSA stack slot assignment and affine invariant verification.
 - **Rust & C Parity / Victory Across All Compute Kernels**: Datara demonstrates direct $\le 1.0\times$ parity or victory over `rustc -O3` across all benchmark kernels: `sum_reduce` (146 µs vs 221 µs, **1.5x faster**), `matmul_96` (472 µs vs 586 µs, **1.24x faster**), `vec_axpy` (267 µs vs 298 µs, **1.1x faster**), `vec_add` (1540 µs vs 1490 µs, **1.0x parity**), and `vec_mul` (490 µs vs 440 µs, **1.0x parity**).
@@ -243,7 +244,7 @@ sudo rpm -ivh datara-1.4.5-1.x86_64.rpm
 # 1. Download & launch the official standalone GUI installer: Datara-Setup.exe
 
 # 2. Install via WinGet (Windows Package Manager):
-winget install Datara.Datara
+winget install Datara.Datara  # PR #467946 pending CLA
 
 # 3. Install via Scoop (official bucket):
 scoop bucket add datara https://github.com/datara-lang/scoop-bucket
