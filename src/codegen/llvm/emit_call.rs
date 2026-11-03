@@ -561,10 +561,6 @@ impl<'a> LlvmEmitter<'a> {
         // PLAN_V152 N2: record the value class from the DMIR `ty` for ALL
         // method call results — before any dispatch logic — so that GetField
         // on the result resolves through the ABI fallback (Outcome/Maybe).
-        if std::env::var("DATARA_VC_TRACE").is_ok() {
-            eprintln!("[vc-trace] method_call dest={} ty={} class={:?} existing={:?}",
-                dest.0, ty, class_type_name(ty), value_classes.get(dest));
-        }
         if value_classes.get(dest).is_none() {
             if let Some(rc) = class_type_name(ty) {
                 value_classes.insert(*dest, rc);
@@ -821,9 +817,6 @@ impl<'a> LlvmEmitter<'a> {
             // PLAN_V152 N2: for runtime builtins (List.get etc.) not in
             // module.functions, the DMIR `ty` carries the element class —
             // record it so GetField resolves via the ABI fallback.
-            if std::env::var("DATARA_VC_TRACE").is_ok() {
-                eprintln!("[vc-trace] method_call dest={} ty={} class={}", dest.0, ty, rc);
-            }
             value_classes.insert(*dest, rc);
         }
 
