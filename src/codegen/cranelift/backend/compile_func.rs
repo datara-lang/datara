@@ -789,10 +789,21 @@ pub fn compile_all_functions<M: ClifModule>(
                                 resolve_field_offset(class_field_offsets, cls, field, &f.name)?
                             }
                             None => {
-                                return Err(format!(
-                                    "Code generation failed: [E0944] cannot resolve the receiver class for field access '.{}' in function '{}': refusing to guess the field offset",
-                                    field, f.name
-                                ));
+                                // PLAN_V152 N2: bare-generic field access —
+                                // when the receiver class is unknown but the
+                                // field is a known Outcome/Maybe field name,
+                                // use the built-in ABI (datara_runtime.h:290).
+                                match field.as_str() {
+                                    "is_success" | "is_some" => 0,
+                                    "value" => 8,
+                                    "error_msg" => 16,
+                                    _ => {
+                                        return Err(format!(
+                                            "Code generation failed: [E0944] cannot resolve the receiver class for field access '.{}' in function '{}': refusing to guess the field offset",
+                                            field, f.name
+                                        ));
+                                    }
+                                }
                             }
                         };
                         let current_class_name = current_class_name.unwrap_or("");
@@ -909,12 +920,17 @@ pub fn compile_all_functions<M: ClifModule>(
                             Some(cls) => {
                                 resolve_field_offset(class_field_offsets, cls, field, &f.name)?
                             }
-                            None => {
-                                return Err(format!(
-                                    "Code generation failed: [E0944] cannot resolve the receiver class for field assignment '.{}' in function '{}': refusing to guess the field offset",
-                                    field, f.name
-                                ));
-                            }
+                            None => match field.as_str() {
+                                "is_success" | "is_some" => 0,
+                                "value" => 8,
+                                "error_msg" => 16,
+                                _ => {
+                                    return Err(format!(
+                                        "Code generation failed: [E0944] cannot resolve the receiver class for field assignment '.{}' in function '{}': refusing to guess the field offset",
+                                        field, f.name
+                                    ));
+                                }
+                            },
                         };
                         let flags = cranelift_codegen::ir::MachMemFlags::new();
                         let fkey = format!("{}.{}", current_class_name.unwrap_or(""), field);
