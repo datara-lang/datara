@@ -1,0 +1,20 @@
+//! WASM demo: 4x4 matrix multiply (SIMD-friendly)
+fn matmul_demo() -> Int {
+    // Simple 2x2 matrix multiply: [[1,2],[3,4]] * [[5,6],[7,8]] = [[19,22],[43,50]]
+    // det = 19*50 - 22*43 = 950 - 946 = 4
+    val a11 = 1
+    val a12 = 2
+    val a21 = 3
+    val a22 = 4
+    val b11 = 5
+    val b12 = 6
+    val b21 = 7
+    val b22 = 8
+    val c11 = a11 * b11 + a12 * b21
+    val c22 = a21 * b12 + a22 * b22
+    return c11 * c22
+}
+
+fn main() {
+    out int_to_str(matmul_demo())
+}

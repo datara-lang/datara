@@ -1,0 +1,29 @@
+name: Stdlib Module Request
+description: Request a new standard library module or an addition to an existing one
+title: "[stdlib] "
+labels: ["stdlib", "enhancement"]
+body:
+  - type: dropdown
+    id: module
+    attributes:
+      label: Target module
+      options:
+        - collections
+        - io
+        - math
+        - net
+        - testing
+        - text
+        - crypto
+        - new module
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: Proposed API
+      description: Function signatures with types
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use case

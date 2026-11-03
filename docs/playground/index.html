@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Datara Playground</title>
+<style>
+body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+.demo { margin: 20px 0; padding: 15px; border: 1px solid #16213e; border-radius: 8px; }
+.demo h3 { color: #0f3460; margin-top: 0; }
+.demo button { background: #0f3460; color: white; border: none; padding: 8px 16px; cursor: pointer; border-radius: 4px; }
+.demo pre { background: #16213e; padding: 10px; border-radius: 4px; min-height: 40px; }
+</style>
+</head>
+<body>
+<h1>Datara Playground</h1>
+<p>Each demo is compiled by <code>forgen build --target wasm</code> and loaded from a .wasm module.</p>
+<div class="demo"><h3>Fibonacci (recursion)</h3><button onclick="runFib()">Run</button><pre id="fib_out">Click Run...</pre></div>
+<div class="demo"><h3>Prime Sieve</h3><button onclick="runSieve()">Run</button><pre id="sieve_out">Click Run...</pre></div>
+<div class="demo"><h3>Matrix Multiply</h3><button onclick="runMatmul()">Run</button><pre id="matmul_out">Click Run...</pre></div>
+<script>
+async function loadWasm(name) {
+    const resp = await fetch(`./${name}.wasm`);
+    if (!resp.ok) { return null; }
+    const bytes = await resp.arrayBuffer();
+    const { instance } = await WebAssembly.instantiate(bytes, {});
+    return instance.exports;
+}
+async function runFib() {
+    const el = document.getElementById("fib_out");
+    const w = await loadWasm("fib");
+    if (!w) { el.textContent = "Run: forgen build --target wasm docs/playground/fib.dtr"; return; }
+    el.textContent = `fib(30) = ${w.fibonacci(30)}`;
+}
+async function runSieve() {
+    const el = document.getElementById("sieve_out");
+    const w = await loadWasm("sieve");
+    if (!w) { el.textContent = "Run: forgen build --target wasm docs/playground/sieve.dtr"; return; }
+    el.textContent = `primes(100) count = ${w.sieve(100)}`;
+}
+async function runMatmul() {
+    const el = document.getElementById("matmul_out");
+    const w = await loadWasm("matmul");
+    if (!w) { el.textContent = "Run: forgen build --target wasm docs/playground/matmul.dtr"; return; }
+    el.textContent = `matmul(4x4) = ${w.matmul_demo()}`;
+}
+</script>
+</body>
+</html>

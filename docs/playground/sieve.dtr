@@ -1,0 +1,22 @@
+//! WASM demo: Sieve of Eratosthenes — count primes below n
+fn sieve(n: Int) -> Int {
+    mut count = 0
+    mut i = 2
+    while i <= n {
+        mut is_prime = true
+        mut j = 2
+        while j * j <= i {
+            if i % j == 0 {
+                is_prime = false
+            }
+            j = j + 1
+        }
+        if is_prime { count = count + 1 }
+        i = i + 1
+    }
+    return count
+}
+
+fn main() {
+    out int_to_str(sieve(100))
+}
