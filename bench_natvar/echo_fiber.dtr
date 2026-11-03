@@ -1,0 +1,43 @@
+//! bench_natvar: Datara fiber echo client (PLAN_V152 N1.4 honest benchmark).
+//! Requires the tokio reference server: tokio_echo server 45150.
+//! Sends 10_000 x 128-byte messages over ONE loopback connection; every
+//! send is followed by fiber_net_recv, which parks this fiber in the
+//! scheduler's select() slice until the echo arrives.
+
+fn main() {
+    unsafe(justification: "bench_natvar: local echo peer on loopback") {
+        val sock = socket_create(1)
+        if sock < 0 {
+            out "CONN_FAIL"
+            return
+        }
+        val rc = socket_connect(sock, "127.0.0.1", 45150)
+        if rc != 0 {
+            out "CONN_FAIL"
+            return
+        }
+        val msgs = 10000
+        val start = now_ms()
+        mut i = 0
+        mut ok = 0
+        while i < msgs {
+            socket_send(sock, "natvar_bench16_!natvar_bench16_!natvar_bench16_!natvar_bench16_!natvar_bench16_!natvar_bench16_!natvar_bench16_!natvar_bench16_!")
+            val res = fiber_net_recv(sock, 4096, 5000)
+            if res.is_success {
+                ok = ok + 1
+            } else {
+                out "RECV_FAIL"
+                socket_close(sock)
+                return
+            }
+            i = i + 1
+        }
+        val total = now_ms() - start
+        require total != 0
+        val rate = msgs * 1000 / total
+        out fmt"OK {ok}"
+        out fmt"TOTAL_MS {total}"
+        out fmt"RATE {rate}"
+        socket_close(sock)
+    }
+}

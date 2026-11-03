@@ -1,0 +1,10 @@
+[package]
+name = "tokio_echo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.45", features = ["rt-multi-thread", "net", "io-util", "time", "macros", "sync"] }
+
+[profile.release]
+opt-level = 3

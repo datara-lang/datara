@@ -1,0 +1,24 @@
+//! bench_natvar: 100k sleeping fibers (PLAN_V152 N1.4 honest benchmark).
+//! Spawns 100_000 fibers, each sleeping 20 ms on the timer wheel, then
+//! drains all of them with fiber_run_until_done(). Reports elapsed wall
+//! time in ms. Compare against `tokio_echo sleep 100000 20`.
+
+fn sleeper(x: Int) {
+    fiber_sleep_ms(20)
+}
+
+fn main() {
+    out "SPAWNING"
+    val start = now_ms()
+    mut i = 0
+    while i < 100000 {
+        fiber_spawn(sleeper, i)
+        i = i + 1
+    }
+    val spawned_ms = now_ms() - start
+    val done = fiber_run_until_done()
+    val total = now_ms() - start
+    out fmt"SPAWN_MS {spawned_ms}"
+    out fmt"DONE {done}"
+    out fmt"TOTAL_MS {total}"
+}

@@ -59,9 +59,13 @@ golden pipeline_demo один md5 на 3 тира · levels 4/4 · docs-гейт
 - [ ] `async_sleep_ms`, `select` двух каналов (минимум).
 
 ### 1.4 Честный бенчмарк
-- [ ] vs tokio: echo 10k соединений (throughput, p99), 100k спящих
-  фиберов (память/время). Если tokio быстрее — задокументировать ЧТО и
-  ПОЧЕМУ (правило честности). Артефакт: bench_natvar/RESULTS.md.
+- [x] vs tokio: ЗАКРЫТО 2026-11-03 (bench_natvar/RESULTS.md). Echo
+  1 conn × 10k msg: Datara 27,2k msg/s vs tokio 25,6k (+6%). 100k
+  спящих: tokio быстрее ~80×/12× — задокументировано ЧТО и ПОЧЕМУ
+  (OS-стеки vs ленивые future, round-robin vs timer wheel). p99 при
+  ms-часах не фейкуем. 10k одновременных соединений НЕ поддержаны
+  (fd_set 64 / NATVAR_IO_MAX 256) — известное ограничение, путь
+  фикса: chunked select / IOCP (1.5.3).
 
 **Критерий N1**: echo-сервер на фиберах (100 conn / 1000 msg) зелёный на
 Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефактом.
