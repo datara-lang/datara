@@ -129,6 +129,15 @@ impl<'a> LlvmEmitter<'a> {
             return Ok(());
         }
 
+        // PLAN_V152 N2: record the value class for ALL method call results
+        // from the DMIR `ty` — before any dispatch path, so GetField on the
+        // result resolves through the ABI fallback (Outcome/Maybe/etc.).
+        if value_classes.get(dest).is_none() {
+            if let Some(rc) = class_type_name(ty) {
+                value_classes.insert(*dest, rc);
+            }
+        }
+
         // Map standard runtime names to datara_rt equivalents if needed.
         // A USER function with the same name always wins: the package
         // consumer's own `fn abs(Int) -> Int` was hijacked to the double
@@ -549,6 +558,18 @@ impl<'a> LlvmEmitter<'a> {
         address_taken: &HashSet<String>,
         out: &mut String,
     ) -> Result<(), String> {
+        // PLAN_V152 N2: record the value class from the DMIR `ty` for ALL
+        // method call results — before any dispatch logic — so that GetField
+        // on the result resolves through the ABI fallback (Outcome/Maybe).
+        if std::env::var("DATARA_VC_TRACE").is_ok() {
+            eprintln!("[vc-trace] method_call dest={} ty={} class={:?} existing={:?}",
+                dest.0, ty, class_type_name(ty), value_classes.get(dest));
+        }
+        if value_classes.get(dest).is_none() {
+            if let Some(rc) = class_type_name(ty) {
+                value_classes.insert(*dest, rc);
+            }
+        }
         // Numeric conversion intrinsics (Gate 7 explicit casts):
         // a single LLVM conversion instruction, no runtime call.
         if (method == "to_float" || method == "to_int") && args.is_empty() {
@@ -795,6 +816,14 @@ impl<'a> LlvmEmitter<'a> {
         if let Some(rf) = module.functions.get(&actual_func)
             && let Some(rc) = class_type_name(&rf.return_type)
         {
+            value_classes.insert(*dest, rc);
+        } else if let Some(rc) = class_type_name(ty) {
+            // PLAN_V152 N2: for runtime builtins (List.get etc.) not in
+            // module.functions, the DMIR `ty` carries the element class —
+            // record it so GetField resolves via the ABI fallback.
+            if std::env::var("DATARA_VC_TRACE").is_ok() {
+                eprintln!("[vc-trace] method_call dest={} ty={} class={}", dest.0, ty, rc);
+            }
             value_classes.insert(*dest, rc);
         }
 

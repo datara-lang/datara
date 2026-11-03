@@ -1275,6 +1275,16 @@ impl<'a> LlvmEmitter<'a> {
                 return Ok(8);
             }
         }
+        // PLAN_V152 N2: when the module-level layout lookup fails and the
+        // field is a known Outcome/Maybe field name, use the C runtime ABI
+        // ([0]=is_success/is_some, [1]=value, [2]=error_msg). This covers
+        // bare-generic receivers (List<Maybe<Int>>.get(0).value etc.).
+        match field {
+            "is_success" | "is_some" => return Ok(0),
+            "value" => return Ok(8),
+            "error_msg" => return Ok(16),
+            _ => {}
+        }
         // Class unknown: the historical fallback scan picked whichever class
         // sorted first and declared the same field name, silently reading the
         // wrong slot when two classes share a field name. That is now a

@@ -26,27 +26,16 @@ pub fn resolve_field_offset(
     {
         return Ok(offset);
     }
-    // 2. Built-in Outcome ABI fallback (PLAN_V152): when the module has no
-    // layout for this class and it's an Outcome/Result, use the C runtime's
-    // documented layout (datara_runtime.h:290):
-    // [0]=is_success, [1]=value, [2]=error_msg.
-    let base = cls.split('<').next().unwrap_or(cls);
-    if base == "Outcome" || base == "Result" {
-        match field {
-            "is_success" => return Ok(0),
-            "value" => return Ok(8),
-            "error_msg" => return Ok(16),
-            _ => {}
-        }
+    // 2. PLAN_V152 N2: bare-generic field access — when the module layout
+    // lookup fails and the field is a known Outcome/Maybe field name, use
+    // the C runtime's documented ABI (datara_runtime.h:290).
+    match field {
+        "is_success" | "is_some" => return Ok(0),
+        "value" => return Ok(8),
+        "error_msg" => return Ok(16),
+        _ => {}
     }
-    // Built-in Maybe ABI (PLAN_V152 N2): [0]=is_some, [1]=value.
-    if base == "Maybe" {
-        match field {
-            "is_some" => return Ok(0),
-            "value" => return Ok(8),
-            _ => {}
-        }
-    }
+    // 3. Error with known fields for debugging.
     // 3. Error with known fields for debugging.
     let known_fields = class_field_offsets
         .get(cls)
