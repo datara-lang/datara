@@ -1,0 +1,13 @@
+use stdlib.testing.testing_new
+use stdlib.testing.test_report
+
+fn main() {
+    val t = testing_new()
+    t.assert_eq_int(2 + 2, 4, "arith")
+    t.assert_true(1 < 2, "lt")
+    t.assert_false(1 > 2, "gt_false")
+    t.assert_eq_str("a", "a", "str_eq")
+    t.assert_eq_int(1, 2, "intentional_fail")
+    val fails = test_report(t)
+    out int_to_str(fails)
+}

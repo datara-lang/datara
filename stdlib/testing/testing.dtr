@@ -1,0 +1,65 @@
+//! stdlib.testing — first-class test framework (PLAN_V152 N3).
+//! assert_* methods print FAIL lines and track pass/fail counts;
+//! `test_report()` prints the summary and returns the failure count.
+
+struct Tester {
+    pass_count: Int
+    fail_count: Int
+}
+
+behavior Tester {
+    assert_true(cond: Bool, label: Str) / IO {
+        if cond {
+            this.pass_count = this.pass_count + 1
+        } else {
+            this.fail_count = this.fail_count + 1
+            out fmt"FAIL: {label} (expected true)"
+        }
+    }
+
+    assert_false(cond: Bool, label: Str) / IO {
+        if !cond {
+            this.pass_count = this.pass_count + 1
+        } else {
+            this.fail_count = this.fail_count + 1
+            out fmt"FAIL: {label} (expected false)"
+        }
+    }
+
+    assert_eq_int(actual: Int, expected: Int, label: Str) / IO {
+        if actual == expected {
+            this.pass_count = this.pass_count + 1
+        } else {
+            this.fail_count = this.fail_count + 1
+            out fmt"FAIL: {label} (expected {expected}, got {actual})"
+        }
+    }
+
+    assert_eq_str(actual: Str, expected: Str, label: Str) / IO {
+        if actual == expected {
+            this.pass_count = this.pass_count + 1
+        } else {
+            this.fail_count = this.fail_count + 1
+            out fmt"FAIL: {label} (expected '{expected}', got '{actual}')"
+        }
+    }
+
+    count_pass() -> Int {
+        return this.pass_count
+    }
+
+    count_fail() -> Int {
+        return this.fail_count
+    }
+}
+
+fn testing_new() -> Tester {
+    return Tester { pass_count: 0, fail_count: 0 }
+}
+
+fn test_report(t: Tester) -> Int / IO {
+    val n_pass = t.count_pass()
+    val n_fail = t.count_fail()
+    out fmt"test: {n_pass} passed, {n_fail} failed"
+    return n_fail
+}

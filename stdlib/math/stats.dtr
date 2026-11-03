@@ -1,0 +1,88 @@
+//! stdlib.math.stats — statistics on List<Float> (PLAN_V152 N3).
+//! mean, median, stddev (population), min, max.
+
+fn stats_mean(data: List<Float>) -> Float {
+    val n = data.len()
+    if n == 0 { return 0.0 }
+    mut sum = 0.0
+    mut i = 0
+    while i < n {
+        sum = sum + data.get(i)
+        i = i + 1
+    }
+    val nf = n as Float
+    require nf != 0.0
+    return sum * (1.0 / nf)
+}
+
+fn stats_median(data: List<Float>) -> Float {
+    val n = data.len()
+    if n == 0 { return 0.0 }
+    mut sorted = []
+    mut i = 0
+    while i < n {
+        sorted = sorted.push(data.get(i))
+        i = i + 1
+    }
+    mut j = 1
+    while j < n {
+        val key = sorted.get(j)
+        mut k = j - 1
+        while k >= 0 {
+            if sorted.get(k) <= key { break }
+            sorted = sorted.set(k + 1, sorted.get(k))
+            k = k - 1
+        }
+        sorted = sorted.set(k + 1, key)
+        j = j + 1
+    }
+    if n >> 1 << 1 != n {
+        return sorted.get(n >> 1)
+    }
+    val a = sorted.get((n >> 1) - 1)
+    val b = sorted.get(n >> 1)
+    return (a + b) * 0.5
+}
+
+fn stats_stddev(data: List<Float>) -> Float {
+    val n = data.len()
+    if n == 0 { return 0.0 }
+    val mean = stats_mean(data)
+    mut sq_sum = 0.0
+    mut i = 0
+    while i < n {
+        val d = data.get(i) - mean
+        sq_sum = sq_sum + d * d
+        i = i + 1
+    }
+    val nf = n as Float
+    require nf != 0.0
+    val var_val = sq_sum * (1.0 / nf)
+    return math_pow(var_val, 0.5)
+}
+
+fn stats_min(data: List<Float>) -> Float {
+    val n = data.len()
+    if n == 0 { return 0.0 }
+    mut m = data.get(0)
+    mut i = 1
+    while i < n {
+        val v = data.get(i)
+        if v < m { m = v }
+        i = i + 1
+    }
+    return m
+}
+
+fn stats_max(data: List<Float>) -> Float {
+    val n = data.len()
+    if n == 0 { return 0.0 }
+    mut m = data.get(0)
+    mut i = 1
+    while i < n {
+        val v = data.get(i)
+        if v > m { m = v }
+        i = i + 1
+    }
+    return m
+}

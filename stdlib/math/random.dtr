@@ -1,0 +1,40 @@
+//! stdlib.math.random — xorshift64* PRNG with explicit seed (PLAN_V152 N3).
+//! Deterministic: same seed → same sequence. No hidden global state.
+
+// Module-level state
+mut g_rand_state: Int = 0
+
+fn random_seed(seed: Int) {
+    if seed == 0 {
+        g_rand_state = 0x9E3779B97F4A7C15
+    } else {
+        g_rand_state = seed
+    }
+}
+
+fn random_next() -> Int {
+    // xorshift64*
+    mut x = g_rand_state
+    x = x ^ (x << 12)
+    x = x ^ (x >> 25)
+    x = x ^ (x << 27)
+    g_rand_state = x
+    return x * 0x2545F4914F6CDD1D
+}
+
+// Returns a Float in [0.0, 1.0)
+fn random_float() -> Float {
+    val r = random_next()
+    if r < 0 { return random_float() }
+    return (r >> 11) as Float / 9007199254740992.0
+}
+
+// Returns an Int in [lo, hi] inclusive
+fn random_range(lo: Int, hi: Int) -> Int {
+    if hi <= lo { return lo }
+    val r = random_next()
+    if r < 0 { return random_range(lo, hi) }
+    val span = hi - lo + 1
+    require span != 0
+    return lo + (r % span)
+}

@@ -1,0 +1,51 @@
+//! stdlib.io.csv — CSV parser/writer (PLAN_V152 N3).
+//! parse_csv_row: splits a line by commas into List<Str>.
+//! csv_row: joins List<Str> with commas.
+//! All values are plain Str — no type inference (caller decides).
+
+fn parse_csv_row(line: Str) -> List<Str> {
+    val n = str_len(line)
+    mut fields = []
+    mut field = ""
+    mut i = 0
+    while i < n {
+        val ch = str_scalar_at_cp(line, i)
+        if ch == "," {
+            fields = fields.push(field)
+            field = ""
+        } else {
+            field = field + ch
+        }
+        i = i + 1
+    }
+    fields = fields.push(field)
+    return fields
+}
+
+fn csv_row(fields: List<Str>) -> Str {
+    val n = fields.len()
+    if n == 0 { return "" }
+    mut acc = fields.get(0)
+    mut i = 1
+    while i < n {
+        acc = acc + "," + fields.get(i)
+        i = i + 1
+    }
+    return acc
+}
+
+// Split a multi-line CSV body into rows
+fn parse_csv(body: Str) -> List<List<Str>> {
+    val lines = str_split(body, "\n")
+    mut rows = []
+    val n = lines.len()
+    mut i = 0
+    while i < n {
+        val line = lines.get(i)
+        if str_len(line) > 0 {
+            rows = rows.push(parse_csv_row(line))
+        }
+        i = i + 1
+    }
+    return rows
+}
