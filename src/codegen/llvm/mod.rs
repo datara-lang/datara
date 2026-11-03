@@ -1249,6 +1249,19 @@ impl<'a> LlvmEmitter<'a> {
                     });
             }
         }
+        // Built-in Outcome ABI (PLAN_V152): [0]=is_success, [1]=value,
+        // [2]=error_msg. This layout is the C runtime's documented contract
+        // (datara_runtime.h:290). When the class is an Outcome (or Result —
+        // the checker's alias) and no module-level layout was found, use the
+        // built-in offsets.
+        let base_cls = class.unwrap_or("");
+        let stripped = base_cls.split('<').next().unwrap_or("");
+        if stripped == "Outcome" || stripped == "Result" || base_cls.starts_with("Outcome") || base_cls.starts_with("Result") {
+            let sorted_fields = ["error_msg", "is_success", "value"];
+            if let Some(pos) = sorted_fields.iter().position(|f| *f == field) {
+                return Ok(pos * 8);
+            }
+        }
         // Class unknown: the historical fallback scan picked whichever class
         // sorted first and declared the same field name, silently reading the
         // wrong slot when two classes share a field name. That is now a

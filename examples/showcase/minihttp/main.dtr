@@ -1,0 +1,58 @@
+//! minihttp — HTTP server on fibers (PLAN_V152 N5, requires N1.1 IO poller).
+//! Listens on localhost:8080, accepts a connection, reads a request via
+//! fiber_net_recv (parking the fiber until data arrives), routes to a
+//! handler, sends a response. Single-connection demo — the fiber scheduler
+//! handles the concurrency.
+
+fn main() {
+    out "MINIHTTP_START"
+    unsafe(justification: "minihttp demo: local socket server") {
+        val listener = socket_create(1)
+        if listener < 0 {
+            out "LISTENER_FAIL"
+            return
+        }
+        val bound = socket_bind(listener, "127.0.0.1", 8080)
+        if bound != 0 {
+            out "BIND_FAIL"
+            socket_close(listener)
+            return
+        }
+        val listened = socket_listen(listener, 4)
+        if listened != 0 {
+            out "LISTEN_FAIL"
+            socket_close(listener)
+            return
+        }
+        out "MINIHTTP_LISTENING"
+        // Accept a connection (blocking on the main thread is OK for the
+        // single-connection demo; in production, accept would be fiber-aware)
+        val conn = socket_accept(listener)
+        if conn < 0 {
+            out "ACCEPT_FAIL"
+            socket_close(listener)
+            return
+        }
+        // Read the HTTP request (fiber_net_recv parks until data arrives)
+        val req = fiber_net_recv(conn, 4096, 5000)
+        if req.is_success {
+            // Route: simple path check
+            val is_root = str_contains(req.value, "GET / ")
+            if is_root {
+                val body = "<html><body><h1>Hello from Datara minihttp!</h1></body></html>"
+                val resp = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 60\r\n\r\n" + body
+                socket_send(conn, resp)
+                out "MINIHTTP_RESPONDED"
+            } else {
+                val resp = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"
+                socket_send(conn, resp)
+                out "MINIHTTP_404"
+            }
+        } else {
+            out "MINIHTTP_RECV_TIMEOUT"
+        }
+        socket_close(conn)
+        socket_close(listener)
+    }
+    out "MINIHTTP_DONE"
+}

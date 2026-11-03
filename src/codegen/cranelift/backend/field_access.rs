@@ -18,6 +18,14 @@ pub fn resolve_field_offset(
         .split('_')
         .next()
         .unwrap_or(cls);
+    // Built-in Outcome ABI (PLAN_V152): [0]=error_msg, [1]=is_success,
+    // [2]=value — alphabetical, matching the lowering's sorted convention.
+    let base = cls.split('<').next().unwrap_or(cls);
+    if base == "Outcome" || base == "Result" {
+        if field == "is_success" { return Ok(8); }
+        if field == "value" { return Ok(16); }
+        if field == "error_msg" { return Ok(0); }
+    }
     class_field_offsets
         .get(cls)
         .or_else(|| class_field_offsets.get(base_c))
