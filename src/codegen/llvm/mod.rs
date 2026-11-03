@@ -1256,9 +1256,13 @@ impl<'a> LlvmEmitter<'a> {
         // built-in offsets.
         let base_cls = class.unwrap_or("");
         let stripped = base_cls.split('<').next().unwrap_or("");
-        if stripped == "Outcome" || stripped == "Result" || base_cls.starts_with("Outcome") || base_cls.starts_with("Result") {
-            let sorted_fields = ["error_msg", "is_success", "value"];
-            if let Some(pos) = sorted_fields.iter().position(|f| *f == field) {
+        if stripped == "Outcome"
+            || stripped == "Result"
+            || base_cls.starts_with("Outcome")
+            || base_cls.starts_with("Result")
+        {
+            let abi_fields = ["is_success", "value", "error_msg"];
+            if let Some(pos) = abi_fields.iter().position(|f| *f == field) {
                 return Ok(pos * 8);
             }
         }

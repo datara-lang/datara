@@ -312,8 +312,7 @@ impl<'a> TypeChecker<'a> {
                                 // from a prior push_back/add call.
                                 if let DataraType::TypeParam(_) = args[idx] {
                                     if let Expr::Identifier(var_name, _) = &**object {
-                                        if let Some(concrete) =
-                                            self.var_element_types.get(var_name)
+                                        if let Some(concrete) = self.var_element_types.get(var_name)
                                         {
                                             return concrete.clone();
                                         }

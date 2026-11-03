@@ -18,33 +18,41 @@ pub fn resolve_field_offset(
         .split('_')
         .next()
         .unwrap_or(cls);
-    // Built-in Outcome ABI (PLAN_V152): [0]=error_msg, [1]=is_success,
-    // [2]=value — alphabetical, matching the lowering's sorted convention.
-    let base = cls.split('<').next().unwrap_or(cls);
-    if base == "Outcome" || base == "Result" {
-        if field == "is_success" { return Ok(8); }
-        if field == "value" { return Ok(16); }
-        if field == "error_msg" { return Ok(0); }
-    }
-    class_field_offsets
+    // 1. Try module-level layout first.
+    if let Some(offset) = class_field_offsets
         .get(cls)
         .or_else(|| class_field_offsets.get(base_c))
         .and_then(|m| m.get(field).copied())
-        .ok_or_else(|| {
-            let known_fields = class_field_offsets
-                .get(cls)
-                .or_else(|| class_field_offsets.get(base_c))
-                .map(|m| {
-                    let mut names: Vec<&str> = m.keys().map(|s| s.as_str()).collect();
-                    names.sort();
-                    names.join(", ")
-                })
-                .unwrap_or_else(|| "<class has no registered layout>".to_string());
-            format!(
-                "Code generation failed: [E0944] field '{}' does not exist in the layout of class '{}' in function '{}': refusing cross-class offset fallback (known fields: {})",
-                field, cls, fn_name, known_fields
-            )
+    {
+        return Ok(offset);
+    }
+    // 2. Built-in Outcome ABI fallback (PLAN_V152): when the module has no
+    // layout for this class and it's an Outcome/Result, use the C runtime's
+    // documented layout (datara_runtime.h:290):
+    // [0]=is_success, [1]=value, [2]=error_msg.
+    let base = cls.split('<').next().unwrap_or(cls);
+    if base == "Outcome" || base == "Result" {
+        match field {
+            "is_success" => return Ok(0),
+            "value" => return Ok(8),
+            "error_msg" => return Ok(16),
+            _ => {}
+        }
+    }
+    // 3. Error with known fields for debugging.
+    let known_fields = class_field_offsets
+        .get(cls)
+        .or_else(|| class_field_offsets.get(base_c))
+        .map(|m| {
+            let mut names: Vec<&str> = m.keys().map(|s| s.as_str()).collect();
+            names.sort();
+            names.join(", ")
         })
+        .unwrap_or_else(|| "<class has no registered layout>".to_string());
+    Err(format!(
+        "Code generation failed: [E0944] field '{}' does not exist in the layout of class '{}' in function '{}': refusing cross-class offset fallback (known fields: {})",
+        field, cls, fn_name, known_fields
+    ))
 }
 
 pub fn get_field_type_size(fty: &str) -> u32 {

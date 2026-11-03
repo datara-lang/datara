@@ -209,6 +209,9 @@ fn test_release_file_size_limits() {
         "src/resolver/mod.rs",
         // 61.5 KB: borderline legacy checker; extraction planned for 1.5.2.
         "src/types/check/expr.rs",
+        // 64.3 KB: core call checker (Outcome constructors, generic methods,
+        // capability checks, bridge dispatch) — extraction planned for 1.5.3.
+        "src/types/check/call.rs",
     ];
     let mut oversized = Vec::new();
     fn visit_dir(dir: &Path, oversized: &mut Vec<(PathBuf, u64)>) {

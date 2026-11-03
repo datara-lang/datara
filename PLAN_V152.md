@@ -71,13 +71,13 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
 Каждая дыра — известный repro из сессии 1.5.1:
 - [ ] Bare-generic body field access: `m.is_some` на `Maybe<T>` внутри
   generic-функции → разрешить ЧТЕНИЕ полей (запись — с проверкой).
-- [~] Method-return `T`: подстановка параметра класса при вызове метода
-  (`pop_back()` на `Deque<Int>` → Int, не T). ИНФРАСТРУКТУРА добавлена
-  (a91beb2): var_element_types записывается при push_back/push/add/insert,
-  читается при TypeParam-возврате из GenericInstance. ОСТАЛОСЬ:
-  deque_new() возвращает Class("Deque<T>") а НЕ GenericInstance —
-  flow-sensitive generic inference (bind T при push_back(42) через
-  обновление symbol_types) — главная оставшаяся задача чекера.
+- [x] Method-return `T` — ЗАКРЫТО 2026-11-03: flow-sensitive generic
+  inference работает. При push_back(42) на Deque<T> (Class или
+  GenericInstance с TypeParam) чекер записывает
+  symbol_types[var] = GenericInstance{name, args=[Int]} и
+  var_element_types[var] = Int. При pop_back() TypeParam резолвится
+  через существующую GenericInstance подстановку. Регресс:
+  test_generic_inference (deque_new + push_back(42) + pop_back → 42).
 - [ ] Явные generic-аргументы на вызове: `deque_new<Int>()` — подстановить
   в generic-таблицу на call-site.
 - [ ] Статический ctor в цепочке: `Outcome.ok(1).is_success` — MemberAccess

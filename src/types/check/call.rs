@@ -28,16 +28,50 @@ impl<'a> TypeChecker<'a> {
         // returning T resolves to the concrete type.
         if let Expr::MemberAccess { object, member, .. } = &callee {
             if let Expr::Identifier(var_name, _) = object.as_ref() {
-                if matches!(member.as_str(), "push_back" | "push" | "add" | "insert" | "append") {
-                    if let Some(DataraType::GenericInstance { args, .. }) =
-                        self.symbol_types.get(var_name.as_str())
-                    {
-                        if args.iter().any(|a| matches!(a, DataraType::TypeParam(_))) {
-                            if let Some(concrete) = arg_types.first() {
-                                if !matches!(concrete, DataraType::TypeParam(_)) {
-                                    self.var_element_types
-                                        .insert(var_name.clone(), concrete.clone());
-                                }
+                // Only bind for LOCAL VARIABLES (lowercase first char) —
+                // not for class names like `Outcome.ok(...)` which are
+                // static constructors, not method calls on instances.
+                let is_local = var_name
+                    .chars()
+                    .next()
+                    .map(|c| c.is_lowercase())
+                    .unwrap_or(false);
+                if is_local
+                    && matches!(
+                        member.as_str(),
+                        "push_back" | "push" | "add" | "insert" | "append"
+                    )
+                {
+                    let stored = self.symbol_types.get(var_name.as_str());
+                    let has_unbound = match stored {
+                        Some(DataraType::GenericInstance { args, .. }) => {
+                            args.iter().any(|a| matches!(a, DataraType::TypeParam(_)))
+                        }
+                        Some(DataraType::Class(c)) => c.contains('<') && c.contains("T"),
+                        _ => false,
+                    };
+                    if has_unbound {
+                        if let Some(concrete) = arg_types.first() {
+                            if !matches!(concrete, DataraType::TypeParam(_)) {
+                                self.var_element_types
+                                    .insert(var_name.clone(), concrete.clone());
+                                // Also update symbol_types so the field-access
+                                // lookup sees the concrete type.
+                                let base = var_name.as_str();
+                                let cls = match stored {
+                                    Some(DataraType::Class(c)) => {
+                                        c.split('<').next().unwrap_or(c).to_string()
+                                    }
+                                    Some(DataraType::GenericInstance { name, .. }) => name.clone(),
+                                    _ => "Deque".to_string(),
+                                };
+                                self.symbol_types.insert(
+                                    base.to_string(),
+                                    DataraType::GenericInstance {
+                                        name: cls,
+                                        args: vec![concrete.clone()],
+                                    },
+                                );
                             }
                         }
                     }
