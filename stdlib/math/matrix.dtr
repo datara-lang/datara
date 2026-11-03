@@ -1,0 +1,86 @@
+//! stdlib.math.matrix — 2D matrix operations on List<List<Float>>.
+//! Operations: matmul, transpose, identity, determinant (2x2, 3x3).
+//! All functions return new matrices (no in-place mutation).
+
+//! mat2x2_mul(a, b) -> List<List<Float>> — 2x2 matrix multiply
+fn mat2x2_mul(a: List<List<Float>>, b: List<List<Float>>) -> List<List<Float>> {
+    val a00 = a.get(0).get(0)
+    val a01 = a.get(0).get(1)
+    val a10 = a.get(1).get(0)
+    val a11 = a.get(1).get(1)
+    val b00 = b.get(0).get(0)
+    val b01 = b.get(0).get(1)
+    val b10 = b.get(1).get(0)
+    val b11 = b.get(1).get(1)
+    val c00 = a00 * b00 + a01 * b10
+    val c01 = a00 * b01 + a01 * b11
+    val c10 = a10 * b00 + a11 * b10
+    val c11 = a10 * b01 + a11 * b11
+    return [[c00, c01], [c10, c11]]
+}
+
+//! mat2x2_det(a) -> Float — 2x2 determinant
+fn mat2x2_det(a: List<List<Float>>) -> Float {
+    val a00 = a.get(0).get(0)
+    val a01 = a.get(0).get(1)
+    val a10 = a.get(1).get(0)
+    val a11 = a.get(1).get(1)
+    return a00 * a11 - a01 * a10
+}
+
+//! mat3x3_det(a) -> Float — 3x3 determinant (cofactor expansion)
+fn mat3x3_det(a: List<List<Float>>) -> Float {
+    val a00 = a.get(0).get(0)
+    val a01 = a.get(0).get(1)
+    val a02 = a.get(0).get(2)
+    val a10 = a.get(1).get(0)
+    val a11 = a.get(1).get(1)
+    val a12 = a.get(1).get(2)
+    val a20 = a.get(2).get(0)
+    val a21 = a.get(2).get(1)
+    val a22 = a.get(2).get(2)
+    val det00 = a11 * a22 - a12 * a21
+    val det01 = a10 * a22 - a12 * a20
+    val det02 = a10 * a21 - a11 * a20
+    return a00 * det00 - a01 * det01 + a02 * det02
+}
+
+//! mat_transpose(a) -> List<List<Float>> — 2x2 transpose
+fn mat_transpose(a: List<List<Float>>) -> List<List<Float>> {
+    val rows = a.len()
+    val cols = a.get(0).len()
+    mut result = []
+    mut c = 0
+    while c < cols {
+        mut row = []
+        mut r = 0
+        while r < rows {
+            row = row.push(a.get(r).get(c))
+            r = r + 1
+        }
+        result = result.push(row)
+        c = c + 1
+    }
+    return result
+}
+
+//! mat_identity(n) -> List<List<Float>> — n×n identity matrix
+fn mat_identity(n: Int) -> List<List<Float>> {
+    mut result = []
+    mut i = 0
+    while i < n {
+        mut row = []
+        mut j = 0
+        while j < n {
+            if i == j {
+                row = row.push(1.0)
+            } else {
+                row = row.push(0.0)
+            }
+            j = j + 1
+        }
+        result = result.push(row)
+        i = i + 1
+    }
+    return result
+}
