@@ -36,14 +36,38 @@ fn read_manual() -> String {
 fn manual_documents_1_5_features() {
     let manual = read_manual();
     for (feature, needle) in [
+        // §1-3: core language
+        ("Intro section", "## 1. Introduction & Architectural Philosophy"),
+        ("Variable triad", "## 3. The Variable Triad: Deterministic State"),
+        // §4-4.bis: types + TSU
+        ("Type system", "## 4. Type System & Primitive Representations"),
         ("TSU section", "## 4.bis Dynamic Values & Type-Set Unboxing"),
         ("`is` narrowing", "if x is Int"),
         ("E-ANY-001", "E-ANY-001"),
+        // §5-7: structures + control flow
+        ("DOP section", "## 5. Data-Oriented Programming"),
+        ("Control flow", "## 7. Control Flow"),
+        // §8-9: ownership + effects
+        ("Ownership", "## 8. Affine Ownership"),
+        ("Effects", "## 9. The Algebraic Effect Lattice"),
+        // §10-11: patterns + errors
+        ("Pattern matching", "## 10. Pattern Matching"),
+        ("Outcome section", "## 11. Deterministic Error Handling"),
+        ("`or` operator", "or 8080"),
+        // §12-12.bis: concurrency
+        ("Multithreading", "## 12. High-Performance Multithreading"),
         ("Fibers section", "## 12.bis Fibers & NatVar"),
         ("fiber_spawn", "fiber_spawn(worker, 21, 64)"),
         ("MT scheduler", "fiber_mt_start(n)"),
+        ("Channels", "fiber_chan_create"),
+        // §13-15: stdlib + FFI + internals
+        ("Stdlib section", "## 13. Standard Library Specification"),
+        ("FFI section", "## 14. Foreign Function Interface"),
+        // §16-17: toolchain + diagnostics
+        ("CLI section", "## 16. The `forgen` Toolchain Command Line Manual"),
         ("migrate CLI", "forgen migrate 1.4 1.5"),
         ("inspect CLI", "forgen inspect <symbol|dmir|clif|codegen>"),
+        ("Diagnostics", "## 17. Diagnostics & Error Index"),
     ] {
         assert!(
             manual.contains(needle),
