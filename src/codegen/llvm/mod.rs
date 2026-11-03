@@ -1266,6 +1266,15 @@ impl<'a> LlvmEmitter<'a> {
                 return Ok(pos * 8);
             }
         }
+        // Built-in Maybe ABI (PLAN_V152 N2): [0]=is_some, [1]=value.
+        if stripped == "Maybe" || base_cls.starts_with("Maybe") {
+            if field == "is_some" {
+                return Ok(0);
+            }
+            if field == "value" {
+                return Ok(8);
+            }
+        }
         // Class unknown: the historical fallback scan picked whichever class
         // sorted first and declared the same field name, silently reading the
         // wrong slot when two classes share a field name. That is now a

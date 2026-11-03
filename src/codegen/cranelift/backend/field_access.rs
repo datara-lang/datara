@@ -39,6 +39,14 @@ pub fn resolve_field_offset(
             _ => {}
         }
     }
+    // Built-in Maybe ABI (PLAN_V152 N2): [0]=is_some, [1]=value.
+    if base == "Maybe" {
+        match field {
+            "is_some" => return Ok(0),
+            "value" => return Ok(8),
+            _ => {}
+        }
+    }
     // 3. Error with known fields for debugging.
     let known_fields = class_field_offsets
         .get(cls)
