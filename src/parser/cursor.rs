@@ -92,6 +92,11 @@ impl<'a> Parser<'a> {
         self.peek().token_type == TokenType::Eof
     }
 
+    pub(crate) fn peek_ahead(&self, offset: usize) -> &Token {
+        let idx = (self.current + offset).min(self.tokens.len() - 1);
+        &self.tokens[idx]
+    }
+
     pub(crate) fn peek(&self) -> &Token {
         if self.current < self.tokens.len() {
             &self.tokens[self.current]

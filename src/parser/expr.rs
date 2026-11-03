@@ -340,6 +340,47 @@ impl<'a> Parser<'a> {
         let mut expr = self.parse_primary()?;
 
         loop {
+            // PLAN_V152 N2: generic-args at call site — `deque_new<Int>()`.
+            // When a lowercase identifier is followed by `< Capitalized > (`,
+            // skip the type args as decoration (the actual type is inferred
+            // from the call args by the checker). This only fires when the
+            // token after `<` is a Capitalized identifier — `a < b` with a
+            // lowercase b is still parsed as a comparison.
+            if self.check(&TokenType::Less) {
+                if let Expr::Identifier(name, _) = &expr {
+                    let c0 = name
+                        .chars()
+                        .next()
+                        .map(|c| c.is_lowercase())
+                        .unwrap_or(false);
+                    if c0 {
+                        if let TokenType::Identifier(next_name) = &self.peek_ahead(1).token_type {
+                            let next_cap = next_name
+                                .chars()
+                                .next()
+                                .map(|c| c.is_uppercase())
+                                .unwrap_or(false);
+                            if next_cap {
+                                // Consume `<`, parse type args, expect `>`
+                                self.advance(); // consume `<`
+                                while !self.check(&TokenType::Greater)
+                                    && !self.check(&TokenType::Shr)
+                                    && !self.is_at_end()
+                                {
+                                    self.advance();
+                                }
+                                if self.check(&TokenType::Greater) {
+                                    self.advance(); // consume `>`
+                                    // Now the postfix loop will see `(` for the call
+                                    continue;
+                                }
+                                // No `>` found — not a generic call, backtrack not
+                                // possible in this parser; treat as consumed error.
+                            }
+                        }
+                    }
+                }
+            }
             if self.match_token(&TokenType::LParen) {
                 // Call
                 let mut args = Vec::new();
