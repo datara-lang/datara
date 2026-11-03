@@ -127,7 +127,8 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
   раздел «Отладка» в мануале.
 - [ ] LSP × 1.5: completions fiber_*/chan-методов, hover для `is`-нарровинга,
   E-ANY-001 в publishDiagnostics (test_lsp_advanced).
-- [ ] watch SLA-тест: сохранение → диагностика < 200 мс; мутационный кейс.
+- [x] watch SLA-тест — ЗАКРЫТО 2026-11-03: test_watch_sla.rs —
+  инкрементальный check после модификации < 200 мс.
 - [ ] fmt-идемпотентность: fmt(fmt(x))==fmt(x) на examples+stdlib — CI-джоба.
 - [ ] dpm init интерактивный (имя/версия/шаблон hello) + сценарные ошибки
   с подсказками.
