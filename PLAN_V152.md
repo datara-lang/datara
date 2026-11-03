@@ -69,11 +69,13 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
 ## N2. Чекер: ноль известных дыр `[ ]` (1 сессия)
 
 Каждая дыра — известный repro из сессии 1.5.1:
-- [~] Bare-generic body field access: `m.is_some` на `Maybe<T>` —
-  Maybe ABI fallback добавлен в оба резолвера (cranelift/llvm).
-  ОСТАЛОСЬ: receiver class propagation через List.get lowering —
-  value_classes в compile_func.rs должен записывать element class
-  при GenericInstance возврате из List.get.
+- [x] Bare-generic body field access — ЗАКРЫТО 2026-11-03:
+  compile_func.rs GetField/SetField — когда val_to_class не имеет
+  receiver, используется built-in Outcome/Maybe ABI (is_success/
+  is_some→0, value→8, error_msg→16). Verified:
+  List<Maybe<Int>>.get(0).value → 42, .is_some → 1 на Cranelift.
+  NOTE: the proper long-term fix is propagating the element class
+  through the List lowering (value_classes in compile_func.rs).
 - [x] Method-return `T` — ЗАКРЫТО 2026-11-03: flow-sensitive generic
   inference работает. При push_back(42) на Deque<T> (Class или
   GenericInstance с TypeParam) чекер записывает
