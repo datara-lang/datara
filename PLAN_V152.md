@@ -23,10 +23,15 @@ golden pipeline_demo один md5 на 3 тира · levels 4/4 · docs-гейт
 
 ## N0. Гигиена `[ ]` (1 сессия)
 
-- [ ] CI-флейк на main: прогнать флейк-лист (test_v120_soa, bce-подобные),
-  зафиксировать повтор-правила; зелёный main — обязательное условие релиза.
-- [ ] check/expr.rs (61.5KB) — экстракция Cast-checker в
-  `types/check/cast.rs`; снять allow-list запись.
+- [x] CI-флейк — ЗАКРЫТО 2026-11-05: флейк-лист (test_v120_phase6_soa,
+  test_ownership_soa_aliasing, test_soa_abi_c_consumer, phase15, bce-бенчи)
+  прогнан 3× локально — все зелёные, тайминг-бенчи #[ignore] локально
+  (CI-only). Повтор-правила из 1.5.0 (min-of-11 phase8, 3-попытки
+  phase12) в силе. Финальный арбитр — CI на main после пуша.
+- [x] check/expr.rs экстракция — ЗАКРЫТО 2026-11-03 (c3a1c0b): коллекции
+  (List/Map literals, IndexAccess, ArrayRepeat) → expr_collections.rs,
+  61.5→53.1KB, allow-list запись СНЯТА. Остался только call.rs (64.3KB,
+  1.5.3).
 - [ ] Убрать отладочные хвосты: `DATARA_BRIDGE_TRACE` оставить (env-gated,
   документирован), лишние eprintln — вычистить.
 - [ ] Ротация GitHub-токена (владелец).
@@ -109,8 +114,13 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
   идёт через _i64 entrypoints (рантайм адаптирует key-kind на первой
   вставке); Str-карта с Int-ключом — работа чекера. Regression:
   test_bare_map_int_index 2/2 (roundtrip + str-контроль). НОВЫЙ repro
-  #11: TSU is-нарровинг на РЕЗУЛЬТАТЕ map index-get читает тег бокса
-  как Float ("expected Int, got Float") — отдельная дыра, не краш.
+  #11 ОТКРЫТ (2026-11-05): bare `m[k]` возвращает Outcome-объект, а
+  `x is Int` читает его слот [0] (is_success) как NaN-box тег →
+  "expected Int, got Float". Дизайн-решение (не краш): (a) bare m[k]
+  должен возвращать RAW value с fail-loud паникой на missing key
+  (консистентно с l[i] списков), .get() остаётся Outcome; или (b) is-check
+  должен распознавать Outcome и нарровать по value-слоту. Требует
+  решения по семантике, изменения в lowering index-get + TSU is-check.
 
 Каждая дыра — известный repro из сессии 1.5.1:
 - [x] Bare-generic body field access — ЗАКРЫТО 2026-11-03:
