@@ -153,3 +153,40 @@ fn test_fmt_idempotence_property_randomized_variations() {
         assert_idempotence(&generated_source, &opts);
     }
 }
+
+/// PLAN_V152 N4: the formatter must be idempotent across the WHOLE stdlib
+/// surface (this is the CI job's engine — ci.yml runs the full test
+/// suite, so this test is the gate).
+#[test]
+fn test_fmt_idempotence_stdlib_corpus() {
+    let opts = FormatOptions::default();
+    let mut checked = 0;
+    fn visit(dir: &std::path::Path, opts: &FormatOptions, checked: &mut usize) {
+        let entries = match std::fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                visit(&path, opts, checked);
+            } else if path.extension().and_then(|s| s.to_str()) == Some("dtr") {
+                let src = match std::fs::read_to_string(&path) {
+                    Ok(s) => s,
+                    Err(_) => continue,
+                };
+                let (first, _) = format_source(&src, opts);
+                let (second, diffs) = format_source(&first, opts);
+                assert_eq!(
+                    first, second,
+                    "formatter not idempotent on {}: second-pass diffs {:?}",
+                    path.display(),
+                    diffs.len()
+                );
+                *checked += 1;
+            }
+        }
+    }
+    visit(std::path::Path::new("stdlib"), &opts, &mut checked);
+    assert!(checked > 10, "stdlib corpus must be non-trivial, got {checked}");
+}

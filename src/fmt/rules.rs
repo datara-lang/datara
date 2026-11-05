@@ -224,6 +224,30 @@ pub fn format_operators_in_code(code: &str) -> String {
             continue;
         }
 
+        // Nested generic close `>>` (e.g. List<List<T>>): handle as ONE
+        // unit. Processing the two `>`s individually oscillated — pass 1
+        // produced `> >`, pass 2 collapsed it back (the stdlib corpus
+        // caught this: List<List<T>> in iter.dtr).
+        if ch == '>' && i + 1 < len && chars[i + 1] == '>' {
+            let prev_non_space = res.trim_end().chars().last();
+            let is_ident_prev =
+                prev_non_space.is_some_and(|p| p.is_alphanumeric() || p == '_');
+            if is_ident_prev && res.contains('<') {
+                while res.ends_with(' ') {
+                    res.pop();
+                }
+                res.push_str(">>");
+                i += 2;
+                // Keep postfix spacing sane for both generics and shifts.
+                if i < len
+                    && (chars[i].is_alphanumeric() || chars[i] == '_')
+                {
+                    res.push(' ');
+                }
+                continue;
+            }
+        }
+
         // Single comparison or generic bracket: < or >
         if ch == '<' || ch == '>' {
             let prev_non_space = res.trim_end().chars().last();

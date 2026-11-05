@@ -205,7 +205,12 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
   E-ANY-001 в publishDiagnostics (test_lsp_advanced).
 - [x] watch SLA-тест — ЗАКРЫТО 2026-11-03: test_watch_sla.rs —
   инкрементальный check после модификации < 200 мс.
-- [ ] fmt-идемпотентность: fmt(fmt(x))==fmt(x) на examples+stdlib — CI-джоба.
+- [x] fmt-идемпотентность — ЗАКРЫТО 2026-11-05: test_fmt_idempotence
+  расширен до ВСЕГО stdlib-корпуса (test_fmt_idempotence_stdlib_corpus —
+  форматтирует каждый .dtr дважды). Корпус СРАЗУ ПОЙМАЛ реальный баг:
+  осцилляция `List<List<T>>` ↔ `List<List<T > >` на вложенных генериках
+  — фикс: парная обработка `>>` в fmt/rules.rs. CI-гейт = cargo test в
+  ci.yml (сьют уже в него входит). 5/5 зелёные.
 - [ ] dpm init интерактивный (имя/версия/шаблон hello) + сценарные ошибки
   с подсказками.
 
