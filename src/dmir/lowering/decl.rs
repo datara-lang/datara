@@ -205,6 +205,25 @@ impl<'a> Lowering<'a> {
                 }
             }
             self.program_globals = globals;
+        } else {
+            // Const globals seed EVERY function's symbol table: a module
+            // function reading a const from a use'd module used to read its
+            // own (zeroed) per-function var slot — the main-prologue init
+            // only ever wrote main's slot (repro #10: module const = 0 at
+            // runtime). A const is immutable, so its (comptime-foldable)
+            // init value IS the value everywhere; seeding the entry block
+            // with the constant keeps every read exact. Mut globals keep
+            // the slot semantics (see repro #10b — cross-function mut
+            // globals still need the shared data-slot path).
+            let globals = std::mem::take(&mut self.program_globals);
+            for g in &globals {
+                if !g.is_mut {
+                    if let Some(init_val) = self.lower_expr(&g.init, &mut entry_id) {
+                        self.symbol_values.insert(g.name.clone(), init_val);
+                    }
+                }
+            }
+            self.program_globals = globals;
         }
 
         for req in &f.requires {

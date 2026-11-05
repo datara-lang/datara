@@ -1,0 +1,7 @@
+//! Repro fixture for tests/test_module_const_crossfn.rs (PLAN_V152 N2
+//! repro #10). NOT part of the stdlib surface.
+const SCALE: Int = 1000
+
+fn scaled(x: Int) -> Int {
+    return x * SCALE
+}

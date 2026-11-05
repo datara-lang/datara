@@ -84,7 +84,13 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
   остались); fallback в expr_call только при неизвестном классе.
   Regression: tests/test_repro_json_types_loop_get.rs 2/2. Полный
   cargo test зелёный; bench_json снова на настоящих методах.
-- [ ] Module `const` в use'd-модуле = 0 в рантайме (JERR_SCALE → 0).
+- [x] Module `const` в use'd-модуле = 0 — ЗАКРЫТО 2026-11-05 (root
+  cause через `inspect clif`: глобалы = per-function stack slots, init
+  писал только слот main; функция модуля читала свой нулевой слот).
+  Фикс: иммутабельные Int-консты фолдятся в ident-read
+  (const_global_values). Regression: test_module_const_crossfn 1/1
+  (5000/1000). ОТКРЫТ #10b: mut-глобалы между функциями всё ещё
+  изолированы (нужен общий data-slot путь).
 - [ ] Module-level `mut` в use'd-модуле изолируется per-function
   (мутации не переживают вызов).
 - [ ] Module-level `mut Str` глобал теряет значение (init ""→Int 0,

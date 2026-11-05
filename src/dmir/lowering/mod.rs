@@ -96,6 +96,13 @@ pub struct Lowering<'a> {
     pub enum_class_field_names: Vec<(String, Vec<String>)>,
     pub global_vars: HashMap<String, (String, bool)>,
     pub program_globals: Vec<GlobalDecl>,
+    /// Comptime-foldable const globals (name -> Int value). Const globals
+    /// have no cross-function storage on the Cranelift tier (globals lower
+    /// to per-function var slots; the main-prologue init only writes
+    /// main's slot), so a module function reading a use'd module's const
+    /// read a zeroed slot (repro #10). Immutable consts fold to their
+    /// init value at every identifier read instead.
+    pub const_global_values: HashMap<String, i64>,
     pub comptime_functions: HashMap<String, FunctionDecl>,
     pub comptime_evaluator: crate::comptime::ComptimeEvaluator,
     /// M4 link-phase symbol table: every function/method/specialization/
@@ -166,6 +173,7 @@ impl<'a> Lowering<'a> {
             lambda_captures: HashMap::with_capacity(16),
             loop_stack: Vec::new(),
             global_vars: HashMap::with_capacity(32),
+            const_global_values: HashMap::with_capacity(8),
             program_globals: Vec::new(),
             comptime_functions: HashMap::with_capacity(16),
             comptime_evaluator: crate::comptime::ComptimeEvaluator::new(),
@@ -289,6 +297,7 @@ impl<'a> Lowering<'a> {
         self.bridge_registry = crate::bridge_decl::BridgeRegistry::from_program(program);
         self.global_vars.clear();
         self.program_globals.clear();
+        self.const_global_values.clear();
         self.comptime_functions.clear();
 
         for decl in &program.declarations {
@@ -335,6 +344,22 @@ impl<'a> Lowering<'a> {
                 };
                 self.global_vars
                     .insert(g.name.clone(), (ty_str.clone(), g.is_mut));
+                // Fold immutable Int consts for cross-function reads (repro
+                // #10): without this a use'd module's const read from a
+                // module function hit a zeroed per-function slot.
+                if !g.is_mut {
+                    if let crate::ast::Expr::Literal(crate::ast::LiteralValue::Int(v), _) = &g.init
+                    {
+                        self.const_global_values.insert(g.name.clone(), *v);
+                    } else if let Ok(cv) = self
+                        .comptime_evaluator
+                        .eval_expr(&g.init, &mut crate::comptime::ComptimeScope::new())
+                    {
+                        if let Some(iv) = cv.as_int() {
+                            self.const_global_values.insert(g.name.clone(), iv);
+                        }
+                    }
+                }
                 self.program_globals.push(g.clone());
                 self.symbol_table
                     .define(&g.name, "global", Some(g.span.clone()));

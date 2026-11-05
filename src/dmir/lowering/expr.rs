@@ -56,6 +56,16 @@ impl<'a> Lowering<'a> {
                 Some(dest)
             }
             Expr::Identifier(name, _) => {
+                // Folded const globals (repro #10): a const has no
+                // cross-function storage, so reads must fold to the init
+                // value instead of loading a (possibly zeroed) slot.
+                if let Some(&cv) = self.const_global_values.get(name) {
+                    let dest = self.next_val();
+                    self.get_block_mut(*cur_block)
+                        .instructions
+                        .push(Inst::ConstInt { dest, value: cv });
+                    return Some(dest);
+                }
                 if self.symbol_values.contains_key(name) || self.global_vars.contains_key(name) {
                     let dest = self.next_val();
                     self.get_block_mut(*cur_block)
