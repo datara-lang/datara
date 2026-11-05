@@ -197,7 +197,11 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
 - [ ] **Debug-профиль**: `forgen build --debug` — DWARF-инфа проверяется
   тестом (test_dwarf_debug расширить: lldb/cdb подхватывает линии);
   раздел «Отладка» в мануале.
-- [ ] LSP × 1.5: completions fiber_*/chan-методов, hover для `is`-нарровинга,
+- [x] LSP × 1.5 — ЗАКРЫТО 2026-11-05: completions fiber_spawn/join/
+  sleep_ms/yield/run_until_done/net_recv + atomic_new/fetch_add/cas +
+  map_keys/map_values + json_validate (13 новых); hover'ы: fiber_*,
+  atomics, map-итерация, json_validate + `is`-нарровинг с E-ANY-001
+  подсказкой (нарровать через val-переменную). LSP-сьюты 7/7 зелёные.
   E-ANY-001 в publishDiagnostics (test_lsp_advanced).
 - [x] watch SLA-тест — ЗАКРЫТО 2026-11-03: test_watch_sla.rs —
   инкрементальный check после модификации < 200 мс.

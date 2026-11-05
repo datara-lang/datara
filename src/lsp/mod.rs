@@ -304,6 +304,21 @@ impl LspServer {
                         serde_json::json!({ "label": "Card", "kind": 7, "detail": "stdlib.ui.components (Elevated Card Widget)" }),
                         serde_json::json!({ "label": "Button", "kind": 7, "detail": "stdlib.ui.components (Interactive Button)" }),
                         serde_json::json!({ "label": "MetricCard", "kind": 7, "detail": "stdlib.ui.components (KPI Metric Card)" }),
+                        // PLAN_V152 N4: NatVar-3 fiber/atomic surface
+                        serde_json::json!({ "label": "fiber_spawn", "kind": 3, "detail": "fn fiber_spawn(f, arg[, stack_kb]) -> Int (handle)" }),
+                        serde_json::json!({ "label": "fiber_join", "kind": 3, "detail": "fn fiber_join(handle: Int) -> Int (exit code)" }),
+                        serde_json::json!({ "label": "fiber_sleep_ms", "kind": 3, "detail": "fn fiber_sleep_ms(ms: Int) (parks fiber on the timer wheel)" }),
+                        serde_json::json!({ "label": "fiber_yield", "kind": 3, "detail": "fn fiber_yield() (round-robin reschedule)" }),
+                        serde_json::json!({ "label": "fiber_run_until_done", "kind": 3, "detail": "fn fiber_run_until_done() -> Int (drains all fibers)" }),
+                        serde_json::json!({ "label": "fiber_net_recv", "kind": 3, "detail": "fn fiber_net_recv(sock: Int, max: Int, timeout_ms: Int) -> Outcome<Str> (parks on IO)" }),
+                        serde_json::json!({ "label": "atomic_new", "kind": 3, "detail": "fn atomic_new(init: Int) -> Int (MT-shared counter handle)" }),
+                        serde_json::json!({ "label": "atomic_fetch_add", "kind": 3, "detail": "fn atomic_fetch_add(h: Int, v: Int) -> Int (returns old)" }),
+                        serde_json::json!({ "label": "atomic_cas", "kind": 3, "detail": "fn atomic_cas(h: Int, old: Int, new: Int) -> Int (0 = success)" }),
+                        // hash-Map iteration (PLAN_V152 N3)
+                        serde_json::json!({ "label": "map_keys", "kind": 3, "detail": "fn map_keys(m: Map<Str,V>) -> List<Str> (insertion order)" }),
+                        serde_json::json!({ "label": "map_values", "kind": 3, "detail": "fn map_values(m: Map<K,Int>) -> List<Int>" }),
+                        // json validator (PLAN_V152 N3)
+                        serde_json::json!({ "label": "json_validate", "kind": 3, "detail": "fn json_validate(text: Str) -> Int (>=0 nodes, <0 error; stdlib.json.reader)" }),
                         serde_json::json!({ "label": "ReactiveComponent", "kind": 7, "detail": "stdlib.ui.reactive (AOT Zero-VDOM Component)" }),
                     ];
 
@@ -716,6 +731,42 @@ impl LspServer {
             "parallel_for" => Some("**fn parallel_for(start: Int, end: Int, fn)**\n\nDistributes loop iterations across hardware worker threads.\n- **Symbol Type**: `(Int, Int, fn) -> Unit`".into()),
             "parallel_invoke" => Some("**fn parallel_invoke(fn1, fn2)**\n\nExecutes two functions concurrently using work-stealing.\n- **Symbol Type**: `(fn, fn) -> Unit`".into()),
             "num_workers" => Some("**fn num_workers() -> Int**\n\nReturns the number of active thread pool worker threads.\n- **Symbol Type**: `() -> Int`".into()),
+            "fiber_spawn" => Some("**fn fiber_spawn(f, arg[, stack_kb]) -> Int**
+
+Spawns a stackful fiber (Windows CreateFiberEx / POSIX ucontext) and returns its handle. Results flow through channels, not the exit code.
+- **Symbol Type**: `(fn, any[, Int]) -> Int`".into()),
+            "fiber_join" => Some("**fn fiber_join(handle: Int) -> Int**
+
+Waits for the fiber and returns its exit code.
+- **Symbol Type**: `(Int) -> Int`".into()),
+            "fiber_sleep_ms" => Some("**fn fiber_sleep_ms(ms: Int)**
+
+Parks the calling fiber on the scheduler's timer wheel — other fibers keep running.
+- **Symbol Type**: `(Int) -> Unit`".into()),
+            "fiber_net_recv" => Some("**fn fiber_net_recv(sock: Int, max: Int, timeout_ms: Int) -> Outcome<Str>**
+
+Non-blocking recv: try once, park the fiber on would-block, wake via the scheduler's select() slice.
+- **Symbol Type**: `(Int, Int, Int) -> Outcome<Str>`".into()),
+            "atomic_new" => Some("**fn atomic_new(init: Int) -> Int**
+
+Creates an MT-shared atomic counter (Interlocked/__sync backed).
+- **Symbol Type**: `(Int) -> Int`".into()),
+            "map_keys" => Some("**fn map_keys(m: Map<Str,V>) -> List<Str>**
+
+Insertion-ordered snapshot of a Str-keyed map's keys. The snapshot makes delete-during-iteration safe.
+- **Symbol Type**: `(Map<Str,V>) -> List<Str>`".into()),
+            "map_values" => Some("**fn map_values(m: Map<K,Int>) -> List<Int>**
+
+Insertion-ordered snapshot of an Int-valued map's values.
+- **Symbol Type**: `(Map<K,Int>) -> List<Int>`".into()),
+            "json_validate" => Some("**fn json_validate(text: Str) -> Int**
+
+Full RFC 8259 recursive-descent validation (stdlib.json.reader): >= 0 = node count, < 0 = error code (decode with json_error_text).
+- **Symbol Type**: `(Str) -> Int`".into()),
+            "is" => Some("**`x is T`** — TSU dynamic narrowing.
+
+Narrow a `val` (dynamic) binding to a concrete type; inside the branch the checker treats `x` as `T`. The narrowing reads the NaN-box tag — narrow through a `val` variable, not through an expression result (E-ANY-001).
+- **Example**: `if v is Int { out int_to_str(v) }`".into()),
             _ => None,
         };
         base.map(|s| format!("{}\n\nOwnership: 100.0% proven (zero-cost)", s))
