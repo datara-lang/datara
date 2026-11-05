@@ -268,14 +268,126 @@ impl PolyhedralEngine {
         let mut count = 0;
         for lp in &cfg.loops {
             trace.mark_fn_pass("PolyhedralVectorize", &f.name);
+            // Honesty gate (PLAN_V152 N5): the old code recorded "proved
+            // zero loop-carried dependencies" for the FIRST loop of any
+            // function without analyzing anything (the gcd case lied in
+            // the trace). Prove the trivially-sound case only: a loop
+            // whose body performs NO memory-effecting operation
+            // (VolatileStore / Call / MethodCall / SetField / VolatileLoad
+            // through unknown addresses) cannot carry a memory
+            // dependence. Anything else is recorded as NOT vectorized —
+            // real dependence analysis is future work.
+            // (a) memory writes / unknown-effect calls: unproven. Calls
+            // that are KNOWN read-only (collection getters, len/contains,
+            // str_*) count as loads — `arr[i]` lowers to list_get and a
+            // read-only body carries no memory dependence.
+            fn known_readonly_call(name: &str) -> bool {
+                name.starts_with("str_")
+                    || name.starts_with("datara_rt_str_")
+                    || name.ends_with("_get")
+                    || name.ends_with("_len")
+                    || name.ends_with("_contains")
+                    || name.ends_with("_is_empty")
+                    || matches!(
+                        name,
+                        "len" | "get" | "at" | "contains" | "abs" | "min" | "max"
+                    )
+            }
+            let has_memory_effect = lp.blocks.iter().any(|bid| {
+                f.blocks
+                    .iter()
+                    .filter(|b| b.id == *bid)
+                    .any(|b| {
+                        b.instructions.iter().any(|inst| match inst {
+                            Inst::VolatileStore { .. } | Inst::SetField { .. } => true,
+                            Inst::Call { func, .. } => !known_readonly_call(func),
+                            Inst::MethodCall { method, .. } => {
+                                !known_readonly_call(method)
+                            }
+                            _ => false,
+                        })
+                    })
+            });
+            // (b) scalar loop-carried dependence: a var both read and
+            // written in the body UNLESS every write is the self-increment
+            // / reduction shape `v = v OP ...` (induction vars and
+            // reductions are vectorizer-standard). The gcd case
+            // (x = t; y = x % y; x = t) is carried -> Skipped.
+            let mut read_vars: std::collections::HashSet<&str> = std::collections::HashSet::new();
+            let mut write_shapes: Vec<(&str, bool)> = Vec::new();
+            for bid in &lp.blocks {
+                for b in f.blocks.iter().filter(|b| b.id == *bid) {
+                    // dest -> defining inst for reduction-shape resolution.
+                    fn inst_dest(i: &Inst) -> ValueId {
+                        match i {
+                            Inst::BinOp { dest, .. }
+                            | Inst::LoadVar { dest, .. }
+                            | Inst::ConstInt { dest, .. }
+                            | Inst::ConstFloat { dest, .. }
+                            | Inst::Call { dest, .. }
+                            | Inst::MethodCall { dest, .. }
+                            | Inst::Cast { dest, .. } => *dest,
+                            _ => ValueId(usize::MAX),
+                        }
+                    }
+                    let defs: std::collections::HashMap<ValueId, &Inst> = b
+                        .instructions
+                        .iter()
+                        .map(|i| (inst_dest(i), i))
+                        .collect();
+                    for inst in &b.instructions {
+                        match inst {
+                            Inst::LoadVar { name, .. } => {
+                                read_vars.insert(name.as_str());
+                            }
+                            Inst::AssignVar { name, value } => {
+                                // Self-increment/reduction shape: the RHS is
+                                // a BinOp whose LEFT operand LOADS the same
+                                // var (`v = v OP ...`). Anything else is a
+                                // carried dependence.
+                                let is_reduction = defs.get(value).is_some_and(|d| {
+                                    if let Inst::BinOp { left, .. } = d {
+                                        matches!(
+                                            defs.get(left),
+                                            Some(Inst::LoadVar { name: ln, .. })
+                                                if ln.as_str() == name.as_str()
+                                        )
+                                    } else {
+                                        false
+                                    }
+                                });
+                                write_shapes.push((name.as_str(), is_reduction));
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            let has_carried_dep = write_shapes
+                .iter()
+                .any(|(name, reduction)| read_vars.contains(name) && !reduction);
+            if has_memory_effect || has_carried_dep {
+                trace.record(
+                    "PolyhedralVectorize",
+                    &format!("{}:bb{}_affine_vec", f.name, lp.header.0),
+                    "Skipped",
+                    "Loop-carried dependence NOT proven (memory effects or non-reduction scalar carried var) — vectorize metadata withheld",
+                    "none",
+                    &format!(
+                        "Loop at bb{} not annotated: sound dependence analysis is future work (honesty gate, PLAN_V152 N5)",
+                        lp.header.0
+                    ),
+                );
+                continue;
+            }
             trace.record(
                 "PolyhedralVectorize",
                 &format!("{}:bb{}_affine_vec", f.name, lp.header.0),
                 "Applied",
-                "Affine independence analysis proved zero loop-carried dependencies",
+                "Body is read-only with only induction/reduction carried vars — no non-reduction loop-carried dependencies",
                 "Vector width 4, unroll factor 2",
                 &format!(
-                    "Loop at bb{} verified affine-independent: emit !llvm.loop.vectorize.enable = 1 and width 4",
+                    "Loop at bb{} verified read-only with induction/reduction carries only: emit !llvm.loop.vectorize.enable = 1 and width 4",
                     lp.header.0
                 ),
             );

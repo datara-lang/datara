@@ -133,9 +133,13 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
   Outcome.err("boom").is_success → false, .err() → "boom". Пин
   test_static_ctor_chain 1/1.
 - [ ] Регресс на каждый пункт + обновить «Ограничения» в мануале.
-- [ ] Optimizer-честность: PolyhedralVectorize не должен выдавать
-  «zero loop-carried deps» для циклов с зависимостями (gcd-кейс) —
-  проверка зависимостей перед emit метаданных; trace врёт = баг.
+- [x] Optimizer-честность: PolyhedralVectorize — ЗАКРЫТО 2026-11-05.
+  Старый код писал «proved zero loop-carried dependencies» для ПЕРВОГО
+  цикла ЛЮБОЙ функции без анализа (gcd-кейс — ложь в trace). Фикс:
+  честный гейт — vectorize-метаданные ТОЛЬКО для чисто-скалярных тел
+  (no memory ops → dependence-free по построению); циклы с
+  load/store/call = Skipped с честной причиной. Regression:
+  test_vectorize_honesty 2/2 (gcd-shape Skipped + pure Applied).
 
 ## N3. Стандартная библиотека до «идеальных библиотек» `[ ]` (2 сессии)
 
