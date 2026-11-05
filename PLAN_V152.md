@@ -72,6 +72,22 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
 
 ## N2. Чекер: ноль известных дыр `[ ]` (1 сессия)
 
+НОВЫЕ repro, найденные при построении bench_json (2026-11-03, все —
+сеанс-локальные чек-пробы, каждая закрыта обходом в бенче):
+- [ ] Behavior-метод в цикле с List<Int>.get — SEGFAULT на обоих тирах
+  (T4/T9b: jp.get_int в байт-скан-цикле; идентичное тело как plain fn
+  чисто и совпадает с C). P1 — сейчас главный приоритет N2.
+- [ ] Module `const` в use'd-модуле = 0 в рантайме (JERR_SCALE → 0).
+- [ ] Module-level `mut` в use'd-модуле изолируется per-function
+  (мутации не переживают вызов).
+- [ ] Module-level `mut Str` глобал теряет значение (init ""→Int 0,
+  значение теряется через return).
+- [ ] Outcome.ok/err из module-level fn use'd-модуля — битый Outcome
+  (is_success=false у ok(), error_msg=указатель).
+- [ ] E0941-проверка не принимает guarded `if x != 0` для вычисляемых
+  локалов (только require/literal — `require JERR_SCALE != 0` тоже не
+  работает для module const).
+
 Каждая дыра — известный repro из сессии 1.5.1:
 - [x] Bare-generic body field access — ЗАКРЫТО 2026-11-03:
   compile_func.rs GetField/SetField — когда val_to_class не имеет
@@ -120,8 +136,14 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
   text_repeat, text_replace_all. Verified 100% OK.
 - [ ] **stdlib.collections**: hash-Map (O(1)) рядом с текущим; итерация +
   удаление при итерации для deque/set.
-- [ ] **stdlib.json**: парсер-добивка + bench vs C (10 МБ, артефакт
-  bench_json/RESULTS.md — остаток M12).
+- [x] **stdlib.json**: ЗАКРЫТО 2026-11-03. Парсер-добивка: reader.dtr —
+  рекурсивный спуск RFC 8259 (строки/эскейпы/строгие числа/литералы,
+  O(1) через str_bytes). Bench vs C 10 МБ (bench_json/RESULTS.md):
+  VALIDATE 171 ms vs C 14.0 (12.2×), EXTRACT 111 ms vs 23.5 (4.7×),
+  побитово совпадает (124259 / 7720087411 / 1615367). Бенч ПОЙМАЛ и
+  починил реальный баг рантайма: str_substring делал strlen на каждый
+  вызов — O(n²), фикс через memchr дал 663× (73.5 s → 111 ms).
+  6 repro-дыр языка записаны в N2.
 - [ ] Каждое: пример в docs/STDLIB.md.
 
 ## N4. Тулинг до 8/10 `[ ]` (1 сессия)

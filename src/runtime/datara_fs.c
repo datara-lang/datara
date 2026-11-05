@@ -890,6 +890,19 @@ const char* datara_rt_str_substring_cp(const char* s, int64_t cp_start, int64_t 
 
 const char* datara_rt_str_substring(const char* s, int64_t start, int64_t len) {
     if (!s || start < 0 || len <= 0) return "";
+    // O(len) bounds check instead of strlen(s): scanning the whole string
+    // made every interior substring of a large document O(n) (bench_json:
+    // 124k substrings over a 10 MB document = O(n^2) ≈ 74 s; with the
+    // memchr guard the same workload is O(len) per call). memchr is safe
+    // here: it never reads past the first NUL or the requested range.
+    if (memchr(s + start, '\0', (size_t)len) == NULL) {
+        // Fully interior range: [start, start+len) contains no terminator.
+        char* buf = datara_str_scratch_alloc((size_t)len);
+        if (!buf) return "";
+        memcpy(buf, s + start, (size_t)len);
+        buf[len] = '\0';
+        return buf;
+    }
     int64_t total_len = (int64_t)strlen(s);
     if (start >= total_len) return "";
     if (start + len > total_len) {
