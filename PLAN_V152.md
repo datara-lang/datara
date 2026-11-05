@@ -74,9 +74,16 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
 
 НОВЫЕ repro, найденные при построении bench_json (2026-11-03, все —
 сеанс-локальные чек-пробы, каждая закрыта обходом в бенче):
-- [ ] Behavior-метод в цикле с List<Int>.get — SEGFAULT на обоих тирах
-  (T4/T9b: jp.get_int в байт-скан-цикле; идентичное тело как plain fn
-  чисто и совпадает с C). P1 — сейчас главный приоритет N2.
+- [x] Behavior-метод в цикле с List<Int>.get — ЗАКРЫТО 2026-11-05
+  (root cause найден бисекцией M1–M56): lowering/mod.rs регистрировал
+  каждый метод класса ПОД ГОЛЫМ ИМЕНЕМ в глобальной
+  function_return_types; JsonValue.get(key: Str) -> Str типизировал
+  list.get(i) как Str для ЛЮБОГО получателя → значение трактовалось
+  как строковый указатель в циклах (мусорные суммы, strcmp-краши,
+  AOT+JIT). Фикс: голые регистрации удалены (класс-скоуп ключи
+  остались); fallback в expr_call только при неизвестном классе.
+  Regression: tests/test_repro_json_types_loop_get.rs 2/2. Полный
+  cargo test зелёный; bench_json снова на настоящих методах.
 - [ ] Module `const` в use'd-модуле = 0 в рантайме (JERR_SCALE → 0).
 - [ ] Module-level `mut` в use'd-модуле изолируется per-function
   (мутации не переживают вызов).

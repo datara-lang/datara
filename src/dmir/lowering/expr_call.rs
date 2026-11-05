@@ -1409,7 +1409,21 @@ impl<'a> Lowering<'a> {
                 class_method_key
                     .as_ref()
                     .and_then(|k| self.function_return_types.get(k))
-                    .or_else(|| self.function_return_types.get(member))
+                    .or_else(|| {
+                        // Bare-name fallback ONLY when the receiver's class is
+                        // unknown: every class method is also registered under
+                        // its bare name (lowering/mod.rs), so a known-class
+                        // receiver must not inherit another class's method
+                        // return type. Repro #9: JsonValue.get(key: Str) ->
+                        // Str poisoned `list.get(i)` with ty=Str — the result
+                        // value was then treated as a string pointer inside
+                        // loops (garbage accumulation, strcmp segfaults).
+                        if receiver_class.is_none() {
+                            self.function_return_types.get(member)
+                        } else {
+                            None
+                        }
+                    })
                     .or_else(|| self.class_field_types.get(member))
                     .cloned()
                     .unwrap_or_else(|| {

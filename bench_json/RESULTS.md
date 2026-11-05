@@ -20,8 +20,12 @@ substring → to_int — the same primitives `stdlib.json.parser` uses).
 
 | Phase        | C (gcc -O2) | Datara (Cranelift) | Gap    |
 |--------------|-------------|--------------------|--------|
-| VALIDATE 10 MB | 14.0 ms   | 171 ms             | 12.2×  |
-| EXTRACT (124 259 records) | 23.5 ms | 111 ms    | 4.7×   |
+| VALIDATE 10 MB | 14.0 ms   | 152 ms             | 10.9×  |
+| EXTRACT (124 259 records) | 23.5 ms | 124 ms    | 5.3×   |
+
+(2026-11-05: extraction now goes through the real JsonParser behavior
+methods after the repro-#9 fix; times re-measured — VALIDATE 152 ms,
+EXTRACT 124 ms, still bit-exact.)
 
 **Correctness: bit-exact.** Both sides report the same ground truth:
 
@@ -69,9 +73,16 @@ PLAN_V152 N2 (none blocks the artifact):
    functions yields a mangled Outcome (is_success=false for ok(),
    error_msg = raw pointer).
 6. **Behavior-method calls inside a loop that reads a List<Int>
-   segfault on both tiers** (T4/T9b repro); the identical body as a
-   plain function runs clean and bit-matches C. The bench therefore
-   calls plain extractor functions — semantically identical work.
+   segfaulted on both tiers** (T4/T9b) — ROOT-CAUSED AND FIXED
+   2026-11-05: lowering/mod.rs registered every class method also under
+   its bare name in the global function_return_types table;
+   JsonValue.get(key: Str) -> Str (stdlib/json/types.dtr) typed
+   `list.get(i)` as Str for ANY receiver, and the value was then treated
+   as a string pointer inside loops (garbage sums, strcmp segfaults).
+   Fix: bare-name method registrations removed (class-scoped keys
+   remain). The bench now calls the real JsonParser methods — same
+   bit-exact ground truth. Regression tests:
+   tests/test_repro_json_types_loop_get.rs (2/2 green).
 
 ## Reproduce
 

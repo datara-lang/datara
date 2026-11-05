@@ -282,6 +282,17 @@ pub fn compile_method_call<M: ClifModule>(
     // List and String protocol methods: dispatch on the object's
     // runtime shape, not the class method table.
     let is_map_receiver = ctx.map_vids.contains(object);
+    if std::env::var("DATARA_CODEGEN_TRACE").is_ok() {
+        eprintln!(
+            "[protocol] fn={} method={} obj={:?} is_map={} is_list={} str={}",
+            ctx.current_func.name,
+            method,
+            object,
+            is_map_receiver,
+            ctx.list_vids.contains(object),
+            ctx.string_vids.contains(object)
+        );
+    }
     let list_special = if is_map_receiver {
         // Map protocol: without this branch a `map.get(k)`
         // falls into the name-suffix fallback, which can
@@ -487,6 +498,15 @@ pub fn compile_method_call<M: ClifModule>(
                 })
                 .unwrap_or(false);
             let dbg_obj_class = ctx.val_to_class.get(object).cloned();
+            if std::env::var("DATARA_CODEGEN_TRACE").is_ok() {
+                eprintln!(
+                    "[dispatch] fn={} method={:?} obj_class={:?} matched={:?}",
+                    ctx.current_func.name,
+                    method,
+                    dbg_obj_class,
+                    class_matched.as_ref().map(|(_, n)| n)
+                );
+            }
             class_matched
                 .or_else(|| {
                     if method == "close" || has_known_class {

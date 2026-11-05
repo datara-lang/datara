@@ -360,7 +360,12 @@ impl<'a> Lowering<'a> {
                             .unwrap_or_else(|| "Unit".into());
                         self.function_return_types
                             .insert(format!("{}_{}", c.name, m.name), ret.clone());
-                        self.function_return_types.insert(m.name.clone(), ret);
+                        // NO bare-name insert: a method registered under its
+                        // bare name globally poisoned same-named protocol
+                        // methods of OTHER classes (repro #9: JsonValue.get
+                        // -> Str made list.get(i) type as Str; the value was
+                        // then treated as a string pointer inside loops).
+
                     }
                 }
             } else if let Decl::Component(c) = decl {
@@ -394,7 +399,7 @@ impl<'a> Lowering<'a> {
                             .unwrap_or_else(|| "Unit".into());
                         self.function_return_types
                             .insert(format!("{}_{}", b.target_type, m.name), ret.clone());
-                        self.function_return_types.insert(m.name.clone(), ret);
+
                     }
                 }
             } else if let Decl::Impl(i) = decl {
@@ -406,7 +411,7 @@ impl<'a> Lowering<'a> {
                         .unwrap_or_else(|| "Unit".into());
                     self.function_return_types
                         .insert(format!("{}_{}", i.target_type, m.name), ret.clone());
-                    self.function_return_types.insert(m.name.clone(), ret);
+
                 }
             } else if let Decl::Enum(e) = decl {
                 let max_fields = e.variants.iter().map(|v| v.fields.len()).max().unwrap_or(0);
