@@ -1339,7 +1339,13 @@ impl<'a> Lowering<'a> {
                         _ => "Int".to_string(),
                     })
                     .unwrap_or_else(|| "Int".to_string());
-                let get_func = if self.is_int_keyed_map(object) {
+                // Same key-kind rule as the SET path (repro #8): an Int
+                // index on a map that is not statically Str-keyed goes
+                // through the i64 entrypoint; the str entrypoint
+                // strlen()s the key and segfaults on Int keys.
+                let get_func = if self.is_int_keyed_map(object)
+                    || args.first().map(|k| self.is_expr_int(k)).unwrap_or(false)
+                {
                     "datara_rt_map_get_outcome_i64"
                 } else {
                     "datara_rt_map_get_outcome"

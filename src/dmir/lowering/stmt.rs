@@ -435,7 +435,23 @@ impl<'a> Lowering<'a> {
                                         _ => false,
                                     };
                                 let (func_name, ty) = if is_map {
-                                    ("datara_rt_map_insert", "Map")
+                                    // Key-kind ABI: an Int index on a map that
+                                    // is not statically Str-keyed must use the
+                                    // i64 entrypoint (the runtime adopts the
+                                    // int key kind on first insert). The str
+                                    // entrypoint strlen()s the key — an Int
+                                    // key segfaulted there (repro #8: bare {}
+                                    // + m[10] = 100).
+                                    // Memory safety first: a statically Int
+                                    // key NEVER goes through the str
+                                    // entrypoint (strlen on the raw Int).
+                                    // A Str-keyed map receiving an Int key
+                                    // is the checker's job to reject.
+                                    if self.is_expr_int(index) {
+                                        ("datara_rt_map_insert_i64", "Map")
+                                    } else {
+                                        ("datara_rt_map_insert", "Map")
+                                    }
                                 } else {
                                     ("datara_rt_list_set", "List")
                                 };

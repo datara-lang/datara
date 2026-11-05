@@ -968,6 +968,13 @@ impl<'a> Lowering<'a> {
         matches!(self.map_key_type(expr), Some(crate::types::DataraType::Int))
     }
 
+    /// True when the map's key type is statically `Str` (bare `{}` literals
+    /// are NOT statically Str-keyed — their key kind is adopted by the
+    /// runtime on first insert, so an Int key must route to the i64 ABI).
+    pub(crate) fn is_str_keyed_map(&self, expr: &Expr) -> bool {
+        matches!(self.map_key_type(expr), Some(crate::types::DataraType::String))
+    }
+
     /// True when an expression is statically an `Int` (used to pick the
     /// int-key map literal constructor when the receiver type is not yet
     /// recorded in the lowering environment).

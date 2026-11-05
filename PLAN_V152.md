@@ -100,9 +100,14 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
 - [ ] E0941-проверка не принимает guarded `if x != 0` для вычисляемых
   локалов (только require/literal — `require JERR_SCALE != 0` тоже не
   работает для module const).
-- [ ] Index-set `m[k] = v` на босом литерале `{}` с Int-ключом идёт по
-  Str-пути (strlen(int) → segfault, AOT+JIT); `insert()` и Int-литералы
-  `{1: 10}` работают (test_map_int_keys). repro #8, 2026-11-03.
+- [x] Index-set `m[k] = v` на босом `{}` с Int-ключом — ЗАКРЫТО
+  2026-11-05: лоуеринг вёл ВСЕ map index-set/get через STR-entrypoint
+  (strlen по сырому Int → segfault). Фикс: статически-Int ключ ВСЕГДА
+  идёт через _i64 entrypoints (рантайм адаптирует key-kind на первой
+  вставке); Str-карта с Int-ключом — работа чекера. Regression:
+  test_bare_map_int_index 2/2 (roundtrip + str-контроль). НОВЫЙ repro
+  #11: TSU is-нарровинг на РЕЗУЛЬТАТЕ map index-get читает тег бокса
+  как Float ("expected Int, got Float") — отдельная дыра, не краш.
 
 Каждая дыра — известный repro из сессии 1.5.1:
 - [x] Bare-generic body field access — ЗАКРЫТО 2026-11-03:
@@ -123,8 +128,10 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
   parser postfix при виде `< Capitalized > (` после lowercase идентификатора
   пропускает type args как декорацию (тип выводится из call args через
   flow-sensitive binding). test_generic_inference 2/2.
-- [ ] Статический ctor в цепочке: `Outcome.ok(1).is_success` — MemberAccess
-  на GenericInstance-результат.
+- [x] Статический ctor в цепочке — ЗАКРЫТО 2026-11-05 (уже работал,
+  вероятно закрыт фиксом голых имён): Outcome.ok(1).is_success → true,
+  Outcome.err("boom").is_success → false, .err() → "boom". Пин
+  test_static_ctor_chain 1/1.
 - [ ] Регресс на каждый пункт + обновить «Ограничения» в мануале.
 - [ ] Optimizer-честность: PolyhedralVectorize не должен выдавать
   «zero loop-carried deps» для циклов с зависимостями (gcd-кейс) —
