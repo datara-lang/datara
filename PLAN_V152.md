@@ -212,8 +212,12 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
   2. `minihttp` — веб-сервер на фиберах + SSR (Level 2, требует N1.1)
   3. `snake` — консольная игра: цикл, ввод, рандом (Level 1)
 - [x] **WASM playground** — ЗАКРЫТО: docs/playground/ — index.html + 3 демо (fib/sieve/matmul) + build.sh.
-- [ ] **Онлайн-реестр Spark'ов**: GitHub Pages (pages.yml есть) —
-  index.json + подписанные пакеты + `dpm add <url>`.
+- [x] **Онлайн-реестр Spark'ов** — ЗАКРЫТО 2026-11-05: docs/registry/
+  (index.json — registry_schema 1, 5 пакетов mathx/strx/jsonx/resultx/
+  timex с версиями/капабилити/сорсами; index.html — карточки из
+  fetch(index.json)). Деплой автоматом: pages.yml (Jekyll по docs/**).
+  `dpm add <package|url>` и `dpm verify` уже в CLI. Подписанные .spark
+  артефакты публикуются релизным CI (dpm publish — Ed25519).
 - [x] bridge_smoke.py — ЗАКРЫТО 2026-11-05: 4/4 мостов РЕАЛЬНЫМИ
   прогонами (python eval_int 42; c — AOT-сборка с fixture-хедером +
   kernel32 GetCurrentProcessId → C_OK; js — js_eval_int 35; rust —

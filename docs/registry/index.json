@@ -1,0 +1,64 @@
+{
+  "registry_schema": 1,
+  "updated": "2026-11-05",
+  "install": "dpm add <package>   # or dpm add <git-url>",
+  "verify": "dpm verify <file.spark>  # Ed25519 trust-store escalation",
+  "packages": [
+    {
+      "name": "jsonx",
+      "version": "0.1.0",
+      "description": "Safe JSON stream tokenizer and validator for Datara",
+      "license": "MIT OR Apache-2.0",
+      "entry": "src/lib.dtr",
+      "required_capabilities": [],
+      "provided_capabilities": [
+        "json:tokens"
+      ],
+      "source": "https://github.com/datara-lang/datara/tree/main/tests/fixtures/sparks/jsonx"
+    },
+    {
+      "name": "mathx",
+      "version": "0.1.0",
+      "description": "Advanced numeric, statistical, and linear algebra utilities for Datara",
+      "license": "MIT OR Apache-2.0",
+      "entry": "src/lib.dtr",
+      "required_capabilities": [],
+      "provided_capabilities": [
+        "math:extended"
+      ],
+      "source": "https://github.com/datara-lang/datara/tree/main/tests/fixtures/sparks/mathx"
+    },
+    {
+      "name": "resultx",
+      "version": "0.1.0",
+      "description": "Outcome/Maybe helper combinators for Datara",
+      "license": "MIT OR Apache-2.0",
+      "entry": "src/lib.dtr",
+      "required_capabilities": [],
+      "provided_capabilities": [],
+      "source": "https://github.com/datara-lang/datara/tree/main/tests/fixtures/sparks/resultx"
+    },
+    {
+      "name": "strx",
+      "version": "0.1.0",
+      "description": "Extended string manipulation, padding, case conversion, and splitting utilities for Datara",
+      "license": "MIT OR Apache-2.0",
+      "entry": "src/lib.dtr",
+      "required_capabilities": [],
+      "provided_capabilities": [
+        "str:extended"
+      ],
+      "source": "https://github.com/datara-lang/datara/tree/main/tests/fixtures/sparks/strx"
+    },
+    {
+      "name": "timex",
+      "version": "0.1.0",
+      "description": "Time and duration utilities for Datara",
+      "license": "MIT OR Apache-2.0",
+      "entry": "src/lib.dtr",
+      "required_capabilities": [],
+      "provided_capabilities": [],
+      "source": "https://github.com/datara-lang/datara/tree/main/tests/fixtures/sparks/timex"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Datara Spark Registry</title>
+<style>
+  :root { --bg:#0d1117; --card:#161b22; --fg:#e6edf3; --dim:#8b949e; --acc:#7ee787; }
+  body { background:var(--bg); color:var(--fg); font:16px/1.6 system-ui,sans-serif; max-width:960px; margin:0 auto; padding:2rem 1rem; }
+  a { color:var(--acc); }
+  h1 { border-bottom:1px solid #30363d; padding-bottom:.5rem; }
+  .pkg { background:var(--card); border:1px solid #30363d; border-radius:8px; padding:1rem 1.25rem; margin:1rem 0; }
+  .name { font-size:1.15rem; font-weight:600; }
+  .ver { color:var(--acc); font-family:monospace; }
+  .desc { color:var(--dim); margin:.35rem 0; }
+  .caps span { display:inline-block; background:#21262d; border:1px solid #30363d; border-radius:4px; padding:0 .5rem; margin:.15rem .25rem .15rem 0; font-family:monospace; font-size:.85rem; }
+  code { background:#21262d; padding:.1rem .4rem; border-radius:4px; }
+</style>
+</head>
+<body>
+<h1>Datara Spark Registry</h1>
+<p>Official package index for the Datara <code>dpm</code> ecosystem.
+Install with <code>dpm add &lt;package&gt;</code> or a Git URL.
+Packages are Merkle-digested and Ed25519-verifiable
+(<code>dpm verify</code>, trust-store escalation).</p>
+<p>The machine-readable index lives at <a href="index.json">index.json</a>
+(<code>registry_schema</code> 1 — name, version, capabilities, source).</p>
+<div id="list">Loading index…</div>
+<script>
+fetch('index.json').then(r => r.json()).then(d => {
+  const el = document.getElementById('list');
+  el.innerHTML = d.packages.map(p => `
+    <div class="pkg">
+      <div class="name">${p.name} <span class="ver">${p.version}</span></div>
+      <div class="desc">${p.description}</div>
+      <div class="caps">${(p.provided_capabilities||[]).map(c=>`<span>${c}</span>`).join('')}</div>
+      <div class="desc">license: ${p.license} · <a href="${p.source}">source</a></div>
+    </div>`).join('');
+});
+</script>
+</body>
+</html>
