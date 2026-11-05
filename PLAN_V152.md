@@ -23,11 +23,13 @@ golden pipeline_demo один md5 на 3 тира · levels 4/4 · docs-гейт
 
 ## N0. Гигиена `[ ]` (1 сессия)
 
-- [x] CI-флейк — ЗАКРЫТО 2026-11-05: флейк-лист (test_v120_phase6_soa,
-  test_ownership_soa_aliasing, test_soa_abi_c_consumer, phase15, bce-бенчи)
-  прогнан 3× локально — все зелёные, тайминг-бенчи #[ignore] локально
-  (CI-only). Повтор-правила из 1.5.0 (min-of-11 phase8, 3-попытки
-  phase12) в силе. Финальный арбитр — CI на main после пуша.
+- [x] CI-флейк — ЗАКРЫТО 2026-11-05: флейк-лист 3× локально зелёный;
+  CI на main ПОЛНОСТЬЮ ЗЕЛЁНЫЙ на 9ecf653 (первый зелёный ран с
+  релиза). По пути починены 3 CI-блока: (1) rustfmt от сессионных
+  правок; (2) pipeline_demo golden — numpy-проба + install numpy в
+  windows-джобу (тест появился после релиза и CI не гонялся); (3) LLVM
+  тир — getenv-депрекация под clang (-D_CRT_SECURE_NO_WARNINGS) и дубль
+  g_wsa_initialized в single-TU рантайме (ренейм в g_djs_wsa_initialized).
 - [x] check/expr.rs экстракция — ЗАКРЫТО 2026-11-03 (c3a1c0b): коллекции
   (List/Map literals, IndexAccess, ArrayRepeat) → expr_collections.rs,
   61.5→53.1KB, allow-list запись СНЯТА. Остался только call.rs (64.3KB,
