@@ -6,6 +6,7 @@ pub mod declare_core;
 pub mod declare_ext;
 pub mod declare_memory;
 pub mod declare_module;
+pub mod declare_natvar3;
 pub mod declare_systems;
 pub mod field_access;
 pub mod hot_reload;
