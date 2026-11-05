@@ -97,9 +97,12 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
   значение теряется через return).
 - [ ] Outcome.ok/err из module-level fn use'd-модуля — битый Outcome
   (is_success=false у ok(), error_msg=указатель).
-- [ ] E0941-проверка не принимает guarded `if x != 0` для вычисляемых
-  локалов (только require/literal — `require JERR_SCALE != 0` тоже не
-  работает для module const).
+- [x] E0941 guarded-if — ЗАКРЫТО 2026-11-05: if-ВЫРАЖЕНИЯ (Expr::Decide)
+  не сеяли прув ветки (Stmt::If сеял). Фикс: Decide-arms получают
+  клон-контекст с proven_non_zero по condition (is_proven_non_zero_cond:
+  != 0, > 0, >=, <, <=, &&). Верифицировано: if total != 0 / if b > 0 /
+  if 0 != b — все делят. (Часть про module const закрыта фиксом #10
+  — консты теперь фолдятся, require для них не нужен.)
 - [x] Index-set `m[k] = v` на босом `{}` с Int-ключом — ЗАКРЫТО
   2026-11-05: лоуеринг вёл ВСЕ map index-set/get через STR-entrypoint
   (strlen по сырому Int → segfault). Фикс: статически-Int ключ ВСЕГДА

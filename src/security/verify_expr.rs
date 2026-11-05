@@ -416,9 +416,18 @@ impl<'a> SecurityVerifier<'a> {
                 }
             }
             Expr::Decide { arms, else_arm, .. } => {
+                // If-EXPRESSIONS carry proofs too (repro: `val rate = if
+                // total != 0 { msgs * 1000 / total } else { 0 }` failed
+                // E0941 because only Stmt::If seeded the branch proof).
                 for arm in arms {
                     self.verify_expr(&arm.condition, ctx, diag);
-                    self.verify_expr(&arm.body, ctx, diag);
+                    let mut arm_ctx = ctx.clone();
+                    for var_name in ctx.symbols.keys() {
+                        if is_proven_non_zero_cond(&arm.condition, var_name) {
+                            arm_ctx.proven_non_zero.insert(var_name.clone());
+                        }
+                    }
+                    self.verify_expr(&arm.body, &mut arm_ctx, diag);
                 }
                 if let Some(eb) = else_arm {
                     self.verify_expr(eb, ctx, diag);
