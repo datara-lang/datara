@@ -650,6 +650,45 @@ impl<'a> TypeChecker<'a> {
                 ),
             );
         }
+        // PLAN_V152 N3: hash-map iteration surface. Keys of a Str-keyed
+        // map come back as List<Str>; Int-keyed maps use map_keys_int.
+        // map_values assumes int-valued maps (map_values_str for Str).
+        for f in &["map_keys", "datara_rt_map_keys_str"] {
+            function_signatures.insert(
+                f.to_string(),
+                (
+                    vec![DataraType::Class("Map".into())],
+                    DataraType::List(Box::new(DataraType::String)),
+                    Vec::new(),
+                ),
+            );
+        }
+        for f in &["map_keys_int", "datara_rt_map_keys_int"] {
+            function_signatures.insert(
+                f.to_string(),
+                (
+                    vec![DataraType::Class("Map".into())],
+                    DataraType::List(Box::new(DataraType::Int)),
+                    Vec::new(),
+                ),
+            );
+        }
+        function_signatures.insert(
+            "map_values".to_string(),
+            (
+                vec![DataraType::Class("Map".into())],
+                DataraType::List(Box::new(DataraType::Int)),
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "map_values_str".to_string(),
+            (
+                vec![DataraType::Class("Map".into())],
+                DataraType::List(Box::new(DataraType::String)),
+                Vec::new(),
+            ),
+        );
         for f in &["format_percent", "datara_rt_format_percent"] {
             function_signatures.insert(
                 f.to_string(),

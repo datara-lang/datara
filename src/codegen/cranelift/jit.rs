@@ -222,6 +222,13 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("split", datara_rt_str_split);
     reg!("datara_rt_str_join", datara_rt_str_join);
     reg!("str_join", datara_rt_str_join);
+    reg!("map_keys", datara_rt_map_keys_str);
+    reg!("map_keys_int", datara_rt_map_keys_int);
+    reg!("map_values", datara_rt_map_values);
+    reg!("map_values_str", datara_rt_map_values);
+    reg!("datara_rt_map_keys_str", datara_rt_map_keys_str);
+    reg!("datara_rt_map_keys_int", datara_rt_map_keys_int);
+    reg!("datara_rt_map_values", datara_rt_map_values);
     reg!("join", datara_rt_str_join);
     reg!("datara_rt_format_percent", datara_rt_format_percent);
     reg!("format_percent", datara_rt_format_percent);

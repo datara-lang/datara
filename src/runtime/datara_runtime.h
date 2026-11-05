@@ -420,6 +420,11 @@ int64_t     datara_rt_map_contains(int64_t* map, const char* key);
 int64_t     datara_rt_map_contains_i64(int64_t* map, int64_t key);
 int64_t     datara_rt_map_len(int64_t* map);
 void        datara_rt_map_free(void* map);
+/* PLAN_V152 N3 iteration surface: insertion-ordered snapshots of the
+ * hash map's key/value slots (see datara_map.c for lifetime notes). */
+int64_t*    datara_rt_map_keys_str(int64_t* map);
+int64_t*    datara_rt_map_keys_int(int64_t* map);
+int64_t*    datara_rt_map_values(int64_t* map);
 
 // Network Sockets
 int64_t     datara_rt_socket_create(int64_t is_tcp);

@@ -87,6 +87,9 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
 - [ ] E0941-проверка не принимает guarded `if x != 0` для вычисляемых
   локалов (только require/literal — `require JERR_SCALE != 0` тоже не
   работает для module const).
+- [ ] Index-set `m[k] = v` на босом литерале `{}` с Int-ключом идёт по
+  Str-пути (strlen(int) → segfault, AOT+JIT); `insert()` и Int-литералы
+  `{1: 10}` работают (test_map_int_keys). repro #8, 2026-11-03.
 
 Каждая дыра — известный repro из сессии 1.5.1:
 - [x] Bare-generic body field access — ЗАКРЫТО 2026-11-03:
@@ -134,8 +137,14 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
 - [x] **stdlib.text** — ЗАКРЫТО 2026-11-03: text_split_n (max parts),
   text_trim_start/end (codepoint-aware), text_lines (skip empties),
   text_repeat, text_replace_all. Verified 100% OK.
-- [ ] **stdlib.collections**: hash-Map (O(1)) рядом с текущим; итерация +
-  удаление при итерации для deque/set.
+- [x] **stdlib.collections**: ЗАКРЫТО 2026-11-03. hash-Map уже O(1) в
+  рантайме (Robin Hood, LF 3/4, индекс с 16 записей) — добавлена
+  поверхность итерации: map_keys / map_keys_int / map_values /
+  map_values_str (вставка-порядок, снапшот → удаление при итерации
+  безопасно; Cranelift+JIT+LLVM+WASM). Тесты test_map_iteration.rs 4/4
+  (вкл. 100k записей), STDLIB.md обновлён. Найден repro #8: index-set
+  `m[k]=v` на босом {} c Int-ключом идёт по Str-пути → segfault
+  (insert()/литералы работают; JIT-хост тоже).
 - [x] **stdlib.json**: ЗАКРЫТО 2026-11-03. Парсер-добивка: reader.dtr —
   рекурсивный спуск RFC 8259 (строки/эскейпы/строгие числа/литералы,
   O(1) через str_bytes). Bench vs C 10 МБ (bench_json/RESULTS.md):

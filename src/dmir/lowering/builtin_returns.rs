@@ -154,6 +154,14 @@ pub(crate) fn register(map: &mut HashMap<String, String>) {
     }
     map.insert("float_to_str_prec".into(), "String".into());
     map.insert("fiber_net_recv".into(), "Outcome<Str>".into());
+    for f in &["map_keys", "datara_rt_map_keys_str"] {
+        map.insert((*f).into(), "List<String>".into());
+    }
+    for f in &["map_keys_int", "datara_rt_map_keys_int"] {
+        map.insert((*f).into(), "List<Int>".into());
+    }
+    map.insert("map_values".into(), "List<Int>".into());
+    map.insert("map_values_str".into(), "List<String>".into());
     map.insert("datara_rt_fiber_net_recv".into(), "Outcome<Str>".into());
     map.insert("datara_rt_float_to_str_prec".into(), "String".into());
     for f in &["split", "str_split", "datara_rt_str_split"] {

@@ -51,6 +51,25 @@ fn main() {
 Deque, Set, PriorityQueue — double-ended queue, hash-free set, max-heap.
 See tests in stdlib_tests/tests/test_collections.dtr (16 checks).
 
+### Hash map (O(1)) — map literals + iteration (v1.5.2)
+Datara map literals (`{}`, `m[k] = v`) are backed by the runtime hash
+map: open-addressed Robin-Hood index, 3/4 load factor, index engages at
+16+ entries; get/insert/contains are amortized O(1). Iteration order =
+INSERTION order.
+
+```datara
+val m = {"alpha": 1, "beta": 2}
+m["gamma"] = 3
+val ks = map_keys(m)    // List<Str>: alpha, beta, gamma (insertion order)
+val vs = map_values(m)  // List<Int>: 1, 2, 3
+// Int-keyed / Str-valued maps: map_keys_int / map_values_str
+```
+
+Delete-during-iteration is safe: `map_keys` returns a snapshot list, so
+removing entries while walking it cannot invalidate the walk (pattern in
+stdlib/collections/hashmap.dtr). Tests: tests/test_map_iteration.rs
+(4 checks incl. 100k-entry index scale).
+
 ## stdlib.result
 Outcome<T> + Maybe<T> — deterministic error handling (see §11 of manual).
 

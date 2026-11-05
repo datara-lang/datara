@@ -587,6 +587,41 @@ int64_t datara_rt_map_len(int64_t* map) {
     return map[0];
 }
 
+// ---- PLAN_V152 N3: iteration surface for the hash map -----------------
+// The storage layout is [count, k0, v0, k1, v1, ...] in INSERTION order,
+// so the lists below preserve insertion order (a documented property of
+// Datara maps). Key/value slots are raw int64 payloads: for Str keys the
+// slot is the map-owned char* pointer, so the returned Datara list is a
+// snapshot view whose Str contents live as long as the map. The slot
+// TYPE (List<Str> vs List<Int>) is chosen at the compiler level by the
+// surface name, not here.
+
+static int64_t* rt_map_slot_list(int64_t* map, int value_slots) {
+    if (!map || map[0] <= 0) return datara_rt_list_create(0);
+    int64_t count = map[0];
+    int64_t* out = datara_rt_list_create(count);
+    if (!out) return datara_rt_list_create(0);
+    for (int64_t e = 0; e < count; e++) {
+        out = datara_rt_list_append(out, map[(value_slots ? 2 : 1) + e * 2]);
+    }
+    return out;
+}
+
+// Keys of a Str-keyed map as List<Str>.
+int64_t* datara_rt_map_keys_str(int64_t* map) {
+    return rt_map_slot_list(map, 0);
+}
+
+// Keys of an Int-keyed map as List<Int>.
+int64_t* datara_rt_map_keys_int(int64_t* map) {
+    return rt_map_slot_list(map, 0);
+}
+
+// Values of a map as List<Int> (int-valued maps).
+int64_t* datara_rt_map_values(int64_t* map) {
+    return rt_map_slot_list(map, 1);
+}
+
 const char* datara_rt_range_str(int64_t start, int64_t end) {
     char* buf = (char*)malloc(48);
     if (!buf) return "";

@@ -352,6 +352,9 @@ unsafe extern "C" {
     ) -> *mut i64;
     pub fn datara_rt_map_len(map: *mut i64) -> i64;
     pub fn datara_rt_map_free(map: *mut ());
+    pub fn datara_rt_map_keys_str(map: *mut i64) -> *mut i64;
+    pub fn datara_rt_map_keys_int(map: *mut i64) -> *mut i64;
+    pub fn datara_rt_map_values(map: *mut i64) -> *mut i64;
 
     pub fn datara_rt_socket_create(is_tcp: i64) -> i64;
     pub fn datara_rt_socket_bind(sock: i64, host: *const c_char, port: i64) -> i64;

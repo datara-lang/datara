@@ -1,0 +1,38 @@
+//! stdlib.collections.hashmap — the O(1) hash map surface (PLAN_V152 N3).
+//!
+//! DOCUMENTATION MODULE: the iteration builtins below are global free
+//! functions wired directly to the C runtime (src/runtime/datara_map.c);
+//! no Datara wrapper is needed (and a same-name wrapper would recurse).
+//!
+//! Datara map literals (`{}`, `m[k] = v`) are backed by the runtime hash
+//! map: an open-addressed Robin-Hood index with a 3/4 load factor, built
+//! once the map reaches 16 entries (below that a linear scan is faster
+//! and no index is maintained). get / insert / contains are amortized
+//! O(1); lookups rebuild the index lazily if a growth step dropped it.
+//!
+//! Documented properties:
+//!   - Iteration order = INSERTION order (storage layout is
+//!     [count, k0, v0, k1, v1, ...]; map_keys / map_values snapshot it).
+//!   - Str keys are owned by the map; key lists alias the map's storage,
+//!     so read them while the map is alive.
+//!   - Two key kinds: Str (default) and Int — a map is typed by its
+//!     first insert; mixing raises a lookup error, not a reinterpret.
+//!
+//! Iteration builtins (global, no import required):
+//!   map_keys(m)         -> List<Str>   keys of a Str-keyed map
+//!   map_keys_int(m)     -> List<Int>   keys of an Int-keyed map
+//!   map_values(m)       -> List<Int>   values of an Int-valued map
+//!   map_values_str(m)   -> List<Str>   values of a Str-valued map
+//!
+//! Deletion-during-iteration (safe pattern): map_keys returns a SNAPSHOT
+//! list, so removing entries from the map while walking the key list is
+//! safe:
+//!   val ks = map_keys(m)
+//!   mut i = 0
+//!   while i < ks.len() {
+//!       if <drop condition on ks.get(i)> {
+//!           m.remove(ks.get(i))     // snapshot stays valid
+//!       }
+//!       i = i + 1
+//!   }
+//! (set.dtr's remove() already rebuilds its backing list — also safe.)
