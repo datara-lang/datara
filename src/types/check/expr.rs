@@ -798,11 +798,12 @@ impl<'a> TypeChecker<'a> {
             // (extracted for the release size gate); the dispatcher returns
             // `None` only for variants it does not own, which cannot occur
             // inside this guard-arm.
-            Expr::ListLiteral(..) | Expr::MapLiteral(..) | Expr::IndexAccess { .. }
-            | Expr::ArrayRepeatLiteral { .. } => {
-                self.check_collection_expr(expr, diag)
-                    .unwrap_or(DataraType::Unit)
-            }
+            Expr::ListLiteral(..)
+            | Expr::MapLiteral(..)
+            | Expr::IndexAccess { .. }
+            | Expr::ArrayRepeatLiteral { .. } => self
+                .check_collection_expr(expr, diag)
+                .unwrap_or(DataraType::Unit),
             Expr::Range { start, end, .. } => {
                 self.check_expr(start, diag);
                 self.check_expr(end, diag);

@@ -103,9 +103,7 @@ impl<'a> TypeChecker<'a> {
                             ErrorCode::RangeViolation,
                             format!("Array index cannot be negative: {}", n),
                             Some(index.span().clone()),
-                            Some(
-                                "Array indices in Datara must be non-negative (>= 0)".to_string(),
-                            ),
+                            Some("Array indices in Datara must be non-negative (>= 0)".to_string()),
                         );
                     }
                 } else if let DataraType::Range { min, .. } = &idx_ty

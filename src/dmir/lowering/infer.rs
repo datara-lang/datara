@@ -968,7 +968,6 @@ impl<'a> Lowering<'a> {
         matches!(self.map_key_type(expr), Some(crate::types::DataraType::Int))
     }
 
-
     /// True when an expression is statically an `Int` (used to pick the
     /// int-key map literal constructor when the receiver type is not yet
     /// recorded in the lowering environment).

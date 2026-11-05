@@ -294,19 +294,14 @@ impl PolyhedralEngine {
                     )
             }
             let has_memory_effect = lp.blocks.iter().any(|bid| {
-                f.blocks
-                    .iter()
-                    .filter(|b| b.id == *bid)
-                    .any(|b| {
-                        b.instructions.iter().any(|inst| match inst {
-                            Inst::VolatileStore { .. } | Inst::SetField { .. } => true,
-                            Inst::Call { func, .. } => !known_readonly_call(func),
-                            Inst::MethodCall { method, .. } => {
-                                !known_readonly_call(method)
-                            }
-                            _ => false,
-                        })
+                f.blocks.iter().filter(|b| b.id == *bid).any(|b| {
+                    b.instructions.iter().any(|inst| match inst {
+                        Inst::VolatileStore { .. } | Inst::SetField { .. } => true,
+                        Inst::Call { func, .. } => !known_readonly_call(func),
+                        Inst::MethodCall { method, .. } => !known_readonly_call(method),
+                        _ => false,
                     })
+                })
             });
             // (b) scalar loop-carried dependence: a var both read and
             // written in the body UNLESS every write is the self-increment
@@ -330,11 +325,8 @@ impl PolyhedralEngine {
                             _ => ValueId(usize::MAX),
                         }
                     }
-                    let defs: std::collections::HashMap<ValueId, &Inst> = b
-                        .instructions
-                        .iter()
-                        .map(|i| (inst_dest(i), i))
-                        .collect();
+                    let defs: std::collections::HashMap<ValueId, &Inst> =
+                        b.instructions.iter().map(|i| (inst_dest(i), i)).collect();
                     for inst in &b.instructions {
                         match inst {
                             Inst::LoadVar { name, .. } => {

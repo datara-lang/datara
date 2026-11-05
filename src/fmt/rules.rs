@@ -230,8 +230,7 @@ pub fn format_operators_in_code(code: &str) -> String {
         // caught this: List<List<T>> in iter.dtr).
         if ch == '>' && i + 1 < len && chars[i + 1] == '>' {
             let prev_non_space = res.trim_end().chars().last();
-            let is_ident_prev =
-                prev_non_space.is_some_and(|p| p.is_alphanumeric() || p == '_');
+            let is_ident_prev = prev_non_space.is_some_and(|p| p.is_alphanumeric() || p == '_');
             if is_ident_prev && res.contains('<') {
                 while res.ends_with(' ') {
                     res.pop();
@@ -239,9 +238,7 @@ pub fn format_operators_in_code(code: &str) -> String {
                 res.push_str(">>");
                 i += 2;
                 // Keep postfix spacing sane for both generics and shifts.
-                if i < len
-                    && (chars[i].is_alphanumeric() || chars[i] == '_')
-                {
+                if i < len && (chars[i].is_alphanumeric() || chars[i] == '_') {
                     res.push(' ');
                 }
                 continue;

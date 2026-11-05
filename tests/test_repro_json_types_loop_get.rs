@@ -57,10 +57,7 @@ fn main() {
     let res = compiler.compile_source_native(src, "repro_json_types_loop_get.dtr", None);
     assert!(res.success, "compile: {:?}", res.diagnostics);
     let exe = res.exe_path.expect("exe");
-    let (stdout, _stderr, code, _) = compiler
-        .cranelift
-        .run_executable(&exe, &[])
-        .expect("run");
+    let (stdout, _stderr, code, _) = compiler.cranelift.run_executable(&exe, &[]).expect("run");
     let _ = std::fs::remove_file(&exe);
     let _ = std::fs::remove_file(exe.with_extension("obj"));
     assert_eq!(code, 0, "must not crash");
@@ -91,10 +88,7 @@ fn main() {
     let res = compiler.compile_source_native(src, "repro_method_scan_loop.dtr", None);
     assert!(res.success, "compile: {:?}", res.diagnostics);
     let exe = res.exe_path.expect("exe");
-    let (stdout, _stderr, code, _) = compiler
-        .cranelift
-        .run_executable(&exe, &[])
-        .expect("run");
+    let (stdout, _stderr, code, _) = compiler.cranelift.run_executable(&exe, &[]).expect("run");
     let _ = std::fs::remove_file(&exe);
     let _ = std::fs::remove_file(exe.with_extension("obj"));
     assert_eq!(code, 0, "must not crash");

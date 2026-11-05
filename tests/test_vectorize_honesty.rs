@@ -11,8 +11,8 @@
 
 use forgen::dmir::{BasicBlock, BasicBlockId, Function, Inst, Module, Terminator, ValueId};
 use forgen::optimizer::cost_model::CostModel;
-use forgen::optimizer::loops::polyhedral::PolyhedralEngine;
 use forgen::optimizer::cost_model::OptimizationDecisionTrace;
+use forgen::optimizer::loops::polyhedral::PolyhedralEngine;
 
 fn loop_function(body_insts: Vec<Inst>) -> Module {
     // Real-block loop: entry -> cond(header) -> body -> latch -> cond,
@@ -122,7 +122,9 @@ fn gcd_shaped_loop_is_skipped_honestly() {
     let mut trace = OptimizationDecisionTrace::new();
     let cost = CostModel::new("release");
     let _ = PolyhedralEngine::optimize(f, &cost, &mut trace);
-    let recs: Vec<_> = trace.records.iter()
+    let recs: Vec<_> = trace
+        .records
+        .iter()
         .filter(|r| r.pass == "PolyhedralVectorize")
         .collect();
     assert!(
@@ -172,13 +174,17 @@ fn pure_scalar_loop_is_annotated() {
     let mut trace = OptimizationDecisionTrace::new();
     let cost = CostModel::new("release");
     let _ = PolyhedralEngine::optimize(f, &cost, &mut trace);
-    let recs: Vec<_> = trace.records.iter()
+    let recs: Vec<_> = trace
+        .records
+        .iter()
         .filter(|r| r.pass == "PolyhedralVectorize")
         .collect();
     assert!(!recs.is_empty());
     assert!(
         recs.iter().all(|r| r.decision == "Applied"),
         "a pure scalar loop is dependence-free by construction: {:?}",
-        recs.iter().map(|r| (r.decision.as_str(), r.reason.as_str())).collect::<Vec<_>>()
+        recs.iter()
+            .map(|r| (r.decision.as_str(), r.reason.as_str()))
+            .collect::<Vec<_>>()
     );
 }

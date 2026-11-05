@@ -430,7 +430,11 @@ pub fn declare_runtime_ext<M: ClifModule>(
     let mut rt_map_iter_sig = Signature::new(call_conv);
     rt_map_iter_sig.params.push(AbiParam::new(clif_types::I64));
     rt_map_iter_sig.returns.push(AbiParam::new(clif_types::I64));
-    for name in &["datara_rt_map_keys_str", "datara_rt_map_keys_int", "datara_rt_map_values"] {
+    for name in &[
+        "datara_rt_map_keys_str",
+        "datara_rt_map_keys_int",
+        "datara_rt_map_values",
+    ] {
         let id = module
             .declare_function(name, Linkage::Import, &rt_map_iter_sig)
             .map_err(|e| e.to_string())?;

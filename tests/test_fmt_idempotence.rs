@@ -178,7 +178,8 @@ fn test_fmt_idempotence_stdlib_corpus() {
                 let (first, _) = format_source(&src, opts);
                 let (second, diffs) = format_source(&first, opts);
                 assert_eq!(
-                    first, second,
+                    first,
+                    second,
                     "formatter not idempotent on {}: second-pass diffs {:?}",
                     path.display(),
                     diffs.len()
@@ -188,5 +189,8 @@ fn test_fmt_idempotence_stdlib_corpus() {
         }
     }
     visit(std::path::Path::new("stdlib"), &opts, &mut checked);
-    assert!(checked > 10, "stdlib corpus must be non-trivial, got {checked}");
+    assert!(
+        checked > 10,
+        "stdlib corpus must be non-trivial, got {checked}"
+    );
 }
