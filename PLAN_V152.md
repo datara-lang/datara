@@ -70,7 +70,13 @@ golden pipeline_demo один md5 на 3 тира · levels 4/4 · docs-гейт
   test_fiber_mutex::mutex_abba_timeouts_resolve_under_1s.
 
 ### 1.3 stdlib.async — публичная поверхность
-- [ ] `FiberHandle`-обёртка: `join() -> Outcome<T>`, `is_done()`.
+- [x] `FiberHandle` — ЗАКРЫТО 2026-11-06: fiber_is_done (non-blocking
+  poll, все тиры) + stdlib.async FiberHandle{handle} c is_done()/join()
+  + fiber_handle(h). Values через каналы (join несёт exit-code) —
+  задокументировано в модуле. Регресс: test_sched_fairness 2/2.
+  БОНУС: найден и починен СТАРВЕЙШН-БАГ планировщика (yield-фибер
+  голодал спящих — таймер опрашивался только при пустой очереди;
+  первый фикс ещё и ТЕРЯЛ промоутнутого фибера и алиасил &last_now).
 - [ ] `async { }` sugar (низкий приоритет — поверх FiberHandle).
 - [ ] `async_sleep_ms`, `select` двух каналов (минимум).
 
