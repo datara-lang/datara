@@ -214,7 +214,12 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
 - [x] **WASM playground** — ЗАКРЫТО: docs/playground/ — index.html + 3 демо (fib/sieve/matmul) + build.sh.
 - [ ] **Онлайн-реестр Spark'ов**: GitHub Pages (pages.yml есть) —
   index.json + подписанные пакеты + `dpm add <url>`.
-- [ ] bridge_smoke.py: расширить до c/js/rust реальных прогонов.
+- [x] bridge_smoke.py — ЗАКРЫТО 2026-11-05: 4/4 мостов РЕАЛЬНЫМИ
+  прогонами (python eval_int 42; c — AOT-сборка с fixture-хедером +
+  kernel32 GetCurrentProcessId → C_OK; js — js_eval_int 35; rust —
+  use rust.serde, результат = последняя строка stdout после
+  FFI-баннера). C-проба идёт через build+execute: JIT-хост не резолвит
+  kernel32-символы (дляген стрипает ведущую точку в output stem).
 
 ## N6. Доки до 8/10 `[ ]` (1 сессия)
 
