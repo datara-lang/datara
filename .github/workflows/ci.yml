@@ -72,6 +72,12 @@ jobs:
       - name: Build
         run: cargo build --release --verbose
 
+      - name: Install numpy (Windows)
+        if: runner.os == 'Windows'
+        # pipeline_demo's three-backend golden requires a real numpy round
+        # trip (PY_MEAN=110.00); without it the test skips honestly.
+        run: python -m pip install --quiet numpy
+
       - name: Test (Windows)
         if: runner.os == 'Windows'
         # -j 2 reduces concurrent linking, which is unreliable on Windows.
