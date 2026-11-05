@@ -1001,6 +1001,12 @@ pub fn compile_with_clang(
             if let Some(rt) = runtime_c_path
                 && rt.exists()
             {
+                // The C runtime uses getenv for env-gated diagnostics;
+                // MSVC headers deprecate it, and clang-cl mode treats the
+                // warnings as fatal (CI windows runner: "LLVM compilation
+                // failed: Clang compilation failed: 4 warnings").
+                cmd.arg("-D_CRT_SECURE_NO_WARNINGS");
+                cmd.arg("-Wno-deprecated-declarations");
                 cmd.arg(rt);
             }
             // v1.4.5: bridge cdylibs for extern fn resolution. The driver
