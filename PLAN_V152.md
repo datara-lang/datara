@@ -194,9 +194,12 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
 
 ## N4. Тулинг до 8/10 `[ ]` (1 сессия)
 
-- [ ] **Debug-профиль**: `forgen build --debug` — DWARF-инфа проверяется
-  тестом (test_dwarf_debug расширить: lldb/cdb подхватывает линии);
-  раздел «Отладка» в мануале.
+- [x] **Debug-профиль** — ЗАКРЫТО 2026-11-05: `forgen build --debug` /
+  `-g` / `forgen debug` верифицированы (бинарь содержит debug-секции);
+  test_dwarf_debug 2/2 (spans в DMIR + секции). Мануал: §18 «Debugging:
+  the --debug profile» (таблица release vs debug, фиберы в отладчике,
+  CONTRACT_VIOLATION). docs-гейт 4/4. lldb/cdb-прогон — остаётся за
+  релизным чеклистом (нужны отладчики на раннере).
 - [x] LSP × 1.5 — ЗАКРЫТО 2026-11-05: completions fiber_spawn/join/
   sleep_ms/yield/run_until_done/net_recv + atomic_new/fetch_add/cas +
   map_keys/map_values + json_validate (13 новых); hover'ы: fiber_*,

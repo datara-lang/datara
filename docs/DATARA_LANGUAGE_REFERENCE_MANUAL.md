@@ -739,6 +739,34 @@ Datara errors are categorized by phase with unambiguous diagnostic codes:
 | `E-BORROW-003` | Ownership | Variable mutated or re-bound during active view | Release or end borrow scope before mutation |
 | `E-CODEGEN-001` | Codegen | Unresolved function, method, or SSA value | Ensure function is declared or imported |
 
+## 18. Debugging: the `--debug` profile
+
+The debug profile emits DWARF line information so system debuggers
+(lldb, gdb, WinDbg/cdb) resolve function names and source lines:
+
+```bash
+forgen build --debug main.dtr     # or -g; also: forgen debug main.dtr
+```
+
+What the profile changes:
+
+| Aspect | Release (default) | Debug (`--debug` / `-g`) |
+| :--- | :--- | :--- |
+| Optimizations | Full pipeline (evidence-gated) | Reduced, preserves line order |
+| Debug info | Stripped | DWARF line tables + function spans |
+| `require` contracts | Elided | Enforced at runtime |
+| Binary size | Minimal | Larger (debug sections) |
+
+Debugging a fiber program: fibers are OS fibers (Windows
+`CreateFiberEx` / POSIX `ucontext`), so each fiber appears as a
+separate stack in the debugger; `fiber_net_recv` parks are visible as
+the fiber blocked in the scheduler's `select()` slice. Contract
+violations (`require` failures) print `CONTRACT_VIOLATION: <message>`
+with the source span.
+
+The DWARF emission is pinned by `tests/test_dwarf_debug.rs` (function
+spans recorded in DMIR, debug sections present in the binary).
+
 ---
 
 *Copyright (c) 2026 Datara Language Contributors. Licensed under the MIT or Apache-2.0 License.*
