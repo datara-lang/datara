@@ -420,6 +420,12 @@ int64_t     datara_rt_map_contains(int64_t* map, const char* key);
 int64_t     datara_rt_map_contains_i64(int64_t* map, int64_t key);
 int64_t     datara_rt_map_len(int64_t* map);
 void        datara_rt_map_free(void* map);
+/* PLAN_V152 N1.2 fiber mutexes: cooperative, non-blocking lock with a
+ * deadline; unlock grants ownership directly to the head waiter. */
+int64_t     datara_rt_mutex_new(void);
+void*       datara_rt_mutex_lock(int64_t id, int64_t timeout_ms);
+void        datara_rt_mutex_unlock(int64_t id);
+
 /* PLAN_V152 N3 iteration surface: insertion-ordered snapshots of the
  * hash map's key/value slots (see datara_map.c for lifetime notes). */
 int64_t*    datara_rt_map_keys_str(int64_t* map);

@@ -227,6 +227,12 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("map_values", datara_rt_map_values);
     reg!("map_values_str", datara_rt_map_values);
     reg!("datara_rt_map_keys_str", datara_rt_map_keys_str);
+    reg!("mutex_new", datara_rt_mutex_new);
+    reg!("datara_rt_mutex_new", datara_rt_mutex_new);
+    reg!("mutex_lock", datara_rt_mutex_lock);
+    reg!("datara_rt_mutex_lock", datara_rt_mutex_lock);
+    reg!("mutex_unlock", datara_rt_mutex_unlock);
+    reg!("datara_rt_mutex_unlock", datara_rt_mutex_unlock);
     reg!("datara_rt_map_keys_int", datara_rt_map_keys_int);
     reg!("datara_rt_map_values", datara_rt_map_values);
     reg!("join", datara_rt_str_join);

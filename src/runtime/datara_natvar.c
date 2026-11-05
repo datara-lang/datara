@@ -53,6 +53,7 @@
 #include "datara_runtime.h"
 
 static int64_t now_ms_real(void);
+extern void* datara_rt_outcome_build(int64_t is_success, const char* value, const char* msg);
 
 typedef enum {
     FIB_READY = 0,
@@ -62,6 +63,7 @@ typedef enum {
     FIB_WAITING_JOIN,
     FIB_WAITING_CHAN,
     FIB_WAITING_IO,
+    FIB_WAITING_MUTEX,
 } FiberState;
 
 typedef struct Fiber {
@@ -74,6 +76,7 @@ typedef struct Fiber {
     int64_t wait_on;        // fiber handle or channel id when WAITING_*
     int64_t wait_fd;        // socket fd when WAITING_IO
     int64_t wait_deadline;  // absolute ms deadline when WAITING_IO (0 = inf)
+    int64_t wake_result;    // why the waker resumed us: 1 = granted, 0 = timeout
     int64_t exit_code;
     struct Fiber* next_ready;
 #ifdef __linux__
@@ -492,6 +495,114 @@ int64_t datara_rt_fiber_join(int64_t handle) {
 // Main-loop scheduler: run until every spawned fiber is DONE. Returns the
 // number of fibers completed.
 
+// ============================================================================
+// Fiber-aware cooperative mutexes (PLAN_V152 N1.2). A lock that cannot be
+// granted immediately parks the calling fiber (FIB_WAITING_MUTEX); unlock
+// grants ownership DIRECTLY to the first waiter (no thundering herd).
+// datara_rt_mutex_lock returns an Outcome<Str>-shaped object:
+//   ok  -> datara_rt_outcome_build(1, "locked", "")
+//   err -> datara_rt_outcome_build(0, "", "timeout")   (deadline expired)
+// The AB-BA scenario therefore cannot hang the scheduler: both fibers get
+// an err outcome after their timeouts, and the deadlock detector (below)
+// resolves FIB_WAITING_MUTEX edges to the owner fiber for cycle reports.
+// ============================================================================
+#define NATVAR_MUTEX_MAX 64
+#define NATVAR_MUTEX_WAITERS_MAX 256
+typedef struct {
+    int64_t locked;
+    int64_t owner; // fiber handle
+    Fiber* waiters[NATVAR_MUTEX_WAITERS_MAX];
+    int64_t wait_count;
+} FiberMutex;
+static FiberMutex g_mutexes[NATVAR_MUTEX_MAX];
+static int64_t g_mutex_count = 0;
+
+int64_t datara_rt_mutex_new(void) {
+    if (g_mutex_count >= NATVAR_MUTEX_MAX) return -1;
+    int64_t id = g_mutex_count++;
+    g_mutexes[id].locked = 0;
+    g_mutexes[id].owner = 0;
+    g_mutexes[id].wait_count = 0;
+    return id;
+}
+
+void* datara_rt_mutex_lock(int64_t id, int64_t timeout_ms) {
+    if (id < 0 || id >= g_mutex_count) {
+        return datara_rt_outcome_build(0, "", "invalid mutex handle");
+    }
+    FiberMutex* m = &g_mutexes[id];
+    if (!m->locked) {
+        m->locked = 1;
+        Fiber* self = g_running;
+        m->owner = self ? self->handle : 0;
+        return datara_rt_outcome_build(1, "locked", "");
+    }
+    Fiber* self = g_running;
+    if (!self || m->wait_count >= NATVAR_MUTEX_WAITERS_MAX) {
+        // Outside a fiber (main) or wait-list full: fail loudly, never block.
+        return datara_rt_outcome_build(0, "", "mutex busy");
+    }
+    self->state = FIB_WAITING_MUTEX;
+    self->wait_on = id;
+    self->wait_deadline = timeout_ms > 0 ? now_ms_real() + timeout_ms : 0;
+    self->wake_result = -1;
+    m->waiters[m->wait_count++] = self;
+#ifdef _WIN32
+    SwitchToFiber(g_scheduler_fiber);
+#else
+    swapcontext((ucontext_t*)self->os_fiber, g_scheduler_ctx);
+#endif
+    // Resumed: the waker set wake_result (1 = granted, 0 = timeout).
+    if (self->wake_result == 1) {
+        return datara_rt_outcome_build(1, "locked", "");
+    }
+    return datara_rt_outcome_build(0, "", "timeout");
+}
+
+void datara_rt_mutex_unlock(int64_t id) {
+    if (id < 0 || id >= g_mutex_count) return;
+    FiberMutex* m = &g_mutexes[id];
+    if (m->wait_count > 0) {
+        // Grant ownership directly to the head waiter.
+        Fiber* next = m->waiters[0];
+        for (int64_t i = 1; i < m->wait_count; i++) {
+            m->waiters[i - 1] = m->waiters[i];
+        }
+        m->wait_count--;
+        m->owner = next->handle;
+        next->wake_result = 1;
+        next->state = FIB_READY;
+        ready_push(next);
+    } else {
+        m->locked = 0;
+        m->owner = 0;
+    }
+}
+
+// Deadline scan for parked mutex waiters (called each scheduler pass).
+static int mutex_wait_poll_and_wake(void) {
+    int64_t woken = 0;
+    for (int64_t id = 0; id < g_mutex_count; id++) {
+        FiberMutex* m = &g_mutexes[id];
+        int64_t w = 0;
+        for (int64_t i = 0; i < m->wait_count; i++) {
+            Fiber* f = m->waiters[i];
+            int64_t expired =
+                f->wait_deadline > 0 && now_ms_real() >= f->wait_deadline;
+            if (expired) {
+                f->wake_result = 0;
+                f->state = FIB_READY;
+                ready_push(f);
+                woken++;
+            } else {
+                m->waiters[w++] = f;
+            }
+        }
+        m->wait_count = w;
+    }
+    return (int)woken;
+}
+
 // ---- Deadlock detector (PLAN_V152 N1): cycle detection in the fiber
 // wait graph. Called by run_until_done when it would otherwise break
 // with a deadlock. Returns the first cycle path or NULL.
@@ -500,6 +611,17 @@ int64_t datara_rt_fiber_join(int64_t handle) {
 static Fiber* dd_resolve_wait_target(Fiber* f) {
     if (f->state == FIB_WAITING_JOIN) {
         return fiber_by_handle(f->wait_on);
+    }
+    if (f->state == FIB_WAITING_MUTEX) {
+        // Mutex edge: the fiber waits for the CURRENT OWNER to unlock.
+        if (f->wait_on >= 0 && f->wait_on < g_mutex_count) {
+            int64_t owner = g_mutexes[f->wait_on].owner;
+            if (owner > 0) {
+                Fiber* of = fiber_by_handle(owner);
+                if (of && of != f && of->state != FIB_DONE) return of;
+            }
+        }
+        return NULL;
     }
     if (f->state == FIB_WAITING_CHAN) {
         // Channel rendezvous: find the peer on the same channel.
@@ -519,7 +641,8 @@ static Fiber* dd_resolve_wait_target(Fiber* f) {
 static int datara_deadlock_detect(void) {
     for (int64_t start = 0; start < g_fiber_count; start++) {
         Fiber* cur = g_fibers[start];
-        if (cur->state != FIB_WAITING_JOIN && cur->state != FIB_WAITING_CHAN) continue;
+        if (cur->state != FIB_WAITING_JOIN && cur->state != FIB_WAITING_CHAN
+            && cur->state != FIB_WAITING_MUTEX) continue;
         // Walk the chain
         int64_t visited[256];
         int64_t depth = 0;
@@ -576,6 +699,14 @@ int64_t datara_rt_fiber_run_until_done(void) {
                 io_wait_poll_and_wake();
                 last_now = now_ms_real();
                 continue;
+            }
+            // Mutex waiters: wake deadline-expired ones (lock timeout).
+            if (g_mutex_count > 0) {
+                int mw = mutex_wait_poll_and_wake();
+                if (mw > 0) {
+                    last_now = now_ms_real();
+                    continue;
+                }
             }
             int64_t next_wake = timer_peek_next_wake();
             if (next_wake >= 0) {
@@ -742,8 +873,6 @@ int64_t datara_rt_fiber_now_ms(void) {
 // is readable or the deadline expires. Returns an Outcome<Str> object in
 // the datara_rt_outcome_build layout ([0]=is_success,[1]=value,[2]=error).
 // ============================================================================
-
-extern void* datara_rt_outcome_build(int64_t is_success, const char* value, const char* msg);
 
 void* datara_rt_fiber_net_recv(int64_t sock, int64_t max_bytes, int64_t timeout_ms) {
     if (sock < 0) return datara_rt_outcome_build(0, "", "invalid socket handle");

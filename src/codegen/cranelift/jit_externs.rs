@@ -353,6 +353,9 @@ unsafe extern "C" {
     pub fn datara_rt_map_len(map: *mut i64) -> i64;
     pub fn datara_rt_map_free(map: *mut ());
     pub fn datara_rt_map_keys_str(map: *mut i64) -> *mut i64;
+    pub fn datara_rt_mutex_new() -> i64;
+    pub fn datara_rt_mutex_lock(id: i64, timeout_ms: i64) -> *mut i64;
+    pub fn datara_rt_mutex_unlock(id: i64);
     pub fn datara_rt_map_keys_int(map: *mut i64) -> *mut i64;
     pub fn datara_rt_map_values(map: *mut i64) -> *mut i64;
 

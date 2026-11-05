@@ -425,6 +425,60 @@ pub fn declare_runtime_ext<M: ClifModule>(
     func_ids.insert("str_join".into(), (rt_str_join_id, rt_str_join_sig.clone()));
     func_ids.insert("join".into(), (rt_str_join_id, rt_str_join_sig));
 
+    // PLAN_V152 N1.2 fiber mutexes: new() -> i64, lock(id, ms) -> ptr
+    // (Outcome object), unlock(id) -> void.
+    let mut rt_mutex_new_sig = Signature::new(call_conv);
+    rt_mutex_new_sig
+        .returns
+        .push(AbiParam::new(clif_types::I64));
+    let rt_mutex_new_id = module
+        .declare_function("datara_rt_mutex_new", Linkage::Import, &rt_mutex_new_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_mutex_new".into(),
+        (rt_mutex_new_id, rt_mutex_new_sig.clone()),
+    );
+    func_ids.insert("mutex_new".into(), (rt_mutex_new_id, rt_mutex_new_sig));
+
+    let mut rt_mutex_lock_sig = Signature::new(call_conv);
+    rt_mutex_lock_sig
+        .params
+        .push(AbiParam::new(clif_types::I64));
+    rt_mutex_lock_sig
+        .params
+        .push(AbiParam::new(clif_types::I64));
+    rt_mutex_lock_sig
+        .returns
+        .push(AbiParam::new(clif_types::I64));
+    let rt_mutex_lock_id = module
+        .declare_function("datara_rt_mutex_lock", Linkage::Import, &rt_mutex_lock_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_mutex_lock".into(),
+        (rt_mutex_lock_id, rt_mutex_lock_sig.clone()),
+    );
+    func_ids.insert("mutex_lock".into(), (rt_mutex_lock_id, rt_mutex_lock_sig));
+
+    let mut rt_mutex_unlock_sig = Signature::new(call_conv);
+    rt_mutex_unlock_sig
+        .params
+        .push(AbiParam::new(clif_types::I64));
+    let rt_mutex_unlock_id = module
+        .declare_function(
+            "datara_rt_mutex_unlock",
+            Linkage::Import,
+            &rt_mutex_unlock_sig,
+        )
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_mutex_unlock".into(),
+        (rt_mutex_unlock_id, rt_mutex_unlock_sig.clone()),
+    );
+    func_ids.insert(
+        "mutex_unlock".into(),
+        (rt_mutex_unlock_id, rt_mutex_unlock_sig),
+    );
+
     // PLAN_V152 N3: hash-map iteration surface (map.dtr / hashmap.dtr).
     // keys_str/keys_int/values: (map: ptr) -> ptr (list of slots).
     let mut rt_map_iter_sig = Signature::new(call_conv);

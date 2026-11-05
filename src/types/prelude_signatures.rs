@@ -650,6 +650,27 @@ impl<'a> TypeChecker<'a> {
                 ),
             );
         }
+        // PLAN_V152 N1.2 fiber mutexes: lock returns Outcome<Str>
+        // (ok "locked" / err "timeout").
+        function_signatures.insert(
+            "mutex_new".to_string(),
+            (vec![], DataraType::Int, Vec::new()),
+        );
+        function_signatures.insert(
+            "mutex_lock".to_string(),
+            // DataraType::Result (the fiber_net_recv convention): a bare
+            // Outcome generic made `is_success` resolve to Unit.
+            (
+                vec![DataraType::Int, DataraType::Int],
+                DataraType::Result(Box::new(DataraType::String), Box::new(DataraType::String)),
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
+            "mutex_unlock".to_string(),
+            (vec![DataraType::Int], DataraType::Unit, Vec::new()),
+        );
+
         // PLAN_V152 N3: hash-map iteration surface. Keys of a Str-keyed
         // map come back as List<Str>; Int-keyed maps use map_keys_int.
         // map_values assumes int-valued maps (map_values_str for Str).

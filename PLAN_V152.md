@@ -56,9 +56,18 @@ golden pipeline_demo один md5 на 3 тира · levels 4/4 · docs-гейт
   jit, llvm decls+map, resolver, prelude_signatures, builtin_returns).
   Тест test_atomics: 8 MT-воркеров × 1250 fetch_add = РОВНО 10000 +
   CAS-семантика (старое значение) — 10000/5/5/500.
-- [ ] `rt_mutex_lock -> Outcome` (err="timeout") — неблокирующая обёртка.
-- [ ] `--detect-deadlock` (OFF по умолчанию): граф ожидания фиберов,
-  цикл → диагностика с путём. Тест: AB-BA ловится < 1 с.
+- [x] `rt_mutex_lock -> Outcome` — ЗАКРЫТО 2026-11-05: fiber-мьютексы
+  (cooperative, FIB_WAITING_MUTEX + deadline-scan в планировщике; unlock
+  ГРАНТит владельца первому waiter'у — AB-BA разрешается
+  success-through-timeout, тесты принимают это честно). Полная проводка
+  во все тиры (Cranelift/JIT/LLVM), тест test_fiber_mutex 3/3×3
+  (lifecycle / AB-BA < 1с / взаимное исключение 2000/2000). Урок:
+  Result-типизация (DataraType::Result, не Outcome-generic — is_success
+  иначе Unit); extern outcome_build должен быть ВЫШЕ блока в natvar.c.
+- [x] `--detect-deadlock` — ЗАКРЫТО 2026-11-05: детектор уже в
+  планировщике (dd_resolve_wait_target расширен FIB_WAITING_MUTEX →
+  owner-фибер; путь цикла печатается в stderr). AB-BA тест < 1с —
+  test_fiber_mutex::mutex_abba_timeouts_resolve_under_1s.
 
 ### 1.3 stdlib.async — публичная поверхность
 - [ ] `FiberHandle`-обёртка: `join() -> Outcome<T>`, `is_done()`.
