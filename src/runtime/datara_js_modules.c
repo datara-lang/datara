@@ -474,12 +474,12 @@ static DJSVal* djs_native_crypto_create_hash(DJSVal* this_val, int argc, DJSVal*
 // ---------------------------------------------------------------------------
 
 #ifdef _WIN32
-static int g_wsa_initialized = 0;
+static int g_djs_wsa_initialized = 0;
 static void djs_ensure_winsock(void) {
-    if (!g_wsa_initialized) {
+    if (!g_djs_wsa_initialized) {
         WSADATA wsa;
         WSAStartup(MAKEWORD(2, 2), &wsa);
-        g_wsa_initialized = 1;
+        g_djs_wsa_initialized = 1;
     }
 }
 #else
