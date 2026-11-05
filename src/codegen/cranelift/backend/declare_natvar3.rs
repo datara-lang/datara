@@ -70,6 +70,19 @@ pub fn declare<M: ClifModule>(
         (rt_mutex_unlock_id, rt_mutex_unlock_sig),
     );
 
+    // PLAN_V152 N1.3: fiber_is_done(handle) -> i64 (non-blocking poll).
+    let mut rt_fib_done_sig = Signature::new(call_conv);
+    rt_fib_done_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_fib_done_sig.returns.push(AbiParam::new(clif_types::I64));
+    let rt_fib_done_id = module
+        .declare_function("datara_rt_fiber_is_done", Linkage::Import, &rt_fib_done_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_fiber_is_done".into(),
+        (rt_fib_done_id, rt_fib_done_sig.clone()),
+    );
+    func_ids.insert("fiber_is_done".into(), (rt_fib_done_id, rt_fib_done_sig));
+
     // PLAN_V152 N3: hash-map iteration surface (map.dtr / hashmap.dtr).
     // keys_str/keys_int/values: (map: ptr) -> ptr (list of slots).
     let mut rt_map_iter_sig = Signature::new(call_conv);

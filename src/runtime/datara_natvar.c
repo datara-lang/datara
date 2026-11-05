@@ -470,6 +470,12 @@ void datara_rt_fiber_sleep_ms(int64_t ms) {
 #endif
 }
 
+// PLAN_V152 N1.3: non-blocking completion poll (FiberHandle.is_done).
+int64_t datara_rt_fiber_is_done(int64_t handle) {
+    Fiber* t = fiber_by_handle(handle);
+    return (t && t->state == FIB_DONE) ? 1 : 0;
+}
+
 int64_t datara_rt_fiber_join(int64_t handle) {
     Fiber* self = g_running;
     if (!self) {
@@ -680,7 +686,34 @@ int64_t datara_rt_fiber_run_until_done(void) {
     if (!g_converted) return -1;
 #endif
     int64_t last_now = now_ms_real();
+    int64_t dbg_iters = 0;
     for (;;) {
+        // Fairness: promote due sleepers even when the ready queue is
+        // non-empty — a continuously-yielding fiber used to starve them
+        // forever, because the timer was consulted only when the queue
+        // emptied (repro: a poller fiber doing yield+is_done() around a
+        // sleeping worker hung the scheduler). The promoted fiber is
+        // pushed to the READY queue (never dropped, never run inline) and
+        // next_wake goes to a SCRATCH variable — passing &last_now let the
+        // out-param overwrite the clock with a future wake time / -1.
+        {
+            int64_t fairness_next_wake = -1;
+            Fiber* due = timer_pop_due(last_now, &fairness_next_wake);
+            if (due) {
+                due->state = FIB_READY;
+                ready_push(due);
+            }
+        }
+        if (getenv("DATARA_SCHED_TRACE") && (++dbg_iters % 1000000) == 0) {
+            fprintf(stderr, "[sched] iters=%lld last_now=%lld done=%lld/%lld\n",
+                    (long long)dbg_iters, (long long)last_now,
+                    (long long)g_done_count, (long long)g_fiber_count);
+            for (int64_t i = 0; i < g_fiber_count; i++) {
+                fprintf(stderr, "[sched]   fib_%lld state=%d wake=%lld\n",
+                        (long long)g_fibers[i]->handle, (int)g_fibers[i]->state,
+                        (long long)g_fibers[i]->wake_ms);
+            }
+        }
         Fiber* f = ready_pop();
         if (!f) {
             f = timer_pop_due(last_now, &last_now);

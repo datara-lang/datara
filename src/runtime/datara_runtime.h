@@ -420,6 +420,9 @@ int64_t     datara_rt_map_contains(int64_t* map, const char* key);
 int64_t     datara_rt_map_contains_i64(int64_t* map, int64_t key);
 int64_t     datara_rt_map_len(int64_t* map);
 void        datara_rt_map_free(void* map);
+/* PLAN_V152 N1.3: non-blocking fiber completion poll. */
+int64_t     datara_rt_fiber_is_done(int64_t handle);
+
 /* PLAN_V152 N1.2 fiber mutexes: cooperative, non-blocking lock with a
  * deadline; unlock grants ownership directly to the head waiter. */
 int64_t     datara_rt_mutex_new(void);

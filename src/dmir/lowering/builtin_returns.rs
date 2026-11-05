@@ -154,6 +154,8 @@ pub(crate) fn register(map: &mut HashMap<String, String>) {
     }
     map.insert("float_to_str_prec".into(), "String".into());
     map.insert("fiber_net_recv".into(), "Outcome<Str>".into());
+    map.insert("fiber_is_done".into(), "Bool".into());
+    map.insert("datara_rt_fiber_is_done".into(), "Bool".into());
     map.insert("mutex_new".into(), "Int".into());
     map.insert("datara_rt_mutex_new".into(), "Int".into());
     map.insert("mutex_lock".into(), "Result<Str,Str>".into());

@@ -22,3 +22,35 @@ fn async_wait_all() -> Int {
 fn async_yield() {
     fiber_yield()
 }
+
+// ============================================================================
+// FiberHandle (PLAN_V152 N1.3): an object view over a spawned fiber.
+// Values cross fibers through channels (fiber_join carries the exit code
+// only); the handle adds non-blocking completion polling.
+//
+//   val h = fiber_handle(fiber_spawn(worker, 1))
+//   ...inside another fiber (or after a yield):
+//   if h.is_done() { val code = h.join() }
+// ============================================================================
+
+struct FiberHandle {
+    handle: Int
+}
+
+behavior FiberHandle {
+    // Non-blocking: true once the fiber has finished (scheduler-driven).
+    is_done() -> Bool {
+        return fiber_is_done(this.handle)
+    }
+
+    // Blocking join: parks this fiber until the target is DONE, then
+    // returns the target's exit code.
+    join() -> Int {
+        return fiber_join(this.handle)
+    }
+}
+
+// Wraps an existing spawn handle into a FiberHandle.
+fn fiber_handle(handle: Int) -> FiberHandle {
+    return FiberHandle { handle: handle }
+}

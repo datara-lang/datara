@@ -650,6 +650,12 @@ impl<'a> TypeChecker<'a> {
                 ),
             );
         }
+        // PLAN_V152 N1.3: non-blocking fiber completion poll.
+        function_signatures.insert(
+            "fiber_is_done".to_string(),
+            (vec![DataraType::Int], DataraType::Bool, Vec::new()),
+        );
+
         // PLAN_V152 N1.2 fiber mutexes: lock returns Outcome<Str>
         // (ok "locked" / err "timeout").
         function_signatures.insert(

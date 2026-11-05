@@ -125,13 +125,15 @@ Cranelift+JIT+LLVM; deadlock ловится; бенчмарк с артефак�
   идёт через _i64 entrypoints (рантайм адаптирует key-kind на первой
   вставке); Str-карта с Int-ключом — работа чекера. Regression:
   test_bare_map_int_index 2/2 (roundtrip + str-контроль). НОВЫЙ repro
-  #11 ОТКРЫТ (2026-11-05): bare `m[k]` возвращает Outcome-объект, а
-  `x is Int` читает его слот [0] (is_success) как NaN-box тег →
-  "expected Int, got Float". Дизайн-решение (не краш): (a) bare m[k]
-  должен возвращать RAW value с fail-loud паникой на missing key
-  (консистентно с l[i] списков), .get() остаётся Outcome; или (b) is-check
-  должен распознавать Outcome и нарровать по value-слоту. Требует
-  решения по семантике, изменения в lowering index-get + TSU is-check.
+  #11 ОТКРЫТ (углублён 2026-11-06): bare `m[k]` get идёт через RAW
+  datara_rt_map_get (слот = сырой i64), а is-check читает NaN-box тег —
+  сырой Int трактуется как Float. ОБА варианта фикса требуют МИГРАЦИИ
+  представления: (a) box при insert ломает ВСЕХ сырых потребителей
+  (stdlib.json get_int читает слот как char*; datara_val_from_str(ptr)
+  != ptr); (b) is-check не может распознать Outcome без runtime-типа в
+  слоте. Решение = тегированные значения в слотах мапы (или box-бит на
+  заголовке мапы) — 1.5.3, с миграцией json-парсера. СЕЙЧАС: обход —
+  m.get(k) + `or` fallback, map_keys/values итерация.
 
 Каждая дыра — известный repro из сессии 1.5.1:
 - [x] Bare-generic body field access — ЗАКРЫТО 2026-11-03:

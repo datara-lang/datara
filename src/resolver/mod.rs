@@ -209,6 +209,8 @@ impl Resolver {
             "datara_rt_str_join",
             "map_keys",
             "map_keys_int",
+            "fiber_is_done",
+            "datara_rt_fiber_is_done",
             "mutex_new",
             "mutex_lock",
             "mutex_unlock",

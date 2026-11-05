@@ -304,6 +304,7 @@ impl<'a> LlvmEmitter<'a> {
                 "str_split" => "datara_rt_str_split",
                 "str_join" => "datara_rt_str_join",
                 "map_keys" => "datara_rt_map_keys_str",
+                "fiber_is_done" => "datara_rt_fiber_is_done",
                 "mutex_new" => "datara_rt_mutex_new",
                 "mutex_lock" => "datara_rt_mutex_lock",
                 "mutex_unlock" => "datara_rt_mutex_unlock",
