@@ -1,3 +1,34 @@
+struct Clock {
+    zone: Str
+}
+
+behavior Clock {
+    current_time_ms() -> Int {
+        return now_ms()
+    }
+
+    current_time_ns() -> Int {
+        return now_ns()
+    }
+
+    sleep_ms(ms: Int) {
+        sleep(ms)
+    }
+}
+
+struct Stopwatch {
+    start_time: Int
+}
+
+behavior Stopwatch {
+    elapsed() -> Int {
+        return now_ms() - this.start_time
+    }
+
+    elapsed_ns() -> Int {
+        return now_ns() - this.start_time
+    }
+}
 //! stdlib.time — clocks, dates, and formatting (PLAN_V153 A3).
 //!
 //! Two clock families:
@@ -5,8 +36,6 @@
 //!     durations; immune to system clock changes.
 //!   - Wall clock (now_unix_ms): epoch milliseconds; convert with
 //!     date_parts / fmt_date for human-readable output.
-
-use stdlib.text.text
 
 // Current epoch milliseconds (wall clock). (The runtime builtin is
 // now_unix_ms; the stdlib alias keeps naming consistent.)
@@ -35,10 +64,22 @@ fn fmt_date(unix_ms: Int) -> Str {
 }
 
 // RFC 3339-ish "YYYY-MM-DDThh:mm:ss" (for logs and exports).
+// Self-contained: no stdlib.text dependency (the stdlib suite compiles
+// this module with a minimal file set).
 fn fmt_date_iso(unix_ms: Int) -> Str {
-    val human = fmt_date(unix_ms)
-    // Replace the space between date and time with 'T'.
-    return text_replace_all(human, " ", "T")
+    val p = date_parts(unix_ms)
+    val y = p.get(0)
+    val mo = p.get(1)
+    val d = p.get(2)
+    val h = p.get(3)
+    val mi = p.get(4)
+    val sec = p.get(5)
+    val mo_s = if mo < 10 { "0" + int_to_str(mo) } else { int_to_str(mo) }
+    val d_s = if d < 10 { "0" + int_to_str(d) } else { int_to_str(d) }
+    val h_s = if h < 10 { "0" + int_to_str(h) } else { int_to_str(h) }
+    val mi_s = if mi < 10 { "0" + int_to_str(mi) } else { int_to_str(mi) }
+    val sec_s = if sec < 10 { "0" + int_to_str(sec) } else { int_to_str(sec) }
+    return int_to_str(y) + "-" + mo_s + "-" + d_s + "T" + h_s + ":" + mi_s + ":" + sec_s
 }
 
 // ISO-8601 duration in seconds between two unix-ms stamps (b - a).
