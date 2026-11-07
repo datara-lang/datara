@@ -40,6 +40,14 @@ Datara completely eliminates garbage collection pauses and reference-counting cy
 > [!NOTE]
 > **Русскоязычная документация**: [Полная документация по языку Datara на русском языке](README_RU.md) — исчерпывающий перевод со всеми главами, синтаксисом, архитектурными схемами, стандартной библиотекой и тестами производительности.
 
+### v1.5.2 Highlights (Nov 2026 — the "does real work" release)
+- **Verified performance**: stackful fibers beat tokio on single-connection ping-pong (**27.2k vs 25.6k msg/s**, same echo server), and a 10 MB JSON workload parses bit-exactly against a C -O2 reference (**152 ms vs 14 ms validation, 124 ms vs 23.5 ms extraction, 124 259 records**) — while the benchmark itself caught and fixed a real O(n²) substring bug (**663× speedup**, 73.5 s → 111 ms).
+- **Real concurrency**: fiber mutexes with deadlines (AB-BA self-resolves < 1 s, mutual exclusion exact), non-blocking fiber `accept`/`recv` with scheduler-parked IO, a fairness fix that stops yield-spinning fibers from starving sleepers, and a deadlock detector that walks wait-graph cycles.
+- **First-day libraries**: `stdlib.cli` (flag parsing), `stdlib.time` (date_parts/fmt_date/fmt_date_iso), `stdlib.fs` (mkdir -p / remove / rename / size / mtime / recursive walk), `stdlib.net` (handle-based TCP over fibers) — all capability-gated and verified on Cranelift + JIT + LLVM.
+- **Honest tooling**: an evidence-gate optimizer (an `Applied` verdict without an IR delta is auto-Rejected), a PolyhedralVectorize pass that now *withholds* vectorization metadata it cannot prove, and a formatter whose idempotence is tested against the entire stdlib corpus.
+- **Security story**: capability lattice (`fs-read`/`fs-write`/`net` only via `unsafe(justification)`), proof-carrying code (division-by-zero refused at compile time), Ed25519-signed packages through `dpm`, Merkle-verified dependency graphs.
+- **Engineering hygiene**: a 60 KB hard cap per source file, byte-identical three-backend parity (Cranelift AOT / JIT host / LLVM) checked by golden tests, and fully green CI on main.
+
 ### v1.4.5 Highlights
 - **Fmt String Specifiers**: `fmt"{x:.2}"` fixed precision, `fmt"{x:x}"` / `X` / `o` / `b` integer radix formatting, and `fmt"{d:.N}"` for `Dec64` — typed runtime calls lowered after resolution, zero typechecker changes, identical behavior on Cranelift JIT/AOT, LLVM, and WASM.
 - **Dec64 Fixed-Point Printing**: `Dec64` values interpolate naturally (`fmt"{19.99d}"` → `19.99`, not the raw mantissa), with overflow diagnostics for out-of-range literals.
