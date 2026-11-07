@@ -31,9 +31,11 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <dbghelp.h>
+#include <time.h>
 #else
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <sys/socket.h>
 #include <sys/mman.h>
 #ifndef MAP_ANONYMOUS
@@ -246,6 +248,133 @@ int64_t datara_rt_file_write_bytes(const char* path, const int64_t* bytes) {
     fclose(f);
     return written == (size_t)count ? 1 : 0;
 }
+
+// ---- PLAN_V153 A3/A4: date parts + fs tree operations ------------------
+
+// Local-time parts of a unix-ms timestamp as List<Int>
+// [year, month(1-12), day, hour, minute, second].
+int64_t* datara_rt_date_parts(int64_t unix_ms) {
+    int64_t* out = datara_rt_list_create(6);
+    time_t secs = (time_t)(unix_ms / 1000);
+#ifdef _WIN32
+    struct tm ltm;
+    localtime_s(&ltm, &secs);
+    struct tm* lt = &ltm;
+#else
+    struct tm* lt = localtime(&secs);
+#endif
+    if (!lt) {
+        int64_t zeros[6] = { 0, 0, 0, 0, 0, 0 };
+        for (int i = 0; i < 6; i++) {
+            out = datara_rt_list_append(out, zeros[i]);
+        }
+        return out;
+    }
+    int64_t parts[6] = {
+        (int64_t)(lt->tm_year + 1900),
+        (int64_t)(lt->tm_mon + 1),
+        (int64_t)lt->tm_mday,
+        (int64_t)lt->tm_hour,
+        (int64_t)lt->tm_min,
+        (int64_t)lt->tm_sec,
+    };
+    for (int i = 0; i < 6; i++) {
+        out = datara_rt_list_append(out, parts[i]);
+    }
+    return out;
+}
+
+// mkdir -p: creates the path AND missing parents. Returns 0 on success.
+int64_t datara_rt_fs_mkdir(const char* path) {
+    datara_rt_cap_require(DATARA_CAP_FS_WRITE, "fs::mkdir");
+    if (!path || !path[0]) return -1;
+#ifdef _WIN32
+    char tmp[1024];
+    size_t n = strlen(path);
+    if (n >= sizeof(tmp)) return -1;
+    for (size_t i = 0; i <= n; i++) {
+        tmp[i] = path[i] == '/' ? '\\' : path[i];
+    }
+    for (size_t i = 1; i < n; i++) {
+        if (tmp[i] == '\\') {
+            tmp[i] = 0;
+            CreateDirectoryA(tmp, NULL);
+            tmp[i] = '\\';
+        }
+    }
+    return CreateDirectoryA(tmp, NULL) ? 0 : (GetLastError() == ERROR_ALREADY_EXISTS ? 0 : -1);
+#else
+    char tmp[1024];
+    size_t n = strlen(path);
+    if (n >= sizeof(tmp)) return -1;
+    memcpy(tmp, path, n + 1);
+    for (size_t i = 1; i < n; i++) {
+        if (tmp[i] == '/') {
+            tmp[i] = 0;
+            mkdir(tmp, 0755);
+            tmp[i] = '/';
+        }
+    }
+    return mkdir(tmp, 0755) == 0 || errno == EEXIST ? 0 : -1;
+#endif
+}
+
+// Removes a FILE (directories: use fs_rmdir semantics via remove on
+// POSIX; Windows RemoveDirectoryA is separate — kept out of scope).
+int64_t datara_rt_fs_remove(const char* path) {
+    datara_rt_cap_require(DATARA_CAP_FS_WRITE, "fs::remove");
+    if (!path) return -1;
+    return remove(path) == 0 ? 0 : -1;
+}
+
+// Renames/moves a file. Returns 0 on success.
+int64_t datara_rt_fs_rename(const char* from, const char* to) {
+    datara_rt_cap_require(DATARA_CAP_FS_WRITE, "fs::rename");
+    if (!from || !to) return -1;
+#ifdef _WIN32
+    return MoveFileExA(from, to, MOVEFILE_REPLACE_EXISTING) ? 0 : -1;
+#else
+    return rename(from, to) == 0 ? 0 : -1;
+#endif
+}
+
+// File size in bytes, or -1 when missing/unopenable.
+int64_t datara_rt_fs_file_size(const char* path) {
+    datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::size");
+    if (!path) return -1;
+#ifdef _WIN32
+    WIN32_FILE_ATTRIBUTE_DATA fa;
+    if (!GetFileAttributesExA(path, GetFileExInfoStandard, &fa)) return -1;
+    ULARGE_INTEGER uli;
+    uli.HighPart = fa.nFileSizeHigh;
+    uli.LowPart = fa.nFileSizeLow;
+    return (int64_t)uli.QuadPart;
+#else
+    struct stat st;
+    if (stat(path, &st) != 0) return -1;
+    return (int64_t)st.st_size;
+#endif
+}
+
+// Last-modified unix-ms, or -1 when missing.
+int64_t datara_rt_fs_mtime(const char* path) {
+    datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::mtime");
+    if (!path) return -1;
+#ifdef _WIN32
+    WIN32_FILE_ATTRIBUTE_DATA fa;
+    if (!GetFileAttributesExA(path, GetFileExInfoStandard, &fa)) return -1;
+    ULARGE_INTEGER uli;
+    uli.HighPart = fa.ftLastWriteTime.dwHighDateTime;
+    uli.LowPart = fa.ftLastWriteTime.dwLowDateTime;
+    return (int64_t)((uli.QuadPart - 116444736000000000ULL) / 10000ULL);
+#else
+    struct stat st;
+    if (stat(path, &st) != 0) return -1;
+    return (int64_t)st.st_mtime * 1000;
+#endif
+}
+
+// ------------------------------------------------------------------------
 
 int64_t datara_rt_file_exists(const char* path) {
     datara_rt_cap_require(DATARA_CAP_FS_READ, "fs::exists");

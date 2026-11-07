@@ -108,5 +108,59 @@ pub fn declare<M: ClifModule>(
         func_ids.insert((*alias).into(), (id, sig));
     }
 
+    // PLAN_V153 A3/A4: date parts + fs tree operations.
+    // date_parts(unix_ms) -> ptr(list of 6); fs ops -> i64 status codes;
+    // fs size/mtime -> i64; fs rename takes two paths.
+    let mut rt_dp_sig = Signature::new(call_conv);
+    rt_dp_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_dp_sig.returns.push(AbiParam::new(clif_types::I64));
+    let rt_dp_id = module
+        .declare_function("datara_rt_date_parts", Linkage::Import, &rt_dp_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert("datara_rt_date_parts".into(), (rt_dp_id, rt_dp_sig.clone()));
+    func_ids.insert("date_parts".into(), (rt_dp_id, rt_dp_sig));
+
+    let mut rt_unix_sig = Signature::new(call_conv);
+    rt_unix_sig.returns.push(AbiParam::new(clif_types::I64));
+    let rt_unix_id = module
+        .declare_function("datara_rt_now_unix_ms", Linkage::Import, &rt_unix_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_now_unix_ms".into(),
+        (rt_unix_id, rt_unix_sig.clone()),
+    );
+    func_ids.insert("now_unix_ms".into(), (rt_unix_id, rt_unix_sig));
+
+    let mut rt_fs_path_sig = Signature::new(call_conv);
+    rt_fs_path_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_fs_path_sig.returns.push(AbiParam::new(clif_types::I64));
+    for (name, cname) in &[
+        ("fs_mkdir", "datara_rt_fs_mkdir"),
+        ("fs_remove", "datara_rt_fs_remove"),
+        ("fs_file_size", "datara_rt_fs_file_size"),
+        ("fs_mtime", "datara_rt_fs_mtime"),
+    ] {
+        let id = module
+            .declare_function(cname, Linkage::Import, &rt_fs_path_sig)
+            .map_err(|e| e.to_string())?;
+        func_ids.insert((*cname).into(), (id, rt_fs_path_sig.clone()));
+        func_ids.insert((*name).into(), (id, rt_fs_path_sig.clone()));
+    }
+
+    let mut rt_fs_rename_sig = Signature::new(call_conv);
+    rt_fs_rename_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_fs_rename_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_fs_rename_sig
+        .returns
+        .push(AbiParam::new(clif_types::I64));
+    let rt_fs_rename_id = module
+        .declare_function("datara_rt_fs_rename", Linkage::Import, &rt_fs_rename_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_fs_rename".into(),
+        (rt_fs_rename_id, rt_fs_rename_sig.clone()),
+    );
+    func_ids.insert("fs_rename".into(), (rt_fs_rename_id, rt_fs_rename_sig));
+
     Ok(())
 }

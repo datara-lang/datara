@@ -79,17 +79,22 @@ Rust + документированная safety-история).
 - [ ] Echo-сервер на фиберах: 100 conn / 1000 msg (N1-критерий)
 - [ ] HTTP/0.9-демо поверх потока (minihttp уже есть — обернуть)
 
-### A3. stdlib.time — часы и даты `[ ]`
-- [ ] `now_ms()/now_us()` (есть) + `now_ns_precise()`
-- [ ] `date_parts(now_ms) -> Date` (Y/M/D/h/m/s, localtime) — новый C-хелпер
-- [ ] `fmt_date(now_ms, "YYYY-MM-DD hh:mm:ss") -> Str`
-- [ ] Монотонные замеры: `stopwatch()` (elapsed_ms через now_precise_ms)
+### A3. stdlib.time — ЗАКРЫТО 2026-11-07
+- [x] `now_unix_ms` (проводка добавлена), `now_ms/now_precise_ms/now_ns`
+- [x] `date_parts(unix_ms) -> List<Int>` [year,month,day,h,m,s, localtime] —
+  новый C-хелпер (datara_fs.c, localtime_s/localtime)
+- [x] `fmt_date` ("YYYY-MM-DD hh:mm:ss") + `fmt_date_iso` (T-разделитель)
+- [x] `seconds_between`. Верифицировано CL+LLVM (настоящая дата).
+  Урок: time.h нужен и в WIN32-ветке datara_fs.c
 
-### A4. stdlib.fs — дерево файлов `[ ]`
-- [ ] Новые C-хелперы: `fs_mkdir`, `fs_remove`, `fs_rename`, `fs_file_size`,
-  `fs_mtime`
-- [ ] `walk(dir, depth) -> List<Str>` (рекурсивный список) — НА Datara
-- [ ] `read_bytes/write_bytes` уже есть — обернуть с Result-типизацией
+### A4. stdlib.fs — ЗАКРЫТО 2026-11-07
+- [x] Новые C-хелперы: fs_mkdir (mkdir -p!), fs_remove, fs_rename
+  (MoveFileExA BOOL напрямую — GetLastError-стайл давал ложный -1),
+  fs_file_size, fs_mtime — capability-gated (fs-write/fs-read)
+- [x] stdlib/fs/fskit.dtr: walk (рекурсивный), dir_size, file_count,
+  newest_mtime — НА Datara
+- [x] Верифицировано CL+LLVM: mkdir -p / size=9 / walk / rename /
+  remove / mtime — все зелёные
 
 ## B. Стабильность `[ ]`
 - [ ] **B1**: стресс-сьют — 100 программ × мусорный ввод (fuzz-lite),

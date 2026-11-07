@@ -650,6 +650,40 @@ impl<'a> TypeChecker<'a> {
                 ),
             );
         }
+        // PLAN_V153 A3/A4: date parts + fs operations.
+        function_signatures.insert(
+            "now_unix_ms".to_string(),
+            (vec![], DataraType::Int, Vec::new()),
+        );
+        function_signatures.insert(
+            "datara_rt_now_unix_ms".to_string(),
+            (vec![], DataraType::Int, Vec::new()),
+        );
+        function_signatures.insert(
+            "date_parts".to_string(),
+            (
+                vec![DataraType::Int],
+                DataraType::List(Box::new(DataraType::Int)),
+                Vec::new(),
+            ),
+        );
+        for f in &["fs_mkdir", "fs_remove", "fs_rename"] {
+            let params = if *f == "fs_rename" {
+                vec![DataraType::String, DataraType::String]
+            } else {
+                vec![DataraType::String]
+            };
+            function_signatures.insert(f.to_string(), (params, DataraType::Int, Vec::new()));
+        }
+        function_signatures.insert(
+            "fs_file_size".to_string(),
+            (vec![DataraType::String], DataraType::Int, Vec::new()),
+        );
+        function_signatures.insert(
+            "fs_mtime".to_string(),
+            (vec![DataraType::String], DataraType::Int, Vec::new()),
+        );
+
         // PLAN_V152 N1.3: non-blocking fiber completion poll.
         function_signatures.insert(
             "fiber_is_done".to_string(),

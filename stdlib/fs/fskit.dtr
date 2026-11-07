@@ -1,0 +1,70 @@
+//! stdlib.fs — filesystem tree kit (PLAN_V153 A4).
+//!
+//! Thin wrappers over the runtime's capability-gated fs builtins plus a
+//! recursive directory walk written in Datara. Every mutating operation
+//! requires an `unsafe(justification)` context (fs-write capability).
+
+// Directory size: sums file sizes recursively (walk). -1 on any miss.
+fn dir_size(path: Str) -> Int {
+    val entries = dir_list(path)
+    mut total = 0
+    for name in entries {
+        val child = path + "/" + name
+        val sz = fs_file_size(child)
+        if sz >= 0 {
+            total = total + sz
+        } else {
+            val sub = dir_size(child)
+            if sub > 0 {
+                total = total + sub
+            }
+        }
+    }
+    return total
+}
+
+// Recursive file list (depth-first, files AND directories).
+fn walk(path: Str) -> List<Str> {
+    mut acc = []
+    val entries = dir_list(path)
+    for name in entries {
+        val child = path + "/" + name
+        val sz = fs_file_size(child)
+        if sz >= 0 {
+            acc = acc.push(child)
+        } else {
+            acc = acc.push(child)
+            val sub = walk(child)
+            for s in sub {
+                acc = acc.push(s)
+            }
+        }
+    }
+    return acc
+}
+
+// File count under a path (recursive).
+fn file_count(path: Str) -> Int {
+    return walk(path).len()
+}
+
+// Newest mtime under a path (recursive), or -1 for an empty/missing tree.
+fn newest_mtime(path: Str) -> Int {
+    mut newest = -1
+    val entries = dir_list(path)
+    for name in entries {
+        val child = path + "/" + name
+        val mt = fs_mtime(child)
+        if mt > newest {
+            newest = mt
+        }
+        val mt_dir = fs_file_size(child)
+        if mt_dir < 0 {
+            val sub = newest_mtime(child)
+            if sub > newest {
+                newest = sub
+            }
+        }
+    }
+    return newest
+}

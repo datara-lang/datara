@@ -420,6 +420,14 @@ int64_t     datara_rt_map_contains(int64_t* map, const char* key);
 int64_t     datara_rt_map_contains_i64(int64_t* map, int64_t key);
 int64_t     datara_rt_map_len(int64_t* map);
 void        datara_rt_map_free(void* map);
+/* PLAN_V153 A3/A4: date parts + fs tree operations. */
+int64_t*    datara_rt_date_parts(int64_t unix_ms);
+int64_t     datara_rt_fs_mkdir(const char* path);
+int64_t     datara_rt_fs_remove(const char* path);
+int64_t     datara_rt_fs_rename(const char* from, const char* to);
+int64_t     datara_rt_fs_file_size(const char* path);
+int64_t     datara_rt_fs_mtime(const char* path);
+
 /* PLAN_V152 N1.3: non-blocking fiber completion poll. */
 int64_t     datara_rt_fiber_is_done(int64_t handle);
 
