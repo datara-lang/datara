@@ -526,6 +526,8 @@ declare ptr @datara_rt_map_create_i64_5(i64, i64, i64, i64, i64, i64, i64, i64, 
 declare i64 @datara_rt_map_len(ptr)
 declare ptr @datara_rt_map_keys_str(ptr)
 declare i64 @datara_rt_fiber_is_done(i64)
+declare ptr @datara_rt_outcome_build_raw(i64, i64, ptr)
+declare ptr @datara_rt_outcome_build(i64, ptr, ptr)
 declare ptr @datara_rt_fiber_net_accept(i64, i64)
 declare ptr @datara_rt_date_parts(i64)
 declare i64 @datara_rt_now_unix_ms()

@@ -108,6 +108,31 @@ pub fn declare<M: ClifModule>(
         func_ids.insert((*alias).into(), (id, sig));
     }
 
+    // Outcome constructors through the C runtime builder (repro #13):
+    // the StructInit path degenerated for use'd-module functions (NULL
+    // alloc + no stores). build_raw(is_success, value_raw, msg) is the
+    // exact builder the C internals use; strings pass as pointers, a
+    // NULL msg reads as "".
+    let mut rt_ob_sig = Signature::new(call_conv);
+    rt_ob_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_ob_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_ob_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_ob_sig.returns.push(AbiParam::new(clif_types::I64));
+    let rt_ob_raw_id = module
+        .declare_function("datara_rt_outcome_build_raw", Linkage::Import, &rt_ob_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_outcome_build_raw".into(),
+        (rt_ob_raw_id, rt_ob_sig.clone()),
+    );
+    let rt_ob_str_id = module
+        .declare_function("datara_rt_outcome_build", Linkage::Import, &rt_ob_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_outcome_build".into(),
+        (rt_ob_str_id, rt_ob_sig.clone()),
+    );
+
     // PLAN_V153 A2: fiber_net_accept(sock, timeout) -> Outcome<Str>
     // (handle encoded in the value slot; parking on would-block).
     let mut rt_acc_sig = Signature::new(call_conv);

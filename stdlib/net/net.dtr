@@ -32,6 +32,10 @@ fn tcp_connect(host: Str, port: Int) -> Result<Int, Str> {
         socket_close(sock)
         return Outcome.err("connect refused")
     }
+    // The connected socket MUST be non-blocking: fiber_net_recv/accept park
+    // on would-block — a BLOCKING socket would freeze the whole scheduler
+    // thread on the first try-recv with no data (the echo test hung here).
+    socket_nonblocking(sock, true)
     return Outcome.ok(sock)
 }
 

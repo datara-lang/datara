@@ -35,6 +35,13 @@ impl<'a> Lowering<'a> {
     ) -> Option<ValueId> {
         match expr {
             Expr::MemberAccess { object, member, .. } => {
+                if std::env::var("DATARA_FUNCIDS_TRACE").is_ok() {
+                    eprintln!(
+                        "[ma] member={} obj_ty={:?}",
+                        member,
+                        self.infer_expr_datara_type(object)
+                    );
+                }
                 if let Expr::Identifier(type_name, _) = &**object {
                     let enum_key = format!("{}.{}", type_name, member);
                     if let Some(&tag) = self.enum_variant_tags.get(&enum_key) {

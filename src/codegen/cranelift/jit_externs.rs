@@ -354,6 +354,16 @@ unsafe extern "C" {
     pub fn datara_rt_map_free(map: *mut ());
     pub fn datara_rt_map_keys_str(map: *mut i64) -> *mut i64;
     pub fn datara_rt_fiber_is_done(handle: i64) -> i64;
+    pub fn datara_rt_outcome_build_raw(
+        is_success: i64,
+        value_raw: i64,
+        msg: *const c_char,
+    ) -> *mut i64;
+    pub fn datara_rt_outcome_build(
+        is_success: i64,
+        value: *const c_char,
+        msg: *const c_char,
+    ) -> *mut i64;
     pub fn datara_rt_fiber_net_accept(sock: i64, timeout_ms: i64) -> *mut i64;
     pub fn datara_rt_date_parts(unix_ms: i64) -> *mut i64;
     pub fn datara_rt_fs_mkdir(path: *const c_char) -> i64;

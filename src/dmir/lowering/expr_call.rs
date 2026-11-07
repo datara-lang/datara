@@ -986,19 +986,54 @@ impl<'a> Lowering<'a> {
                         });
                     (f, zero, arg_val)
                 };
-                // Field order matches the stdlib class declaration order
-                // (is_success, value, error_msg); StructInit stores by the
-                // declared field offsets, so this order is ABI-visible.
+                // PLAN_V153 repro #13 FIX: construct through the C runtime
+                // builder instead of StructInit. The StructInit path
+                // degenerated for use'd-module functions (NULL alloc, no
+                // stores, string literal resolved to 0) — outcome_build_raw
+                // mallocs and stores by definition, and its NULL msg reads
+                // as "". The value slot is a raw i64 (Int payloads verbatim,
+                // Str payloads as pointers) — the same slot contract every
+                // C-internal Outcome producer uses.
+                let null_msg = self.next_val();
                 self.get_block_mut(*cur_block)
                     .instructions
-                    .push(Inst::StructInit {
+                    .push(Inst::ConstInt {
+                        dest: null_msg,
+                        value: 0,
+                    });
+                let (is_success_v, value_v, msg_v) = if member == "ok" {
+                    (flag_val, value_val, null_msg)
+                } else {
+                    (flag_val, null_msg, msg_val)
+                };
+                // The call's repr must match the CHECKER's type for this
+                // call site: error_msg of an Outcome<T> carries the ERROR
+                // channel (Str), not T. Inferring "Outcome<Int>" here made
+                // err.error_msg read as Int — the pointer printed as a
+                // number (repro #13, second half).
+                // err channel is ALWAYS Str (the two-state convention:
+                // err carries (false, 0, msg) with msg: Str). The ok
+                // payload repr follows the argument's static type.
+                let call_ty = if member == "err" {
+                    "Result<Str, Str>".to_string()
+                } else {
+                    let arg_ty = self
+                        .infer_expr_datara_type(&args[0])
+                        .map(|t| t.to_string())
+                        .unwrap_or_else(|| "Int".to_string());
+                    let payload = match arg_ty.as_str() {
+                        "Int" | "Float" | "Bool" | "Str" | "String" => arg_ty,
+                        other => format!("\"{}\"", other),
+                    };
+                    format!("Result<{}, Str>", payload)
+                };
+                self.get_block_mut(*cur_block)
+                    .instructions
+                    .push(Inst::Call {
                         dest,
-                        class_name: "Outcome".into(),
-                        fields: vec![
-                            ("is_success".into(), flag_val),
-                            ("value".into(), value_val),
-                            ("error_msg".into(), msg_val),
-                        ],
+                        func: "datara_rt_outcome_build_raw".into(),
+                        args: vec![is_success_v, value_v, msg_v],
+                        ty: call_ty,
                     });
                 return Some(dest);
             }

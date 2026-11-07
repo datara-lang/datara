@@ -178,6 +178,9 @@ impl<'a> TypeChecker<'a> {
                 member,
                 span,
             } => {
+                if std::env::var("DATARA_FUNCIDS_TRACE").is_ok() {
+                    eprintln!("[chk-ma] member={}", member);
+                }
                 let obj_type = self.check_expr(object, diag);
                 match &obj_type {
                     DataraType::Class(cls_name) => {

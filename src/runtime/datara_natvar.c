@@ -386,6 +386,16 @@ static int io_wait_poll_and_wake(void) {
     // Poll all parked fds via select(); wake readable ones (push to ready).
     // Returns the number woken.
     if (g_io_waiter_count == 0) return 0;
+    static int64_t dbg_polls = 0;
+    if (getenv("DATARA_IO_TRACE") && (++dbg_polls % 500) == 0) {
+        fprintf(stderr, "[iowait] polls=%lld waiters=%lld now=%lld deadlines:",
+                (long long)dbg_polls, (long long)g_io_waiter_count,
+                (long long)now_ms_real());
+        for (int64_t i = 0; i < g_io_waiter_count; i++) {
+            fprintf(stderr, " %lld", (long long)g_io_waiters[i]->wait_deadline);
+        }
+        fprintf(stderr, "\n");
+    }
 #ifdef _WIN32
     fd_set rfds;
     FD_ZERO(&rfds);
@@ -397,7 +407,12 @@ static int io_wait_poll_and_wake(void) {
     }
     struct timeval tv = { 0, 2000 }; // 2 ms slice
     int nready = select((int)maxfd + 1, &rfds, NULL, NULL, &tv);
-    if (nready <= 0) return 0;
+    // PLAN_V153 A2 CRITICAL FIX: a select() timeout (nready == 0) must NOT
+    // skip the deadline scan — with no incoming traffic the old early
+    // return made parked fibers wait FOREVER past their deadlines (the
+    // accept timeout never fired). Deadline-only wakes are the point of
+    // the 2 ms poll slice.
+    if (nready < 0) return 0;
     int64_t woken = 0;
     int64_t w = 0;
     for (int64_t i = 0; i < g_io_waiter_count; i++) {
@@ -425,7 +440,12 @@ static int io_wait_poll_and_wake(void) {
     }
     struct timeval tv = { 0, 2000 };
     int nready = select(maxfd + 1, &rfds, NULL, NULL, &tv);
-    if (nready <= 0) return 0;
+    // PLAN_V153 A2 CRITICAL FIX: a select() timeout (nready == 0) must NOT
+    // skip the deadline scan — with no incoming traffic the old early
+    // return made parked fibers wait FOREVER past their deadlines (the
+    // accept timeout never fired). Deadline-only wakes are the point of
+    // the 2 ms poll slice.
+    if (nready < 0) return 0;
     int64_t woken = 0;
     int64_t w = 0;
     for (int64_t i = 0; i < g_io_waiter_count; i++) {
@@ -540,15 +560,22 @@ void* datara_rt_fiber_net_accept(int64_t sock, int64_t timeout_ms) {
 #endif
             continue;
         }
+        int64_t recv_deadline = timeout_ms > 0 ? now_ms_real() + timeout_ms : 0;
         self->state = FIB_WAITING_IO;
         self->wait_fd = sock;
-        self->wait_deadline = timeout_ms > 0 ? now_ms_real() + timeout_ms : 0;
+        self->wait_deadline = recv_deadline;
         io_wait_add(self);
 #ifdef _WIN32
         SwitchToFiber(g_scheduler_fiber);
 #else
         swapcontext((ucontext_t*)self->os_fiber, g_scheduler_ctx);
 #endif
+        // Resumed: deadline expired (no data arrived) -> timeout error
+        // instead of parking again (the would-block retry loop above would
+        // otherwise re-park forever and the recv deadline never fired).
+        if (recv_deadline > 0 && now_ms_real() >= recv_deadline) {
+            return datara_rt_outcome_build(0, "", "timeout");
+        }
     }
 }
 
@@ -1005,15 +1032,21 @@ void* datara_rt_fiber_net_recv(int64_t sock, int64_t max_bytes, int64_t timeout_
 #endif
             continue;
         }
+        int64_t recv_deadline = timeout_ms > 0 ? now_ms_real() + timeout_ms : 0;
         self->state = FIB_WAITING_IO;
         self->wait_fd = sock;
-        self->wait_deadline = timeout_ms > 0 ? now_ms_real() + timeout_ms : 0;
+        self->wait_deadline = recv_deadline;
         io_wait_add(self);
 #ifdef _WIN32
         SwitchToFiber(g_scheduler_fiber);
 #else
         swapcontext((ucontext_t*)self->os_fiber, g_scheduler_ctx);
 #endif
-        // Woken: loop back and retry recv.
+        // Woken: deadline expired (no data arrived) -> timeout error instead
+        // of retrying the would-block loop, which would re-park forever and
+        // the recv deadline never fired.
+        if (recv_deadline > 0 && now_ms_real() >= recv_deadline) {
+            return datara_rt_outcome_build(0, "", "timeout");
+        }
     }
 }
