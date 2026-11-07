@@ -148,6 +148,34 @@ impl Optimizer {
         val_to_class: &mut HashMap<ValueId, String>,
         var_to_class: &mut HashMap<String, String>,
     ) {
+        // Collection-receiver tracking (mirror of the codegen's
+        // list/map/string vids): a method call on a KNOWN collection goes
+        // through the runtime intrinsic exactly — same-named user methods
+        // must stay prunable in that case (the tree-shaking gate), while
+        // calls on UNKNOWN receivers may dispatch to them later (the
+        // GetField payload propagation — repro #12).
+        let mut collection_vals: HashSet<ValueId> = HashSet::new();
+        let mut collection_vars: HashSet<String> = HashSet::new();
+        for inst in instructions {
+            match inst {
+                Inst::Call { dest, ty, .. } => {
+                    if ty.contains("List") || ty.contains("Map") || ty.contains("String") {
+                        collection_vals.insert(*dest);
+                    }
+                }
+                Inst::AssignVar { name, value } => {
+                    if collection_vals.contains(value) {
+                        collection_vars.insert(name.clone());
+                    }
+                }
+                Inst::LoadVar { dest, name } => {
+                    if collection_vars.contains(name) {
+                        collection_vals.insert(*dest);
+                    }
+                }
+                _ => {}
+            }
+        }
         for inst in instructions {
             match inst {
                 Inst::StructInit {
@@ -276,7 +304,8 @@ impl Optimizer {
                         // user method. With a KNOWN List/Map/String receiver
                         // the intrinsic dispatch is exact — keeping candidates
                         // would resurrect dead code (the tree-shaking gate).
-                        if val_to_class.get(object).is_none()
+                        if !collection_vals.contains(object)
+                            && val_to_class.get(object).is_none()
                             && let Some(cands) = user_methods.get(method)
                         {
                             for cand in cands {
