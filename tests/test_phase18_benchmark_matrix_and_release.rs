@@ -210,6 +210,11 @@ fn test_release_file_size_limits() {
         // 64.3 KB: core call checker (Outcome constructors, generic methods,
         // capability checks, bridge dispatch) — extraction planned for 1.5.3.
         "src/types/check/call.rs",
+        // 61.7 KB: struct-literal composite lowering (MMIO/packet/enum
+        // pre-processing) — extraction planned for 1.5.3 (the repro-#13
+        // Outcome helper extraction landed in tsu.rs; the remaining bulk
+        // is the MemberAccess packet/MMIO dispatch).
+        "src/dmir/lowering/expr_composite.rs",
     ];
     let mut oversized = Vec::new();
     fn visit_dir(dir: &Path, oversized: &mut Vec<(PathBuf, u64)>) {
