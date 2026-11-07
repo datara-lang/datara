@@ -404,6 +404,17 @@ impl<'a> Lowering<'a> {
     }
 
     pub(crate) fn lower_behavior(&mut self, b: &BehaviorDecl, module: &mut Module) {
+        if std::env::var("DATARA_FUNCIDS_TRACE").is_ok() {
+            let names: Vec<&str> = b
+                .body_items
+                .iter()
+                .filter_map(|it| match it {
+                    ClassItem::Method(m) => Some(m.name.as_str()),
+                    _ => None,
+                })
+                .collect();
+            eprintln!("[lower_behavior] {} methods={:?}", b.target_type, names);
+        }
         for item in &b.body_items {
             if let ClassItem::Method(m) = item {
                 let lowered = self.lower_method(m, &b.target_type);

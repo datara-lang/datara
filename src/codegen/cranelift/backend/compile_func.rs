@@ -51,6 +51,13 @@ pub fn compile_all_functions<M: ClifModule>(
     // 3. Compile functions
     let mut fn_builder_ctx = FunctionBuilderContext::new();
     let mut codegen_ctx = cranelift_codegen::Context::new();
+    if std::env::var("DATARA_FUNCIDS_TRACE").is_ok() {
+        let user: Vec<&String> = sorted_func_names
+            .iter()
+            .filter(|n| n.contains("ArgsView") || n.contains("Bundle"))
+            .collect();
+        eprintln!("[dmir-fns] {:?}", user);
+    }
     for name in sorted_func_names {
         let f = dmir_module
             .functions
@@ -878,6 +885,33 @@ pub fn compile_all_functions<M: ClifModule>(
                         }
                         if field_type_declared.contains("Map") || ty.contains("Map") {
                             map_vids.insert(*dest);
+                        }
+                        // Repro #12: the Outcome/Maybe ABI fallback reads
+                        // `value` from a Result whose payload is a STRUCT —
+                        // the payload's class must reach val_to_class or the
+                        // method call on `parsed.value` dispatches to an
+                        // UNRELATED class's same-named method (arity
+                        // mismatch -> Cranelift ABI assert). Primitives and
+                        // generic params are excluded.
+                        if field == "value" {
+                            let is_payload_class =
+                                ty.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+                                    && !matches!(
+                                        ty.as_str(),
+                                        "Int"
+                                            | "Float"
+                                            | "Bool"
+                                            | "Str"
+                                            | "String"
+                                            | "Unit"
+                                            | "Val"
+                                            | "Void"
+                                            | "T"
+                                    )
+                                    && !ty.contains('<');
+                            if is_payload_class {
+                                val_to_class.insert(*dest, ty.clone());
+                            }
                         }
                         let stripped_field_type = field_type_declared
                             .split('<')

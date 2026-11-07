@@ -1,0 +1,68 @@
+//! Repro fixture for tests/test_result_field_method.rs (PLAN_V153 N2
+//! repro #12: Result.value -> method-call chain). NOT part of the
+//! stdlib surface.
+struct ArgsView {
+    values: Map<Str, Str>
+    flags: List<Str>
+    rest: List<Str>
+}
+
+behavior ArgsView {
+    get(name: Str) -> Str {
+        if this.values.contains(name) {
+            return this.values[name]
+        }
+        return ""
+    }
+
+    has(name: Str) -> Bool {
+        for f in this.flags {
+            if f == name {
+                return true
+            }
+        }
+        return false
+    }
+
+    rest_len() -> Int {
+        return this.rest.len()
+    }
+}
+
+fn make_args(items: List<Str>) -> ArgsView {
+    val values = {}
+    mut flags = []
+    mut rest = []
+    mut i = 0
+    val n = items.len()
+    while i < n {
+        val a = items.get(i)
+        if str_starts_with(a, "--") {
+            val name = str_substring(a, 2, str_len(a) - 2)
+            if i + 1 < n {
+                val nxt = items.get(i + 1)
+                if !str_starts_with(nxt, "-") {
+                    values[a] = nxt
+                    i = i + 2
+                } else {
+                    flags = flags.push(name)
+                    i = i + 1
+                }
+            } else {
+                flags = flags.push(name)
+                i = i + 1
+            }
+        } else if str_starts_with(a, "-") && str_len(a) > 1 {
+            flags = flags.push(str_substring(a, 1, str_len(a) - 1))
+            i = i + 1
+        } else {
+            rest = rest.push(a)
+            i = i + 1
+        }
+    }
+    return ArgsView { values: values, flags: flags, rest: rest }
+}
+
+fn make_args_result(items: List<Str>) -> Result<ArgsView, Str> {
+    return Outcome.ok(make_args(items))
+}

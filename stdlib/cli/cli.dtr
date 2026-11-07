@@ -1,0 +1,216 @@
+//! stdlib.cli — command-line interface kit (PLAN_V153 A1).
+//!
+//! NOTE (repro #12): parse_args originally returned an `Args` struct —
+//! a cross-module struct return LOST its List fields on the caller side
+//! (Map fields survived; same-module returns are fine). The split API
+//! below returns the three pieces as plain List/Map values, which cross
+//! the module boundary intact.
+//!
+//! The runtime already exposes argv and the environment
+//! (args_count / args_get / env_get); this module adds the
+//! conventions tools need: flag parsing with a spec, environment
+//! access with defaults, and a ready-made usage banner.
+//!
+//! Flag grammar (parse_args):
+//!   --name value   (option with a value)
+//!   --name         (boolean flag)
+//!   -x             (short boolean flag)
+//!   anything else  (positional)
+//!
+//! parse_args returns Result<Args, Str> where Args carries:
+//!   values: Map<Str, Str>   (option values, keyed WITHOUT the dashes)
+//!   flags:  List<Str>       (boolean flags seen)
+//!   rest:   List<Str>       (positional arguments)
+
+struct Args {
+    values: Map<Str, Str>
+    flags: List<Str>
+    rest: List<Str>
+}
+
+behavior Args {
+    // Raw lookup by the STORED key (dashes included: "--name").
+    get(name: Str) -> Str {
+        if this.values.contains(name) {
+            return this.values[name]
+        }
+        return ""
+    }
+
+    // True when the boolean flag was given.
+    has(name: Str) -> Bool {
+        for f in this.flags {
+            if f == name {
+                return true
+            }
+        }
+        return false
+    }
+
+    // Positional count.
+    rest_len() -> Int {
+        return this.rest.len()
+    }
+}
+
+// argv as a List<Str> (index 0 is the program name, like C).
+fn args() -> List<Str> {
+    val n = args_count()
+    mut acc = []
+    mut i = 0
+    while i < n {
+        acc = acc.push(args_get(i))
+        i = i + 1
+    }
+    return acc
+}
+
+// Environment variable, or "" when unset.
+fn env_or(name: Str) -> Str {
+    return env_get(name)
+}
+
+// Environment variable with a default when unset/empty.
+fn env_default(name: Str, fallback: Str) -> Str {
+    val v = env_get(name)
+    if str_len(v) > 0 {
+        return v
+    }
+    return fallback
+}
+
+// ---------------------------------------------------------------------------
+// Split API (repro #12 workaround): each piece crosses the module
+// boundary as a plain Map/List, which is lossless.
+
+// Option values: {"--name": "world"} — keys INCLUDE the dashes.
+fn parse_values(items: List<Str>) -> Map<Str, Str> {
+    val values = {}
+    mut i = 0
+    val n = items.len()
+    while i < n {
+        val a = items.get(i)
+        if str_starts_with(a, "--") && i + 1 < n {
+            val nxt = items.get(i + 1)
+            if !str_starts_with(nxt, "-") {
+                values[a] = nxt
+                i = i + 2
+            } else {
+                i = i + 1
+            }
+        } else {
+            i = i + 1
+        }
+    }
+    return values
+}
+
+// Boolean flags (dashes stripped): ["verbose", "x"].
+fn parse_flags(items: List<Str>) -> List<Str> {
+    mut flags = []
+    mut i = 0
+    val n = items.len()
+    while i < n {
+        val a = items.get(i)
+        if str_starts_with(a, "--") {
+            val name = str_substring(a, 2, str_len(a) - 2)
+            if i + 1 < n {
+                val nxt = items.get(i + 1)
+                if str_starts_with(nxt, "-") || i + 1 == n {
+                    flags = flags.push(name)
+                }
+            } else {
+                flags = flags.push(name)
+            }
+            i = i + 1
+        } else if str_starts_with(a, "-") && str_len(a) > 1 {
+            flags = flags.push(str_substring(a, 1, str_len(a) - 1))
+            i = i + 1
+        } else {
+            i = i + 1
+        }
+    }
+    return flags
+}
+
+// Positional arguments.
+fn parse_rest(items: List<Str>) -> List<Str> {
+    mut rest = []
+    mut i = 0
+    val n = items.len()
+    while i < n {
+        val a = items.get(i)
+        if !str_starts_with(a, "-") {
+            rest = rest.push(a)
+        }
+        i = i + 1
+    }
+    return rest
+}
+
+// Option value with "" when absent (keys include the dashes).
+fn arg_value(values: Map<Str, Str>, name: Str) -> Str {
+    val key = "--" + name
+    if values.contains(key) {
+        return values[key]
+    }
+    return ""
+}
+
+// True when the boolean flag was given.
+fn arg_has(flags: List<Str>, name: Str) -> Bool {
+    for f in flags {
+        if f == name {
+            return true
+        }
+    }
+    return false
+}
+
+// ---------------------------------------------------------------------------
+// One-shot API (PLAN_V153 A1): parses argv (WITHOUT argv[0]) and returns
+// the Args view. Uses the single-pass grammar:
+//   --name value | --flag | -x | positional
+fn parse_args(items: List<Str>) -> Args {
+    val values = {}
+    mut flags = []
+    mut rest = []
+    mut i = 0
+    val n = items.len()
+    while i < n {
+        val a = items.get(i)
+        if str_starts_with(a, "--") {
+            val name = str_substring(a, 2, str_len(a) - 2)
+            if i + 1 < n {
+                val nxt = items.get(i + 1)
+                if !str_starts_with(nxt, "-") {
+                    values[a] = nxt
+                    i = i + 2
+                } else {
+                    flags = flags.push(name)
+                    i = i + 1
+                }
+            } else {
+                flags = flags.push(name)
+                i = i + 1
+            }
+        } else if str_starts_with(a, "-") && str_len(a) > 1 {
+            flags = flags.push(str_substring(a, 1, str_len(a) - 1))
+            i = i + 1
+        } else {
+            rest = rest.push(a)
+            i = i + 1
+        }
+    }
+    return Args { values: values, flags: flags, rest: rest }
+}
+
+// Dashless option value: parse_args stores keys WITH dashes.
+fn arg_get(a: Args, name: Str) -> Str {
+    return a.get("--" + name)
+}
+
+// Dashless flag check.
+fn arg_flag(a: Args, name: Str) -> Bool {
+    return a.has(name)
+}

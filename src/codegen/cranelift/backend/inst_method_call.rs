@@ -498,6 +498,14 @@ pub fn compile_method_call<M: ClifModule>(
                 })
                 .unwrap_or(false);
             let dbg_obj_class = ctx.val_to_class.get(object).cloned();
+            if std::env::var("DATARA_FUNCIDS_TRACE").is_ok() {
+                let keys: Vec<&String> = ctx
+                    .func_ids
+                    .keys()
+                    .filter(|k| k.contains("ArgsView") || k.contains("Bundle"))
+                    .collect();
+                eprintln!("[funcids] fn={} relevant={:?}", ctx.current_func.name, keys);
+            }
             if std::env::var("DATARA_CODEGEN_TRACE").is_ok() {
                 eprintln!(
                     "[dispatch] fn={} method={:?} obj_class={:?} matched={:?}",

@@ -269,6 +269,21 @@ impl Optimizer {
 
                     // 3. Intrinsic collection/string method — direct runtime intrinsic dispatch
                     if !resolved && is_intrinsic_method(method) {
+                        // Even when an intrinsic handles this name, a user
+                        // class may ALSO define it: the receiver's class can
+                        // be established only later (e.g. through the
+                        // GetField payload propagation — repro #12), and the
+                        // codegen then dispatches to the user method. Keep
+                        // every same-named candidate reachable so DCE cannot
+                        // remove a function the codegen still dispatches to.
+                        if let Some(cands) = user_methods.get(method) {
+                            for cand in cands {
+                                if !reachable.contains(cand) {
+                                    reachable.insert(cand.clone());
+                                    worklist.push(cand.clone());
+                                }
+                            }
+                        }
                         resolved = true;
                     }
 
