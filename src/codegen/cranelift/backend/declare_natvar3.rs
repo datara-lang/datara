@@ -108,6 +108,21 @@ pub fn declare<M: ClifModule>(
         func_ids.insert((*alias).into(), (id, sig));
     }
 
+    // PLAN_V153 A2: fiber_net_accept(sock, timeout) -> Outcome<Str>
+    // (handle encoded in the value slot; parking on would-block).
+    let mut rt_acc_sig = Signature::new(call_conv);
+    rt_acc_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_acc_sig.params.push(AbiParam::new(clif_types::I64));
+    rt_acc_sig.returns.push(AbiParam::new(clif_types::I64));
+    let rt_acc_id = module
+        .declare_function("datara_rt_fiber_net_accept", Linkage::Import, &rt_acc_sig)
+        .map_err(|e| e.to_string())?;
+    func_ids.insert(
+        "datara_rt_fiber_net_accept".into(),
+        (rt_acc_id, rt_acc_sig.clone()),
+    );
+    func_ids.insert("fiber_net_accept".into(), (rt_acc_id, rt_acc_sig));
+
     // PLAN_V153 A3/A4: date parts + fs tree operations.
     // date_parts(unix_ms) -> ptr(list of 6); fs ops -> i64 status codes;
     // fs size/mtime -> i64; fs rename takes two paths.

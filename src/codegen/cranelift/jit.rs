@@ -228,6 +228,8 @@ pub fn register_runtime_symbols(builder: &mut JITBuilder) {
     reg!("map_values_str", datara_rt_map_values);
     reg!("datara_rt_map_keys_str", datara_rt_map_keys_str);
     reg!("fiber_is_done", datara_rt_fiber_is_done);
+    reg!("fiber_net_accept", datara_rt_fiber_net_accept);
+    reg!("datara_rt_fiber_net_accept", datara_rt_fiber_net_accept);
     reg!("date_parts", datara_rt_date_parts);
     reg!("now_unix_ms", datara_rt_now_unix_ms);
     reg!("datara_rt_now_unix_ms", datara_rt_now_unix_ms);

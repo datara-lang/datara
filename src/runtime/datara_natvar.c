@@ -498,6 +498,60 @@ int64_t datara_rt_fiber_join(int64_t handle) {
     return target->exit_code;
 }
 
+// ============================================================================
+// Fiber-aware non-blocking ACCEPT (PLAN_V153 A2). The plain accept() call
+// BLOCKS the OS thread — on the single-threaded fiber scheduler that froze
+// every other fiber (serve-before-connect = total deadlock). This variant
+// flips the listener to non-blocking, tries accept, and parks the fiber on
+// would-block; the scheduler's select() slice wakes it when a connection
+// arrives.
+// ============================================================================
+void* datara_rt_fiber_net_accept(int64_t sock, int64_t timeout_ms) {
+    if (sock < 0) return datara_rt_outcome_build(0, "", "invalid listener");
+    Fiber* self = g_running;
+    for (;;) {
+#ifdef _WIN32
+        SOCKET client = accept((SOCKET)sock, NULL, NULL);
+        if (client != INVALID_SOCKET) {
+            char handle_buf[32];
+            snprintf(handle_buf, sizeof handle_buf, "%lld", (long long)client);
+            return datara_rt_outcome_build(1, handle_buf, "");
+        }
+        int err = WSAGetLastError();
+        if (err != WSAEWOULDBLOCK && err != WSAEINPROGRESS) {
+            return datara_rt_outcome_build(0, "", "accept error");
+        }
+#else
+        int client = accept((int)sock, NULL, NULL);
+        if (client >= 0) {
+            char handle_buf[32];
+            snprintf(handle_buf, sizeof handle_buf, "%d", client);
+            return datara_rt_outcome_build(1, handle_buf, "");
+        }
+        if (errno != EWOULDBLOCK && errno != EAGAIN && errno != EINPROGRESS) {
+            return datara_rt_outcome_build(0, "", "accept error");
+        }
+#endif
+        if (!self) {
+#ifdef _WIN32
+            Sleep(10);
+#else
+            usleep(10000);
+#endif
+            continue;
+        }
+        self->state = FIB_WAITING_IO;
+        self->wait_fd = sock;
+        self->wait_deadline = timeout_ms > 0 ? now_ms_real() + timeout_ms : 0;
+        io_wait_add(self);
+#ifdef _WIN32
+        SwitchToFiber(g_scheduler_fiber);
+#else
+        swapcontext((ucontext_t*)self->os_fiber, g_scheduler_ctx);
+#endif
+    }
+}
+
 // Main-loop scheduler: run until every spawned fiber is DONE. Returns the
 // number of fibers completed.
 

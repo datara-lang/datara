@@ -72,12 +72,22 @@ Rust + документированная safety-история).
   Грамматика: `--name value`, булев-флаг — только если следом флаг или
   конец аргументов (документировано в модуле).
 
-### A2. stdlib.net — TCP поверх fiber-сокетов `[ ]`
-- [ ] `TcpListener.bind(port) -> Result<Listener>`, `.accept() -> Result<TcpStream>`
-- [ ] `TcpStream.connect(host, port) -> Result<TcpStream>`,
-  `.send(Str)`, `.recv(max, timeout) -> Result<Str>`, `.close()`
-- [ ] Echo-сервер на фиберах: 100 conn / 1000 msg (N1-критерий)
-- [ ] HTTP/0.9-демо поверх потока (minihttp уже есть — обернуть)
+### A2. stdlib.net — TCP поверх fiber-сокетов `[x]` (happy path) 2026-11-07
+- [x] handle-based API: tcp_connect/tcp_send/tcp_recv/tcp_close/
+  tcp_listen/tcp_accept — все Result-типизированы, честный grammar
+- [x] fiber_net_accept — НОВЫЙ C-хелпер: accept() блокировал ОС-поток
+  (однопоточный планировщик замерзал serve-before-connect); теперь
+  listener non-blocking + парковка фибера на would-block
+- [x] echo client+server (обе стороны — фиберы) — работает
+- [x] Клиент из main-фибера НЕЛЬЗЯ (main = scheduler context, парковка
+  main на recv = дедлок) — документировано в модуле
+- [ ] РЕПРО #13 (открыт): err.error_msg из use'd-модуля читает value-слот
+  (DMIR не содержит error_msg вообще; same-module работает). Полный
+  анализ: lower_behavior получает ВСЕ методы; выживание после DCE —
+  только вызванные; .err() метод → ABI assert. Изоляция: OUTCOME.err
+  строки из кросс-модульных фн теряются при... (trace: field=value@8
+  вместо error_msg@16). Обход: is_success + value (happy path).
+- [ ] 100 conn / 1000 msg — после фикса #13
 
 ### A3. stdlib.time — ЗАКРЫТО 2026-11-07
 - [x] `now_unix_ms` (проводка добавлена), `now_ms/now_precise_ms/now_ns`

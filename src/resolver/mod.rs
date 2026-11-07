@@ -210,6 +210,8 @@ impl Resolver {
             "map_keys",
             "map_keys_int",
             "fiber_is_done",
+            "fiber_net_accept",
+            "datara_rt_fiber_net_accept",
             "date_parts",
             "now_unix_ms",
             "datara_rt_now_unix_ms",

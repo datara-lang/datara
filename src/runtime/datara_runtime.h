@@ -420,6 +420,9 @@ int64_t     datara_rt_map_contains(int64_t* map, const char* key);
 int64_t     datara_rt_map_contains_i64(int64_t* map, int64_t key);
 int64_t     datara_rt_map_len(int64_t* map);
 void        datara_rt_map_free(void* map);
+/* PLAN_V153 A2: fiber-aware non-blocking accept (parks the fiber). */
+void*       datara_rt_fiber_net_accept(int64_t sock, int64_t timeout_ms);
+
 /* PLAN_V153 A3/A4: date parts + fs tree operations. */
 int64_t*    datara_rt_date_parts(int64_t unix_ms);
 int64_t     datara_rt_fs_mkdir(const char* path);

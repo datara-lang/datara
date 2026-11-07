@@ -5,3 +5,11 @@ const SCALE: Int = 1000
 fn scaled(x: Int) -> Int {
     return x * SCALE
 }
+
+fn make_err() -> Result<Int, Str> {
+    return Outcome.err("my-error")
+}
+
+fn make_ok() -> Result<Int, Str> {
+    return Outcome.ok(42)
+}

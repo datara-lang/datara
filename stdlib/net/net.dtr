@@ -1,0 +1,98 @@
+//! stdlib.net — TCP over fiber sockets (PLAN_V153 A2).
+//!
+//! Wraps the runtime's socket builtins (socket_create/connect/send/
+//! accept + fiber_net_recv — non-blocking recv that parks the fiber in
+//! the scheduler's select() slice). All operations MUST run inside an
+//! `unsafe(justification: "...")` block: network access is a capability
+//! (net-connect), checked by the compiler (E0940).
+//!
+//! Handle-based API: every function takes/returns an Int socket handle
+//! (handles are Copy — no ownership dance), mirroring mutex_new/mutex_lock.
+//!
+//! Example — echo client:
+//!   unsafe(justification: "tcp client") {
+//!       val opened = tcp_connect("127.0.0.1", 8080)
+//!       if opened.is_success {
+//!           val sock = opened.value
+//!           tcp_send(sock, "ping")
+//!           val reply = tcp_recv(sock, 4096, 5000)
+//!           if reply.is_success { out reply.value }
+//!           tcp_close(sock)
+//!       }
+//!   }
+
+// Connects to host:port. ok(sock_handle) / err(reason).
+fn tcp_connect(host: Str, port: Int) -> Result<Int, Str> {
+    val sock = socket_create(1)
+    if sock < 0 {
+        return Outcome.err("socket_create failed")
+    }
+    val rc = socket_connect(sock, host, port)
+    if rc != 0 {
+        socket_close(sock)
+        return Outcome.err("connect refused")
+    }
+    return Outcome.ok(sock)
+}
+
+// Sends a payload over the socket. ok("sent") / err(reason).
+fn tcp_send(sock: Int, payload: Str) -> Result<Str, Str> {
+    if sock < 0 {
+        return Outcome.err("socket closed")
+    }
+    socket_send(sock, payload)
+    return Outcome.ok("sent")
+}
+
+// Receives up to max bytes, parking the fiber until data arrives or the
+// deadline (ms) expires. ok(payload) / err("timeout" | reason).
+fn tcp_recv(sock: Int, max_bytes: Int, timeout_ms: Int) -> Result<Str, Str> {
+    if sock < 0 {
+        return Outcome.err("socket closed")
+    }
+    val res = fiber_net_recv(sock, max_bytes, timeout_ms)
+    if res.is_success {
+        return Outcome.ok(res.value)
+    }
+    return Outcome.err(res.error_msg)
+}
+
+// Closes a socket (idempotent for closed handles).
+fn tcp_close(sock: Int) {
+    if sock >= 0 {
+        socket_close(sock)
+    }
+}
+
+// Binds 127.0.0.1:port and listens. ok(listener_handle) / err(reason).
+fn tcp_listen(port: Int) -> Result<Int, Str> {
+    val sock = socket_create(1)
+    if sock < 0 {
+        return Outcome.err("socket_create failed")
+    }
+    if socket_bind(sock, "127.0.0.1", port) != 0 {
+        socket_close(sock)
+        return Outcome.err("bind refused")
+    }
+    if socket_listen(sock, 16) != 0 {
+        socket_close(sock)
+        return Outcome.err("listen refused")
+    }
+    // Non-blocking: accept must PARK fibers, never block the OS thread
+    // (a blocking accept froze the whole scheduler).
+    socket_nonblocking(sock, true)
+    return Outcome.ok(sock)
+}
+
+// Accepts one connection, PARKING the fiber until a peer connects
+// (or the deadline expires). ok(peer_handle) / err(reason). The handle
+// comes back encoded in the Outcome value slot.
+fn tcp_accept(listener: Int) -> Result<Int, Str> {
+    val res = fiber_net_accept(listener, 30000)
+    if res.is_success {
+        val peer = str_to_int(res.value)
+        socket_nonblocking(peer, true)
+        return Outcome.ok(peer)
+    }
+    return Outcome.err(res.error_msg)
+}

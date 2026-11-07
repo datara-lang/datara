@@ -660,6 +660,14 @@ impl<'a> TypeChecker<'a> {
             (vec![], DataraType::Int, Vec::new()),
         );
         function_signatures.insert(
+            "fiber_net_accept".to_string(),
+            (
+                vec![DataraType::Int, DataraType::Int],
+                DataraType::Result(Box::new(DataraType::String), Box::new(DataraType::String)),
+                Vec::new(),
+            ),
+        );
+        function_signatures.insert(
             "date_parts".to_string(),
             (
                 vec![DataraType::Int],

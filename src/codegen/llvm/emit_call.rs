@@ -305,6 +305,7 @@ impl<'a> LlvmEmitter<'a> {
                 "str_join" => "datara_rt_str_join",
                 "map_keys" => "datara_rt_map_keys_str",
                 "fiber_is_done" => "datara_rt_fiber_is_done",
+                "fiber_net_accept" => "datara_rt_fiber_net_accept",
                 "date_parts" => "datara_rt_date_parts",
                 "now_unix_ms" => "datara_rt_now_unix_ms",
                 "fs_mkdir" => "datara_rt_fs_mkdir",
