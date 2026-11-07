@@ -156,26 +156,8 @@ impl<'a> Lowering<'a> {
                 let obj_ty = self.infer_expr_datara_type(object)?;
                 match obj_ty {
                     DataraType::GenericInstance { name, args } => {
-                        // Outcome convention (repro #13): the error channel
-                        // is ALWAYS Str (types/mod.rs:488), even when the
-                        // generic template for the class is not registered
-                        // in this compilation (the repr "Outcome<Int>" lost
-                        // the second channel) — without this, error_msg fell
-                        // to the "Int" default and printed a pointer as a
-                        // number.
-                        if name == "Outcome" {
-                            match member.as_str() {
-                                "is_success" | "is_ok" | "is_err" => {
-                                    return Some(DataraType::Bool);
-                                }
-                                "value" | "ok" => {
-                                    return Some(args.first().cloned().unwrap_or(DataraType::Val));
-                                }
-                                "error_msg" | "error" | "err" => {
-                                    return Some(DataraType::String);
-                                }
-                                _ => {}
-                            }
+                        if let Some(t) = super::tsu::outcome_member_datara(&name, member, &args) {
+                            return Some(t);
                         }
                         let (params, t_fields) = self.types.generic_templates.get(&name)?;
                         let field_type = t_fields.get(member)?;
@@ -496,24 +478,8 @@ impl<'a> Lowering<'a> {
         let obj_ty = self.infer_expr_datara_type(object)?;
         match obj_ty {
             DataraType::GenericInstance { name, args } => {
-                // Outcome convention (repro #13): the error channel is
-                // ALWAYS Str even when the generic template for the class
-                // is not registered here — otherwise error_msg fell to the
-                // caller's "Int" default and the pointer printed as a
-                // number.
-                if name == "Outcome" {
-                    match member {
-                        "is_success" | "is_ok" | "is_err" => return Some("Bool".into()),
-                        "value" | "ok" => {
-                            return Some(
-                                args.first()
-                                    .map(|t| t.to_string())
-                                    .unwrap_or_else(|| "Val".into()),
-                            );
-                        }
-                        "error_msg" | "error" | "err" => return Some("Str".into()),
-                        _ => {}
-                    }
+                if let Some(repr) = super::tsu::outcome_member_repr(&name, member, &args) {
+                    return Some(repr);
                 }
                 let (params, t_fields) = self.types.generic_templates.get(&name)?;
                 let field_type = t_fields.get(member)?;

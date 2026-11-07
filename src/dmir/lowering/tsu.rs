@@ -62,3 +62,43 @@ impl<'a> Lowering<'a> {
         Some(dest)
     }
 }
+
+/// The Outcome member convention (repro #13): is_success -> Bool,
+/// value -> the payload repr, error_msg -> Str (ALWAYS — the error
+/// channel is fixed Str per types/mod.rs:488, even when the generic
+/// template for the class is not registered in this compilation).
+/// Returns the repr string, or None when `name` is not Outcome or the
+/// member is not an Outcome slot.
+pub(crate) fn outcome_member_repr(name: &str, member: &str, args: &[DataraType]) -> Option<String> {
+    if name != "Outcome" {
+        return None;
+    }
+    match member {
+        "is_success" | "is_ok" | "is_err" => Some("Bool".into()),
+        "value" | "ok" => Some(
+            args.first()
+                .map(|t| t.to_string())
+                .unwrap_or_else(|| "Val".into()),
+        ),
+        "error_msg" | "error" | "err" => Some("Str".into()),
+        _ => None,
+    }
+}
+
+/// Same convention over DataraType args (for the infer path). Returns
+/// the member's DataraType, or None when not an Outcome slot.
+pub(crate) fn outcome_member_datara(
+    name: &str,
+    member: &str,
+    args: &[DataraType],
+) -> Option<DataraType> {
+    if name != "Outcome" {
+        return None;
+    }
+    match member {
+        "is_success" | "is_ok" | "is_err" => Some(DataraType::Bool),
+        "value" | "ok" => Some(args.first().cloned().unwrap_or(DataraType::Val)),
+        "error_msg" | "error" | "err" => Some(DataraType::String),
+        _ => None,
+    }
+}
