@@ -112,7 +112,7 @@ fn main() {
     mut sum = 0.0
     mut i = 0
     while i < 10000000 {
-        sum = sum + i * 1.5
+        sum = sum + (i as Float) * 1.5
         i = i + 1
     }
     let t1 = now_ms()
