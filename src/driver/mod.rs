@@ -353,6 +353,22 @@ impl ForgenCompiler {
         self.compile_ast_internal(program, file, output_path, diag, total_start, timings)
     }
 
+    /// Parses `source` and returns the lowered DMIR (diagnostic hook for
+    /// repro forensics; not part of the normal compile pipeline).
+    pub fn debug_lower_source(&self, source: &str, file: &str) -> Result<crate::dmir::Module, String> {
+        let mut diag = crate::diagnostics::DiagnosticEngine::new(&self.locale);
+        diag.set_source(file, source);
+        let (program, _) = self::pipeline::parse_single_source(source, file, &mut diag, Default::default(), Instant::now())
+            .map_err(|res| res.error.clone().unwrap_or_default())?;
+        let base_dirs = self.module_base_dirs(Path::new(file));
+        let mut program = program;
+        self.resolve_modules(&mut program, &mut diag, &[], base_dirs);
+        let total_start = Instant::now();
+        let timings = CompilationTimings::default();
+        self.lower_ast_to_dmir(program, file, &mut diag, total_start, timings)
+            .map_err(|res| res.error.clone().unwrap_or_default())
+    }
+
     pub fn lower_ast_to_dmir(
         &self,
         program: Program,

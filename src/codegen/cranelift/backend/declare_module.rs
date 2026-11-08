@@ -601,6 +601,12 @@ pub fn declare_module_symbols<M: ClifModule>(
     }
 
     let mut global_data_map: HashMap<String, cranelift_module::DataId> = HashMap::new();
+    if std::env::var("DATARA_GLOBALS_TRACE").is_ok() {
+        eprintln!(
+            "[globals] keys={:?}",
+            dmir_module.globals.keys().collect::<Vec<_>>()
+        );
+    }
     for gname in dmir_module.globals.keys() {
         let mut data_ctx = DataDescription::new();
         data_ctx.define_zeroinit(8);

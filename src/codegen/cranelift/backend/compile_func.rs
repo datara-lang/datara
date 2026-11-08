@@ -298,6 +298,14 @@ pub fn compile_all_functions<M: ClifModule>(
                         );
                     }
                     Inst::LoadVar { dest, name } => {
+                        if std::env::var("DATARA_GLOBALS_TRACE").is_ok() {
+                            eprintln!(
+                                "[loadvar] fn={} name={} global={}",
+                                f.name,
+                                name,
+                                decls.global_data_map.contains_key(name)
+                            );
+                        }
                         if let Some(data_id) = decls.global_data_map.get(name) {
                             let gv = module.declare_data_in_func(*data_id, builder.func);
                             let addr = builder.ins().symbol_value(clif_types::I64, gv);

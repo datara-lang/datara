@@ -260,9 +260,20 @@ impl Optimizer {
         val_map: &HashMap<ValueId, ValueId>,
         param_names: &HashSet<String>,
         local_prefix: &str,
+        global_names: &HashSet<String>,
     ) -> Option<Inst> {
         let lookup = |v: &ValueId| val_map.get(v).copied().unwrap_or(*v);
-        let rename = |n: &String| format!("{}{}", local_prefix, n);
+        // Module globals keep their names through inlining: renaming them
+        // into __il temps captured the global's state per-call-site and
+        // severed cross-function mutability (repro #10b — a counter bumped
+        // by an inlined helper stayed 0 in the caller).
+        let rename = |n: &String| -> String {
+            if global_names.contains(n) {
+                n.clone()
+            } else {
+                format!("{}{}", local_prefix, n)
+            }
+        };
 
         match c_inst {
             Inst::LoadVar { dest, name } => {
@@ -544,6 +555,8 @@ impl Optimizer {
     ) -> (usize, HashSet<String>) {
         let mut sites_inlined = 0usize;
         let mut inlined_set: HashSet<String> = HashSet::new();
+        // Module globals keep their names through inlining (repro #10b).
+        let global_names: HashSet<String> = module.globals.keys().cloned().collect();
 
         let mut caller_names: Vec<String> = module.functions.keys().cloned().collect();
         caller_names.sort();
@@ -755,6 +768,7 @@ impl Optimizer {
                                 &val_map,
                                 &pure_param_names,
                                 &local_prefix,
+                                &global_names,
                             ) {
                                 new_insts.push(spliced);
                             }
