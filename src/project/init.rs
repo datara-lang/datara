@@ -426,8 +426,7 @@ fn main() {{
                 ));
             }
         };
-        fs::write(&main_path, body)
-            .map_err(|e| format!("Failed to write src/main.dtr: {}", e))?;
+        fs::write(&main_path, body).map_err(|e| format!("Failed to write src/main.dtr: {}", e))?;
         println!("Template '{}' applied", template);
         Ok(())
     }

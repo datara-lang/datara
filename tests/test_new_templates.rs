@@ -118,7 +118,10 @@ fn template_unknown_falls_back() {
         .env("DATARA_STDLIB", repo_stdlib())
         .output()
         .expect("spawn forgen new");
-    assert!(out.status.success(), "unknown template falls back, not fails");
+    assert!(
+        out.status.success(),
+        "unknown template falls back, not fails"
+    );
     let stderr = String::from_utf8_lossy(&out.stderr);
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
