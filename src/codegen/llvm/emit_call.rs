@@ -306,6 +306,11 @@ impl<'a> LlvmEmitter<'a> {
                 "map_keys" => "datara_rt_map_keys_str",
                 "fiber_is_done" => "datara_rt_fiber_is_done",
                 "fiber_net_accept" => "datara_rt_fiber_net_accept",
+                // repro #13 companion: the Outcome.ok/err construction
+                // lowering emits this builder; without the alias the LLVM
+                // tier silently fell back and error_msg printed garbage.
+                "datara_rt_outcome_build_raw" => "datara_rt_outcome_build_raw",
+                "datara_rt_outcome_build" => "datara_rt_outcome_build",
                 "date_parts" => "datara_rt_date_parts",
                 "now_unix_ms" => "datara_rt_now_unix_ms",
                 "fs_mkdir" => "datara_rt_fs_mkdir",

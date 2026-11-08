@@ -1,0 +1,398 @@
+{
+  "tested": 18,
+  "failed": 5,
+  "skipped": 6,
+  "examples": {
+    "01_hello_world": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "Hello, Datara World!\nWelcome to High-Performance Post-OOP Systems Language."
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "Hello, Datara World!\nWelcome to High-Performance Post-OOP Systems Language."
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "Hello, Datara World!\nWelcome to High-Performance Post-OOP Systems Language."
+        }
+      }
+    },
+    "01_vertical_slice": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "30"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "30"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "30"
+        }
+      }
+    },
+    "02_class_modern_oop": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "Hello Alex, age 20"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "Hello Alex, age 20"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "Hello Alex, age 20"
+        }
+      }
+    },
+    "02_math_and_loops": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "Calculated 1M loop sum in O(1) time: 500000500000"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "Calculated 1M loop sum in O(1) time: 500000500000"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "Calculated 1M loop sum in O(1) time: 500000500000"
+        }
+      }
+    },
+    "03_post_oop_class": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "Counter initial: 100\nCounter incremented: 125"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "Counter initial: 100\nCounter incremented: 125"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "Counter initial: 100\nCounter incremented: 125"
+        }
+      }
+    },
+    "03_split_behavior": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "Account 'Maria' | Balance: 500\nProjected balance after deposit: 750"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "Account 'Maria' | Balance: 500\nProjected balance after deposit: 750"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "Account 'Maria' | Balance: 500\nProjected balance after deposit: 750"
+        }
+      }
+    },
+    "04_decide_and_control": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "Score 85 Grade: B\nScore 50 Grade: F"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "Score 85 Grade: B\nScore 50 Grade: F"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "Score 85 Grade: B\nScore 50 Grade: F"
+        }
+      }
+    },
+    "04_enum_adt": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "Shape 1: Circle\nShape 2: Rectangle\nShape 3: Point"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "Shape 1: Circle\nShape 2: Rectangle\nShape 3: Point"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "Shape 1: Circle\nShape 2: Rectangle\nShape 3: Point"
+        }
+      }
+    },
+    "05_pipeline_dataflow": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "Pipeline result: 30"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "Pipeline result: 30"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "Pipeline result: 30"
+        }
+      }
+    },
+    "06_phase1_complete_app": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "ADMIN [Arthur] Level AUD-8842\nUser(id=Arthur, audit=AUD-8842)\nTx processed for Arthur: Total 1530"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "ADMIN [Arthur] Level AUD-8842\nUser(id=Arthur, audit=AUD-8842)\nTx processed for Arthur: Total 1530"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "ADMIN [Arthur] Level AUD-8842\nUser(id=Arthur, audit=AUD-8842)\nTx processed for Arthur: Total 1530"
+        }
+      }
+    },
+    "07_entity_process_model": {
+      "parity": false,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "adult: true\nstock: 7\npaid 250, balance: 750"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "adult: true\nstock: 7\npaid 250, balance: 750"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "adult: 1\nstock: 3\npaid 250, balance: 750"
+        }
+      }
+    },
+    "08_text_analyzer_cli": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "=================================================================\n      DATARA TEXT ENGINE: STATISTICAL TEXT ANALYZER       \n=================================================================\nTotal characters:               1420\nLetter characters:              1180\nWords in document:              185\nSentences:                      14\n-----------------------------------------------------------------\nAverage word length:            6.378378378378378 characters\nAverage sentence length:        13.214285714285714 words\nReadability index (Coleman-Liau): 19.46486486486486\nComprehension grade:            University level (Complex)\n-----------------------------------------------------------------\nPhonetic distribution (Vowels vs Consonants):\n  Vowels    [########------------] 495\n  Consonants [###########---------] 685\n=================================================================\n  Analysis completed successfully in 0.00 ms (computed natively)."
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "=================================================================\n      DATARA TEXT ENGINE: STATISTICAL TEXT ANALYZER       \n=================================================================\nTotal characters:               1420\nLetter characters:              1180\nWords in document:              185\nSentences:                      14\n-----------------------------------------------------------------\nAverage word length:            6.378378378378378 characters\nAverage sentence length:        13.214285714285714 words\nReadability index (Coleman-Liau): 19.46486486486486\nComprehension grade:            University level (Complex)\n-----------------------------------------------------------------\nPhonetic distribution (Vowels vs Consonants):\n  Vowels    [########------------] 495\n  Consonants [###########---------] 685\n=================================================================\n  Analysis completed successfully in 0.00 ms (computed natively)."
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "=================================================================\n      DATARA TEXT ENGINE: STATISTICAL TEXT ANALYZER       \n=================================================================\nTotal characters:               1420\nLetter characters:              1180\nWords in document:              185\nSentences:                      14\n-----------------------------------------------------------------\nAverage word length:            6.378378378378378 characters\nAverage sentence length:        13.214285714285714 words\nReadability index (Coleman-Liau): 19.46486486486486\nComprehension grade:            University level (Complex)\n-----------------------------------------------------------------\nPhonetic distribution (Vowels vs Consonants):\n  Vowels    [########------------] 495\n  Consonants [###########---------] 685\n=================================================================\n  Analysis completed successfully in 0.00 ms (computed natively)."
+        }
+      }
+    },
+    "09_error_propagation_question": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "==================================================\n  Demonstrating the `?` operator and error handling   \n==================================================\n--- Test 1: Successful Result propagation (?) ---\n  [OK] Network socket initialized on port: 8080\nResult: status=true, value=8080\n--- Test 2: Error and early exit via Result (?) ---\nResult: status=false, error text='invalid port number'\n--- Test 3: Working with Maybe / Option (?) ---\nUser 'admin': found=true, level=2002\nUser 'guest': found=false\n--- Test 4: The fallback value operator 'or' ---\nPort with fallback value (or 3000): 3000"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "==================================================\n  Demonstrating the `?` operator and error handling   \n==================================================\n--- Test 1: Successful Result propagation (?) ---\n  [OK] Network socket initialized on port: 8080\nResult: status=true, value=8080\n--- Test 2: Error and early exit via Result (?) ---\nResult: status=false, error text='invalid port number'\n--- Test 3: Working with Maybe / Option (?) ---\nUser 'admin': found=true, level=2002\nUser 'guest': found=false\n--- Test 4: The fallback value operator 'or' ---\nPort with fallback value (or 3000): 3000"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "==================================================\n  Demonstrating the `?` operator and error handling   \n==================================================\n--- Test 1: Successful Result propagation (?) ---\n  [OK] Network socket initialized on port: 8080\nResult: status=true, value=8080\n--- Test 2: Error and early exit via Result (?) ---\nResult: status=false, error text='invalid port number'\n--- Test 3: Working with Maybe / Option (?) ---\nUser 'admin': found=true, level=2002\nUser 'guest': found=false\n--- Test 4: The fallback value operator 'or' ---\nPort with fallback value (or 3000): 3000"
+        }
+      }
+    },
+    "09_matrix_math_cli": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "=================================================================\n       DATARA LINEAR ALGEBRA: 3D COMPUTE MODULE           \n=================================================================\nMatrix [A]:\n  | 2  1  1 |\n  | 1  3  2 |\n  | 1  0  0 |\n\nMatrix [I (Identity)]:\n  | 1  0  0 |\n  | 0  1  0 |\n  | 0  0  1 |\n-----------------------------------------------------------------\nMatrix trace Tr(A):              5\nMatrix determinant det(A):       -1\nInvertibility:                   true\n-----------------------------------------------------------------\nResult of multiplication C = A * I:\nMatrix [C]:\n  | 2  1  1 |\n  | 1  3  2 |\n  | 1  0  0 |\n-----------------------------------------------------------------\nVector3 dot product:             11\nVector length squared ||V||^2:   25\n=================================================================\n  All matrix transformations computed natively in 0.00 ms."
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "=================================================================\n       DATARA LINEAR ALGEBRA: 3D COMPUTE MODULE           \n=================================================================\nMatrix [A]:\n  | 2  1  1 |\n  | 1  3  2 |\n  | 1  0  0 |\n\nMatrix [I (Identity)]:\n  | 1  0  0 |\n  | 0  1  0 |\n  | 0  0  1 |\n-----------------------------------------------------------------\nMatrix trace Tr(A):              5\nMatrix determinant det(A):       -1\nInvertibility:                   true\n-----------------------------------------------------------------\nResult of multiplication C = A * I:\nMatrix [C]:\n  | 2  1  1 |\n  | 1  3  2 |\n  | 1  0  0 |\n-----------------------------------------------------------------\nVector3 dot product:             11\nVector length squared ||V||^2:   25\n=================================================================\n  All matrix transformations computed natively in 0.00 ms."
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "=================================================================\n       DATARA LINEAR ALGEBRA: 3D COMPUTE MODULE           \n=================================================================\nMatrix [A]:\n  | 2  1  1 |\n  | 1  3  2 |\n  | 1  0  0 |\n\nMatrix [I (Identity)]:\n  | 1  0  0 |\n  | 0  1  0 |\n  | 0  0  1 |\n-----------------------------------------------------------------\nMatrix trace Tr(A):              5\nMatrix determinant det(A):       -1\nInvertibility:                   true\n-----------------------------------------------------------------\nResult of multiplication C = A * I:\nMatrix [C]:\n  | 2  1  1 |\n  | 1  3  2 |\n  | 1  0  0 |\n-----------------------------------------------------------------\nVector3 dot product:             11\nVector length squared ||V||^2:   25\n=================================================================\n  All matrix transformations computed natively in 0.00 ms."
+        }
+      }
+    },
+    "10_database_query_cli": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "================================================================================\n           DATARA DB: ADMISSIONS OFFICE INFORMATION SYSTEM          \n================================================================================\n +-----+--------------+----------------------+-------+-------------------------+\n | ID  | Applicant    | Program              | Score | Admission Decision      |\n +-----+--------------+----------------------+-------+-------------------------+\n | 101  | A. Smirnov    | Computer Sci.        |  96  | Budget (Grant)\n | 102  | M. Ivanova    | Applied Math.        |  88  | Budget (Grant)\n | 103  | D. Kuznetsov    | Robotics        |  76  | Self-funded (Paid)\n | 104  | E. Popova      | Cybersec.        |  64  | Not admitted\n | 105  | K. Vasiliev    | AI Systems        |  92  | Budget (Grant)\n +-----+--------------+----------------------+-------+-------------------------+\n--------------------------------------------------------------------------------\nTotal applications processed:       5\nStudents admitted:                  4\nAcceptance rate:                    80%\nAverage score (AVG Score):          83.2\n================================================================================\n  SELECT/AGGREGATE query completed natively in 0.00 ms."
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "================================================================================\n           DATARA DB: ADMISSIONS OFFICE INFORMATION SYSTEM          \n================================================================================\n +-----+--------------+----------------------+-------+-------------------------+\n | ID  | Applicant    | Program              | Score | Admission Decision      |\n +-----+--------------+----------------------+-------+-------------------------+\n | 101  | A. Smirnov    | Computer Sci.        |  96  | Budget (Grant)\n | 102  | M. Ivanova    | Applied Math.        |  88  | Budget (Grant)\n | 103  | D. Kuznetsov    | Robotics        |  76  | Self-funded (Paid)\n | 104  | E. Popova      | Cybersec.        |  64  | Not admitted\n | 105  | K. Vasiliev    | AI Systems        |  92  | Budget (Grant)\n +-----+--------------+----------------------+-------+-------------------------+\n--------------------------------------------------------------------------------\nTotal applications processed:       5\nStudents admitted:                  4\nAcceptance rate:                    80%\nAverage score (AVG Score):          83.2\n================================================================================\n  SELECT/AGGREGATE query completed natively in 0.00 ms."
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "================================================================================\n           DATARA DB: ADMISSIONS OFFICE INFORMATION SYSTEM          \n================================================================================\n +-----+--------------+----------------------+-------+-------------------------+\n | ID  | Applicant    | Program              | Score | Admission Decision      |\n +-----+--------------+----------------------+-------+-------------------------+\n | 101  | A. Smirnov    | Computer Sci.        |  96  | Budget (Grant)\n | 102  | M. Ivanova    | Applied Math.        |  88  | Budget (Grant)\n | 103  | D. Kuznetsov    | Robotics        |  76  | Self-funded (Paid)\n | 104  | E. Popova      | Cybersec.        |  64  | Not admitted\n | 105  | K. Vasiliev    | AI Systems        |  92  | Budget (Grant)\n +-----+--------------+----------------------+-------+-------------------------+\n--------------------------------------------------------------------------------\nTotal applications processed:       5\nStudents admitted:                  4\nAcceptance rate:                    80%\nAverage score (AVG Score):          83.2\n================================================================================\n  SELECT/AGGREGATE query completed natively in 0.00 ms."
+        }
+      }
+    },
+    "11_crypto_pow_cli": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "=================================================================\n      DATARA CIPHER: ALGORITHMIC HASHER AND NONCE GENERATOR     \n=================================================================\nGenesis hash of block #0:        1000003\nTransaction data of block #1:    884920\n-----------------------------------------------------------------\nSearching for a valid nonce (algorithmic proof-of-work)...\n  >>> Nonce found successfully:   744\n  >>> Resulting block hash:       411522000\n-----------------------------------------------------------------\nBlock #1 built:\n  Block nonce:      744\n  Block hash:       411522000\n  Verification:     true\n=================================================================\n  Cryptographic verification completed successfully in 0.00 ms."
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "=================================================================\n      DATARA CIPHER: ALGORITHMIC HASHER AND NONCE GENERATOR     \n=================================================================\nGenesis hash of block #0:        1000003\nTransaction data of block #1:    884920\n-----------------------------------------------------------------\nSearching for a valid nonce (algorithmic proof-of-work)...\n  >>> Nonce found successfully:   744\n  >>> Resulting block hash:       411522000\n-----------------------------------------------------------------\nBlock #1 built:\n  Block nonce:      744\n  Block hash:       411522000\n  Verification:     true\n=================================================================\n  Cryptographic verification completed successfully in 0.00 ms."
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "=================================================================\n      DATARA CIPHER: ALGORITHMIC HASHER AND NONCE GENERATOR     \n=================================================================\nGenesis hash of block #0:        1000003\nTransaction data of block #1:    884920\n-----------------------------------------------------------------\nSearching for a valid nonce (algorithmic proof-of-work)...\n  >>> Nonce found successfully:   744\n  >>> Resulting block hash:       411522000\n-----------------------------------------------------------------\nBlock #1 built:\n  Block nonce:      744\n  Block hash:       411522000\n  Verification:     true\n=================================================================\n  Cryptographic verification completed successfully in 0.00 ms."
+        }
+      }
+    },
+    "12_dynamic_variables_val": {
+      "parity": false,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "=== Datara Variable Triad Demo ===\nlet: HyperEngine with max_connections = 5000\nmut counter: 42\nval constant: 2\nmut val (as Int): 100\nmut val (as Str): now a dynamic string payload\nmut val (as List):\n  1\n  2\n  3\n  4\n=== Demo completed successfully ==="
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "=== Datara Variable Triad Demo ===\nlet: HyperEngine with max_connections = 5000\nmut counter: 42\nval constant: 2\nmut val (as Int): 100\nmut val (as Str): now a dynamic string payload\nmut val (as List):\n  1\n  2\n  3\n  4\n=== Demo completed successfully ==="
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "=== Datara Variable Triad Demo ===\nlet: HyperEngine with max_connections = 5000\nmut counter: 42\nval constant: 2\nmut val (as Int): 100\nmut val (as Str): 140695280976814\nmut val (as List):\n  1\n  2\n  3\n  4\n=== Demo completed successfully ==="
+        }
+      }
+    },
+    "15_outcome_fs_closures": {
+      "parity": false,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "ok.is_ok() = true, err = ''\nbad.is_err() = true, err = 'synthetic failure'\nconfig: setting=enabled\nexpected failure: file read failed: cannot open 'no_such_config_anywhere.txt'\nPATH present: true\nmissing var is_err: true\ndirectory entries: 478, cargo manifest found: Cargo.toml\nentry #6\nentry #8\ndemo complete"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "ok.is_ok() = true, err = ''\nbad.is_err() = true, err = 'synthetic failure'\nconfig: setting=enabled\nexpected failure: file read failed: cannot open 'no_such_config_anywhere.txt'\nPATH present: true\nmissing var is_err: true\ndirectory entries: 478, cargo manifest found: Cargo.toml\nentry #6\nentry #8\ndemo complete"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "ok.is_ok() = 1, err = '140696196862800'\nbad.is_err() = 1, err = '140696196862846'\nconfig: setting=enabled\nexpected failure: 1723491221584\nPATH present: 1\nmissing var is_err: 1\ndirectory entries: 478, cargo manifest found: Cargo.toml\nentry #6\nentry #8\ndemo complete"
+        }
+      }
+    },
+    "18_data_oriented_structs": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "==========================================================\n  DATARA v1.3.0: DATA-ORIENTED DESIGN (DOD) DEMO          \n==========================================================\nParticle mass:         2.5 kg\nPosition at t=0:       (100, 200)\nProjected at t=2:      (130, 184)\nKinetic energy:        361.25 J\n==========================================================\nDOD structs guarantee cache-line locality with zero vtable cost."
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "==========================================================\n  DATARA v1.3.0: DATA-ORIENTED DESIGN (DOD) DEMO          \n==========================================================\nParticle mass:         2.5 kg\nPosition at t=0:       (100, 200)\nProjected at t=2:      (130, 184)\nKinetic energy:        361.25 J\n==========================================================\nDOD structs guarantee cache-line locality with zero vtable cost."
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "==========================================================\n  DATARA v1.3.0: DATA-ORIENTED DESIGN (DOD) DEMO          \n==========================================================\nParticle mass:         2.5 kg\nPosition at t=0:       (100, 200)\nProjected at t=2:      (130, 184)\nKinetic energy:        361.25 J\n==========================================================\nDOD structs guarantee cache-line locality with zero vtable cost."
+        }
+      }
+    },
+    "19_adaptive_flow_typing": {
+      "parity": false,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "==========================================================\n  DATARA v1.3.0: COMPTIME ADAPTIVE FLOW-TYPING DEMO       \n==========================================================\nRegister state 1 (Int):     250\nRegister state 2 (Scales):  1000\nRegister state 3 (Str):     Dynamic string specialization\n==========================================================\nAdaptive flow-typing achieves C-like execution speed."
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "==========================================================\n  DATARA v1.3.0: COMPTIME ADAPTIVE FLOW-TYPING DEMO       \n==========================================================\nRegister state 1 (Int):     250\nRegister state 2 (Scales):  1000\nRegister state 3 (Str):     Dynamic string specialization\n==========================================================\nAdaptive flow-typing achieves C-like execution speed."
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "==========================================================\n  DATARA v1.3.0: COMPTIME ADAPTIVE FLOW-TYPING DEMO       \n==========================================================\nRegister state 1 (Int):     250\nRegister state 2 (Scales):  1000\nRegister state 3 (Str):     140698737607648\n==========================================================\nAdaptive flow-typing achieves C-like execution speed."
+        }
+      }
+    },
+    "21_raytracer_render_benchmark": {
+      "parity": false,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "================================================================\nDatara v1.3.0 - 3D Raytracer Render Engine Benchmark\nTarget: 480,000 Rays (800x600 Resolution, 3 Spheres, Phong)\n================================================================\nRendered:    800x600 = 480000 pixels\nHits:        104040\nChecksum:    15602392.502885357\nRender Time: 103 ms\nVerification: Exact bit-for-bit checksum match with Rust & C++."
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "================================================================\nDatara v1.3.0 - 3D Raytracer Render Engine Benchmark\nTarget: 480,000 Rays (800x600 Resolution, 3 Spheres, Phong)\n================================================================\nRendered:    800x600 = 480000 pixels\nHits:        104040\nChecksum:    15602392.502885357\nRender Time: 96 ms\nVerification: Exact bit-for-bit checksum match with Rust & C++."
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "================================================================\nDatara v1.3.0 - 3D Raytracer Render Engine Benchmark\nTarget: 480,000 Rays (800x600 Resolution, 3 Spheres, Phong)\n================================================================\nRendered:    800x600 = 480000 pixels\nHits:        120000\nChecksum:    6600000\nRender Time: 24 ms\nVerification: Exact bit-for-bit checksum match with Rust & C++."
+        }
+      }
+    },
+    "dynamic_guarded_demo": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": "42\nResult: 42"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": "42\nResult: 42"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": "42\nResult: 42"
+        }
+      }
+    },
+    "zero_js_dashboard": {
+      "parity": true,
+      "tiers": {
+        "cranelift": {
+          "exit": 0,
+          "stdout": ">>> SUCCESS: Datara Zero-JS Dashboard generated to dashboard.html <<<"
+        },
+        "jit": {
+          "exit": 0,
+          "stdout": ">>> SUCCESS: Datara Zero-JS Dashboard generated to dashboard.html <<<"
+        },
+        "llvm": {
+          "exit": 0,
+          "stdout": ">>> SUCCESS: Datara Zero-JS Dashboard generated to dashboard.html <<<"
+        }
+      }
+    }
+  }
+}
