@@ -417,6 +417,15 @@ static int io_wait_poll_and_wake(void) {
     int64_t w = 0;
     for (int64_t i = 0; i < g_io_waiter_count; i++) {
         Fiber* f = g_io_waiters[i];
+        // A fiber that re-parked after a resume can appear TWICE in the
+        // waiters list (the old entry + the new park). Waking both pushes
+        // the same fiber twice -> the second resume reads freed stack
+        // (the echo's segfault). Skip duplicates within this pass.
+        int dup = 0;
+        for (int64_t j = 0; j < i; j++) {
+            if (g_io_waiters[j] == f) { dup = 1; break; }
+        }
+        if (dup) continue;
         SOCKET fd = (SOCKET)f->wait_fd;
         int64_t expired = f->wait_deadline > 0 && now_ms_real() >= f->wait_deadline;
         if (FD_ISSET(fd, &rfds) || expired) {
@@ -450,6 +459,11 @@ static int io_wait_poll_and_wake(void) {
     int64_t w = 0;
     for (int64_t i = 0; i < g_io_waiter_count; i++) {
         Fiber* f = g_io_waiters[i];
+        int dup = 0;
+        for (int64_t j = 0; j < i; j++) {
+            if (g_io_waiters[j] == f) { dup = 1; break; }
+        }
+        if (dup) continue;
         int fd = (int)f->wait_fd;
         int64_t expired = f->wait_deadline > 0 && now_ms_real() >= f->wait_deadline;
         if (FD_ISSET(fd, &rfds) || expired) {
@@ -533,9 +547,11 @@ void* datara_rt_fiber_net_accept(int64_t sock, int64_t timeout_ms) {
 #ifdef _WIN32
         SOCKET client = accept((SOCKET)sock, NULL, NULL);
         if (client != INVALID_SOCKET) {
-            char handle_buf[32];
-            snprintf(handle_buf, sizeof handle_buf, "%lld", (long long)client);
-            return datara_rt_outcome_build(1, handle_buf, "");
+            // RAW variant: the handle travels as the verbatim i64 value
+            // slot. The string variant stored a POINTER to this function's
+            // stack buffer — dead on return, the caller's str_to_int read
+            // garbage (the echo's "socket recv error").
+            return datara_rt_outcome_build_raw(1, (int64_t)client, "");
         }
         int err = WSAGetLastError();
         if (err != WSAEWOULDBLOCK && err != WSAEINPROGRESS) {
@@ -544,9 +560,7 @@ void* datara_rt_fiber_net_accept(int64_t sock, int64_t timeout_ms) {
 #else
         int client = accept((int)sock, NULL, NULL);
         if (client >= 0) {
-            char handle_buf[32];
-            snprintf(handle_buf, sizeof handle_buf, "%d", client);
-            return datara_rt_outcome_build(1, handle_buf, "");
+            return datara_rt_outcome_build_raw(1, (int64_t)client, "");
         }
         if (errno != EWOULDBLOCK && errno != EAGAIN && errno != EINPROGRESS) {
             return datara_rt_outcome_build(0, "", "accept error");

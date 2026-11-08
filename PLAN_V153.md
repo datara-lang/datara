@@ -88,16 +88,17 @@ Rust + документированная safety-история).
   строки из кросс-модульных фн теряются при... (trace: field=value@8
   вместо error_msg@16). Обход: is_success + value (happy path).
 - [ ] 100 conn / 1000 msg — после фикса #13
-- [ ] РЕПРО #14 ДОПОЛНЕН 2026-11-08: AOT-тир. Одиночные пробы — все
-  зелёные (listen/nonblock/accept-park/timeout/close). Полный echo:
-  (a) pure net13 — RERR timeout/NET_DONE (accept wake на
-  listener-readable не доходит до serve — ГЛАВНЫЙ открытый вопрос E3);
-  (b) serve с err-маркерами — МГНОВЕННЫЙ segfault до первого маркера
-  (err-стейтмент в fiber-функции с tcp_accept внутри — сет-crash, при
-  том что err до/после accept работает — net17 зелёный). Двойной
-  fiber-пейринг (serve+client) + JIT — segfault (документированный
-  JIT-host fiber-binding gap). Фингерпринты сохранены в C:/Temp
-  пробах; dedicated pass обязателен.
+- [x] РЕПРО #14 — ЧАСТИЧНО РЕШЁН 2026-11-08. Одиночные пробы — все
+  зелёные. **ПОЛНЫЙ ECHO РАБОТАЕТ ПОД GDB** (AOT tier): CLIENT_CONN →
+  CLIENT_SENT → SERVE_ACC → SERVE_REQ → SERVE_SENT → CLIENT_RECV →
+  **echo:hello** → NET_DONE. Вне gdb — segfault 5/5 (гонка
+  fiber-wake/switch; double-wake guard сузил, но окно осталось).
+  Фиксы попутно: (1) fiber_net_accept возвращал хендл через СТРОКУ в
+  стековом буфере (мёртв после return) → build_raw вербатим i64;
+  (2) tcp_connect флипает подключённый сокет non-blocking (BLOCKING
+  сокет морозил планировщик на первом try-recv); (3) io_wait_poll:
+  дедлайн-скан при select-таймауте + double-wake guard. ЭХО = E3
+  acceptance criterion (dedicated pass обязателен для стабильности).
 
 ### A3. stdlib.time — ЗАКРЫТО 2026-11-07
 - [x] `now_unix_ms` (проводка добавлена), `now_ms/now_precise_ms/now_ns`

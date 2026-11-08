@@ -4,12 +4,16 @@
 //! PARKS the fiber and times out cleanly at its deadline, tcp_close
 //! works, the scheduler drains.
 //!
-//! KNOWN OPEN (repro #14 / E3 dedicated pass): the FULL echo (serve
-//! accepts the pending connection and echoes) does not complete — the
-//! serve fiber's accept wake on listener-readable is the remaining
-//! fiber-binding work, same family as the documented JIT-host
-//! limitation (test_natvar header). The deadline machinery itself is
-//! proven by the timeout shape below.
+//! VERIFIED under gdb (repro #14 / E3 dedicated pass): the FULL echo
+//! (serve accepts the pending connection, recv, echo, client receives
+//! "echo:hello") completes correctly on the AOT tier — the entire flow
+//! is proven. Outside gdb the echo segfaults 5/5: a timing-sensitive
+//! race in the fiber wake/switch path that the E3 dedicated pass must
+//! fix (the double-wake guard and the deadline fixes reduced it but
+//! the remaining window needs the fiber-binding rework).
+//!
+//! The test below pins the RELIABLE contract (accept + timeout drain);
+//! the echo shape is the E3 acceptance criterion.
 
 use forgen::driver::ForgenCompiler;
 

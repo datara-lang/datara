@@ -94,7 +94,9 @@ fn tcp_listen(port: Int) -> Result<Int, Str> {
 fn tcp_accept(listener: Int) -> Result<Int, Str> {
     val res = fiber_net_accept(listener, 30000)
     if res.is_success {
-        val peer = str_to_int(res.value)
+        // The handle travels as the RAW i64 value slot (repro #14: the
+        // string encoding stored a pointer to a dead stack buffer).
+        val peer = res.value
         socket_nonblocking(peer, true)
         return Outcome.ok(peer)
     }

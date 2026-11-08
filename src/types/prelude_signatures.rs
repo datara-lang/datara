@@ -661,9 +661,12 @@ impl<'a> TypeChecker<'a> {
         );
         function_signatures.insert(
             "fiber_net_accept".to_string(),
+            // Result<Int, Str>: the accepted socket handle travels as the
+            // RAW i64 value slot (repro #14 — the string encoding stored a
+            // pointer to a dead stack buffer).
             (
                 vec![DataraType::Int, DataraType::Int],
-                DataraType::Result(Box::new(DataraType::String), Box::new(DataraType::String)),
+                DataraType::Result(Box::new(DataraType::Int), Box::new(DataraType::String)),
                 Vec::new(),
             ),
         );
