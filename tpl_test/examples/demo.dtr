@@ -1,0 +1,15 @@
+// Example usage demo
+struct Greeter {
+    name: Str
+}
+
+behavior Greeter {
+    fn greet() {
+        out "Welcome to " + self.name
+    }
+}
+
+fn main() {
+    let app = Greeter { name: "Datara" }
+    app.greet()
+}

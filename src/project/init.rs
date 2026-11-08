@@ -337,3 +337,98 @@ SECTIONS
         Ok(())
     }
 }
+
+// ---- PLAN_V153 D1: project templates (--template cli|server|script) ----
+
+pub const TEMPLATE_CLI: &str = "cli";
+pub const TEMPLATE_SERVER: &str = "server";
+pub const TEMPLATE_SCRIPT: &str = "script";
+
+impl ProjectInitializer {
+    /// Initializes a project from a PLAN_V153 D1 template. The layout is
+    /// the standard Level-3 app (datara.toml + src/main.dtr + tests), with
+    /// main.dtr pre-filled for the template's purpose.
+    pub fn init_template(
+        name: Option<&str>,
+        target_dir: &Path,
+        template: &str,
+    ) -> Result<(), String> {
+        // Reuse the standard layout by calling init, then overwrite main.dtr
+        // with the template body (init does not clobber an existing main.dtr,
+        // so write it AFTER init and unconditionally for a FRESH project).
+        Self::init(name, target_dir)?;
+        let dir_name = name.unwrap_or("datara_app");
+        let main_path = target_dir.join(dir_name).join("src").join("main.dtr");
+        let body = match template {
+            TEMPLATE_CLI => format!(
+                "// {name} — CLI tool (stdlib.cli flag parsing)
+use stdlib.cli.cli
+
+fn main() {{
+    val argv = args()
+    val a = parse_args(argv.slice(1, argv.len()))
+    if a.has(\"help\") {{
+        out \"Usage: {name} --name <who>\"
+        return
+    }}
+    out \"Hello, \" + a.get(\"--name\")
+}}
+",
+                name = dir_name
+            ),
+            TEMPLATE_SERVER => format!(
+                "// {name} — TCP echo server (stdlib.net + fibers)
+use stdlib.net.net
+
+fn serve(l: Int) {{
+    val acc = tcp_accept(l)
+    if acc.is_success {{
+        val peer = acc.value
+        val req = tcp_recv(peer, 1024, 5000)
+        if req.is_success {{
+            tcp_send(peer, \"echo:\" + req.value)
+        }}
+        tcp_close(peer)
+    }}
+    tcp_close(l)
+}}
+
+fn main() {{
+    unsafe(justification: \"echo server: local TCP\") {{
+        val bound = tcp_listen(8080)
+        if bound.is_success {{
+            out \"Listening on 127.0.0.1:8080\"
+            fiber_spawn(serve, bound.value)
+            fiber_run_until_done()
+        }}
+    }}
+}}
+",
+                name = dir_name
+            ),
+            TEMPLATE_SCRIPT => format!(
+                "// {name} — script template (fs + time)
+use stdlib.time.clock
+
+fn main() {{
+    out fmt_date(now_unix_ms())
+    // args/env/file IO work out of the box:
+    //   val argv = args()
+    //   val text = read_file(\"input.txt\")
+}}
+",
+                name = dir_name
+            ),
+            other => {
+                return Err(format!(
+                    "Unknown template '{}' (known: cli, server, script)",
+                    other
+                ));
+            }
+        };
+        fs::write(&main_path, body)
+            .map_err(|e| format!("Failed to write src/main.dtr: {}", e))?;
+        println!("Template '{}' applied", template);
+        Ok(())
+    }
+}

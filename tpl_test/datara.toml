@@ -1,0 +1,22 @@
+[package]
+name = "tpl_test"
+version = "1.0.0"
+entry = "src/main.dtr"
+edition = "2026"
+description = "A high-performance Datara application"
+
+[dependencies]
+# core = "1.0.0"
+
+[target]
+# bin_name = "tpl_test"
+# opt_level = "domain"
+
+[profiles.release]
+opt_level = "3"
+lto = true
+
+[profiles.domain]
+opt_level = "domain"
+pgo = true
+lto = true

@@ -51,13 +51,6 @@ pub fn compile_all_functions<M: ClifModule>(
     // 3. Compile functions
     let mut fn_builder_ctx = FunctionBuilderContext::new();
     let mut codegen_ctx = cranelift_codegen::Context::new();
-    if std::env::var("DATARA_FUNCIDS_TRACE").is_ok() {
-        let user: Vec<&String> = sorted_func_names
-            .iter()
-            .filter(|n| n.contains("ArgsView") || n.contains("Bundle"))
-            .collect();
-        eprintln!("[dmir-fns] {:?}", user);
-    }
     for name in sorted_func_names {
         let f = dmir_module
             .functions

@@ -1,0 +1,9 @@
+// tpl_test — script template (fs + time)
+use stdlib.time.clock
+
+fn main() {
+    out fmt_date(now_unix_ms())
+    // args/env/file IO work out of the box:
+    //   val argv = args()
+    //   val text = read_file("input.txt")
+}

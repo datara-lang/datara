@@ -8,6 +8,12 @@ use std::time::Instant;
 /// `forgen init` / `new` — scaffold a new project.
 pub(crate) fn cmd_init(args: &[String]) -> bool {
     let is_lib = args.iter().any(|a| a == "--lib");
+    // PLAN_V153 D1: project templates (--template cli|server|script).
+    let template = args
+        .iter()
+        .position(|a| a == "--template")
+        .and_then(|i| args.get(i + 1))
+        .map(|s| s.as_str());
     let is_bare = args.iter().any(|a| a == "--bare");
     let bare_idx = args.iter().position(|a| a == "--bare");
     let mcu = if let Some(idx) = bare_idx {
@@ -34,7 +40,31 @@ pub(crate) fn cmd_init(args: &[String]) -> bool {
     } else if is_lib {
         ProjectInitializer::init_lib(project_name, target_dir)
     } else {
-        ProjectInitializer::init(project_name, target_dir)
+        match template {
+            Some("cli") => ProjectInitializer::init_template(
+                project_name,
+                target_dir,
+                crate::project::init::TEMPLATE_CLI,
+            ),
+            Some("server") => ProjectInitializer::init_template(
+                project_name,
+                target_dir,
+                crate::project::init::TEMPLATE_SERVER,
+            ),
+            Some("script") => ProjectInitializer::init_template(
+                project_name,
+                target_dir,
+                crate::project::init::TEMPLATE_SCRIPT,
+            ),
+            Some(other) => {
+                println!(
+                    "Unknown template '{}' (known: cli, server, script); using the default app layout",
+                    other
+                );
+                ProjectInitializer::init(project_name, target_dir)
+            }
+            None => ProjectInitializer::init(project_name, target_dir),
+        }
     };
     match res {
         Ok(()) => {}
