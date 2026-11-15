@@ -58,6 +58,12 @@ fn nested_use_paths(src: &str) -> Vec<Vec<String>> {
                 let Some(close) = alt.find('}') else {
                     continue;
                 };
+                // A closing brace BEFORE the opening one (`...} false m…{…`)
+                // makes close < open — the slice would panic. Skip the
+                // malformed alternative (stress_0071: garbage token soup).
+                if close <= open {
+                    continue;
+                }
                 let base: Vec<String> = alt[..open]
                     .trim()
                     .trim_end_matches('.')
