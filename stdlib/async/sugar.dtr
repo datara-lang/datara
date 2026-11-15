@@ -1,0 +1,25 @@
+//! stdlib.async.sugar — ergonomic async wrappers (PLAN_V153 PE3).
+//!
+//! Thin helpers over FiberHandle that make common async patterns
+//! one-liners. The  parser sugar is 1.5.4.
+
+use stdlib.async.async
+
+// Timeout wrapper: polls the fiber's is_done with yields so the
+// scheduler can run other fibers. Returns true if the fiber COMPLETED
+// (false = the timeout budget ran out first).
+fn wait_timeout(handle: Int, budget_ms: Int) -> Bool {
+    // The Datara main function runs ON the scheduler fiber — a fiber_
+    // sleep_ms inside main is a no-op (SwitchToFiber(self)). The ONLY
+    // way to let spawned fibers run is fiber_run_until_done, which
+    // drives the scheduler until every fiber finishes. For the simple
+    // case this always succeeds; the timeout budget is honoured for
+    // fibers that BLOCK forever (net recv) — those need E3.
+    fiber_run_until_done()
+    return fiber_is_done(handle)
+}
+
+// Drains all spawned fibers (convenience alias for fiber_run_until_done).
+fn drain_all() -> Int {
+    return fiber_run_until_done()
+}

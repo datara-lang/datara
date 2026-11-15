@@ -206,6 +206,10 @@ static Fiber* timer_pop_due(int64_t now, int64_t* next_wake) {
         }
     }
     if (due) {
+        if (getenv("DATARA_SCHED_TRACE")) {
+            fprintf(stderr, "[timer_pop] fib=%lld wake=%lld now=%lld\n",
+                    (long long)due->handle, (long long)due->wake_ms, (long long)now);
+        }
         g_sleeping[due_idx] = g_sleeping[g_sleeping_count - 1];
         g_sleeping_count--;
     }
@@ -494,6 +498,22 @@ void datara_rt_fiber_yield(void) {
 void datara_rt_fiber_sleep_ms(int64_t ms) {
     Fiber* self = g_running;
     if (!self) return;
+    // PLAN_V153 repro #14: when the SCHEDULER fiber itself calls
+    // fiber_sleep_ms (the Datara main function runs ON the scheduler
+    // fiber after fiber_run_until_done), SwitchToFiber(self) is a
+    // no-op — the "park" returns immediately and the sleep never
+    // actually sleeps. The scheduler fiber does a REAL Sleep so the
+    // timer wheel can fire for other fibers (the wto repro: a wait-
+    // timeout loop around fiber_sleep_ms(1) never let the worker run
+    // because main's 1 ms park was a no-op).
+    if (self->os_fiber == g_scheduler_fiber) {
+#ifdef _WIN32
+        Sleep((DWORD)ms);
+#else
+        usleep((useconds_t)(ms * 1000));
+#endif
+        return;
+    }
     self->state = FIB_SLEEPING;
     self->wake_ms = now_ms_real() + ms;
     timer_add(self);
@@ -812,6 +832,15 @@ int64_t datara_rt_fiber_run_until_done(void) {
         Fiber* f = ready_pop();
         if (!f) {
             f = timer_pop_due(last_now, &last_now);
+        }
+        if (getenv("DATARA_SCHED_TRACE") && f) {
+            static int64_t dbg_pops = 0;
+            if (++dbg_pops % 100 == 0) {
+                fprintf(stderr, "[pop] n=%lld fib=%lld state=%d wake=%lld now=%lld sleeping=%lld\n",
+                        (long long)dbg_pops, (long long)f->handle, (int)f->state,
+                        (long long)f->wake_ms, (long long)last_now,
+                        (long long)g_fiber_count);
+            }
         }
         if (!f) {
             if (g_done_count >= g_fiber_count) break;
