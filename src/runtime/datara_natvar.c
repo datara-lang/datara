@@ -54,6 +54,7 @@
 
 static int64_t now_ms_real(void);
 extern void* datara_rt_outcome_build(int64_t is_success, const char* value, const char* msg);
+extern void* datara_rt_outcome_build_raw(int64_t is_success, int64_t value_raw, const char* msg);
 
 typedef enum {
     FIB_READY = 0,
@@ -506,14 +507,17 @@ void datara_rt_fiber_sleep_ms(int64_t ms) {
     // timer wheel can fire for other fibers (the wto repro: a wait-
     // timeout loop around fiber_sleep_ms(1) never let the worker run
     // because main's 1 ms park was a no-op).
-    if (self->os_fiber == g_scheduler_fiber) {
 #ifdef _WIN32
+    if (self->os_fiber == g_scheduler_fiber) {
         Sleep((DWORD)ms);
-#else
-        usleep((useconds_t)(ms * 1000));
-#endif
         return;
     }
+#else
+    if (g_scheduler_ctx && self->os_fiber == (void*)g_scheduler_ctx) {
+        usleep((useconds_t)(ms * 1000));
+        return;
+    }
+#endif
     self->state = FIB_SLEEPING;
     self->wake_ms = now_ms_real() + ms;
     timer_add(self);
