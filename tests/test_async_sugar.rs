@@ -47,7 +47,10 @@ fn main() {
 "#;
     let (out, code) = run_native(src, "async_sugar.dtr");
     assert_eq!(code, 0);
-    assert!(out.contains("done=true"), "wait_timeout must see completion: {out}");
+    assert!(
+        out.contains("done=true"),
+        "wait_timeout must see completion: {out}"
+    );
     assert!(out.contains("WORKER_DONE"));
     assert!(out.contains("final=true"));
 }
