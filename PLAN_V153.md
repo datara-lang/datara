@@ -81,7 +81,7 @@ Rust + документированная safety-история).
 - [x] echo client+server (обе стороны — фиберы) — работает
 - [x] Клиент из main-фибера НЕЛЬЗЯ (main = scheduler context, парковка
   main на recv = дедлок) — документировано в модуле
-- [ ] РЕПРО #13 (открыт): err.error_msg из use'd-модуля читает value-слот
+- [x] РЕПРО #13 — ЗАКРЫТ (см. выше; решён вместе с #14 — Outcome через C-билдер)
   (DMIR не содержит error_msg вообще; same-module работает). Полный
   анализ: lower_behavior получает ВСЕ методы; выживание после DCE —
   только вызванные; .err() метод → ABI assert. Изоляция: OUTCOME.err
@@ -147,7 +147,7 @@ Rust + документированная safety-история).
 - [ ] **C3**: llvm-gate: ни одного silent-fallback в тестах
 
 ## D. Удобство `[ ]`
-- [ ] **D1**: `forgen new --template cli|server|script` (шаблоны проектов)
+- [x] **D1** — ЗАКРЫТО 2026-11-08: forgen new --template cli|server|script; 4/4 теста (test_new_templates); cli end-to-end; embedded stdlib расширен
 - [ ] **D2**: VS Code debug-конфигурация (cppvsdb → cdb attach к
   debug-бинарю) + документ «Отладка за 5 минут»
 - [ ] **D3**: error-messages ревизия: у E-кодОВ — готовые «как починить»
