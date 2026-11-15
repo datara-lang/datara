@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Datara AOT binary (cdb)",
+            "type": "cppvsdb",
+            "request": "launch",
+            "program": "${workspaceFolder}/target/release/${fileBasenameNoExtension}.exe",
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "preLaunchTask": "build-debug"
+        },
+        {
+            "name": "Debug Datara AOT (attach)",
+            "type": "cppvsdb",
+            "request": "attach",
+            "processId": "${command:pickProcess}"
+        }
+    ]
+}

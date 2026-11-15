@@ -1,0 +1,21 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build-debug",
+            "type": "shell",
+            "command": "forgen",
+            "args": ["build", "--debug", "${relativeFile}"],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "build-release",
+            "type": "shell",
+            "command": "forgen",
+            "args": ["build", "${relativeFile}"],
+            "group": {"kind": "build", "isDefault": true},
+            "problemMatcher": []
+        }
+    ]
+}
