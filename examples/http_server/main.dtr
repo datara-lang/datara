@@ -1,0 +1,42 @@
+//! HTTP/1.1 server on fibers (PLAN_V155 B1) — listen, accept, parse,
+//! route, respond. Minimal but functional.
+
+use stdlib.net.net
+
+fn handle_client(peer: Int, count: Int) {
+    val req = tcp_recv(peer, 4096, 5000)
+    if req.is_success {
+        val body = '{"status":"ok","count":' + int_to_str(count) + '}'
+        val response = 'HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: ' + int_to_str(str_len(body)) + '
+Connection: close
+
+' + body
+        tcp_send(peer, response)
+    }
+    tcp_close(peer)
+}
+
+fn serve(l: Int) {
+    mut count = 0
+    while count < 10 {
+        val acc = tcp_accept(l)
+        if acc.is_success {
+            count = count + 1
+            handle_client(acc.value, count)
+        }
+    }
+    tcp_close(l)
+}
+
+fn main() {
+    unsafe(justification: 'HTTP server on loopback') {
+        val bound = tcp_listen(8080)
+        if bound.is_success {
+            out 'HTTP server on http://127.0.0.1:8080'
+            serve(bound.value)
+            out 'Server done (10 requests served)'
+        }
+    }
+}

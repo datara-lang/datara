@@ -1,0 +1,86 @@
+//! Data pipeline (PLAN_V155 B4) — CSV in → filter → aggregate → CSV out.
+//! Uses stdlib.io.csv patterns (str_split based) + stdlib.math.stats.
+
+use stdlib.cli.cli
+
+fn parse_row(line: Str) -> List<Str> {
+    return str_split(line, ",")
+}
+
+fn main() {
+    val argv = args()
+    val a = parse_args(argv.slice(1, argv.len()))
+    val input_file = a.get("--input")
+    val output_file = a.get("--output")
+
+    if str_len(input_file) == 0 || str_len(output_file) == 0 {
+        out "Usage: data_pipeline --input <csv> --output <csv>"
+        return
+    }
+
+    val content = read_file(input_file)
+    let n = str_len(content)
+
+    // Parse CSV rows
+    mut rows = []
+    mut pos = 0
+    mut header = ""
+    if str_contains(content, "
+") {
+        let first_nl = str_index_of(content, "
+")
+        header = str_substring(content, 0, first_nl)
+        pos = first_nl + 1
+    }
+    while pos < n {
+        let eol = str_index_of(str_substring(content, pos, n - pos), "
+")
+        if eol < 0 { break }
+        let line = str_substring(content, pos, eol)
+        if str_len(line) > 0 {
+            rows = rows.push(line)
+        }
+        pos = pos + eol + 1
+    }
+
+    // Aggregate: sum column 1 (score), min/max
+    mut total_score = 0
+    mut count = 0
+    mut min_score = 0
+    mut max_score = 0
+    mut idx = 0
+    while idx < rows.len() {
+        let row = rows.get(idx)
+        let cols = str_split(row, ",")
+        if cols.len() >= 2 {
+            let score = str_to_int(str_trim(cols.get(1)))
+            total_score = total_score + score
+            count = count + 1
+            if idx == 0 {
+                min_score = score
+                max_score = score
+            } else {
+                if score < min_score { min_score = score }
+                if score > max_score { max_score = score }
+            }
+        }
+        idx = idx + 1
+    }
+
+    // Write output CSV
+    mut out_csv = "metric,value
+"
+    out_csv = out_csv + "count," + int_to_str(count) + "
+"
+    out_csv = out_csv + "total_score," + int_to_str(total_score) + "
+"
+    out_csv = out_csv + "min_score," + int_to_str(min_score) + "
+"
+    out_csv = out_csv + "max_score," + int_to_str(max_score) + "
+"
+
+    unsafe(justification: "data pipeline output") {
+        write_file(output_file, out_csv)
+    }
+    out fmt"Processed {count} rows -> {output_file}"
+}

@@ -1,0 +1,57 @@
+//! Log parser CLI (PLAN_V155 B3) — reads a log file, aggregates,
+//! outputs a report. Uses stdlib.cli + stdlib.fs.
+
+use stdlib.cli.cli
+use stdlib.fs.fskit
+
+fn parse_line(line: Str) -> Str {
+    // Simple format: [LEVEL] message
+    if str_starts_with(line, "[ERROR]") {
+        return "ERROR"
+    }
+    if str_starts_with(line, "[WARN]") {
+        return "WARN"
+    }
+    if str_starts_with(line, "[INFO]") {
+        return "INFO"
+    }
+    return "UNKNOWN"
+}
+
+fn main() {
+    val argv = args()
+    val a = parse_args(argv.slice(1, argv.len()))
+    val logfile = a.get("--file")
+    if str_len(logfile) == 0 {
+        out "Usage: log_parser --file <logfile>"
+        return
+    }
+
+    val content = read_file(logfile)
+    let n = str_len(content)
+    out fmt"Log file: {logfile} ({n} bytes)"
+
+    mut total = 0
+    mut errors = 0
+    mut warns = 0
+    mut infos = 0
+    mut pos = 0
+
+    while pos < n {
+        let eol = str_index_of(str_substring(content, pos, n - pos), "
+")
+        if eol < 0 { break }
+        let line = str_substring(content, pos, eol)
+        let level = parse_line(line)
+        total = total + 1
+        if level == "ERROR" { errors = errors + 1 }
+        if level == "WARN" { warns = warns + 1 }
+        if level == "INFO" { infos = infos + 1 }
+        pos = pos + eol + 1
+    }
+
+    out fmt"Total lines: {total}"
+    out fmt"Errors: {errors}"
+    out fmt"Warnings: {warns}"
+    out fmt"Info: {infos}"
+}

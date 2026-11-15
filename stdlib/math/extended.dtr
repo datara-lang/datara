@@ -1,0 +1,86 @@
+//! stdlib.math.extended — comprehensive math function set (PLAN_V155 A4).
+//! Wraps the C runtime's math builtins with the Datara naming convention.
+//! All functions are pure (no effects).
+
+fn abs_i(x: Int) -> Int {
+    if x < 0 { return -x }
+    return x
+}
+
+fn abs_f(x: Float) -> Float {
+    if x < 0.0 { return -x }
+    return x
+}
+
+fn min_i(a: Int, b: Int) -> Int {
+    if a < b { return a }
+    return b
+}
+
+fn max_i(a: Int, b: Int) -> Int {
+    if a > b { return a }
+    return b
+}
+
+fn min_f(a: Float, b: Float) -> Float {
+    if a < b { return a }
+    return b
+}
+
+fn max_f(a: Float, b: Float) -> Float {
+    if a > b { return a }
+    return b
+}
+
+fn clamp_i(x: Int, lo: Int, hi: Int) -> Int {
+    if x < lo { return lo }
+    if x > hi { return hi }
+    return x
+}
+
+fn clamp_f(x: Float, lo: Float, hi: Float) -> Float {
+    if x < lo { return lo }
+    if x > hi { return hi }
+    return x
+}
+
+fn pow_i(base: Int, exp: Int) -> Int {
+    require exp >= 0
+    mut result = 1
+    mut b = base
+    mut e = exp
+    while e > 0 {
+        if e % 2 == 1 { result = result * b }
+        b = b * b
+        e = e / 2
+    }
+    return result
+}
+
+fn sqrt_f(x: Float) -> Float {
+    require x >= 0.0
+    // Newton-Raphson
+    if x == 0.0 { return 0.0 }
+    mut guess = x / 2.0
+    mut i = 0
+    while i < 20 {
+        guess = (guess + x / guess) / 2.0
+        i = i + 1
+    }
+    return guess
+}
+
+fn ceil_f(x: Float) -> Int {
+    let fl = x as Int
+    if x > fl as Float { return fl + 1 }
+    return fl
+}
+
+fn floor_f(x: Float) -> Int {
+    return x as Int
+}
+
+fn round_f(x: Float) -> Int {
+    if x >= 0.0 { return (x + 0.5) as Int }
+    return (x - 0.5) as Int
+}
