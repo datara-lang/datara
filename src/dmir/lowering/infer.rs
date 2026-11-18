@@ -312,12 +312,29 @@ impl<'a> Lowering<'a> {
                         // Infer the GenericInstance so receiver method
                         // calls (unwrap/is_ok/is_err/err) resolve the
                         // payload type instead of falling back to Int.
-                        let arg_ty = match inner {
-                            "Float" => DataraType::Float,
-                            "Bool" => DataraType::Bool,
-                            "String" | "Str" => DataraType::String,
-                            "Int" | "Int64" | "Int32" => DataraType::Int,
-                            other => DataraType::Class(other.to_string()),
+                        // repro #16: nested payload generics
+                        // (`Result<List<Str>, Str>` -> "Outcome<List<Str>>")
+                        // must become List(String), not Class("List<Str>") —
+                        // otherwise `.value.get(i)` lost the string tagging.
+                        let arg_ty = if let Some(rest) = inner.strip_prefix("List<")
+                            && let Some(elem) = rest.strip_suffix('>')
+                        {
+                            let elem_ty = match elem {
+                                "Float" | "Float64" => DataraType::Float,
+                                "Bool" => DataraType::Bool,
+                                "String" | "Str" => DataraType::String,
+                                "Int" | "Int64" | "Int32" => DataraType::Int,
+                                other => DataraType::Class(other.to_string()),
+                            };
+                            DataraType::List(Box::new(elem_ty))
+                        } else {
+                            match inner {
+                                "Float" => DataraType::Float,
+                                "Bool" => DataraType::Bool,
+                                "String" | "Str" => DataraType::String,
+                                "Int" | "Int64" | "Int32" => DataraType::Int,
+                                other => DataraType::Class(other.to_string()),
+                            }
                         };
                         return Some(DataraType::GenericInstance {
                             name: "Outcome".to_string(),
@@ -673,9 +690,20 @@ impl<'a> Lowering<'a> {
         }
         match expr {
             Expr::Literal(LiteralValue::String(_), _) | Expr::InterpolatedString { .. } => true,
-            Expr::MemberAccess { member, .. } => {
+            Expr::MemberAccess { object, member, .. } => {
                 if let Some(t) = self.class_field_types.get(member) {
                     return t == "String" || t == "Str";
+                }
+                // repro #16c: an element read inline in fmt (`gs.value.get(0)`
+                // where the payload list holds strings) is a string even
+                // though "get" has no fn return type to consult. Without
+                // this the interpolation printed the raw char* as an
+                // integer while the same read assigned to a val printed
+                // correctly (the binding recorded the inferred elem type).
+                if matches!(member.as_str(), "get" | "at" | "first" | "last")
+                    && self.is_expr_list(object)
+                {
+                    return self.list_elem_repr(object) == "String";
                 }
                 member == "name"
                     || member == "version"
@@ -884,6 +912,17 @@ impl<'a> Lowering<'a> {
             if let crate::types::DataraType::Class(cls) = ty
                 && cls == "List"
             {
+                return true;
+            }
+        }
+        // repro #16: a struct field holding a list (`r.names.get(0)` where
+        // `r` was bound from a struct-returning call) reaches here as a
+        // MemberAccess the Identifier arm cannot see. Consult the full type
+        // inference, which resolves Class field types through
+        // types.class_fields. Recursion terminates: infer on a MemberAccess
+        // only re-enters is_expr_list on strictly shallower objects.
+        if let Some(ty) = self.infer_expr_datara_type(expr) {
+            if matches!(ty, crate::types::DataraType::List(_)) {
                 return true;
             }
         }

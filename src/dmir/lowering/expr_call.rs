@@ -13,9 +13,16 @@ impl<'a> Lowering<'a> {
     /// derivation (stmt.rs): the variable's checked element type wins,
     /// map/filter chains inherit their source list's element, anything
     /// opaque falls back to "Int".
-    fn list_elem_repr(&self, expr: &Expr) -> String {
+    pub(crate) fn list_elem_repr(&self, expr: &Expr) -> String {
         match expr {
             Expr::Identifier(name, _) => match self.lookup_var_type(name) {
+                Some(DataraType::List(inner)) => Self::repr_of_datara_type(&inner),
+                _ => "Int".into(),
+            },
+            // repro #16: struct field holding a list (`r.names.get(0)` with
+            // `r` bound from a struct-returning call) — resolve through the
+            // full inference, which knows Class field types.
+            Expr::MemberAccess { .. } => match self.infer_expr_datara_type(expr) {
                 Some(DataraType::List(inner)) => Self::repr_of_datara_type(&inner),
                 _ => "Int".into(),
             },

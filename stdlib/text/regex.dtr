@@ -1,0 +1,879 @@
+//! stdlib.text.regex — pure-Datara backtracking regex engine (PLAN_V155 A1).
+//!
+//! Compiles a pattern into a flat instruction program (3 ints per op) and
+//! executes it with an iterative backtracking VM — no recursion, so hostile
+//! patterns cannot blow the native stack. Syntax supported:
+//!
+//!   literals        a b c            (any char except the metachars below;
+//!                                    escape any metachar with a backslash)
+//!   .               any character
+//!   *  +  ?         greedy quantifiers on the previous atom
+//!   (...)           capturing group (groups are numbered 0..N, 0 = whole match)
+//!   a|b             alternation
+//!   [...]           character class, with ranges a-z and negation [^...]
+//!   \d \w \s        digit / word / whitespace classes (uppercase = negated)
+//!   \n \t \r        control chars (a real newline, tab, carriage return)
+//!   ^  $            anchors: start / end of the searched text
+//!
+//! Public API (all functions re-compile the pattern per call — fine for
+//! scripts; for hot loops prefer find_all over repeated find):
+//!
+//!   regex_error(p) -> Str                       -- "" when the pattern is valid
+//!   regex_is_match(p, text) -> Bool             -- match anywhere in text
+//!   regex_match_full(p, text) -> Bool           -- the whole text must match
+//!   regex_find(p, text) -> Result<Str, Str>     -- first match substring
+//!   regex_find_groups(p, text) -> Result<List<Str>, Str>  -- $0..$N of first match
+//!   regex_find_all(p, text) -> List<Str>        -- every non-empty match
+//!   regex_replace(p, text, repl) -> Str         -- repl may reference $0..$9
+//!   regex_split(p, text) -> List<Str>           -- split on every match
+//!
+//! Guard rails: the VM has a step budget (100k + 20k per input char), so
+//! catastrophic-backtracking patterns fail cleanly instead of hanging.
+//! Zero-length matches are skipped by find_all / replace / split (a match
+//! must consume at least one character). Classes order characters with
+//! str_cmp (codepoint order) — ASCII ranges behave as expected.
+
+const OP_CHAR: Int = 0
+const OP_ANY: Int = 1
+const OP_CLASS: Int = 2
+const OP_SPLIT: Int = 3
+const OP_JMP: Int = 4
+const OP_MATCH: Int = 5
+const OP_BOL: Int = 6
+const OP_EOL: Int = 7
+const OP_SAVE: Int = 8
+
+// ---------------------------------------------------------------------------
+// Compiler
+// ---------------------------------------------------------------------------
+
+// the runtime has no char-splitting builtin (str_chars returns the COUNT) —
+// build the List<Str> of single codepoint chars here (O(n^2) copies, fine
+// for pattern/text sizes a script regex sees)
+fn split_chars(s: Str) -> List<Str> {
+    mut out_chars = []
+    let n = char_len(s)
+    mut i = 0
+    while i < n {
+        out_chars.push(str_substring_cp(s, i, 1))
+        i = i + 1
+    }
+    return out_chars
+}
+
+struct RegexProg {
+    prog: List<Int>
+    lits: List<Str>
+    cls_neg: List<Int>
+    cls_start: List<Int>
+    cls_count: List<Int>
+    cls_lo: List<Str>
+    cls_hi: List<Str>
+    ngroups: Int
+    error: Str
+}
+
+struct RegexParser {
+    pat: List<Str>
+    pos: Int
+    prog: List<Int>
+    lits: List<Str>
+    cls_neg: List<Int>
+    cls_start: List<Int>
+    cls_count: List<Int>
+    cls_lo: List<Str>
+    cls_hi: List<Str>
+    ngroups: Int
+    error: Str
+}
+
+behavior RegexParser {
+    emit(op: Int, x: Int, y: Int) -> RegexParser {
+        this.prog = this.prog.push(op)
+        this.prog = this.prog.push(x)
+        this.prog = this.prog.push(y)
+        return this
+    }
+
+    // instruction index -> patch slot 1 (x) or 2 (y) of the triple
+    patch(idx: Int, slot: Int, v: Int) -> RegexParser {
+        this.prog = this.prog.set(3 * idx + slot, v)
+        return this
+    }
+
+    instr_count() -> Int {
+        return this.prog.len() / 3
+    }
+
+    peek() -> Str {
+        if this.pos < this.pat.len() {
+            return this.pat.get(this.pos)
+        }
+        return ""
+    }
+
+    peek_at(k: Int) -> Str {
+        if this.pos + k < this.pat.len() {
+            return this.pat.get(this.pos + k)
+        }
+        return ""
+    }
+
+    advance() -> RegexParser {
+        this.pos = this.pos + 1
+        return this
+    }
+
+    is_class_escape(e: Str) -> Bool {
+        return e == "d" || e == "w" || e == "s" || e == "D" || e == "W" || e == "S"
+    }
+
+    lit_escape(e: Str) -> Str {
+        if e == "n" {
+            return str_from_byte(10)
+        }
+        if e == "t" {
+            return str_from_byte(9)
+        }
+        if e == "r" {
+            return str_from_byte(13)
+        }
+        return e
+    }
+
+    push_range(lo: Str, hi: Str) -> RegexParser {
+        this.cls_lo = this.cls_lo.push(lo)
+        this.cls_hi = this.cls_hi.push(hi)
+        return this
+    }
+
+    // expands \d \w \s (and uppercase forms) into builtin ranges
+    push_escape_ranges(e: Str) -> RegexParser {
+        if e == "d" || e == "D" {
+            this.push_range("0", "9")
+        }
+        if e == "w" || e == "W" {
+            this.push_range("0", "9")
+            this.push_range("a", "z")
+            this.push_range("A", "Z")
+            this.push_range("_", "_")
+        }
+        if e == "s" || e == "S" {
+            this.push_range(" ", " ")
+            this.push_range(str_from_byte(9), str_from_byte(9))
+            this.push_range(str_from_byte(10), str_from_byte(10))
+            this.push_range(str_from_byte(13), str_from_byte(13))
+        }
+        return this
+    }
+
+    push_lit(ch: Str) -> RegexParser {
+        this.lits = this.lits.push(ch)
+        this.emit(OP_CHAR, this.lits.len() - 1, 0)
+        return this
+    }
+
+    // index of the matching close paren/bracket for the group/class starting
+    // at this.pos, or -1. Backslash skips the next char (escaped metachars).
+    scan_matching(open: Str, close: Str) -> Int {
+        mut i = this.pos + 1
+        val n = this.pat.len()
+        mut depth = 1
+        while i < n {
+            val c = this.pat.get(i)
+            if c == "\\" {
+                i = i + 2
+            } else {
+                if c == open {
+                    depth = depth + 1
+                }
+                if c == close {
+                    depth = depth - 1
+                    if depth == 0 {
+                        return i
+                    }
+                }
+                i = i + 1
+            }
+        }
+        return -1
+    }
+
+    // one char spec inside a class: escape or literal. Returns "" when the
+    // spec was an escape class (\d and friends — ranges already pushed) or
+    // on error (this.error set).
+    class_char() -> Str {
+        val c = this.peek()
+        if c == "" {
+            this.error = "regex: unterminated character class"
+            return ""
+        }
+        if c == "\\" {
+            this.advance()
+            val e = this.peek()
+            if e == "" {
+                this.error = "regex: dangling escape in class"
+                return ""
+            }
+            this.advance()
+            if this.is_class_escape(e) {
+                this.push_escape_ranges(e)
+                return ""
+            }
+            return this.lit_escape(e)
+        }
+        this.advance()
+        return c
+    }
+
+    parse_class() -> RegexParser {
+        this.advance() // consume '['
+        mut neg = 0
+        if this.peek() == "^" {
+            neg = 1
+            this.advance()
+        }
+        val id = this.cls_neg.len()
+        this.cls_neg = this.cls_neg.push(neg)
+        this.cls_start = this.cls_start.push(this.cls_lo.len())
+        while this.error == "" && this.peek() != "]" && this.peek() != "" {
+            val lo = this.class_char()
+            if this.error != "" {
+                return this
+            }
+            if lo != "" {
+                if this.peek() == "-" && this.peek_at(1) != "]" && this.peek_at(1) != "" {
+                    this.advance() // consume '-'
+                    val hi = this.class_char()
+                    if this.error != "" {
+                        return this
+                    }
+                    if hi == "" {
+                        this.push_range(lo, lo)
+                    } else {
+                        this.push_range(lo, hi)
+                    }
+                } else {
+                    this.push_range(lo, lo)
+                }
+            }
+        }
+        if this.peek() == "]" {
+            this.advance()
+        } else if this.error == "" {
+            this.error = "regex: missing ']'"
+        }
+        this.cls_count = this.cls_count.push(this.cls_lo.len() - this.cls_start.get(id))
+        this.emit(OP_CLASS, id, 0)
+        return this
+    }
+
+    parse_atom() -> RegexParser {
+        val c = this.peek()
+        if c == "" {
+            this.error = "regex: unexpected end of pattern"
+            return this
+        }
+        if c == "(" {
+            this.advance()
+            val g = this.ngroups + 1
+            this.ngroups = g
+            this.emit(OP_SAVE, 2 * g, 0)
+            this.parse_alt()
+            if this.error != "" {
+                return this
+            }
+            if this.peek() == ")" {
+                this.advance()
+            } else {
+                this.error = "regex: missing ')'"
+                return this
+            }
+            this.emit(OP_SAVE, 2 * g + 1, 0)
+            return this
+        }
+        if c == "[" {
+            return this.parse_class()
+        }
+        if c == "." {
+            this.advance()
+            this.emit(OP_ANY, 0, 0)
+            return this
+        }
+        if c == "^" {
+            this.advance()
+            this.emit(OP_BOL, 0, 0)
+            return this
+        }
+        if c == "$" {
+            this.advance()
+            this.emit(OP_EOL, 0, 0)
+            return this
+        }
+        if c == "\\" {
+            this.advance()
+            val e = this.peek()
+            if e == "" {
+                this.error = "regex: dangling escape"
+                return this
+            }
+            this.advance()
+            if this.is_class_escape(e) {
+                val id = this.cls_neg.len()
+                if e == "D" || e == "W" || e == "S" {
+                    this.cls_neg = this.cls_neg.push(1)
+                } else {
+                    this.cls_neg = this.cls_neg.push(0)
+                }
+                this.cls_start = this.cls_start.push(this.cls_lo.len())
+                this.push_escape_ranges(e)
+                this.cls_count = this.cls_count.push(this.cls_lo.len() - this.cls_start.get(id))
+                this.emit(OP_CLASS, id, 0)
+                return this
+            }
+            this.push_lit(this.lit_escape(e))
+            return this
+        }
+        this.advance()
+        this.push_lit(c)
+        return this
+    }
+
+    // parse one atom plus its quantifier. The quantifier is located by
+    // lookahead BEFORE the atom is emitted, because '*' and '?' need their
+    // SPLIT instruction in front of the atom body.
+    parse_repeat() -> RegexParser {
+        val c = this.peek()
+        mut atom_end = this.pos + 1
+        if c == "(" {
+            atom_end = this.scan_matching("(", ")")
+            if atom_end < 0 {
+                this.error = "regex: missing ')'"
+                return this
+            }
+            atom_end = atom_end + 1
+        } else if c == "[" {
+            atom_end = this.scan_matching("[", "]")
+            if atom_end < 0 {
+                this.error = "regex: missing ']'"
+                return this
+            }
+            atom_end = atom_end + 1
+        } else if c == "\\" {
+            atom_end = this.pos + 2
+            if atom_end > this.pat.len() {
+                this.error = "regex: dangling escape"
+                return this
+            }
+        }
+        val q = this.peek_at(atom_end - this.pos)
+        if q == "*" {
+            val s = this.instr_count()
+            this.emit(OP_SPLIT, s + 1, 0)
+            this.parse_atom()
+            this.emit(OP_JMP, s, 0)
+            val after = this.instr_count()
+            this.patch(s, 2, after)
+            this.pos = atom_end + 1
+            return this
+        }
+        if q == "+" {
+            val body = this.instr_count()
+            this.parse_atom()
+            val s = this.instr_count()
+            this.emit(OP_SPLIT, body, 0)
+            val after = this.instr_count()
+            this.patch(s, 2, after)
+            this.pos = atom_end + 1
+            return this
+        }
+        if q == "?" {
+            val s = this.instr_count()
+            this.emit(OP_SPLIT, 0, s + 1)
+            this.parse_atom()
+            val after = this.instr_count()
+            this.patch(s, 1, s + 1)
+            this.pos = atom_end + 1
+            return this
+        }
+        this.parse_atom()
+        return this
+    }
+
+    parse_concat() -> RegexParser {
+        while this.error == "" && this.pos < this.pat.len() {
+            val c = this.peek()
+            if c == "|" || c == ")" {
+                return this
+            }
+            this.parse_repeat()
+        }
+        return this
+    }
+
+    // does a top-level '|' exist at this nesting level? The scan respects
+    // groups/classes/escapes and stops at this level's closing paren —
+    // without it, "(ab)|c" would report the parent's '|' as this level's.
+    has_top_level_alt() -> Bool {
+        mut i = this.pos
+        let n = this.pat.len()
+        mut depth = 0
+        while i < n {
+            let c = this.pat.get(i)
+            if c == "\\" {
+                i = i + 2
+            } else {
+                if c == "(" || c == "[" {
+                    depth = depth + 1
+                } else if c == ")" || c == "]" {
+                    if depth == 0 {
+                        return false
+                    }
+                    depth = depth - 1
+                } else if c == "|" && depth == 0 {
+                    return true
+                }
+                i = i + 1
+            }
+        }
+        return false
+    }
+
+    parse_alt() -> RegexParser {
+        // single-branch fast path: NO split scaffolding. With the
+        // scaffolding, a failing first atom backtracked straight to the
+        // loop exit and MATCHED EMPTY — "[0-9]+" returned a zero-length
+        // match at every position (found in PLAN_V155 A1 testing).
+        if this.has_top_level_alt() == false {
+            this.parse_concat()
+            return this
+        }
+        val s1 = this.instr_count()
+        this.emit(OP_SPLIT, s1 + 1, 0)
+        this.parse_concat()
+        val j1 = this.instr_count()
+        this.emit(OP_JMP, 0, 0)
+        mut splits = [s1]
+        mut jmps = [j1]
+        while this.error == "" && this.peek() == "|" {
+            this.advance()
+            val s = this.instr_count()
+            this.emit(OP_SPLIT, s + 1, 0)
+            splits.push(s)
+            this.parse_concat()
+            val j = this.instr_count()
+            this.emit(OP_JMP, 0, 0)
+            jmps.push(j)
+        }
+        val end = this.instr_count()
+        mut ji = 0
+        while ji < jmps.len() {
+            this.patch(jmps.get(ji), 1, end)
+            ji = ji + 1
+        }
+        mut si = 0
+        while si < splits.len() {
+            val s = splits.get(si)
+            this.patch(s, 1, s + 1)
+            if si + 1 < splits.len() {
+                this.patch(s, 2, splits.get(si + 1))
+            } else {
+                this.patch(s, 2, end)
+            }
+            si = si + 1
+        }
+        return this
+    }
+}
+
+fn regex_compile(pattern: Str) -> RegexProg {
+    mut p = RegexParser {
+        pat: split_chars(pattern),
+        pos: 0,
+        prog: [],
+        lits: [],
+        cls_neg: [],
+        cls_start: [],
+        cls_count: [],
+        cls_lo: [],
+        cls_hi: [],
+        ngroups: 0,
+        error: ""
+    }
+    p.emit(OP_SAVE, 0, 0)
+    p.parse_alt()
+    if p.error == "" && p.pos < p.pat.len() {
+        p.error = fmt"regex: unexpected '{p.pat.get(p.pos)}' at position {p.pos}"
+    }
+    p.emit(OP_SAVE, 1, 0)
+    p.emit(OP_MATCH, 0, 0)
+    return RegexProg {
+        prog: p.prog,
+        lits: p.lits,
+        cls_neg: p.cls_neg,
+        cls_start: p.cls_start,
+        cls_count: p.cls_count,
+        cls_lo: p.cls_lo,
+        cls_hi: p.cls_hi,
+        ngroups: p.ngroups,
+        error: p.error
+    }
+}
+
+fn regex_error(pattern: Str) -> Str {
+    return regex_compile(pattern).error
+}
+
+// ---------------------------------------------------------------------------
+// Backtracking VM (iterative — explicit backtrack stack, step budget)
+// ---------------------------------------------------------------------------
+
+fn clone_ints(src: List<Int>) -> List<Int> {
+    mut acc = []
+    mut i = 0
+    while i < src.len() {
+        acc.push(src.get(i))
+        i = i + 1
+    }
+    return acc
+}
+
+fn class_matches(p: RegexProg, id: Int, ch: Str) -> Bool {
+    val st = p.cls_start.get(id)
+    val cnt = p.cls_count.get(id)
+    mut hit = false
+    mut k = 0
+    while hit == false && k < cnt {
+        val lo = p.cls_lo.get(st + k)
+        val hi = p.cls_hi.get(st + k)
+        if str_cmp(ch, lo) >= 0 && str_cmp(ch, hi) <= 0 {
+            hit = true
+        }
+        k = k + 1
+    }
+    if p.cls_neg.get(id) == 1 {
+        return hit == false
+    }
+    return hit
+}
+
+// One match attempt starting exactly at `start`. Returns the groups vector
+// (slot 0/1 = whole match span) on success, [] on failure / budget exceeded.
+fn vm_run(p: RegexProg, chars: List<Str>, start: Int, n: Int) -> List<Int> {
+    val gsize = 2 * (p.ngroups + 1)
+    mut groups = []
+    mut k = 0
+    while k < gsize {
+        groups.push(-1)
+        k = k + 1
+    }
+    mut sp: List<Int> = []
+    mut sp_pos: List<Int> = []
+    mut sp_grp: List<List<Int>> = []
+    mut top = 0
+    mut pc = 0
+    mut pos = start
+    val budget = 100000 + 20000 * n
+    mut steps = 0
+    mut failed = 0
+    while steps <= budget {
+        steps = steps + 1
+        failed = 0
+        val op = p.prog.get(pc * 3)
+        val x = p.prog.get(pc * 3 + 1)
+        val y = p.prog.get(pc * 3 + 2)
+        if op == OP_CHAR {
+            if pos < n && chars.get(pos) == p.lits.get(x) {
+                pc = pc + 1
+                pos = pos + 1
+            } else {
+                failed = 1
+            }
+        } else if op == OP_ANY {
+            if pos < n {
+                pc = pc + 1
+                pos = pos + 1
+            } else {
+                failed = 1
+            }
+        } else if op == OP_CLASS {
+            if pos < n && class_matches(p, x, chars.get(pos)) {
+                pc = pc + 1
+                pos = pos + 1
+            } else {
+                failed = 1
+            }
+        } else if op == OP_SPLIT {
+            // backtrack stack: entries live at logical index `top`. A pop
+            // decrements top WITHOUT truncating the lists, so a re-push
+            // must OVERWRITE slot `top` when it already exists — a plain
+            // append would desync physical len from the logical top and
+            // the next pop would read a stale entry.
+            if top < sp.len() {
+                sp = sp.set(top, y)
+                sp_pos = sp_pos.set(top, pos)
+                sp_grp = sp_grp.set(top, clone_ints(groups))
+            } else {
+                sp.push(y)
+                sp_pos.push(pos)
+                sp_grp.push(clone_ints(groups))
+            }
+            top = top + 1
+            pc = x
+        } else if op == OP_JMP {
+            pc = x
+        } else if op == OP_MATCH {
+            return groups
+        } else if op == OP_BOL {
+            if pos == 0 {
+                pc = pc + 1
+            } else {
+                failed = 1
+            }
+        } else if op == OP_EOL {
+            if pos == n {
+                pc = pc + 1
+            } else {
+                failed = 1
+            }
+        } else if op == OP_SAVE {
+            mut ng = clone_ints(groups)
+            ng = ng.set(x, pos)
+            groups = ng
+            pc = pc + 1
+        } else {
+            failed = 1
+        }
+        if failed == 1 {
+            if top == 0 {
+                return []
+            }
+            top = top - 1
+            pc = sp.get(top)
+            pos = sp_pos.get(top)
+            groups = sp_grp.get(top)
+        }
+    }
+    return []
+}
+
+// first match anywhere in `chars`
+fn vm_search(p: RegexProg, chars: List<Str>) -> List<Int> {
+    val n = chars.len()
+    mut s = 0
+    while s <= n {
+        val g = vm_run(p, chars, s, n)
+        if g.len() > 0 {
+            return g
+        }
+        s = s + 1
+    }
+    return []
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+fn join_chars(chars: List<Str>, a: Int, b: Int) -> Str {
+    mut s = ""
+    mut i = a
+    while i < b {
+        s = s + chars.get(i)
+        i = i + 1
+    }
+    return s
+}
+
+fn groups_to_strs(chars: List<Str>, g: List<Int>) -> List<Str> {
+    mut acc = []
+    val cnt = g.len() / 2
+    mut i = 0
+    while i < cnt {
+        val a = g.get(2 * i)
+        val b = g.get(2 * i + 1)
+        if a >= 0 && b >= a {
+            acc.push(join_chars(chars, a, b))
+        } else {
+            acc.push("")
+        }
+        i = i + 1
+    }
+    return acc
+}
+
+fn expand_repl(repl: Str, chars: List<Str>, g: List<Int>) -> Str {
+    val rc = split_chars(repl)
+    mut acc = ""
+    mut i = 0
+    while i < rc.len() {
+        val c = rc.get(i)
+        if c == "$" && i + 1 < rc.len() {
+            val d = rc.get(i + 1)
+            if str_cmp(d, "0") >= 0 && str_cmp(d, "9") <= 0 {
+                val v = str_to_int(d)
+                if 2 * v + 1 < g.len() {
+                    val a = g.get(2 * v)
+                    val b = g.get(2 * v + 1)
+                    if a >= 0 && b >= a {
+                        acc = acc + join_chars(chars, a, b)
+                    }
+                }
+                i = i + 2
+            } else {
+                acc = acc + c
+                i = i + 1
+            }
+        } else {
+            acc = acc + c
+            i = i + 1
+        }
+    }
+    return acc
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+fn regex_is_match(pattern: Str, text: Str) -> Bool {
+    val p = regex_compile(pattern)
+    if p.error != "" {
+        return false
+    }
+    val chars = split_chars(text)
+    return vm_search(p, chars).len() > 0
+}
+
+fn regex_match_full(pattern: Str, text: Str) -> Bool {
+    val p = regex_compile(pattern)
+    if p.error != "" {
+        return false
+    }
+    val chars = split_chars(text)
+    val n = chars.len()
+    val g = vm_run(p, chars, 0, n)
+    if g.len() == 0 {
+        return false
+    }
+    return g.get(0) == 0 && g.get(1) == n
+}
+
+fn regex_find(pattern: Str, text: Str) -> Result<Str, Str> {
+    val p = regex_compile(pattern)
+    if p.error != "" {
+        return Outcome.err(p.error)
+    }
+    val chars = split_chars(text)
+    val g = vm_search(p, chars)
+    if g.len() == 0 {
+        return Outcome.err("regex: no match")
+    }
+    return Outcome.ok(join_chars(chars, g.get(0), g.get(1)))
+}
+
+fn regex_find_groups(pattern: Str, text: Str) -> Result<List<Str>, Str> {
+    val p = regex_compile(pattern)
+    if p.error != "" {
+        return Outcome.err(p.error)
+    }
+    val chars = split_chars(text)
+    val g = vm_search(p, chars)
+    if g.len() == 0 {
+        return Outcome.err("regex: no match")
+    }
+    return Outcome.ok(groups_to_strs(chars, g))
+}
+
+fn regex_find_all(pattern: Str, text: Str) -> List<Str> {
+    val p = regex_compile(pattern)
+    mut acc = []
+    if p.error != "" {
+        return acc
+    }
+    val chars = split_chars(text)
+    val n = chars.len()
+    mut s = 0
+    while s < n {
+        val g = vm_run(p, chars, s, n)
+        if g.len() > 0 {
+            val a = g.get(0)
+            val b = g.get(1)
+            if b > a {
+                acc.push(join_chars(chars, a, b))
+            }
+            if b > s {
+                s = b
+            } else {
+                s = s + 1
+            }
+        } else {
+            s = s + 1
+        }
+    }
+    return acc
+}
+
+fn regex_replace(pattern: Str, text: Str, replacement: Str) -> Str {
+    val p = regex_compile(pattern)
+    if p.error != "" {
+        return text
+    }
+    val chars = split_chars(text)
+    val n = chars.len()
+    mut acc = ""
+    mut prev = 0
+    mut s = 0
+    while s < n {
+        val g = vm_run(p, chars, s, n)
+        if g.len() > 0 {
+            val a = g.get(0)
+            val b = g.get(1)
+            if b > a {
+                acc = acc + join_chars(chars, prev, a) + expand_repl(replacement, chars, g)
+                prev = b
+            }
+            if b > s {
+                s = b
+            } else {
+                s = s + 1
+            }
+        } else {
+            s = s + 1
+        }
+    }
+    return acc + join_chars(chars, prev, n)
+}
+
+fn regex_split(pattern: Str, text: Str) -> List<Str> {
+    val p = regex_compile(pattern)
+    mut acc = []
+    if p.error != "" {
+        acc.push(text)
+        return acc
+    }
+    val chars = split_chars(text)
+    val n = chars.len()
+    mut prev = 0
+    mut s = 0
+    while s < n {
+        val g = vm_run(p, chars, s, n)
+        if g.len() > 0 {
+            val a = g.get(0)
+            val b = g.get(1)
+            if b > a {
+                acc.push(join_chars(chars, prev, a))
+                prev = b
+            }
+            if b > s {
+                s = b
+            } else {
+                s = s + 1
+            }
+        } else {
+            s = s + 1
+        }
+    }
+    acc.push(join_chars(chars, prev, n))
+    return acc
+}

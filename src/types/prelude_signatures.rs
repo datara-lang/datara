@@ -1188,6 +1188,18 @@ impl<'a> TypeChecker<'a> {
             "math_exp",
             "datara_rt_math_exp",
             "exp",
+            "math_log10",
+            "datara_rt_math_log10",
+            "log10",
+            "math_asin",
+            "datara_rt_math_asin",
+            "asin",
+            "math_acos",
+            "datara_rt_math_acos",
+            "acos",
+            "math_atan",
+            "datara_rt_math_atan",
+            "atan",
         ] {
             function_signatures.insert(
                 f.to_string(),
@@ -1225,6 +1237,9 @@ impl<'a> TypeChecker<'a> {
             "math_hypot",
             "datara_rt_math_hypot",
             "hypot",
+            "math_atan2",
+            "datara_rt_math_atan2",
+            "atan2",
         ] {
             function_signatures.insert(
                 f.to_string(),

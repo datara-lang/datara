@@ -64,6 +64,7 @@ fn sqrt_f(x: Float) -> Float {
     mut guess = x / 2.0
     mut i = 0
     while i < 20 {
+        require guess != 0.0
         guess = (guess + x / guess) / 2.0
         i = i + 1
     }
@@ -83,4 +84,52 @@ fn floor_f(x: Float) -> Int {
 fn round_f(x: Float) -> Int {
     if x >= 0.0 { return (x + 0.5) as Int }
     return (x - 0.5) as Int
+}
+
+// ---------------------------------------------------------------------------
+// Transcendental functions (PLAN_V155 A7): thin wrappers over the C runtime
+// intrinsics (math_sin/math_cos/... are wired in the prelude). The Datara
+// names give the stdlib a uniform surface; the runtime libm does the work.
+// ---------------------------------------------------------------------------
+
+fn sin_f(x: Float) -> Float {
+    return math_sin(x)
+}
+
+fn cos_f(x: Float) -> Float {
+    return math_cos(x)
+}
+
+fn tan_f(x: Float) -> Float {
+    return math_tan(x)
+}
+
+fn asin_f(x: Float) -> Float {
+    return math_asin(x)
+}
+
+fn acos_f(x: Float) -> Float {
+    return math_acos(x)
+}
+
+fn atan_f(x: Float) -> Float {
+    return math_atan(x)
+}
+
+fn atan2_f(y: Float, x: Float) -> Float {
+    return math_atan2(y, x)
+}
+
+fn exp_f(x: Float) -> Float {
+    return math_exp(x)
+}
+
+fn ln_f(x: Float) -> Float {
+    require x > 0.0
+    return math_log(x)
+}
+
+fn log10_f(x: Float) -> Float {
+    require x > 0.0
+    return math_log10(x)
 }

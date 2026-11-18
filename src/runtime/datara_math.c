@@ -48,6 +48,11 @@ double datara_rt_math_clamp(double val, double min_val, double max_val) {
 }
 double datara_rt_math_hypot(double a, double b) { return hypot(a, b); }
 double datara_rt_math_log(double x) { return log(x); }
+double datara_rt_math_log10(double x) { return log10(x); }
+double datara_rt_math_asin(double x) { return asin(x); }
+double datara_rt_math_acos(double x) { return acos(x); }
+double datara_rt_math_atan(double x) { return atan(x); }
+double datara_rt_math_atan2(double y, double x) { return atan2(y, x); }
 double datara_rt_math_exp(double x) { return exp(x); }
 int64_t datara_rt_math_min_int(int64_t a, int64_t b) { return a < b ? a : b; }
 int64_t datara_rt_math_max_int(int64_t a, int64_t b) { return a > b ? a : b; }

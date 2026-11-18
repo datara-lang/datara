@@ -1278,6 +1278,10 @@ pub fn declare_runtime_ext<M: ClifModule>(
         ("round", "math_round", "datara_rt_math_round"),
         ("log", "math_log", "datara_rt_math_log"),
         ("exp", "math_exp", "datara_rt_math_exp"),
+        ("log10", "math_log10", "datara_rt_math_log10"),
+        ("asin", "math_asin", "datara_rt_math_asin"),
+        ("acos", "math_acos", "datara_rt_math_acos"),
+        ("atan", "math_atan", "datara_rt_math_atan"),
     ];
     for (crt_name, alias, rt_name) in &f64_1_funcs {
         let mut sig = Signature::new(call_conv);
@@ -1291,12 +1295,13 @@ pub fn declare_runtime_ext<M: ClifModule>(
         func_ids.insert(rt_name.to_string(), (id, sig));
     }
 
-    // Fast Math: 2-arg double -> double (pow, min, max, hypot)
+    // Fast Math: 2-arg double -> double (pow, min, max, hypot, atan2)
     let f64_2_funcs = [
         ("pow", "math_pow", "datara_rt_math_pow"),
         ("fmin", "math_min", "datara_rt_math_min"),
         ("fmax", "math_max", "datara_rt_math_max"),
         ("hypot", "math_hypot", "datara_rt_math_hypot"),
+        ("atan2", "math_atan2", "datara_rt_math_atan2"),
     ];
     for (crt_name, alias, rt_name) in &f64_2_funcs {
         let mut sig = Signature::new(call_conv);

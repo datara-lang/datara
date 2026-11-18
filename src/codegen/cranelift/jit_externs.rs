@@ -420,6 +420,11 @@ unsafe extern "C" {
     pub fn datara_rt_math_hypot(a: f64, b: f64) -> f64;
     pub fn datara_rt_math_log(x: f64) -> f64;
     pub fn datara_rt_math_exp(x: f64) -> f64;
+    pub fn datara_rt_math_log10(x: f64) -> f64;
+    pub fn datara_rt_math_asin(x: f64) -> f64;
+    pub fn datara_rt_math_acos(x: f64) -> f64;
+    pub fn datara_rt_math_atan(x: f64) -> f64;
+    pub fn datara_rt_math_atan2(y: f64, x: f64) -> f64;
     pub fn datara_rt_math_min_int(a: i64, b: i64) -> i64;
     pub fn datara_rt_math_max_int(a: i64, b: i64) -> i64;
     pub fn datara_rt_math_clamp_int(val: i64, min_val: i64, max_val: i64) -> i64;
