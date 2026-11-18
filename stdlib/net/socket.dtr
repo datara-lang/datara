@@ -14,6 +14,12 @@ behavior TcpStream {
             socket_close(fd)
             return TcpStream { fd: -1, is_closed: true }
         }
+        // E3 fix: the connected socket MUST be non-blocking. A blocking
+        // socket froze the whole scheduler thread on the first would-block
+        // recv (the fiber echo/http deadlock: serve parks on accept, the
+        // client blocks the OS thread on recv, the scheduler never runs
+        // again). Same flip net.tcp_connect does.
+        socket_nonblocking(fd, true)
         return TcpStream { fd: fd, is_closed: false }
     }
 
@@ -28,7 +34,14 @@ behavior TcpStream {
         if this.is_closed || this.fd < 0 {
             return ""
         }
-        return socket_recv(this.fd, max_bytes)
+        // E3 fix: park the FIBER on would-block instead of blocking the
+        // OS thread. A 30 s deadline per call guards against a peer that
+        // never sends (the fiber resumes with a timeout -> empty result).
+        val res = fiber_net_recv(this.fd, max_bytes, 30000)
+        if res.is_success {
+            return res.value
+        }
+        return ""
     }
 
     close() {

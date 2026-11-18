@@ -365,6 +365,11 @@ int64_t datara_rt_fiber_done_count(void) {
 }
 
 static void fiber_switch_to(Fiber* f) {
+        if (getenv("DATARA_IO_TRACE")) {
+        fprintf(stderr, "[switch] to=h%lld state=%d done=%lld/%lld",
+                (long long)f->handle, (int)f->state, (long long)g_done_count, (long long)g_fiber_count);
+        fprintf(stderr, "\n");
+    }
     g_running = f;
     f->state = FIB_RUNNING;
 #ifdef _WIN32
@@ -382,6 +387,13 @@ static Fiber* g_io_waiters[NATVAR_IO_MAX];
 static int64_t g_io_waiter_count = 0;
 
 static void io_wait_add(Fiber* f) {
+    static int64_t dbg_adds = 0;
+    if (getenv("DATARA_IO_TRACE") && (++dbg_adds <= 12 || dbg_adds % 500 == 0)) {
+        fprintf(stderr, "[iowait_add] n=%lld fd=%lld dl=%lld\n",
+
+                (long long)g_io_waiter_count, (long long)f->wait_fd,
+                (long long)f->wait_deadline);
+    }
     if (g_io_waiter_count < NATVAR_IO_MAX) {
         g_io_waiters[g_io_waiter_count++] = f;
     }
@@ -1043,6 +1055,7 @@ void* datara_rt_fiber_net_recv(int64_t sock, int64_t max_bytes, int64_t timeout_
     for (;;) {
 #ifdef _WIN32
         int n = recv((SOCKET)sock, buf, cap, 0);
+        if (getenv("DATARA_IO_TRACE")) { fprintf(stderr, "[rawrecv] sock=%lld n=%d err=%d\n", (long long)sock, n, n == SOCKET_ERROR ? WSAGetLastError() : 0); }
         if (n == SOCKET_ERROR) {
             int err = WSAGetLastError();
             if (err != WSAEWOULDBLOCK && err != WSAEINPROGRESS) {

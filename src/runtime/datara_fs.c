@@ -400,9 +400,28 @@ int64_t datara_rt_file_exists(const char* path) {
 void* datara_rt_outcome_build(int64_t is_success, const char* value, const char* msg) {
     int64_t* obj = (int64_t*)malloc(3 * sizeof(int64_t));
     if (!obj) return NULL;
+    // repro #14 ROOT FIX: value/msg used to be stored VERBATIM. Callers
+    // passing STACK buffers (fiber_net_recv's recv buf, fiber_net_accept's
+    // scratch, mutex wake messages) left dangling pointers behind: the
+    // echo read freed stack and segfaulted outside gdb ("socket recv
+    // error", empty payloads, garbage handles). Copy both strings into
+    // the TLS scratch ring — ring-owned (datara_rt_free ignores ring
+    // pointers), same convention as the checked-IO builders in this file.
+    char* vcopy = NULL;
+    char* mcopy = NULL;
+    if (value && value[0]) {
+        size_t n = strlen(value);
+        vcopy = datara_str_scratch_alloc(n);
+        if (vcopy) memcpy(vcopy, value, n + 1);
+    }
+    if (msg && msg[0]) {
+        size_t n = strlen(msg);
+        mcopy = datara_str_scratch_alloc(n);
+        if (mcopy) memcpy(mcopy, msg, n + 1);
+    }
     obj[0] = is_success;
-    obj[1] = (int64_t)(uintptr_t)(value ? value : "");
-    obj[2] = (int64_t)(uintptr_t)(msg ? msg : "");
+    obj[1] = (int64_t)(uintptr_t)(vcopy ? vcopy : "");
+    obj[2] = (int64_t)(uintptr_t)(mcopy ? mcopy : "");
     return (void*)obj;
 }
 

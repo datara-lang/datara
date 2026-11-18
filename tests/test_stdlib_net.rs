@@ -4,13 +4,11 @@
 //! PARKS the fiber and times out cleanly at its deadline, tcp_close
 //! works, the scheduler drains.
 //!
-//! VERIFIED under gdb (repro #14 / E3 dedicated pass): the FULL echo
-//! (serve accepts the pending connection, recv, echo, client receives
-//! "echo:hello") completes correctly on the AOT tier — the entire flow
-//! is proven. Outside gdb the echo segfaults 5/5: a timing-sensitive
-//! race in the fiber wake/switch path that the E3 dedicated pass must
-//! fix (the double-wake guard and the deadline fixes reduced it but
-//! the remaining window needs the fiber-binding rework).
+//! E3/repro #14 CLOSED (2026-11-18): the full echo now passes OUTSIDE
+//! gdb 5/5 on the AOT tier - root cause was datara_rt_outcome_build
+//! storing stack-buffer string pointers verbatim (dangling payloads),
+//! plus socket.dtr's TcpStream blocking the scheduler thread on recv.
+//! The full echo + HTTP round trip are pinned in tests/test_fiber_echo.rs.
 //!
 //! The test below pins the RELIABLE contract (accept + timeout drain);
 //! the echo shape is the E3 acceptance criterion.

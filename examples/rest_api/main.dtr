@@ -1,0 +1,219 @@
+//! JSON REST API on fibers (PLAN_V155 B2 flagship) — a complete
+//! in-memory CRUD service in one file:
+//!
+//!   GET  /health               -> {"ok":true}
+//!   POST /api/items            -> 201 {"id":1,"name":"alpha"}   (body: {"name":"alpha"})
+//!   GET  /api/items            -> [{"id":1,"name":"alpha"}, ...]
+//!   GET  /api/items/{id}       -> {"id":1,"name":"alpha"} | 404
+//!
+//! The demo main() spawns a server fiber and a client fiber; the client
+//! drives every route through stdlib.http.client and prints the responses,
+//! so `forgen run examples/rest_api/main.dtr` is a self-verifying tour.
+//! The POST body's "name" field is extracted with stdlib.text.regex —
+//! dogfooding the stdlib regex engine.
+
+use stdlib.net.net
+use stdlib.http.client
+use stdlib.text.regex
+
+// ---- in-memory store (server-fiber-owned) ----
+mut s_ids: List<Int> = []
+mut s_names: List<Str> = []
+mut s_next_id: Int = 0
+
+fn store_add(name: Str) -> Int {
+    s_next_id = s_next_id + 1
+    s_ids = s_ids.push(s_next_id)
+    s_names = s_names.push(name)
+    return s_next_id
+}
+
+fn item_json(id: Int, name: Str) -> Str {
+    return "{\"id\":" + int_to_str(id) + ",\"name\":\"" + name + "\"}"
+}
+
+fn store_find_id(index: Int) -> Int {
+    if index >= 0 && index < s_ids.len() {
+        return s_ids.get(index)
+    }
+    return -1
+}
+
+fn store_find_name_by_id(id: Int) -> Str {
+    mut i = 0
+    while i < s_ids.len() {
+        if s_ids.get(i) == id {
+            return s_names.get(i)
+        }
+        i = i + 1
+    }
+    return ""
+}
+
+fn store_list_json() -> Str {
+    mut acc = "["
+    mut i = 0
+    while i < s_ids.len() {
+        if i > 0 {
+            acc = acc + ","
+        }
+        acc = acc + item_json(s_ids.get(i), s_names.get(i))
+        i = i + 1
+    }
+    return acc + "]"
+}
+
+// ---- request routing ----
+fn extract_name(body: Str) -> Str {
+    let p = "\"name\"\s*:\s*\"([^\"]+)\""
+    val gs = regex_find_groups(p, body)
+    if gs.is_success && gs.value.len() >= 2 {
+        return gs.value.get(1)
+    }
+    return ""
+}
+
+fn respond(peer: Int, status: Int, body: Str) {
+    let status_txt = if status == 200 {
+        "200 OK"
+    } else if status == 201 {
+        "201 Created"
+    } else if status == 404 {
+        "404 Not Found"
+    } else {
+        "400 Bad Request"
+    }
+    let head = "HTTP/1.1 " + status_txt + "\r\nContent-Type: application/json\r\nContent-Length: " + int_to_str(str_len(body)) + "\r\nConnection: close\r\n\r\n"
+    tcp_send(peer, head + body)
+}
+
+fn route(method: Str, path: Str, body: Str) -> Str {
+    // returns "STATUS<TAB>BODY"
+    if method == "GET" && path == "/health" {
+        return "200\t{\"ok\":true}"
+    }
+    if method == "GET" && path == "/api/items" {
+        return "200\t" + store_list_json()
+    }
+    if method == "POST" && path == "/api/items" {
+        let name = extract_name(body)
+        if str_len(name) == 0 {
+            return "400\t{\"error\":\"missing name\"}"
+        }
+        let id = store_add(name)
+        return "201\t" + item_json(id, name)
+    }
+    let single = "/api/items/"
+    if method == "GET" && str_starts_with(path, single) {
+        let id_str = str_substring(path, str_len(single), str_len(path) - str_len(single))
+        let id = str_to_int(id_str)
+        let name = store_find_name_by_id(id)
+        if str_len(name) > 0 {
+            return "200\t" + item_json(id, name)
+        }
+        return "404\t{\"error\":\"not found\"}"
+    }
+    return "404\t{\"error\":\"no route\"}"
+}
+
+fn split_tab(s: Str) -> Str {
+    // demo helper: return the part after TAB (status/body split)
+    let idx = str_index_of(s, "\t")
+    if idx >= 0 {
+        return str_substring(s, idx + 1, str_len(s) - idx - 1)
+    }
+    return s
+}
+
+fn split_tab_status(s: Str) -> Str {
+    let idx = str_index_of(s, "\t")
+    if idx >= 0 {
+        return str_substring(s, 0, idx)
+    }
+    return "500"
+}
+
+fn handle_client(peer: Int) {
+    let raw = tcp_recv(peer, 8192, 5000)
+    if raw.is_success {
+        // request line: METHOD SP PATH SP HTTP/1.1
+        let line_end = str_index_of(raw.value, "\r\n")
+        mut line = raw.value
+        if line_end > 0 {
+            line = str_substring(raw.value, 0, line_end)
+        }
+        let sp1 = str_index_of(line, " ")
+        let sp2 = str_index_of(str_substring(line, sp1 + 1, str_len(line) - sp1 - 1), " ")
+        let method = str_substring(line, 0, sp1)
+        let path = str_substring(str_substring(line, sp1 + 1, str_len(line) - sp1 - 1), 0, sp2)
+        let body_idx = str_index_of(raw.value, "\r\n\r\n")
+        let body = if body_idx > 0 {
+            str_substring(raw.value, body_idx + 4, str_len(raw.value) - body_idx - 4)
+        } else {
+            ""
+        }
+        let result = route(method, path, body)
+        respond(peer, str_to_int(split_tab_status(result)), split_tab(result))
+    }
+    tcp_close(peer)
+}
+
+fn serve(count: Int) {
+    let bound = tcp_listen(45350)
+    if bound.is_success {
+        mut served = 0
+        while served < count {
+            val acc = tcp_accept(bound.value)
+            if acc.is_success {
+                served = served + 1
+                handle_client(acc.value)
+            }
+        }
+        tcp_close(bound.value)
+    }
+}
+
+// ---- demo client: drive every route ----
+fn client_work() {
+    fiber_sleep_ms(150)
+    let client = HttpClient.new()
+
+    let h = client.get("127.0.0.1", 45350, "/health")
+    if h.is_success {
+        out fmt"health: {h.value.status} {h.value.body}"
+    }
+
+    let c1 = client.post("127.0.0.1", 45350, "/api/items", "{\"name\":\"alpha\"}", "application/json")
+    if c1.is_success {
+        out fmt"create: {c1.value.status} {c1.value.body}"
+    }
+
+    let c2 = client.post("127.0.0.1", 45350, "/api/items", "{\"name\":\"beta\"}", "application/json")
+    if c2.is_success {
+        out fmt"create: {c2.value.status} {c2.value.body}"
+    }
+
+    let lst = client.get("127.0.0.1", 45350, "/api/items")
+    if lst.is_success {
+        out fmt"list:   {lst.value.status} {lst.value.body}"
+    }
+
+    let one = client.get("127.0.0.1", 45350, "/api/items/1")
+    if one.is_success {
+        out fmt"get 1:  {one.value.status} {one.value.body}"
+    }
+
+    let missing = client.get("127.0.0.1", 45350, "/api/items/99")
+    if missing.is_success {
+        out fmt"get 99: {missing.value.status} {missing.value.body}"
+    }
+}
+
+fn main() {
+    unsafe(justification: "REST API demo: loopback self-test") {
+        fiber_spawn(serve, 6)
+        fiber_spawn(client_work, 0)
+        fiber_run_until_done()
+        out "REST-DEMO-DONE"
+    }
+}

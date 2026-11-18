@@ -1,18 +1,15 @@
 //! HTTP/1.1 server on fibers (PLAN_V155 B1) — listen, accept, parse,
-//! route, respond. Minimal but functional.
+//! route, respond. Minimal but functional: serves 10 sequential requests
+//! on loopback and answers each with a JSON status body.
 
 use stdlib.net.net
 
 fn handle_client(peer: Int, count: Int) {
     val req = tcp_recv(peer, 4096, 5000)
     if req.is_success {
-        val body = '{"status":"ok","count":' + int_to_str(count) + '}'
-        val response = 'HTTP/1.1 200 OK
-Content-Type: application/json
-Content-Length: ' + int_to_str(str_len(body)) + '
-Connection: close
-
-' + body
+        val body = "{\"status\":\"ok\",\"count\":" + int_to_str(count) + "}"
+        let header = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " + int_to_str(str_len(body)) + "\r\nConnection: close\r\n\r\n"
+        let response = header + body
         tcp_send(peer, response)
     }
     tcp_close(peer)
@@ -25,18 +22,23 @@ fn serve(l: Int) {
         if acc.is_success {
             count = count + 1
             handle_client(acc.value, count)
+        } else {
+            // accept timed out with no pending client — do not spin forever
+            break
         }
     }
     tcp_close(l)
 }
 
 fn main() {
-    unsafe(justification: 'HTTP server on loopback') {
+    unsafe(justification: "HTTP server on loopback") {
         val bound = tcp_listen(8080)
         if bound.is_success {
-            out 'HTTP server on http://127.0.0.1:8080'
+            out "HTTP server on http://127.0.0.1:8080"
             serve(bound.value)
-            out 'Server done (10 requests served)'
+            out "Server done (10 requests served)"
+        } else {
+            out fmt"listen failed: {bound.error_msg}"
         }
     }
 }
