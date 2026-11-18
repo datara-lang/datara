@@ -731,6 +731,19 @@ pub fn compile_call<M: ClifModule>(
             }
         }
     }
+    // Builtin arity guard (repro: tcp_recv(sock, max) with 2 args against
+    // the 3-param runtime signature reached Cranelift's ABI assertion and
+    // PANICKED the compiler thread). Fail with a clean message instead.
+    if let Some((_, sig_at_call)) = ctx.func_ids.get(&resolved_callee_name) {
+        if sig_at_call.params.len() != arg_vals.len() {
+            return Err(format!(
+                "Code generation failed: builtin '{}' expects {} argument(s), call passes {} — check the function's parameter list",
+                func,
+                sig_at_call.params.len(),
+                arg_vals.len()
+            ));
+        }
+    }
     let call_inst = ctx.builder.ins().call(callee_ref, &arg_vals);
     let results = ctx.builder.inst_results(call_inst);
     // ret_ty lookup: resolved name first (print specialization may have
