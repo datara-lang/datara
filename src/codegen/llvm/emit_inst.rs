@@ -527,6 +527,11 @@ impl<'a> LlvmEmitter<'a> {
                                     "  %v{} = zext i1 {} to i64\n",
                                     dest.0, cmp_temp
                                 ));
+                                // repro #15a: comparisons ALWAYS produce a
+                                // Bool (Cranelift's inst_binop tags by
+                                // operator) — without this the inlined
+                                // is_adult()/is_ok() results printed 1/0.
+                                bool_vids.insert(*dest);
                             } else {
                                 let cmp_op = match op.as_str() {
                                     "==" => "eq",
@@ -546,6 +551,9 @@ impl<'a> LlvmEmitter<'a> {
                                     "  %v{} = zext i1 {} to i64\n",
                                     dest.0, cmp_temp
                                 ));
+                                // repro #15a (int-compare branch): same
+                                // Bool tagging as the ptr branch above.
+                                bool_vids.insert(*dest);
                             }
                         }
                         "&" | "&&" => {
@@ -773,15 +781,50 @@ impl<'a> LlvmEmitter<'a> {
                 field,
                 ty,
             } => {
-                let f_ty = self.dmir_type_to_llvm(ty);
-                value_types.insert(*dest, f_ty);
-                // Declared-bool fields ride in i64 slots — track the dest so
-                // Out/FormatStr print 'true'/'false' instead of the raw 0/1
-                // word (backend parity with Cranelift: parity_matrix caught
-                // 'Result: status=1' vs 'status=true' on examples/09).
-                if ty == "Bool" {
+                let mut f_ty = self.dmir_type_to_llvm(ty);
+                // repro #15a/#15c: the DMIR ty for entity/Outcome payload
+                // fields can lose the declared marker (Bool -> Int, Str ->
+                // Int). Consult the class field table — the same source the
+                // Cranelift backend's GetField classification reads — so
+                // Out prints true/false and strings instead of raw words.
+                let obj_cls = value_classes.get(object).cloned().unwrap_or_default();
+                let base_cls: &str = obj_cls.split('<').next().unwrap_or(&obj_cls);
+                let fty_key = format!("{}.{}", obj_cls, field);
+                let fty_base = format!("{}.{}", base_cls, field);
+                let declared_ft = module
+                    .class_field_types
+                    .get(&fty_key)
+                    .or_else(|| module.class_field_types.get(&fty_base))
+                    .map(|s| s.as_str());
+                let is_outcome =
+                    base_cls == "Outcome" || base_cls == "Result" || base_cls == "Maybe";
+                if is_outcome {
+                    // Built-in Outcome ABI: [0]=is_success, [1]=value,
+                    // [2]=error_msg (datara_runtime.h contract). The
+                    // err channel is ALWAYS a string; the ok channel's
+                    // type rides in the class name (Outcome<Str, ...>).
+                    if field == "is_success" || field == "is_ok" {
+                        bool_vids.insert(*dest);
+                        if f_ty == "i64" {
+                            f_ty = "i64";
+                        }
+                    } else if field == "error_msg" || field == "err" {
+                        f_ty = "ptr";
+                    } else if field == "value" || field == "ok" {
+                        if let Some(inner) = obj_cls.strip_prefix("Outcome<") {
+                            let ok_ty = inner.split(',').next().unwrap_or(inner).trim();
+                            if ok_ty == "Str" || ok_ty == "String" {
+                                f_ty = "ptr";
+                            }
+                        }
+                    }
+                } else if declared_ft == Some("Bool") || ty == "Bool" {
+                    // Declared-bool fields ride in i64 slots — track the dest
+                    // so Out/FormatStr print 'true'/'false' instead of the raw
+                    // 0/1 word (backend parity with Cranelift).
                     bool_vids.insert(*dest);
                 }
+                value_types.insert(*dest, f_ty);
 
                 let offset = self.find_field_offset(
                     module,

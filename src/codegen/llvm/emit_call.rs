@@ -137,6 +137,13 @@ impl<'a> LlvmEmitter<'a> {
                 value_classes.insert(*dest, rc);
             }
         }
+        // repro #15a: Bool-typed call/method results must print as
+        // true/false on the LLVM tier too (Cranelift tags bool_vids from
+        // the DMIR ty; the LLVM path only did it for a few branches —
+        // is_adult(20)/is_ok() printed 1 instead of true).
+        if ty == "Bool" {
+            bool_vids.insert(*dest);
+        }
 
         // Map standard runtime names to datara_rt equivalents if needed.
         // A USER function with the same name always wins: the package
@@ -419,6 +426,25 @@ impl<'a> LlvmEmitter<'a> {
             return Ok(());
         }
 
+        // repro #15a: print specialization parity with Cranelift's
+        // inst_call.rs — a print_int/print_out_int whose argument is a
+        // bool-tagged value must call print_bool/out_bool, or the fmt
+        // expansion of an inlined `user.is_adult(20)` printed 1/0 on the
+        // LLVM tier (Cranelift rewrote the callee and printed true/false).
+        if args.len() == 1
+            && (actual_func == "datara_rt_print_int" || actual_func == "datara_rt_out_int")
+            && bool_vids.contains(&args[0])
+        {
+            let a = args[0];
+            let repl = if actual_func == "datara_rt_print_int" {
+                "datara_rt_print_bool"
+            } else {
+                "datara_rt_out_bool"
+            };
+            out.push_str(&format!("  call void @{}(i64 %v{})\n", repl, a.0));
+            return Ok(());
+        }
+
         let is_str_concat = actual_func.starts_with("datara_rt_str_concat");
         let mut converted_args = Vec::new();
         // http_get historically had a zero-arg builtin signature;
@@ -444,6 +470,31 @@ impl<'a> LlvmEmitter<'a> {
         } else {
             actual_func
         };
+
+        if std::env::var("DATARA_LLVM_TRACE").is_ok() {
+            eprintln!(
+                "[llvm-call] func={} actual={} rt={:?}",
+                func,
+                actual_func,
+                module
+                    .functions
+                    .get(actual_func)
+                    .map(|f| f.return_type.clone())
+            );
+        }
+        // repro #15a: re-tag Bool AFTER the actual callee resolution. The
+        // early check ran on the ORIGINAL name — a method call
+        // `user.is_adult(20)` resolves to the DMIR function
+        // `User_is_adult`, and the miss printed the returned Bool as 1/0
+        // on the LLVM tier (Cranelift resolves through the class-matched
+        // dispatch instead).
+        if module
+            .functions
+            .get(actual_func)
+            .is_some_and(|f| f.return_type == "Bool")
+        {
+            bool_vids.insert(*dest);
+        }
 
         for (idx, a) in args.iter().enumerate() {
             let aty = value_types.get(a).copied().unwrap_or("i64");
@@ -585,6 +636,13 @@ impl<'a> LlvmEmitter<'a> {
             if let Some(rc) = class_type_name(ty) {
                 value_classes.insert(*dest, rc);
             }
+        }
+        // repro #15a: Bool-typed call/method results must print as
+        // true/false on the LLVM tier too (Cranelift tags bool_vids from
+        // the DMIR ty; the LLVM path only did it for a few branches —
+        // is_adult(20)/is_ok() printed 1 instead of true).
+        if ty == "Bool" {
+            bool_vids.insert(*dest);
         }
         // Numeric conversion intrinsics (Gate 7 explicit casts):
         // a single LLVM conversion instruction, no runtime call.
@@ -867,6 +925,29 @@ impl<'a> LlvmEmitter<'a> {
         } else {
             actual_func
         };
+
+        if std::env::var("DATARA_LLVM_TRACE").is_ok() {
+            eprintln!(
+                "[llvm-mc] method={} actual={} rt={:?}",
+                method,
+                actual_func,
+                module
+                    .functions
+                    .get(&actual_func)
+                    .map(|f| f.return_type.clone())
+            );
+        }
+        // repro #15a: Bool-returning METHOD calls must print true/false on
+        // the LLVM tier too — tag by the resolved callee's return type
+        // (`user.is_adult(20)` dispatches to `User_is_adult` whose
+        // return_type is Bool; the DMIR ty alone missed it).
+        if module
+            .functions
+            .get(&actual_func)
+            .is_some_and(|f| f.return_type == "Bool")
+        {
+            bool_vids.insert(*dest);
+        }
 
         let mut all_args = vec![obj_arg];
         for (idx, a) in args.iter().enumerate() {
