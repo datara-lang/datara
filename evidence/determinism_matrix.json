@@ -288,7 +288,7 @@
         },
         "llvm": {
           "exit": 0,
-          "stdout": "=== Datara Variable Triad Demo ===\nlet: HyperEngine with max_connections = 5000\nmut counter: 42\nval constant: 2\nmut val (as Int): 100\nmut val (as Str): 140695280976814\nmut val (as List):\n  1\n  2\n  3\n  4\n=== Demo completed successfully ==="
+          "stdout": "=== Datara Variable Triad Demo ===\nlet: HyperEngine with max_connections = 5000\nmut counter: 42\nval constant: 2\nmut val (as Int): 100\nmut val (as Str): 140697711182766\nmut val (as List):\n  1\n  2\n  3\n  4\n=== Demo completed successfully ==="
         }
       }
     },
@@ -297,15 +297,15 @@
       "tiers": {
         "cranelift": {
           "exit": 0,
-          "stdout": "ok.is_ok() = true, err = ''\nbad.is_err() = true, err = 'synthetic failure'\nconfig: setting=enabled\nexpected failure: file read failed: cannot open 'no_such_config_anywhere.txt'\nPATH present: true\nmissing var is_err: true\ndirectory entries: 478, cargo manifest found: Cargo.toml\nentry #6\nentry #8\ndemo complete"
+          "stdout": "ok.is_ok() = true, err = ''\nbad.is_err() = true, err = 'synthetic failure'\nconfig: setting=enabled\nexpected failure: file read failed: cannot open 'no_such_config_anywhere.txt'\nPATH present: true\nmissing var is_err: true\ndirectory entries: 480, cargo manifest found: Cargo.toml\nentry #6\nentry #8\ndemo complete"
         },
         "jit": {
           "exit": 0,
-          "stdout": "ok.is_ok() = true, err = ''\nbad.is_err() = true, err = 'synthetic failure'\nconfig: setting=enabled\nexpected failure: file read failed: cannot open 'no_such_config_anywhere.txt'\nPATH present: true\nmissing var is_err: true\ndirectory entries: 478, cargo manifest found: Cargo.toml\nentry #6\nentry #8\ndemo complete"
+          "stdout": "ok.is_ok() = true, err = ''\nbad.is_err() = true, err = 'synthetic failure'\nconfig: setting=enabled\nexpected failure: file read failed: cannot open 'no_such_config_anywhere.txt'\nPATH present: true\nmissing var is_err: true\ndirectory entries: 480, cargo manifest found: Cargo.toml\nentry #6\nentry #8\ndemo complete"
         },
         "llvm": {
           "exit": 0,
-          "stdout": "ok.is_ok() = 1, err = '140696196862800'\nbad.is_err() = 1, err = '140696196862846'\nconfig: setting=enabled\nexpected failure: 1723491221584\nPATH present: 1\nmissing var is_err: 1\ndirectory entries: 478, cargo manifest found: Cargo.toml\nentry #6\nentry #8\ndemo complete"
+          "stdout": "ok.is_ok() = 1, err = '140694715683664'\nbad.is_err() = 1, err = '140694715683710'\nconfig: setting=enabled\nexpected failure: 2684803010752\nPATH present: 1\nmissing var is_err: 1\ndirectory entries: 480, cargo manifest found: Cargo.toml\nentry #6\nentry #8\ndemo complete"
         }
       }
     },
@@ -339,7 +339,7 @@
         },
         "llvm": {
           "exit": 0,
-          "stdout": "==========================================================\n  DATARA v1.3.0: COMPTIME ADAPTIVE FLOW-TYPING DEMO       \n==========================================================\nRegister state 1 (Int):     250\nRegister state 2 (Scales):  1000\nRegister state 3 (Str):     140698737607648\n==========================================================\nAdaptive flow-typing achieves C-like execution speed."
+          "stdout": "==========================================================\n  DATARA v1.3.0: COMPTIME ADAPTIVE FLOW-TYPING DEMO       \n==========================================================\nRegister state 1 (Int):     250\nRegister state 2 (Scales):  1000\nRegister state 3 (Str):     140702824039392\n==========================================================\nAdaptive flow-typing achieves C-like execution speed."
         }
       }
     },
@@ -348,15 +348,15 @@
       "tiers": {
         "cranelift": {
           "exit": 0,
-          "stdout": "================================================================\nDatara v1.3.0 - 3D Raytracer Render Engine Benchmark\nTarget: 480,000 Rays (800x600 Resolution, 3 Spheres, Phong)\n================================================================\nRendered:    800x600 = 480000 pixels\nHits:        104040\nChecksum:    15602392.502885357\nRender Time: 103 ms\nVerification: Exact bit-for-bit checksum match with Rust & C++."
+          "stdout": "================================================================\nDatara v1.3.0 - 3D Raytracer Render Engine Benchmark\nTarget: 480,000 Rays (800x600 Resolution, 3 Spheres, Phong)\n================================================================\nRendered:    800x600 = 480000 pixels\nHits:        104040\nChecksum:    15602392.502885357\nRender Time: 82 ms\nVerification: Exact bit-for-bit checksum match with Rust & C++."
         },
         "jit": {
           "exit": 0,
-          "stdout": "================================================================\nDatara v1.3.0 - 3D Raytracer Render Engine Benchmark\nTarget: 480,000 Rays (800x600 Resolution, 3 Spheres, Phong)\n================================================================\nRendered:    800x600 = 480000 pixels\nHits:        104040\nChecksum:    15602392.502885357\nRender Time: 96 ms\nVerification: Exact bit-for-bit checksum match with Rust & C++."
+          "stdout": "================================================================\nDatara v1.3.0 - 3D Raytracer Render Engine Benchmark\nTarget: 480,000 Rays (800x600 Resolution, 3 Spheres, Phong)\n================================================================\nRendered:    800x600 = 480000 pixels\nHits:        104040\nChecksum:    15602392.502885357\nRender Time: 81 ms\nVerification: Exact bit-for-bit checksum match with Rust & C++."
         },
         "llvm": {
           "exit": 0,
-          "stdout": "================================================================\nDatara v1.3.0 - 3D Raytracer Render Engine Benchmark\nTarget: 480,000 Rays (800x600 Resolution, 3 Spheres, Phong)\n================================================================\nRendered:    800x600 = 480000 pixels\nHits:        120000\nChecksum:    6600000\nRender Time: 24 ms\nVerification: Exact bit-for-bit checksum match with Rust & C++."
+          "stdout": "================================================================\nDatara v1.3.0 - 3D Raytracer Render Engine Benchmark\nTarget: 480,000 Rays (800x600 Resolution, 3 Spheres, Phong)\n================================================================\nRendered:    800x600 = 480000 pixels\nHits:        120000\nChecksum:    6600000\nRender Time: 21 ms\nVerification: Exact bit-for-bit checksum match with Rust & C++."
         }
       }
     },

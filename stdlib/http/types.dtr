@@ -8,35 +8,54 @@
 
 behavior HttpRequest {
     parse(raw: Str) -> HttpRequest {
-        mut method = "GET"
-        mut path = "/"
-        
-        if str_starts_with(raw, "GET ") {
-            method = "GET"
-            path = str_trim(raw)
+        // request line: METHOD SP TARGET SP HTTP/1.x
+        // target: /path?query=val&x=y  — query is split off
+        let line_end = str_index_of(raw, "\r\n")
+        let line = if line_end >= 0 {
+            str_substring(raw, 0, line_end)
+        } else {
+            str_trim(raw)
         }
-        if str_starts_with(raw, "POST ") {
-            method = "POST"
+        let sp1 = str_index_of(line, " ")
+        let method = if sp1 > 0 {
+            str_substring(line, 0, sp1)
+        } else {
+            "GET"
         }
-        if str_starts_with(raw, "PUT ") {
-            method = "PUT"
+        let rest = if sp1 > 0 {
+            str_substring(line, sp1 + 1, str_len(line) - sp1 - 1)
+        } else {
+            "/"
         }
-        if str_starts_with(raw, "DELETE ") {
-            method = "DELETE"
+        let sp2 = str_index_of(rest, " ")
+        let target = if sp2 >= 0 {
+            str_substring(rest, 0, sp2)
+        } else {
+            rest
         }
-
+        let q = str_index_of(target, "?")
+        let path = if q >= 0 {
+            str_substring(target, 0, q)
+        } else {
+            target
+        }
+        let query = if q >= 0 {
+            str_substring(target, q + 1, str_len(target) - q - 1)
+        } else {
+            ""
+        }
         let body_idx = str_index_of(raw, "\r\n\r\n")
-        mut body = ""
-        if body_idx > 0 {
-            body = raw
+        let body = if body_idx >= 0 {
+            str_substring(raw, body_idx + 4, str_len(raw) - body_idx - 4)
+        } else {
+            ""
         }
-
         return HttpRequest {
             method: method,
             path: path,
             headers: raw,
             body: body,
-            query: ""
+            query: query
         }
     }
 }
