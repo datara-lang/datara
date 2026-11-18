@@ -52,6 +52,9 @@ pub fn compile_all_functions<M: ClifModule>(
     let mut fn_builder_ctx = FunctionBuilderContext::new();
     let mut codegen_ctx = cranelift_codegen::Context::new();
     for name in sorted_func_names {
+        if std::env::var("DATARA_FUNC_TRACE").is_ok() {
+            eprintln!("[compile_fn] {name}");
+        }
         let f = dmir_module
             .functions
             .get(name)

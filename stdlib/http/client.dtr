@@ -1,5 +1,25 @@
-﻿use stdlib.net.socket
-use stdlib.http.types
+//! stdlib.http.client — HTTP/1.1 client over the fiber socket API.
+//!
+//! All requests return Result<HttpResponse, Str>: network failures, sends
+//! and malformed responses are errors, never sentinel strings.
+//!
+//!   let client = HttpClient.new()
+//!   let resp = client.get("localhost", 8080, "/api/health")
+//!   if resp.is_success {
+//!       out fmt"{resp.value.status} {resp.value.body}"
+//!   }
+//!
+//! The request is always `Connection: close` (one request per connection);
+//! the body is drained by looping recv until the server closes the socket,
+//! capped at 1 MiB so a runaway server cannot loop forever.
+
+use stdlib.net.socket
+
+struct HttpResponse {
+    status: Int
+    body: Str
+    headers_raw: Str
+}
 
 struct HttpClient {
     timeout_ms: Int
@@ -12,39 +32,93 @@ behavior HttpClient {
         }
     }
 
-    get(host: Str, port: Int, path: Str) -> Str {
+    // single entry point: build, send, receive and parse one request
+    request(host: Str, port: Int, method: Str, path: Str, body: Str, content_type: Str) -> Result<HttpResponse, Str> {
         let stream = TcpStream.connect(host, port)
         if stream.is_closed {
-            return "ERROR: Connection failed"
+            return Outcome.err("http: connection failed")
         }
 
-        let req = "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\nConnection: close\r\n\r\n"
+        mut req = method + " " + path + " HTTP/1.1\r\n"
+        req = req + "Host: " + host + "\r\n"
+        if str_len(body) > 0 {
+            req = req + "Content-Type: " + content_type + "\r\n"
+            req = req + "Content-Length: " + int_to_str(str_len(body)) + "\r\n"
+        }
+        req = req + "Connection: close\r\n\r\n"
+        if str_len(body) > 0 {
+            req = req + body
+        }
+
         let sent = stream.send(req)
         if sent <= 0 {
             stream.close()
-            return "ERROR: Send failed"
+            return Outcome.err("http: send failed")
         }
 
-        let resp = stream.recv(8192)
+        // drain until the server closes the socket (Connection: close)
+        mut acc = ""
+        mut guard = 0
+        while guard < 64 {
+            let chunk = stream.recv(16384)
+            if str_len(chunk) <= 0 {
+                break
+            }
+            acc = acc + chunk
+            if str_len(acc) > 1048576 {
+                break
+            }
+            guard = guard + 1
+        }
         stream.close()
-        return resp
+
+        if str_len(acc) == 0 {
+            return Outcome.err("http: empty response")
+        }
+        return parse_response(acc)
     }
 
-    post(host: Str, port: Int, path: Str, body: Str, content_type: Str) -> Str {
-        let stream = TcpStream.connect(host, port)
-        if stream.is_closed {
-            return "ERROR: Connection failed"
-        }
-
-        let req = "POST " + path + " HTTP/1.1\r\nHost: " + host + "\r\nContent-Type: " + content_type + "\r\nConnection: close\r\n\r\n" + body
-        let sent = stream.send(req)
-        if sent <= 0 {
-            stream.close()
-            return "ERROR: Send failed"
-        }
-
-        let resp = stream.recv(8192)
-        stream.close()
-        return resp
+    get(host: Str, port: Int, path: Str) -> Result<HttpResponse, Str> {
+        return this.request(host, port, "GET", path, "", "")
     }
+
+    post(host: Str, port: Int, path: Str, body: Str, content_type: Str) -> Result<HttpResponse, Str> {
+        return this.request(host, port, "POST", path, body, content_type)
+    }
+}
+
+// split "HTTP/1.1 200 OK\r\nHeader: v\r\n\r\nbody" into status/headers/body
+fn parse_response(resp: Str) -> Result<HttpResponse, Str> {
+    let sep = str_index_of(resp, "\r\n\r\n")
+    if sep < 0 {
+        return Outcome.err("http: malformed response (no header terminator)")
+    }
+    let head = str_substring(resp, 0, sep)
+    let body = str_substring(resp, sep + 4, str_len(resp) - sep - 4)
+
+    let line_end = str_index_of(head, "\r\n")
+    let status_line = if line_end >= 0 {
+        str_substring(head, 0, line_end)
+    } else {
+        head
+    }
+    let headers = if line_end >= 0 {
+        str_substring(head, line_end + 2, str_len(head) - line_end - 2)
+    } else {
+        ""
+    }
+
+    let parts = str_split(status_line, " ")
+    if parts.len() < 2 {
+        return Outcome.err("http: malformed status line")
+    }
+    let status = str_to_int(parts.get(1))
+    if status < 100 || status > 599 {
+        return Outcome.err("http: bad status code")
+    }
+    return Outcome.ok(HttpResponse {
+        status: status,
+        body: body,
+        headers_raw: headers
+    })
 }
